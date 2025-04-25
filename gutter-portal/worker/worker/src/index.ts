@@ -10,25 +10,67 @@
  *
  * Learn more at https://developers.cloudflare.com/workers/
  */
+import { SignJWT, jwtVerify } from 'jose';
+
+const USERS = {
+  "user@example.com": { password: "hunter2", name: "Demo User" },
+};
 
 export default {
-	async fetch(request, env, ctx) {
-	  const url = new URL(request.url);
-	  // Route: GET /api/ping
-	  if (url.pathname === '/api/ping' && request.method === 'GET') {
-		return new Response(JSON.stringify({ message: 'pong' }), {
-		  headers: {
-			'Content-Type': 'application/json',
-			'Access-Control-Allow-Origin': '*',         // for dev; tighten later
-			'Access-Control-Allow-Methods': 'GET,OPTIONS',
-		  }
-		});
-	  }
-  
-	  // Fallback: Hello World
-	  return new Response('Hello World!', {
-		headers: { 'content-type': 'text/plain' }
-	  });
-	}
-  } satisfies ExportedHandler<Env>;
-  
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    const JWT_SECRET = env.JWT_SECRET as string;
+
+    // CORS preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        headers: {
+          'Access-Control-Allow-Origin':  '*',
+          'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+        },
+      });
+    }
+
+    // Login
+    if (url.pathname === '/api/login' && request.method === 'POST') {
+      const { email, password } = await request.json();
+      const user = USERS[email];
+      if (!user || user.password !== password) {
+        return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        });
+      }
+      const alg = 'HS256';
+      const token = await new SignJWT({ email })
+        .setProtectedHeader({ alg })
+        .setIssuedAt()
+        .setExpirationTime('2h')
+        .sign(new TextEncoder().encode(JWT_SECRET));
+
+      return new Response(JSON.stringify({ token }), {
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      });
+    }
+
+    // Profile
+    if (url.pathname === '/api/profile' && request.method === 'GET') {
+      const auth = request.headers.get('Authorization') || '';
+      const token = auth.replace(/^Bearer\s+/, '');
+      try {
+        const { payload } = await jwtVerify(token, new TextEncoder().encode(JWT_SECRET));
+        return new Response(JSON.stringify({ email: payload.email, name: USERS[payload.email].name }), {
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        });
+      } catch {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        });
+      }
+    }
+
+    return new Response('Not Found', { status: 404 });
+  }
+} satisfies ExportedHandler<Env>;
