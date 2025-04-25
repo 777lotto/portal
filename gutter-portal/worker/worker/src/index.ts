@@ -12,7 +12,23 @@
  */
 
 export default {
-	async fetch(request, env, ctx): Promise<Response> {
-		return new Response('Hello World!');
-	},
-} satisfies ExportedHandler<Env>;
+	async fetch(request, env, ctx) {
+	  const url = new URL(request.url);
+	  // Route: GET /api/ping
+	  if (url.pathname === '/api/ping' && request.method === 'GET') {
+		return new Response(JSON.stringify({ message: 'pong' }), {
+		  headers: {
+			'Content-Type': 'application/json',
+			'Access-Control-Allow-Origin': '*',         // for dev; tighten later
+			'Access-Control-Allow-Methods': 'GET,OPTIONS',
+		  }
+		});
+	  }
+  
+	  // Fallback: Hello World
+	  return new Response('Hello World!', {
+		headers: { 'content-type': 'text/plain' }
+	  });
+	}
+  } satisfies ExportedHandler<Env>;
+  
