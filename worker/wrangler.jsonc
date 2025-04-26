@@ -17,7 +17,12 @@
       "database_name": "gutter_db",
 	  "database_id": "ee2da6f5-9573-4098-8ed6-57d56638b6ec"
     }
-  ]
+  ],
+    "migrations": [
+	    {
+	      "directory": "./migrations"
+	    }
+	  ]
 	/**
 	 * Smart Placement
 	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
