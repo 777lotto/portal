@@ -1,0 +1,10 @@
+# Editor + Cloudflare‐Wrangler state
+worker/.vscode/
+worker/.wrangler/
+worker/state/
+worker/cache/
+worker/workflows/
+worker/tmp/
+
+# Node modules (if you ever check those in)
+worker/node_modules/
