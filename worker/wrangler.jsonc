@@ -20,12 +20,7 @@
       "migrations_dir": "<./migrations/0001>"
     }
 ],
-"migrations": [
-    {
-      "tag": "0001_initial",
-      "path": "./migrations/0001_initial.sql"
-	}
-]
+
 	/**
 	 * Smart Placement
 	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
