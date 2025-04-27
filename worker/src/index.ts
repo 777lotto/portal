@@ -10,67 +10,91 @@
  *
  * Learn more at https://developers.cloudflare.com/workers/
  */
-import { SignJWT, jwtVerify } from 'jose';
-
-const USERS = {
-  "user@example.com": { password: "hunter2", name: "Demo User" },
-};
+// src/index.ts
+import { SignJWT, jwtVerify, JWTPayload } from 'jose';
+import type { Env } from './env';  // your Env interface, see below
 
 export default {
-  async fetch(request, env) {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-    const JWT_SECRET = env.JWT_SECRET as string;
 
-    // CORS preflight
-    if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin':  '*',
-          'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-        },
+    // --- 1) ping
+    if (request.method === 'GET' && url.pathname === '/api/ping') {
+      return new Response(JSON.stringify({ message: 'pong' }), {
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    // Login
-    if (url.pathname === '/api/login' && request.method === 'POST') {
+    // --- 2) login
+    if (request.method === 'POST' && url.pathname === '/api/login') {
       const { email, password } = await request.json();
-      const user = USERS[email];
-      if (!user || user.password !== password) {
-        return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        });
+
+      // look up user
+      const { results } = await env.DB.prepare(
+        `SELECT id, email, name, password_hash
+         FROM users
+         WHERE email = ?`
+      )
+      .bind(email)
+      .all();
+
+      if (results.length === 0) {
+        return new Response(JSON.stringify({ error: 'Invalid credentials' }), { status: 401 });
       }
-      const alg = 'HS256';
-      const token = await new SignJWT({ email })
-        .setProtectedHeader({ alg })
+
+      const user = results[0];
+      // replace this with whatever hash check you actually use:
+      const passwordsMatch = user.password_hash === password;  
+      if (!passwordsMatch) {
+        return new Response(JSON.stringify({ error: 'Invalid credentials' }), { status: 401 });
+      }
+
+      // issue a JWT
+      const token = await new SignJWT({ email: user.email, name: user.name })
+        .setProtectedHeader({ alg: 'HS256' })
         .setIssuedAt()
         .setExpirationTime('2h')
-        .sign(new TextEncoder().encode(JWT_SECRET));
+        .sign(env.JWT_SECRET);
 
       return new Response(JSON.stringify({ token }), {
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    // Profile
-    if (url.pathname === '/api/profile' && request.method === 'GET') {
+    // --- 3) profile
+    if (request.method === 'GET' && url.pathname === '/api/profile') {
       const auth = request.headers.get('Authorization') || '';
-      const token = auth.replace(/^Bearer\s+/, '');
-      try {
-        const { payload } = await jwtVerify(token, new TextEncoder().encode(JWT_SECRET));
-        return new Response(JSON.stringify({ email: payload.email, name: USERS[payload.email].name }), {
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        });
-      } catch {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        });
+      if (!auth.startsWith('Bearer ')) {
+        return new Response(JSON.stringify({ error: 'Missing token' }), { status: 401 });
       }
+      const token = auth.slice(7);
+
+      let payload: JWTPayload;
+      try {
+        ({ payload } = await jwtVerify(token, env.JWT_SECRET));
+      } catch (e) {
+        return new Response(JSON.stringify({ error: 'Invalid token' }), { status: 401 });
+      }
+
+      const email = payload.email as string;
+      const { results } = await env.DB.prepare(
+        `SELECT id, email, name
+         FROM users
+         WHERE email = ?`
+      )
+      .bind(email)
+      .all();
+
+      if (results.length === 0) {
+        return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 });
+      }
+
+      return new Response(JSON.stringify(results[0]), {
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
-    return new Response('Not Found', { status: 404 });
-  }
-} satisfies ExportedHandler<Env>;
+    // --- fallback
+    return new Response('Not found', { status: 404 });
+  },
+};
