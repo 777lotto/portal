@@ -1,73 +1,99 @@
-import { useState } from 'react';
+// src/App.tsx
 
-const WORKER_BASE = 'https://worker.mwb-67d.workers.dev';
+import { useState } from "react";
 
 function App() {
-  const [email, setEmail]         = useState('');
-  const [password, setPassword]   = useState('');
-  const [user, setUser]           = useState<{ email: string; name: string } | null>(null);
-  const [message, setMessage]     = useState<string>();
+  const [isLoginMode, setIsLoginMode] = useState(true);
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
 
-  const handleLogin = async () => {
-    setMessage('Logging in…');
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMessage("");
+
+    const endpoint = isLoginMode ? "/api/login" : "/api/signup";
+
     try {
-      const res = await fetch(`${WORKER_BASE}/api/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          isLoginMode
+            ? { email, password }
+            : { email, name, password }
+        ),
       });
-      if (!res.ok) throw new Error('Invalid credentials');
-      const { token } = await res.json();
-      localStorage.setItem('jwt', token);
-      setMessage('Fetching profile…');
-      // Now fetch profile
-      const profileRes = await fetch(`${WORKER_BASE}/api/profile`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!profileRes.ok) throw new Error('Failed to load profile');
-      const profile = await profileRes.json();
-      setUser(profile);
-      setMessage('');
-    } catch (err) {
-      setMessage((err as Error).message);
-      setUser(null);
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Something went wrong");
+      }
+
+      if (isLoginMode) {
+        localStorage.setItem("token", data.token);
+        setMessage("Login successful!");
+      } else {
+        setMessage("Signup successful! Now you can login.");
+        setIsLoginMode(true);
+      }
+    } catch (err: any) {
+      setMessage(err.message);
     }
   };
 
-  if (user) {
-    // Logged-in view
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
-        <h1 className="text-2xl font-bold mb-2">Welcome, {user.name}!</h1>
-        <p className="text-gray-700">Your email: {user.email}</p>
-      </div>
-    );
-  }
-
-  // Login form view
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-gray-50 p-4">
-      <input
-        type="email"
-        placeholder="Email"
-        className="border p-2 rounded w-64"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
-      <input
-        type="password"
-        placeholder="Password"
-        className="border p-2 rounded w-64"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
+    <div style={{ maxWidth: 400, margin: "auto", padding: "1rem" }}>
+      <h1>{isLoginMode ? "Login" : "Signup"}</h1>
+      <form onSubmit={handleSubmit}>
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          required
+          onChange={(e) => setEmail(e.target.value)}
+          style={{ display: "block", marginBottom: "1rem", width: "100%" }}
+        />
+        {!isLoginMode && (
+          <input
+            type="text"
+            placeholder="Name"
+            value={name}
+            required
+            onChange={(e) => setName(e.target.value)}
+            style={{ display: "block", marginBottom: "1rem", width: "100%" }}
+          />
+        )}
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          required
+          onChange={(e) => setPassword(e.target.value)}
+          style={{ display: "block", marginBottom: "1rem", width: "100%" }}
+        />
+        <button type="submit" style={{ width: "100%", padding: "0.5rem" }}>
+          {isLoginMode ? "Login" : "Signup"}
+        </button>
+      </form>
+
       <button
-        onClick={handleLogin}
-        className="px-4 py-2 bg-blue-600 text-white rounded w-32"
+        onClick={() => {
+          setIsLoginMode(!isLoginMode);
+          setMessage("");
+        }}
+        style={{ marginTop: "1rem", width: "100%", padding: "0.5rem" }}
       >
-        Log In
+        {isLoginMode ? "Need an account? Signup" : "Already have an account? Login"}
       </button>
-      {message && <p className="text-red-600">{message}</p>}
+
+      {message && (
+        <div style={{ marginTop: "1rem", color: "blue" }}>
+          {message}
+        </div>
+      )}
     </div>
   );
 }
