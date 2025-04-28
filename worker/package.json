@@ -17,6 +17,7 @@
 		"wrangler": "^4.13.2"
 	},
 	"dependencies": {
+		"bcryptjs": "^3.0.2",
 		"jose": "^6.0.10"
 	}
 }
