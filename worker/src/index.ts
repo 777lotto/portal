@@ -54,3 +54,72 @@ export default {
       if (!passwordsMatch) {
         return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
           status: 401,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        });
+      }
+
+      const token = await new SignJWT({ email: user.email, name: user.name })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setExpirationTime('2h')
+        .sign(env.JWT_SECRET);
+
+      return new Response(JSON.stringify({ token }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    }
+
+    // --- 3) profile
+    if (request.method === 'GET' && url.pathname === '/api/profile') {
+      const auth = request.headers.get('Authorization') || '';
+      if (!auth.startsWith('Bearer ')) {
+        return new Response(JSON.stringify({ error: 'Missing token' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        });
+      }
+
+      const token = auth.slice(7);
+
+      let payload: JWTPayload;
+      try {
+        ({ payload } = await jwtVerify(token, env.JWT_SECRET));
+      } catch (e) {
+        return new Response(JSON.stringify({ error: 'Invalid token' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        });
+      }
+
+      const email = payload.email as string;
+      const { results } = await env.DB.prepare(
+        `SELECT id, email, name FROM users WHERE email = ?`
+      )
+        .bind(email)
+        .all();
+
+      if (results.length === 0) {
+        return new Response(JSON.stringify({ error: 'User not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        });
+      }
+
+      return new Response(JSON.stringify(results[0]), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    }
+
+    // --- fallback (not found)
+    return new Response('Not found', {
+      status: 404,
+      headers: { 'Access-Control-Allow-Origin': '*' },
+    });
+  },
+};
