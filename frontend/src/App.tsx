@@ -1,5 +1,3 @@
-// src/App.tsx
-
 import { useState } from "react";
 
 function App() {
@@ -8,10 +6,12 @@ function App() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [profile, setProfile] = useState<any>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage("");
+    setProfile(null);
 
     const endpoint = isLoginMode ? "/api/login" : "/api/signup";
 
@@ -39,6 +39,35 @@ function App() {
         setMessage("Signup successful! Now you can login.");
         setIsLoginMode(true);
       }
+    } catch (err: any) {
+      setMessage(err.message);
+    }
+  };
+
+  const fetchProfile = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setMessage("No token found. Please login.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/profile", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Could not fetch profile");
+      }
+
+      setProfile(data);
+      setMessage("Profile loaded!");
     } catch (err: any) {
       setMessage(err.message);
     }
@@ -83,15 +112,34 @@ function App() {
         onClick={() => {
           setIsLoginMode(!isLoginMode);
           setMessage("");
+          setProfile(null);
         }}
         style={{ marginTop: "1rem", width: "100%", padding: "0.5rem" }}
       >
         {isLoginMode ? "Need an account? Signup" : "Already have an account? Login"}
       </button>
 
+      <hr style={{ margin: "2rem 0" }} />
+
+      <button
+        onClick={fetchProfile}
+        style={{ width: "100%", padding: "0.5rem", backgroundColor: "lightgreen" }}
+      >
+        View My Profile
+      </button>
+
       {message && (
         <div style={{ marginTop: "1rem", color: "blue" }}>
           {message}
+        </div>
+      )}
+
+      {profile && (
+        <div style={{ marginTop: "1rem", padding: "1rem", border: "1px solid gray" }}>
+          <h3>My Profile</h3>
+          <p><strong>Email:</strong> {profile.email}</p>
+          <p><strong>Name:</strong> {profile.name}</p>
+          <p><strong>ID:</strong> {profile.id}</p>
         </div>
       )}
     </div>
