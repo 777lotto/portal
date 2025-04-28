@@ -1,36 +1,28 @@
-// src/lib/api.ts
+import { fetchJson } from "./fetchJson";
 
 const API_URL = "https://worker.mwb-67d.workers.dev/api";
 
 export async function login(email: string, password: string): Promise<string> {
-  const res = await fetch(`${API_URL}/login`, {
+  const data = await fetchJson(`${API_URL}/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    throw new Error(error.error || "Failed to login");
-  }
-
-  const data = await res.json();
   return data.token;
 }
 
-export async function apiGet(path: string, token?: string) {
-  const res = await fetch(`${API_URL}${path}`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+export async function signup(email: string, name: string, password: string) {
+  const data = await fetchJson(`${API_URL}/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, name, password }),
   });
+  return data;
+}
 
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    throw new Error(error.error || "Failed to fetch");
-  }
-
-  return await res.json();
+export async function apiGet(path: string, token?: string) {
+  const data = await fetchJson(`${API_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  return data;
 }
