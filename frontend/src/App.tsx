@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiPost, apiGet } from "./lib/api";
 
 function App() {
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -13,65 +14,45 @@ function App() {
     setMessage("");
     setProfile(null);
 
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setMessage("");
+  setProfile(null);
+
+  try {
     const endpoint = isLoginMode ? "/api/login" : "/api/signup";
 
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          isLoginMode
-            ? { email, password }
-            : { email, name, password }
-        ),
-      });
+    const data = await apiPost(endpoint,
+      isLoginMode ? { email, password } : { email, name, password }
+    );
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Something went wrong");
-      }
-
-      if (isLoginMode) {
-        localStorage.setItem("token", data.token);
-        setMessage("Login successful!");
-      } else {
-        setMessage("Signup successful! Now you can login.");
-        setIsLoginMode(true);
-      }
-    } catch (err: any) {
-      setMessage(err.message);
+    if (isLoginMode) {
+      localStorage.setItem("token", data.token);
+      setMessage("Login successful!");
+    } else {
+      setMessage("Signup successful! Now you can login.");
+      setIsLoginMode(true);
     }
-  };
+  } catch (err: any) {
+    setMessage(err.message);
+  }
+};
 
-  const fetchProfile = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setMessage("No token found. Please login.");
-      return;
-    }
+const fetchProfile = async () => {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    setMessage("No token found. Please login.");
+    return;
+  }
 
-    try {
-      const res = await fetch("/api/profile", {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Could not fetch profile");
-      }
-
-      setProfile(data);
-      setMessage("Profile loaded!");
-    } catch (err: any) {
-      setMessage(err.message);
-    }
-  };
+  try {
+    const data = await apiGet("/api/profile", token);
+    setProfile(data);
+    setMessage("Profile loaded!");
+  } catch (err: any) {
+    setMessage(err.message);
+  }
+};
 
   return (
     <div style={{ maxWidth: 400, margin: "auto", padding: "1rem" }}>
