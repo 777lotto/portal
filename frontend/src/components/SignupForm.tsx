@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { signup } from "../lib/api";
- import { Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 interface Props {
   setToken: (token: string) => void;
