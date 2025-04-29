@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { login } from "../lib/api";
+import { Link } from "react-router-dom";
+
 
 interface Props {
   setToken: (token: string) => void;
@@ -27,46 +29,39 @@ export default function LoginForm({ setToken }: Props) {
     }
   };
 
-  return (
-    <div style={{ padding: "2rem" }}>
-      <h1>Login</h1>
-      <form onSubmit={handleSubmit}>
-        <div>
-          <input
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem" }}
-          />
-        </div>
-        <div>
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem" }}
-          />
-        </div>
-        <button type="submit" style={{ width: "100%", padding: "0.5rem" }}>
-          Login
-        </button>
-      </form>
+return (
+  <div style={{ padding: "2rem" }}>
+    <h1>Login</h1>
+    <form onSubmit={handleSubmit}>
+      <div>
+        <input
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          style={{ width: "100%", marginBottom: "1rem" }}
+        />
+      </div>
+      <div>
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          style={{ width: "100%", marginBottom: "1rem" }}
+        />
+      </div>
+      <button type="submit" style={{ width: "100%", padding: "0.5rem" }}>
+        Login
+      </button>
+    </form>
 
-import { Link } from "react-router-dom";
+    <p style={{ marginTop: "1rem" }}>
+      Don't have an account? <Link to="/signup">Sign up</Link>
+    </p>
 
-<p style={{ marginTop: "1rem" }}>
-  Don't have an account? <Link to="/signup">Sign up</Link>
-</p>
+    {error && <div style={{ color: "red", marginTop: "1rem" }}>{error}</div>}
+  </div>
+);
 
-      {error && <div style={{ color: "red", marginTop: "1rem" }}>{error}</div>}
-    </div>
-  );
 }
-
-// src/components/LoginForm.tsx (add this inside the JSX form return)
-{/* ... */}
-<p style={{ marginTop: "1rem" }}>
-  Don't have an account? <a href="/signup">Sign up</a>
-</p>
 
