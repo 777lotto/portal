@@ -10,7 +10,7 @@ export default function Services() {
     const fetchServices = async () => {
       try {
         const token = localStorage.getItem("token");
-        const data = await apiGet("/api/services", token || undefined);
+        const data = await apiGet("/services", token || undefined);
         setServices(data);
       } catch (err: any) {
         setError(err.message || "Failed to load services");

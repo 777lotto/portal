@@ -17,7 +17,7 @@ export default function Dashboard() {
           return;
         }
 
-        const data = await apiGet("/api/profile", token);
+        const data = await apiGet("/profile", token);
         setProfile(data);
       } catch (err: any) {
         setError(err.message || "Failed to load profile");
