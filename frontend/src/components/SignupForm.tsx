@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { signup } from "../lib/api";
+ import { Link } from "react-router-dom";
 
 interface Props {
   setToken: (token: string) => void;
@@ -62,7 +63,6 @@ export default function SignupForm({ setToken }: Props) {
         </button>
       </form>
 
- import { Link } from "react-router-dom";
 
 <p style={{ marginTop: "1rem" }}>
   Already have an account? <Link to="/login">Login</Link>
