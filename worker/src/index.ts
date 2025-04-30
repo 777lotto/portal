@@ -170,4 +170,4 @@ if (request.method === "POST" && url.pathname === "/api/signup") {
       },
     });
   }
-};
+}
