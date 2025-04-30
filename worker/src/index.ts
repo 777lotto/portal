@@ -59,15 +59,18 @@ if (request.method === "POST" && url.pathname === "/api/signup") {
       },
     });
 
-  } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message || "Signup failed" }), {
-      status: 400,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
-    });
-  }
+} catch (err: any) {
+  const message = err.message.includes("UNIQUE constraint failed")
+    ? "An account with that email already exists"
+    : "Signup failed";
+
+  return new Response(JSON.stringify({ error: message }), {
+    status: 400,
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
 }
 
     // --- Login route
