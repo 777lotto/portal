@@ -1,3 +1,4 @@
+// src/index.ts
 import { SignJWT, jwtVerify, JWTPayload } from "jose";
 import bcrypt from "bcryptjs";
 import type { Env } from "./env";
@@ -11,7 +12,7 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
-    // Handle CORS Preflight
+    // 1) CORS preflight
     if (request.method === "OPTIONS") {
       return new Response(null, {
         status: 204,
@@ -23,7 +24,7 @@ export default {
       });
     }
 
-    // --- Ping route
+    // 2) Ping
     if (request.method === "GET" && url.pathname === "/api/ping") {
       return new Response(JSON.stringify({ message: "pong" }), {
         headers: {
@@ -33,73 +34,24 @@ export default {
       });
     }
 
-// --- Signup route
-if (request.method === "POST" && url.pathname === "/api/signup") {
-  try {
-    const { email, name, password } = await request.json();
-
-    const password_hash = await bcrypt.hash(password, 10);
-
-    await env.DB.prepare(
-      `INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)`
-    )
-      .bind(email, name, password_hash)
-      .run();
-
-    const token = await new SignJWT({ email, name })
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt()
-      .setExpirationTime("2h")
-      .sign(getJwtSecretKey(env.JWT_SECRET));
-
-    return new Response(JSON.stringify({ token }), {
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
-    });
-
-} catch (err: any) {
-  const message = err.message.includes("UNIQUE constraint failed")
-    ? "An account with that email already exists"
-    : "Signup failed";
-
-  return new Response(JSON.stringify({ error: message }), {
-    status: 400,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-    },
-  });
-}
-
-    // --- Login route
-    if (request.method === "POST" && url.pathname === "/api/login") {
+    // 3) Signup → hash & insert → issue JWT
+    if (request.method === "POST" && url.pathname === "/api/signup") {
       try {
-        const { email, password } = await request.json();
+        const { email, name, password } = await request.json();
+        const password_hash = await bcrypt.hash(password, 10);
 
-        const { results } = await env.DB.prepare(
-          `SELECT id, email, name, password_hash FROM users WHERE email = ?`
+        await env.DB.prepare(
+          `INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)`
         )
-          .bind(email)
-          .all();
+          .bind(email, name, password_hash)
+          .run();
 
-        if (results.length === 0) {
-          throw new Error("Invalid credentials");
-        }
-
-        const user = results[0];
-        const passwordsMatch = await bcrypt.compare(password, user.password_hash);
-
-        if (!passwordsMatch) {
-          throw new Error("Invalid credentials");
-        }
-
-        const token = await new SignJWT({ email: user.email, name: user.name })
+        // Issue a token immediately
+        const token = await new SignJWT({ email, name })
           .setProtectedHeader({ alg: "HS256" })
           .setIssuedAt()
           .setExpirationTime("2h")
-          .sign(getJwtSecretKey(env.JWT_SECRET)); // 🔥 fixed here
+          .sign(getJwtSecretKey(env.JWT_SECRET));
 
         return new Response(JSON.stringify({ token }), {
           headers: {
@@ -107,9 +59,51 @@ if (request.method === "POST" && url.pathname === "/api/signup") {
             "Access-Control-Allow-Origin": "*",
           },
         });
-
       } catch (err: any) {
-        return new Response(JSON.stringify({ error: err.message || "Login failed" }), {
+        const msg = err.message.includes("UNIQUE constraint failed")
+          ? "An account with that email already exists"
+          : "Signup failed";
+        return new Response(JSON.stringify({ error: msg }), {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        });
+      }
+    }
+
+    // 4) Login → verify & issue JWT
+    if (request.method === "POST" && url.pathname === "/api/login") {
+      try {
+        const { email, password } = await request.json();
+        const { results } = await env.DB.prepare(
+          `SELECT email, name, password_hash FROM users WHERE email = ?`
+        )
+          .bind(email)
+          .all();
+
+        if (results.length === 0) throw new Error("Invalid credentials");
+        const user = results[0];
+
+        if (!(await bcrypt.compare(password, user.password_hash))) {
+          throw new Error("Invalid credentials");
+        }
+
+        const token = await new SignJWT({ email: user.email, name: user.name })
+          .setProtectedHeader({ alg: "HS256" })
+          .setIssuedAt()
+          .setExpirationTime("2h")
+          .sign(getJwtSecretKey(env.JWT_SECRET));
+
+        return new Response(JSON.stringify({ token }), {
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        });
+      } catch (err: any) {
+        return new Response(JSON.stringify({ error: err.message }), {
           status: 401,
           headers: {
             "Content-Type": "application/json",
@@ -119,18 +113,14 @@ if (request.method === "POST" && url.pathname === "/api/signup") {
       }
     }
 
-    // --- Profile route
+    // 5) Profile → verify JWT → lookup user
     if (request.method === "GET" && url.pathname === "/api/profile") {
       try {
         const auth = request.headers.get("Authorization") || "";
-        if (!auth.startsWith("Bearer ")) {
-          throw new Error("Missing token");
-        }
+        if (!auth.startsWith("Bearer ")) throw new Error("Missing token");
 
         const token = auth.slice(7);
-
-        const { payload } = await jwtVerify(token, getJwtSecretKey(env.JWT_SECRET)); // 🔥 fixed here
-
+        const { payload } = await jwtVerify(token, getJwtSecretKey(env.JWT_SECRET));
         const email = payload.email as string;
 
         const { results } = await env.DB.prepare(
@@ -139,19 +129,15 @@ if (request.method === "POST" && url.pathname === "/api/signup") {
           .bind(email)
           .all();
 
-        if (results.length === 0) {
-          throw new Error("User not found");
-        }
-
+        if (results.length === 0) throw new Error("User not found");
         return new Response(JSON.stringify(results[0]), {
           headers: {
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": "*",
           },
         });
-
       } catch (err: any) {
-        return new Response(JSON.stringify({ error: err.message || "Profile failed" }), {
+        return new Response(JSON.stringify({ error: err.message }), {
           status: 401,
           headers: {
             "Content-Type": "application/json",
@@ -161,14 +147,13 @@ if (request.method === "POST" && url.pathname === "/api/signup") {
       }
     }
 
-    // --- fallback
-    return new Response("Not found", {
+    // 6) Fallback
+    return new Response(JSON.stringify({ error: "Not found" }), {
       status: 404,
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
       },
     });
-  }
-}
-}
+  },
+};
