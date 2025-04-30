@@ -20,7 +20,10 @@ export default function SignupForm({ setToken }: Props) {
     setError(null);
 
     try {
-      const token = await signup(email, name, password);
+      const { token } = await signup(email, name, password);
+      if (typeof token !== "string") {
+        throw new Error("Invalid token format");
+      }
       localStorage.setItem("token", token);
       setToken(token);
       navigate("/dashboard");
@@ -31,7 +34,7 @@ export default function SignupForm({ setToken }: Props) {
 
   return (
     <div style={{ padding: "2rem" }}>
-      <h1>Signup</h1>
+      <h1>Sign Up</h1>
       <form onSubmit={handleSubmit}>
         <div>
           <input
@@ -59,17 +62,17 @@ export default function SignupForm({ setToken }: Props) {
           />
         </div>
         <button type="submit" style={{ width: "100%", padding: "0.5rem" }}>
-          Signup
+          Sign Up
         </button>
       </form>
 
-
-<p style={{ marginTop: "1rem" }}>
-  Already have an account? <Link to="/login">Login</Link>
-</p>
+      <p style={{ marginTop: "1rem" }}>
+        Already have an account? <Link to="/login">Login</Link>
+      </p>
 
       {error && <div style={{ color: "red", marginTop: "1rem" }}>{error}</div>}
     </div>
   );
 }
+
 

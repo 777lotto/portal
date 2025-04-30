@@ -33,36 +33,42 @@ export default {
       });
     }
 
-    // --- Signup route
-    if (request.method === "POST" && url.pathname === "/api/signup") {
-      try {
-        const { email, name, password } = await request.json();
+// --- Signup route
+if (request.method === "POST" && url.pathname === "/api/signup") {
+  try {
+    const { email, name, password } = await request.json();
 
-        const password_hash = await bcrypt.hash(password, 10);
+    const password_hash = await bcrypt.hash(password, 10);
 
-        await env.DB.prepare(
-          `INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)`
-        )
-          .bind(email, name, password_hash)
-          .run();
+    await env.DB.prepare(
+      `INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)`
+    )
+      .bind(email, name, password_hash)
+      .run();
 
-        return new Response(JSON.stringify({ success: true }), {
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
+    const token = await new SignJWT({ email, name })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("2h")
+      .sign(getJwtSecretKey(env.JWT_SECRET));
 
-      } catch (err) {
-        return new Response(JSON.stringify({ error: "Signup failed" }), {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
-      }
-    }
+    return new Response(JSON.stringify({ token }), {
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message || "Signup failed" }), {
+      status: 400,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  }
+}
 
     // --- Login route
     if (request.method === "POST" && url.pathname === "/api/login") {

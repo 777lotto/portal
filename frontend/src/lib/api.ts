@@ -11,7 +11,7 @@ export async function login(email: string, password: string): Promise<string> {
   return data.token;
 }
 
-export async function signup(email: string, name: string, password: string) {
+export async function signup(email: string, name: string, password: string): Promise<{ token: string }> {
   const data = await fetchJson(`${API_URL}/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
