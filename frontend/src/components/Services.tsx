@@ -1,6 +1,5 @@
-// src/components/Services.tsx
 import { useEffect, useState } from "react";
-import { login, signup, apiGet } from '../lib/api'
+import { apiGet, apiPost } from "../lib/api";
 
 interface Service {
   id: number;
@@ -14,35 +13,63 @@ export default function Services() {
   const [services, setServices] = useState<Service[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  /* ----- fetch list on mount ----- */
   useEffect(() => {
-    async function fetchServices() {
+    (async () => {
       try {
-        const token = localStorage.getItem("token") ?? undefined;
+        const token = localStorage.getItem("token")!;
         const data: Service[] = await apiGet("/services", token);
         setServices(data);
       } catch (err: any) {
         setError(err.message || "Failed to load services");
       }
-    }
-
-    fetchServices();
+    })();
   }, []);
+
+  /* ----- add a new service ----- */
+  const handleAdd = async () => {
+    try {
+      const token = localStorage.getItem("token")!;
+      const newSvc = {
+        service_date: new Date().toISOString().slice(0, 10),
+        status: "upcoming",
+        notes: "",
+      };
+      await apiPost("/services", newSvc, token);
+
+      // refresh list
+      const refreshed: Service[] = await apiGet("/services", token);
+      setServices(refreshed);
+    } catch (err: any) {
+      setError(err.message || "Failed to add service");
+    }
+  };
 
   return (
     <div style={{ padding: "2rem" }}>
       <h1>Your Services</h1>
 
-      {error && <div style={{ color: "red", marginBottom: "1rem" }}>{error}</div>}
+      {error && (
+        <div style={{ color: "red", marginBottom: "1rem" }}>{error}</div>
+      )}
+
+      {/* --------- Add-Service button --------- */}
+      <button
+        onClick={handleAdd}
+        style={{ marginBottom: "1rem", padding: "0.5rem 1rem" }}
+      >
+        Add New Service
+      </button>
 
       {services.length > 0 ? (
         <ul>
           {services.map((s) => (
-            <li key={s.id}>
-              <strong>Date:</strong> {s.service_date} <br />
-              <strong>Status:</strong> {s.status} <br />
+            <li key={s.id} style={{ marginBottom: "0.5rem" }}>
+              <strong>Date:</strong> {s.service_date} &nbsp;|&nbsp;
+              <strong>Status:</strong> {s.status}
               {s.notes && (
                 <>
-                  <strong>Notes:</strong> {s.notes}
+                  &nbsp;|&nbsp;<strong>Notes:</strong> {s.notes}
                 </>
               )}
             </li>
