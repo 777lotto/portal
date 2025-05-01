@@ -113,7 +113,7 @@ export default {
       }
     }
 
-    // 5) Profile → verify JWT → lookup user
+  // 5) Profile → verify JWT → lookup user
     if (request.method === "GET" && url.pathname === "/api/profile") {
       try {
         const auth = request.headers.get("Authorization") || "";
@@ -147,8 +147,87 @@ export default {
       }
     }
 
-    // 6) Fallback
-    return new Response(JSON.stringify({ error: "Not found" }), {
+    // ─── NEW: List services for current user ─────────────────────────────
+    if (request.method === "GET" && url.pathname === "/api/services") {
+      try {
+        const auth = request.headers.get("Authorization") || "";
+        if (!auth.startsWith("Bearer ")) throw new Error("Missing token");
+        const { payload } = await jwtVerify(auth.slice(7), getJwtSecretKey(env.JWT_SECRET));
+        const userEmail = payload.email as string;
+
+        // find user_id
+        const userRow = await env.DB.prepare(`SELECT id FROM users WHERE email = ?`)
+          .bind(userEmail)
+          .first();
+        if (!userRow) throw new Error("User not found");
+
+        const { results } = await env.DB.prepare(
+          `SELECT * FROM services
+           WHERE user_id = ?
+           ORDER BY service_date DESC`
+        )
+          .bind(userRow.id)
+          .all();
+
+        return new Response(JSON.stringify(results), {
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        });
+      } catch (err: any) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 401,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        });
+      }
+    }
+
+    // ─── NEW: Create a new service ────────────────────────────────────────
+    if (request.method === "POST" && url.pathname === "/api/services") {
+      try {
+        const auth = request.headers.get("Authorization") || "";
+        if (!auth.startsWith("Bearer ")) throw new Error("Missing token");
+        const { payload } = await jwtVerify(auth.slice(7), getJwtSecretKey(env.JWT_SECRET));
+        const userEmail = payload.email as string;
+
+        // find user_id
+        const userRow = await env.DB.prepare(`SELECT id FROM users WHERE email = ?`)
+          .bind(userEmail)
+          .first();
+        if (!userRow) throw new Error("User not found");
+
+        const { service_date, status, notes } = await request.json();
+        const insert = await env.DB.prepare(
+          `INSERT INTO services
+             (user_id, service_date, status, notes)
+           VALUES (?, ?, ?, ?)`
+        )
+          .bind(userRow.id, service_date, status || "upcoming", notes || "")
+          .run();
+
+        return new Response(JSON.stringify({ id: insert.lastInsertId }), {
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        });
+      } catch (err: any) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        });
+      }
+    }
+
+    // ─── FALLBACK ─────────────────────────────────────────────────────────
+    return new Response("Not found", {
       status: 404,
       headers: {
         "Content-Type": "application/json",
