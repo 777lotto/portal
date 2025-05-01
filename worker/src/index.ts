@@ -226,6 +226,75 @@ export default {
       }
     }
 
+    // --- Edit an existing service ------------------------------------------
+if (request.method === "PUT" && url.pathname.startsWith("/api/services/")) {
+  try {
+    const id = parseInt(url.pathname.split("/").pop()!);
+    const auth = request.headers.get("Authorization") || "";
+    if (!auth.startsWith("Bearer ")) throw new Error("Missing token");
+
+    const { payload } = await jwtVerify(auth.slice(7), getJwtSecretKey(env.JWT_SECRET));
+    const userEmail = payload.email as string;
+
+    // ensure the service belongs to the current user
+    const serviceRow = await env.DB.prepare(
+      `SELECT s.id FROM services s
+       JOIN users u ON u.id = s.user_id
+       WHERE s.id = ? AND u.email = ?`
+    ).bind(id, userEmail).first();
+    if (!serviceRow) throw new Error("Not found");
+
+    const { service_date, status, notes } = await request.json();
+    await env.DB.prepare(
+      `UPDATE services
+       SET service_date = ?, status = ?, notes = ?
+       WHERE id = ?`
+    ).bind(service_date, status, notes, id).run();
+
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+    });
+  }
+}
+
+// --- Delete a service ----------------------------------------------------
+if (request.method === "DELETE" && url.pathname.startsWith("/api/services/")) {
+  try {
+    const id = parseInt(url.pathname.split("/").pop()!);
+    const auth = request.headers.get("Authorization") || "";
+    if (!auth.startsWith("Bearer ")) throw new Error("Missing token");
+
+    const { payload } = await jwtVerify(auth.slice(7), getJwtSecretKey(env.JWT_SECRET));
+    const userEmail = payload.email as string;
+
+    // verify ownership then delete
+    const { changes } = await env.DB.prepare(
+      `DELETE FROM services
+       WHERE id = (
+         SELECT s.id FROM services s
+         JOIN users u ON u.id = s.user_id
+         WHERE s.id = ? AND u.email = ?
+       )`
+    ).bind(id, userEmail).run();
+
+    if (changes === 0) throw new Error("Not found");
+
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+    });
+  }
+}
+
     // ─── FALLBACK ─────────────────────────────────────────────────────────
     return new Response("Not found", {
       status: 404,
