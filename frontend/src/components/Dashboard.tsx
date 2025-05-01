@@ -1,6 +1,6 @@
 // src/components/Dashboard.tsx
 import { useEffect, useState } from "react";
-import { apiGet } from "../lib/api";
+import { login, signup, apiGet } from '../lib/api'
 import { useNavigate } from "react-router-dom";
 
 export default function Dashboard() {

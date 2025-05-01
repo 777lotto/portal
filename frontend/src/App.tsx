@@ -33,6 +33,8 @@ function App() {
           path="/services"
           element={token ? <Services /> : <Navigate to="/login" replace />}
         />
+        <Route path="/services" element={<Services />}
+        />
       </Routes>
     </>
   );
