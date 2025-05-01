@@ -1,4 +1,6 @@
+// src/components/Services.tsx
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { apiGet, apiPost } from "../lib/api";
 
 interface Service {
@@ -35,7 +37,7 @@ export default function Services() {
         status: "upcoming",
         notes: "",
       };
-      await apiPost("/services", newSvc, token);
+      await apiPost("/services", newSvc, token); // POST by default
 
       // refresh list
       const refreshed: Service[] = await apiGet("/services", token);
@@ -53,7 +55,6 @@ export default function Services() {
         <div style={{ color: "red", marginBottom: "1rem" }}>{error}</div>
       )}
 
-      {/* --------- Add-Service button --------- */}
       <button
         onClick={handleAdd}
         style={{ marginBottom: "1rem", padding: "0.5rem 1rem" }}
@@ -65,13 +66,15 @@ export default function Services() {
         <ul>
           {services.map((s) => (
             <li key={s.id} style={{ marginBottom: "0.5rem" }}>
-              <strong>Date:</strong> {s.service_date} &nbsp;|&nbsp;
-              <strong>Status:</strong> {s.status}
-              {s.notes && (
-                <>
-                  &nbsp;|&nbsp;<strong>Notes:</strong> {s.notes}
-                </>
-              )}
+              <Link to={`/services/${s.id}`}>
+                <strong>Date:</strong> {s.service_date} &nbsp;|&nbsp;
+                <strong>Status:</strong> {s.status}
+                {s.notes && (
+                  <>
+                    &nbsp;|&nbsp;<strong>Notes:</strong> {s.notes}
+                  </>
+                )}
+              </Link>
             </li>
           ))}
         </ul>
