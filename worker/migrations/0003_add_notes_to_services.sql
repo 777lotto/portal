@@ -1,2 +1,0 @@
-ALTER TABLE services
-ADD COLUMN notes TEXT
