@@ -12,6 +12,13 @@ import {
 /* Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
+
+// build CORS headers quickly
+const CORS = {
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+};
+
 function getJwtSecretKey(secret: string): Uint8Array {
   return new TextEncoder().encode(secret);
 }
@@ -57,42 +64,97 @@ export default {
     }
 
     /* ---------- Signup ---------- */
-    if (request.method === "POST" && url.pathname === "/api/signup") {
-      try {
-        const { email, name, password } = await request.json();
-        const password_hash = await bcrypt.hash(password, 10);
+// STEP 1: Check email only
+if (request.method === "POST" && url.pathname === "/api/signup/check") {
+  try {
+    const { email } = await request.json();
+    const row = await env.DB.prepare(
+      `SELECT password_hash FROM users WHERE email = ?`
+    )
+      .bind(email)
+      .first();
 
-        await env.DB.prepare(
-          `INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)`
-        )
-          .bind(email, name, password_hash)
-          .run();
-
-        const token = await new SignJWT({ email, name })
-          .setProtectedHeader({ alg: "HS256" })
-          .setIssuedAt()
-          .setExpirationTime("2h")
-          .sign(getJwtSecretKey(env.JWT_SECRET));
-
-        return new Response(JSON.stringify({ token }), {
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
-      } catch (err: any) {
-        const msg = err.message.includes("UNIQUE constraint failed")
-          ? "An account with that email already exists"
-          : "Signup failed";
-        return new Response(JSON.stringify({ error: msg }), {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
+    if (row) {
+      // invited but no password yet
+      if (!row.password_hash) {
+        return new Response(JSON.stringify({ status: "existing" }), {
+          headers: CORS,
         });
       }
+      // fully signed up already
+      return new Response(
+        JSON.stringify({ error: "Account already exists" }),
+        { status: 400, headers: CORS }
+      );
     }
+
+    // brand‑new user
+    return new Response(JSON.stringify({ status: "new" }), {
+      headers: CORS,
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
+      headers: CORS,
+    });
+  }
+}
+
+// STEP 2: Complete signup or create new
+if (request.method === "POST" && url.pathname === "/api/signup") {
+  try {
+    const { email, name, password } = await request.json();
+    const password_hash = await bcrypt.hash(password, 10);
+
+    // check for an existing row
+    const existing = await env.DB.prepare(
+      `SELECT password_hash FROM users WHERE email = ?`
+    )
+      .bind(email)
+      .first();
+
+    if (existing) {
+      if (!existing.password_hash) {
+        // finish setting up an imported user
+        await env.DB.prepare(
+          `UPDATE users SET name = ?, password_hash = ? WHERE email = ?`
+        )
+          .bind(name, password_hash, email)
+          .run();
+      } else {
+        // they already signed up fully
+        throw new Error("Account already exists");
+      }
+    } else {
+      // totally new signup
+      await env.DB.prepare(
+        `INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)`
+      )
+        .bind(email, name, password_hash)
+        .run();
+    }
+
+    // STEP: 3 issue JWT
+    const token = await new SignJWT({ email, name })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("2h")
+      .sign(getJwtSecretKey(env.JWT_SECRET));
+
+    return new Response(JSON.stringify({ token }), {
+      headers: CORS,
+    });
+  } catch (err: any) {
+    const isConflict = err.message === "Account already exists";
+    return new Response(
+      JSON.stringify({ error: err.message || "Signup failed" }),
+      {
+        status: isConflict ? 400 : 500,
+        headers: CORS,
+      }
+    );
+  }
+}
 
     /* ---------- Login ---------- */
     if (request.method === "POST" && url.pathname === "/api/login") {

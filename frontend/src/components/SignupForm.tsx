@@ -1,29 +1,40 @@
 // src/components/SignupForm.tsx
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { signup } from "../lib/api";
-import { Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import { signupCheck, signup } from "../lib/api";
 
 interface Props {
   setToken: (token: string) => void;
 }
 
 export default function SignupForm({ setToken }: Props) {
+  const [step, setStep] = useState<"email" | "signup">("email");
+  const [mode, setMode] = useState<"new" | "existing">("new");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // STEP 1: check email
+  const handleCheck = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    try {
+      const { status } = await signupCheck(email);
+      setMode(status);
+      setStep("signup");
+    } catch (err: any) {
+      setError(err.message || "Check failed");
+    }
+  };
 
+  // STEP 2: complete signup
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
     try {
       const { token } = await signup(email, name, password);
-      if (typeof token !== "string") {
-        throw new Error("Invalid token format");
-      }
       localStorage.setItem("token", token);
       setToken(token);
       navigate("/dashboard");
@@ -34,45 +45,68 @@ export default function SignupForm({ setToken }: Props) {
 
   return (
     <div style={{ padding: "2rem" }}>
-      <h1>Sign Up</h1>
-      <form onSubmit={handleSubmit}>
-        <div>
+      <h1>
+        {step === "email"
+          ? "Enter your email"
+          : mode === "new"
+          ? "Sign up"
+          : "Complete signup"}
+      </h1>
+
+      {step === "email" ? (
+        <form onSubmit={handleCheck}>
           <input
+            type="email"
+            required
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             style={{ width: "100%", marginBottom: "1rem" }}
           />
-        </div>
-        <div>
-          <input
-            placeholder="Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem" }}
-          />
-        </div>
-        <div>
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{ width: "100%", marginBottom: "1rem" }}
-          />
-        </div>
-        <button type="submit" style={{ width: "100%", padding: "0.5rem" }}>
-          Sign Up
-        </button>
-      </form>
+          <button type="submit" style={{ width: "100%", padding: "0.5rem" }}>
+            Continue
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={handleSignup}>
+          <p>
+            Email: <strong>{email}</strong>
+          </p>
+          <div>
+            <input
+              placeholder="Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              style={{ width: "100%", marginBottom: "1rem" }}
+              required
+            />
+          </div>
+          <div>
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={{ width: "100%", marginBottom: "1rem" }}
+              required
+            />
+          </div>
+          <button type="submit" style={{ width: "100%", padding: "0.5rem" }}>
+            {mode === "new" ? "Sign Up" : "Complete Signup"}
+          </button>
+        </form>
+      )}
+
+      {error && (
+        <div style={{ color: "red", marginTop: "1rem" }}>{error}</div>
+      )}
 
       <p style={{ marginTop: "1rem" }}>
-        Already have an account? <Link to="/login">Login</Link>
+        Already have an account?{" "}
+        <Link to="/login" style={{ color: "#0066cc" }}>
+          Login
+        </Link>
       </p>
-
-      {error && <div style={{ color: "red", marginTop: "1rem" }}>{error}</div>}
     </div>
   );
 }
-
-
