@@ -21,15 +21,15 @@ async function main() {
       const custId = c.id.replace(/'/g,"''");
 
       console.log(`→ Upserting ${email} (${custId})`);
-      execSync(
-        `npx wrangler d1 execute ${DB} --remote --command "` +
-          // only insert if not exists
-          `INSERT INTO users (email, name, stripe_customer_id) ` +
-          `SELECT '${email}', '${name}', '${custId}' ` +
-          `WHERE NOT EXISTS (SELECT 1 FROM users WHERE email='${email}');` +
-        `"`,
-        { stdio: "inherit" }
-      );
+execSync(
+  `npx wrangler d1 execute ${DB} --remote --command "` +
+    // NOTICE we now supply password_hash = '' to satisfy the NOT NULL
+    `INSERT INTO users (email, name, password_hash, stripe_customer_id) ` +
+    `SELECT '${email}', '${name}', '', '${custId}' ` +
+    `WHERE NOT EXISTS (SELECT 1 FROM users WHERE email='${email}');` +
+  `"`,
+  { stdio: "inherit" }
+);
     }
 
     startingAfter = resp.data.length ? resp.data[resp.data.length - 1].id : undefined;
