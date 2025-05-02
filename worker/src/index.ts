@@ -3,6 +3,8 @@ import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import type { Env } from "./env";
 import { getOrCreateCustomer, createAndSendInvoice } from "./stripe";
+import { getStripe } from "./stripe";
+
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                            */
@@ -347,6 +349,51 @@ if (url.pathname === "/stripe/webhook") {
   }
 
   return new Response("ok");
+}
+
+// --- Fetch existing invoice URL for a service --------------------------
+if (
+  request.method === "GET" &&
+  url.pathname.startsWith("/api/services/") &&
+  url.pathname.endsWith("/invoice")
+) {
+  try {
+    const id = parseInt(url.pathname.split("/")[3]); // /api/services/:id/invoice
+    const email = await requireAuth(request, env);
+
+    // Look up the stored Stripe invoice ID
+    const row = await env.DB.prepare(
+      `SELECT stripe_invoice_id FROM services s
+       JOIN users u ON u.id = s.user_id
+       WHERE s.id = ? AND u.email = ?`
+    )
+      .bind(id, email)
+      .first();
+
+    if (!row?.stripe_invoice_id) throw new Error("No invoice available");
+
+    // Retrieve the invoice from Stripe
+    const stripe = getStripe(env);
+    const invoice = await stripe.invoices.retrieve(row.stripe_invoice_id);
+
+    return new Response(
+      JSON.stringify({ hosted_invoice_url: invoice.hosted_invoice_url }),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
+    );
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 404,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  }
 }
 
     /* ---------- Fallback ---------- */
