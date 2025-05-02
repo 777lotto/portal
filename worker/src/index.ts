@@ -12,6 +12,10 @@ import {
 /* Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
+// normalize incoming email to lowercase (trimmed)
+function normalizeEmail(raw: string): string {
+  return raw.trim().toLowerCase();
+}
 
 // build CORS headers quickly
 const CORS = {
@@ -73,6 +77,15 @@ if (request.method === "POST" && url.pathname === "/api/signup/check") {
     )
       .bind(email)
       .first();
+    const { email: rawEmail } = await request.json();
+    const email = normalizeEmail(rawEmail);
+    const row = await env.DB.prepare(
+      `SELECT password_hash
+         FROM users
+        WHERE lower(email) = ?`
+    )
+    .bind(email)
+    .first();
 
     if (row) {
       // invited but no password yet
@@ -105,6 +118,9 @@ if (request.method === "POST" && url.pathname === "/api/signup") {
   try {
     const { email, name, password } = await request.json();
     const password_hash = await bcrypt.hash(password, 10);
+    const { email: rawEmail, name, password } = await request.json();
+    const email = normalizeEmail(rawEmail);
+    const password_hash = await bcrypt.hash(password, 10);
 
     // check for an existing row
     const existing = await env.DB.prepare(
@@ -112,6 +128,14 @@ if (request.method === "POST" && url.pathname === "/api/signup") {
     )
       .bind(email)
       .first();
+
+    const existing = await env.DB.prepare(
+      `SELECT password_hash
+         FROM users
+        WHERE lower(email) = ?`
+    )
+    .bind(email)
+    .first();
 
     if (existing) {
       if (!existing.password_hash) {
@@ -160,11 +184,21 @@ if (request.method === "POST" && url.pathname === "/api/signup") {
     if (request.method === "POST" && url.pathname === "/api/login") {
       try {
         const { email, password } = await request.json();
+        const { email: rawEmail, password } = await request.json();
+        const email = normalizeEmail(rawEmail);
         const { results } = await env.DB.prepare(
           `SELECT email, name, password_hash FROM users WHERE email = ?`
         )
           .bind(email)
           .all();
+
+      const { results } = await env.DB.prepare(
+        `SELECT email, name, password_hash
+          FROM users
+          WHERE lower(email) = ?`
+      )
+      .bind(email)
+      .all();
 
         if (results.length === 0) throw new Error("Invalid credentials");
         const user = results[0];
