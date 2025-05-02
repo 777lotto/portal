@@ -18,6 +18,7 @@
 	},
 	"dependencies": {
 		"bcryptjs": "^3.0.2",
-		"jose": "^6.0.10"
+		"jose": "^6.0.10",
+		"stripe": "^12.18.0"
 	}
 }

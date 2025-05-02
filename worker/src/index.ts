@@ -2,6 +2,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import type { Env } from "./env";
+import { getOrCreateCustomer, createAndSendInvoice } from "./stripe";
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                            */
@@ -263,6 +264,90 @@ export default {
         });
       }
     }
+
+    // --- Generate & send Stripe invoice -------------------------------------
+if (request.method === "POST" && url.pathname.startsWith("/api/services/") &&
+    url.pathname.endsWith("/invoice")) {
+  try {
+    const id = parseInt(url.pathname.split("/")[3]); // /api/services/:id/invoice
+    const email = await requireAuth(request, env);
+
+    // load service + user
+    const row = await env.DB.prepare(
+      `SELECT s.*, u.name, u.stripe_customer_id
+       FROM services s
+       JOIN users u ON u.id = s.user_id
+       WHERE s.id = ? AND u.email = ?`
+    ).bind(id, email).first();
+
+    if (!row) throw new Error("Not found");
+    if (row.stripe_invoice_id) {
+      // already invoiced
+      return new Response(JSON.stringify({ hosted_invoice_url: row.hosted_url }), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
+
+    // make/get customer
+    const customerId = await getOrCreateCustomer(env, email, row.name);
+
+    // create invoice
+    const description = `Gutter cleaning on ${row.service_date}`;
+    const invoice = await createAndSendInvoice(
+      env,
+      customerId,
+      row.price_cents || 10000, // fallback $100 if null
+      description
+    );
+
+    // save invoice id + hosted url
+    await env.DB.prepare(
+      `UPDATE services
+       SET stripe_invoice_id = ?, status = 'invoiced'
+       WHERE id = ?`
+    ).bind(invoice.id, id).run();
+
+    return new Response(JSON.stringify({
+      hosted_invoice_url: invoice.hosted_invoice_url,
+    }), {
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+    });
+  }
+}
+
+// --- Stripe webhook ------------------------------------------------------
+if (url.pathname === "/stripe/webhook") {
+  const stripe = getStripe(env);
+  const sig = request.headers.get("stripe-signature")!;
+  const body = await request.text();
+
+  let evt: Stripe.Event;
+  try {
+    evt = stripe.webhooks.constructEvent(
+      body,
+      sig,
+      env.STRIPE_WEBHOOK_SECRET   // store this via wrangler secret put
+    );
+  } catch (err: any) {
+    return new Response(`Webhook signature error: ${err.message}`, { status: 400 });
+  }
+
+  if (evt.type === "invoice.paid") {
+    const invoice = evt.data.object as Stripe.Invoice;
+    await env.DB.prepare(
+      `UPDATE services
+       SET status = 'paid'
+       WHERE stripe_invoice_id = ?`
+    ).bind(invoice.id).run();
+  }
+
+  return new Response("ok");
+}
 
     /* ---------- Fallback ---------- */
     return new Response("Not found", {
