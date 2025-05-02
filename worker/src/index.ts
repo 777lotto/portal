@@ -2,9 +2,11 @@
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import type { Env } from "./env";
-import { getOrCreateCustomer, createAndSendInvoice } from "./stripe";
-import { getStripe } from "./stripe";
-
+import {
+  getOrCreateCustomer,
+  createAndSendInvoice,
+  getStripe,
+} from "./stripe";
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                            */
@@ -17,7 +19,10 @@ function getJwtSecretKey(secret: string): Uint8Array {
 async function requireAuth(request: Request, env: Env) {
   const auth = request.headers.get("Authorization") || "";
   if (!auth.startsWith("Bearer ")) throw new Error("Missing token");
-  const { payload } = await jwtVerify(auth.slice(7), getJwtSecretKey(env.JWT_SECRET));
+  const { payload } = await jwtVerify(
+    auth.slice(7),
+    getJwtSecretKey(env.JWT_SECRET)
+  );
   return payload.email as string;
 }
 
@@ -29,7 +34,7 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
-    /* ---------- 1) CORS pre-flight ---------- */
+    /* ---------- CORS pre-flight ---------- */
     if (request.method === "OPTIONS") {
       return new Response(null, {
         status: 204,
@@ -41,14 +46,17 @@ export default {
       });
     }
 
-    /* ---------- 2) Ping ---------- */
+    /* ---------- Ping ---------- */
     if (request.method === "GET" && url.pathname === "/api/ping") {
       return new Response(JSON.stringify({ message: "pong" }), {
-        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
       });
     }
 
-    /* ---------- 3) Signup ---------- */
+    /* ---------- Signup ---------- */
     if (request.method === "POST" && url.pathname === "/api/signup") {
       try {
         const { email, name, password } = await request.json();
@@ -56,7 +64,9 @@ export default {
 
         await env.DB.prepare(
           `INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)`
-        ).bind(email, name, password_hash).run();
+        )
+          .bind(email, name, password_hash)
+          .run();
 
         const token = await new SignJWT({ email, name })
           .setProtectedHeader({ alg: "HS256" })
@@ -65,7 +75,10 @@ export default {
           .sign(getJwtSecretKey(env.JWT_SECRET));
 
         return new Response(JSON.stringify({ token }), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       } catch (err: any) {
         const msg = err.message.includes("UNIQUE constraint failed")
@@ -73,18 +86,23 @@ export default {
           : "Signup failed";
         return new Response(JSON.stringify({ error: msg }), {
           status: 400,
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       }
     }
 
-    /* ---------- 4) Login ---------- */
+    /* ---------- Login ---------- */
     if (request.method === "POST" && url.pathname === "/api/login") {
       try {
         const { email, password } = await request.json();
         const { results } = await env.DB.prepare(
           `SELECT email, name, password_hash FROM users WHERE email = ?`
-        ).bind(email).all();
+        )
+          .bind(email)
+          .all();
 
         if (results.length === 0) throw new Error("Invalid credentials");
         const user = results[0];
@@ -100,65 +118,87 @@ export default {
           .sign(getJwtSecretKey(env.JWT_SECRET));
 
         return new Response(JSON.stringify({ token }), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       } catch (err: any) {
         return new Response(JSON.stringify({ error: err.message }), {
           status: 401,
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       }
     }
 
-    /* ---------- 5) Profile ---------- */
+    /* ---------- Profile ---------- */
     if (request.method === "GET" && url.pathname === "/api/profile") {
       try {
         const email = await requireAuth(request, env);
-
         const { results } = await env.DB.prepare(
           `SELECT id, email, name FROM users WHERE email = ?`
-        ).bind(email).all();
+        )
+          .bind(email)
+          .all();
 
         if (results.length === 0) throw new Error("User not found");
         return new Response(JSON.stringify(results[0]), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       } catch (err: any) {
         return new Response(JSON.stringify({ error: err.message }), {
           status: 401,
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       }
     }
 
-    /* ---------- 6) List services ---------- */
+    /* ---------- List services ---------- */
     if (request.method === "GET" && url.pathname === "/api/services") {
       try {
         const email = await requireAuth(request, env);
-        const userRow = await env.DB.prepare(`SELECT id FROM users WHERE email = ?`)
-          .bind(email).first();
+        const userRow = await env.DB.prepare(
+          `SELECT id FROM users WHERE email = ?`
+        )
+          .bind(email)
+          .first();
         if (!userRow) throw new Error("User not found");
 
         const { results } = await env.DB.prepare(
           `SELECT * FROM services WHERE user_id = ? ORDER BY service_date DESC`
-        ).bind(userRow.id).all();
+        )
+          .bind(userRow.id)
+          .all();
 
         return new Response(JSON.stringify(results), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       } catch (err: any) {
         return new Response(JSON.stringify({ error: err.message }), {
           status: 401,
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       }
     }
 
-    /* ---------- 7) Get single service  <-- NEW ------------------------- */
+    /* ---------- Get single service ---------- */
     if (request.method === "GET" && url.pathname.startsWith("/api/services/")) {
-      if (url.pathname === "/api/services") {
-        // handled above
-      } else {
+      if (url.pathname !== "/api/services") {
         try {
           const id = parseInt(url.pathname.split("/").pop()!);
           const email = await requireAuth(request, env);
@@ -167,59 +207,78 @@ export default {
             `SELECT s.* FROM services s
              JOIN users u ON u.id = s.user_id
              WHERE s.id = ? AND u.email = ?`
-          ).bind(id, email).first();
+          )
+            .bind(id, email)
+            .first();
 
           if (!row) throw new Error("Not found");
           return new Response(JSON.stringify(row), {
-            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+            headers: {
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*",
+            },
           });
         } catch (err: any) {
           return new Response(JSON.stringify({ error: err.message }), {
             status: 404,
-            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+            headers: {
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*",
+            },
           });
         }
       }
     }
 
-    /* ---------- 8) Create service ---------- */
+    /* ---------- Create service ---------- */
     if (request.method === "POST" && url.pathname === "/api/services") {
       try {
         const email = await requireAuth(request, env);
-        const userRow = await env.DB.prepare(`SELECT id FROM users WHERE email = ?`)
-          .bind(email).first();
-
+        const userRow = await env.DB.prepare(
+          `SELECT id FROM users WHERE email = ?`
+        )
+          .bind(email)
+          .first();
         if (!userRow) throw new Error("User not found");
-        const { service_date, status, notes } = await request.json();
 
+        const { service_date, status, notes } = await request.json();
         const insert = await env.DB.prepare(
           `INSERT INTO services (user_id, service_date, status, notes)
            VALUES (?, ?, ?, ?)`
-        ).bind(userRow.id, service_date, status || "upcoming", notes || "").run();
+        )
+          .bind(userRow.id, service_date, status || "upcoming", notes || "")
+          .run();
 
         return new Response(JSON.stringify({ id: insert.lastInsertId }), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       } catch (err: any) {
         return new Response(JSON.stringify({ error: err.message }), {
           status: 400,
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       }
     }
 
-    /* ---------- 9) Update service ---------- */
+    /* ---------- Update service ---------- */
     if (request.method === "PUT" && url.pathname.startsWith("/api/services/")) {
       try {
         const id = parseInt(url.pathname.split("/").pop()!);
         const email = await requireAuth(request, env);
 
-        // ensure ownership
         const owner = await env.DB.prepare(
           `SELECT s.id FROM services s
            JOIN users u ON u.id = s.user_id
            WHERE s.id = ? AND u.email = ?`
-        ).bind(id, email).first();
+        )
+          .bind(id, email)
+          .first();
         if (!owner) throw new Error("Not found");
 
         const { service_date, status, notes } = await request.json();
@@ -227,20 +286,28 @@ export default {
           `UPDATE services
            SET service_date = ?, status = ?, notes = ?
            WHERE id = ?`
-        ).bind(service_date, status, notes, id).run();
+        )
+          .bind(service_date, status, notes, id)
+          .run();
 
         return new Response(JSON.stringify({ ok: true }), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       } catch (err: any) {
         return new Response(JSON.stringify({ error: err.message }), {
           status: 400,
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       }
     }
 
-    /* ---------- 10) Delete service ---------- */
+    /* ---------- Delete service ---------- */
     if (request.method === "DELETE" && url.pathname.startsWith("/api/services/")) {
       try {
         const id = parseInt(url.pathname.split("/").pop()!);
@@ -253,153 +320,75 @@ export default {
              JOIN users u ON u.id = s.user_id
              WHERE s.id = ? AND u.email = ?
            )`
-        ).bind(id, email).run();
-
+        )
+          .bind(id, email)
+          .run();
         if (changes === 0) throw new Error("Not found");
+
         return new Response(JSON.stringify({ ok: true }), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       } catch (err: any) {
         return new Response(JSON.stringify({ error: err.message }), {
           status: 400,
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       }
     }
 
-    // --- Generate & send Stripe invoice -------------------------------------
-if (request.method === "POST" && url.pathname.startsWith("/api/services/") &&
-    url.pathname.endsWith("/invoice")) {
-  try {
-    const id = parseInt(url.pathname.split("/")[3]); // /api/services/:id/invoice
-    const email = await requireAuth(request, env);
+    // ─── Stripe Customer Portal ────────────────────────────────────────────
+    if (request.method === "POST" && url.pathname === "/api/portal") {
+      try {
+        const email = await requireAuth(request, env);
 
-    // load service + user
-    const row = await env.DB.prepare(
-      `SELECT s.*, u.name, u.stripe_customer_id
-       FROM services s
-       JOIN users u ON u.id = s.user_id
-       WHERE s.id = ? AND u.email = ?`
-    ).bind(id, email).first();
+        // fetch stored Stripe customer ID
+        const { stripe_customer_id } = (await env.DB.prepare(
+          `SELECT stripe_customer_id FROM users WHERE email = ?`
+        )
+          .bind(email)
+          .first()) as { stripe_customer_id: string | null };
 
-    if (!row) throw new Error("Not found");
-    if (row.stripe_invoice_id) {
-      // already invoiced
-      return new Response(JSON.stringify({ hosted_invoice_url: row.hosted_url }), {
-        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-      });
+        if (!stripe_customer_id) {
+          throw new Error("No Stripe customer on file");
+        }
+
+        const origin = request.headers.get("Origin") ?? "";
+        const stripe = getStripe(env);
+        const session = await stripe.billingPortal.sessions.create({
+          customer: stripe_customer_id,
+          return_url: origin,
+        });
+
+        return new Response(JSON.stringify({ url: session.url }), {
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": origin || "*",
+          },
+        });
+      } catch (err: any) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        });
+      }
     }
 
-    // make/get customer
-    const customerId = await getOrCreateCustomer(env, email, row.name);
-
-    // create invoice
-    const description = `Gutter cleaning on ${row.service_date}`;
-    const invoice = await createAndSendInvoice(
-      env,
-      customerId,
-      row.price_cents || 10000, // fallback $100 if null
-      description
-    );
-
-    // save invoice id + hosted url
-    await env.DB.prepare(
-      `UPDATE services
-       SET stripe_invoice_id = ?, status = 'invoiced'
-       WHERE id = ?`
-    ).bind(invoice.id, id).run();
-
-    return new Response(JSON.stringify({
-      hosted_invoice_url: invoice.hosted_invoice_url,
-    }), {
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-    });
-  } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 400,
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-    });
-  }
-}
-
-// --- Stripe webhook ------------------------------------------------------
-if (url.pathname === "/stripe/webhook") {
-  const stripe = getStripe(env);
-  const sig = request.headers.get("stripe-signature")!;
-  const body = await request.text();
-
-  let evt: Stripe.Event;
-  try {
-    evt = stripe.webhooks.constructEvent(
-      body,
-      sig,
-      env.STRIPE_WEBHOOK_SECRET   // store this via wrangler secret put
-    );
-  } catch (err: any) {
-    return new Response(`Webhook signature error: ${err.message}`, { status: 400 });
-  }
-
-  if (evt.type === "invoice.paid") {
-    const invoice = evt.data.object as Stripe.Invoice;
-    await env.DB.prepare(
-      `UPDATE services
-       SET status = 'paid'
-       WHERE stripe_invoice_id = ?`
-    ).bind(invoice.id).run();
-  }
-
-  return new Response("ok");
-}
-
-// --- Fetch existing invoice URL for a service --------------------------
-if (
-  request.method === "GET" &&
-  url.pathname.startsWith("/api/services/") &&
-  url.pathname.endsWith("/invoice")
-) {
-  try {
-    const id = parseInt(url.pathname.split("/")[3]); // /api/services/:id/invoice
-    const email = await requireAuth(request, env);
-
-    // Look up the stored Stripe invoice ID
-    const row = await env.DB.prepare(
-      `SELECT stripe_invoice_id FROM services s
-       JOIN users u ON u.id = s.user_id
-       WHERE s.id = ? AND u.email = ?`
-    )
-      .bind(id, email)
-      .first();
-
-    if (!row?.stripe_invoice_id) throw new Error("No invoice available");
-
-    // Retrieve the invoice from Stripe
-    const stripe = getStripe(env);
-    const invoice = await stripe.invoices.retrieve(row.stripe_invoice_id);
-
-    return new Response(
-      JSON.stringify({ hosted_invoice_url: invoice.hosted_invoice_url }),
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-      }
-    );
-  } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    /* ---------- Fallback ---------- */
+    return new Response("Not found", {
       status: 404,
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
       },
-    });
-  }
-}
-
-    /* ---------- Fallback ---------- */
-    return new Response("Not found", {
-      status: 404,
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
     });
   },
 } satisfies ExportedHandler<Env>;
