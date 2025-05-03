@@ -426,55 +426,96 @@ if (request.method === "POST" && url.pathname === "/api/login") {
           },
         });
       } catch (err: any) {
-        return new Response(JSON.stringify({ error: err.message }), {
+        return new Response(JSON.stringify({ url: session.url }), {
           status: 400,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
+         headers: {
+    ...CORS,
+    "Access-Control-Allow-Origin": origin || "*",
           },
         });
       }
     }
 
     // ─── Stripe Customer Portal ────────────────────────────────────────────
-    if (request.method === "POST" && url.pathname === "/api/portal") {
-      try {
-        const email = await requireAuth(request, env);
+if (request.method === "POST" && url.pathname === "/api/portal") {
+  try {
+    const email = await requireAuth(request, env);
+    // …lookup stripe_customer_id, create session…
 
-        // fetch stored Stripe customer ID
-        const { stripe_customer_id } = (await env.DB.prepare(
-          `SELECT stripe_customer_id FROM users WHERE email = ?`
-        )
-          .bind(email)
-          .first()) as { stripe_customer_id: string | null };
-
-        if (!stripe_customer_id) {
-          throw new Error("No Stripe customer on file");
-        }
-
-        const origin = request.headers.get("Origin") ?? "";
-        const stripe = getStripe(env);
-        const session = await stripe.billingPortal.sessions.create({
-          customer: stripe_customer_id,
-          return_url: origin,
-        });
-
-        return new Response(JSON.stringify({ url: session.url }), {
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": origin || "*",
-          },
-        });
-      } catch (err: any) {
-        return new Response(JSON.stringify({ error: err.message }), {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
-      }
+    if (!session.url) {
+      throw new Error("Failed to create customer portal session");
     }
+
+    return new Response(
+      JSON.stringify({ url: session.url }),
+      {
+        status: 200,
+        headers: {
+          …CORS,
+          "Access-Control-Allow-Origin": origin || "*",
+        },
+      }
+    );
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({ error: err.message }),
+      {
+        status: 400,
+        headers: {
+          …CORS,
+          "Access-Control-Allow-Origin": origin || "*",
+        },
+      }
+    );
+  }
+}
+
+// ─── Stripe webhook handler ─────────────────────────────────────────────
+if (request.method === "POST" && url.pathname === "/stripe/webhook") {
+  // 1) Grab signature & raw body
+  const sig = request.headers.get("Stripe-Signature")!;
+  const bodyText = await request.text();
+
+  // 2) Verify signature & parse event
+  let event: Stripe.Event;
+  try {
+    event = getStripe(env).webhooks.constructEvent(
+      bodyText,
+      sig,
+      env.STRIPE_WEBHOOK_SECRET
+    ) as Stripe.Event;
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({ error: `Webhook Error: ${err.message}` }),
+      { status: 400, headers: CORS }
+    );
+  }
+
+  // 3) Handle only customer.created
+  if (event.type === "customer.created") {
+    const customer = event.data.object as Stripe.Customer;
+    const email = normalizeEmail(customer.email || "");
+    const name = customer.name || "";
+
+    if (email) {
+      await env.DB.prepare(
+        `INSERT INTO users
+           (email, name, password_hash, stripe_customer_id)
+         SELECT ?, ?, '', ?
+         WHERE NOT EXISTS (
+           SELECT 1 FROM users WHERE lower(email) = ?
+         )`
+      )
+        .bind(email, name, customer.id, email)
+        .run();
+    }
+  }
+
+  // 4) Acknowledge receipt
+  return new Response(JSON.stringify({ received: true }), {
+    headers: CORS,
+  });
+}
 
     /* ---------- Fallback ---------- */
     return new Response("Not found", {
