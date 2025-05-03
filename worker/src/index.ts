@@ -452,7 +452,7 @@ if (request.method === "POST" && url.pathname === "/api/portal") {
         status: 200,
         headers: {
           …CORS,
-          "Access-Control-Allow-Origin": origin || "*",
+          "Access-Control-Allow-Origin": origin || "*"
         },
       }
     );
@@ -463,7 +463,7 @@ if (request.method === "POST" && url.pathname === "/api/portal") {
         status: 400,
         headers: {
           …CORS,
-          "Access-Control-Allow-Origin": origin || "*",
+          "Access-Control-Allow-Origin": origin || "*"
         },
       }
     );
