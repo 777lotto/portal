@@ -220,6 +220,10 @@ if (request.method === "POST" && url.pathname === "/api/login") {
     return new Response(JSON.stringify({ token }), {
       headers: CORS,
     });
+       return new Response(JSON.stringify({ token }), {
+     status: 200,
+     headers: CORS,
+   });
   } catch (err: any) {
     return new Response(JSON.stringify({ error: err.message }), {
       status: 401,
@@ -228,294 +232,317 @@ if (request.method === "POST" && url.pathname === "/api/login") {
   }
 }
 
-    /* ---------- Profile ---------- */
-    if (request.method === "GET" && url.pathname === "/api/profile") {
-      try {
-        const email = await requireAuth(request, env);
-        const { results } = await env.DB.prepare(
-          `SELECT id, email, name FROM users WHERE email = ?`
-        )
-          .bind(email)
-          .all();
+/* ─── Profile (customer‑facing) ───────────────────────────────────────── */
+if (request.method === "GET" && url.pathname === "/api/profile") {
+  try {
+    // 1) Verify JWT & get user email
+    const email = await requireAuth(request, env);
 
-        if (results.length === 0) throw new Error("User not found");
-        return new Response(JSON.stringify(results[0]), {
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
-      } catch (err: any) {
-        return new Response(JSON.stringify({ error: err.message }), {
-          status: 401,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
-      }
+    // 2) Fetch the user record (case‑insensitive email)
+    const { results: userResults } = await env.DB.prepare(
+      `SELECT id, email, name
+         FROM users
+        WHERE lower(email) = ?`
+    )
+      .bind(email.toLowerCase())
+      .all();
+
+    if (userResults.length === 0) {
+      throw new Error("User not found");
     }
 
-    /* ---------- List services ---------- */
-    if (request.method === "GET" && url.pathname === "/api/services") {
-      try {
-        const email = await requireAuth(request, env);
-        const userRow = await env.DB.prepare(
-          `SELECT id FROM users WHERE email = ?`
-        )
-          .bind(email)
-          .first();
-        if (!userRow) throw new Error("User not found");
+    // 3) Return the first (and only) record
+    return new Response(JSON.stringify(userResults[0]), {
+      status: 200,
+      headers: CORS,
+    });
+  } catch (err: any) {
+    // 401 for auth errors or if JWT is missing/invalid
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 401,
+      headers: CORS,
+    });
+  }
+}
 
-        const { results } = await env.DB.prepare(
-          `SELECT * FROM services WHERE user_id = ? ORDER BY service_date DESC`
-        )
-          .bind(userRow.id)
-          .all();
+/* ─── List services (customer‑facing) ─────────────────────────────────── */
+if (request.method === "GET" && url.pathname === "/api/services") {
+  try {
+    // verify JWT and get user email
+    const email = await requireAuth(request, env);
 
-        return new Response(JSON.stringify(results), {
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
-      } catch (err: any) {
-        return new Response(JSON.stringify({ error: err.message }), {
-          status: 401,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
-      }
+    // lookup the user’s ID
+    const userRow = await env.DB.prepare(
+      `SELECT id
+         FROM users
+        WHERE lower(email) = ?`
+    )
+      .bind(email.toLowerCase())
+      .first();
+    if (!userRow) throw new Error("User not found");
+
+    // fetch all services for that user
+    const { results: servicesList } = await env.DB.prepare(
+      `SELECT *
+         FROM services
+        WHERE user_id = ?
+        ORDER BY service_date DESC`
+    )
+      .bind(userRow.id)
+      .all();
+
+    return new Response(JSON.stringify(servicesList), {
+      status: 200,
+      headers: CORS,
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 401,
+      headers: CORS,
+    });
+  }
+}
+
+/* ─── Get single service (customer-facing) ─────────────────────────────── */
+if (request.method === "GET" && url.pathname.match(/^\/api\/services\/\d+$/)) {
+  try {
+    const id = parseInt(url.pathname.split("/").pop()!, 10);
+    const email = await requireAuth(request, env);
+
+    const row = await env.DB.prepare(
+      `SELECT s.* FROM services s
+         JOIN users u ON u.id = s.user_id
+        WHERE s.id = ? AND u.email = ?`
+    )
+      .bind(id, email)
+      .first();
+
+    if (!row) {
+      // no record or not yours
+      throw new Error("Not found");
     }
 
-    /* ---------- Get single service ---------- */
-    if (request.method === "GET" && url.pathname.startsWith("/api/services/")) {
-      if (url.pathname !== "/api/services") {
-        try {
-          const id = parseInt(url.pathname.split("/").pop()!);
-          const email = await requireAuth(request, env);
+    return new Response(JSON.stringify(row), {
+      status: 200,
+      headers: CORS,
+    });
+  } catch (err: any) {
+    // return 404 on “Not found”, 400 on any other error
+    const status = err.message === "Not found" ? 404 : 400;
+    return new Response(JSON.stringify({ error: err.message }), {
+      status,
+      headers: CORS,
+    });
+  }
+}
 
-          const row = await env.DB.prepare(
-            `SELECT s.* FROM services s
-             JOIN users u ON u.id = s.user_id
-             WHERE s.id = ? AND u.email = ?`
-          )
-            .bind(id, email)
-            .first();
 
-          if (!row) throw new Error("Not found");
-          return new Response(JSON.stringify(row), {
-            headers: {
-              "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": "*",
-            },
-          });
-        } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: 404,
-            headers: {
-              "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": "*",
-            },
-          });
-        }
-      }
-    }
+/* ---------- Create service (admin-only) ---------- */
+if (request.method === "POST" && url.pathname === "/api/services") {
+  try {
+    // verify user
+    const email = await requireAuth(request, env);
+    const userRow = await env.DB.prepare(
+      `SELECT id FROM users WHERE lower(email) = ?`
+    )
+      .bind(email.toLowerCase())
+      .first();
 
-    /* ---------- Create service ---------- */
-    if (request.method === "POST" && url.pathname === "/api/services") {
-      try {
-        const email = await requireAuth(request, env);
-        const userRow = await env.DB.prepare(
-          `SELECT id FROM users WHERE email = ?`
-        )
-          .bind(email)
-          .first();
-        if (!userRow) throw new Error("User not found");
+    if (!userRow) throw new Error("User not found");
 
-        const { service_date, status, notes } = await request.json();
-        const insert = await env.DB.prepare(
-          `INSERT INTO services (user_id, service_date, status, notes)
-           VALUES (?, ?, ?, ?)`
-        )
-          .bind(userRow.id, service_date, status || "upcoming", notes || "")
-          .run();
+    // pull data
+    const { service_date, status, notes } = await request.json();
 
-        return new Response(JSON.stringify({ id: insert.lastInsertId }), {
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
-      } catch (err: any) {
-        return new Response(JSON.stringify({ error: err.message }), {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
-      }
-    }
+    // insert
+    const insert = await env.DB.prepare(
+      `INSERT INTO services
+         (user_id, service_date, status, notes)
+       VALUES (?, ?, ?, ?)`
+    )
+      .bind(userRow.id, service_date, status || "upcoming", notes || "")
+      .run();
 
-    /* ---------- Update service ---------- */
-    if (request.method === "PUT" && url.pathname.startsWith("/api/services/")) {
-      try {
-        const id = parseInt(url.pathname.split("/").pop()!);
-        const email = await requireAuth(request, env);
+    // return the new ID
+    return new Response(JSON.stringify({ id: insert.lastInsertId }), {
+      status: 200,
+      headers: CORS,
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
+      headers: CORS,
+    });
+  }
+}
 
-        const owner = await env.DB.prepare(
-          `SELECT s.id FROM services s
+
+/* ---------- Update service (admin-only) ---------- */
+if (request.method === "PUT" && url.pathname.startsWith("/api/services/")) {
+  try {
+    const id = parseInt(url.pathname.split("/").pop()!, 10);
+    const email = await requireAuth(request, env);
+
+    // verify ownership
+    const owner = await env.DB.prepare(
+      `SELECT s.id
+         FROM services s
+         JOIN users u ON u.id = s.user_id
+        WHERE s.id = ? AND u.email = ?`
+    )
+      .bind(id, email)
+      .first();
+    if (!owner) throw new Error("Not found");
+
+    // pull updated fields from body
+    const { service_date, status, notes } = await request.json();
+
+    // perform update
+    await env.DB.prepare(
+      `UPDATE services
+          SET service_date = ?, status = ?, notes = ?
+        WHERE id = ?`
+    )
+      .bind(service_date, status, notes, id)
+      .run();
+
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: CORS,
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
+      headers: CORS,
+    });
+  }
+}
+
+
+// ─── Delete service (admin-only) ────────────────────────────────────────
+if (request.method === "DELETE" && url.pathname.startsWith("/api/services/")) {
+  try {
+    const id = parseInt(url.pathname.split("/").pop()!);
+    // requireAuth will verify the JWT and return the user’s email
+    const email = await requireAuth(request, env);
+
+    const { changes } = await env.DB.prepare(
+      `DELETE FROM services
+         WHERE id = (
+           SELECT s.id FROM services s
            JOIN users u ON u.id = s.user_id
-           WHERE s.id = ? AND u.email = ?`
-        )
-          .bind(id, email)
-          .first();
-        if (!owner) throw new Error("Not found");
+           WHERE s.id = ? AND u.email = ?
+         )`
+    )
+      .bind(id, email)
+      .run();
 
-        const { service_date, status, notes } = await request.json();
-        await env.DB.prepare(
-          `UPDATE services
-           SET service_date = ?, status = ?, notes = ?
-           WHERE id = ?`
-        )
-          .bind(service_date, status, notes, id)
-          .run();
-
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
-      } catch (err: any) {
-        return new Response(JSON.stringify({ error: err.message }), {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
-      }
+    if (changes === 0) {
+      throw new Error("Not found");
     }
 
-    /* ---------- Delete service ---------- */
-    if (request.method === "DELETE" && url.pathname.startsWith("/api/services/")) {
-      try {
-        const id = parseInt(url.pathname.split("/").pop()!);
-        const email = await requireAuth(request, env);
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: CORS,
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
+      headers: CORS,
+    });
+  }
+}
 
-        const { changes } = await env.DB.prepare(
-          `DELETE FROM services
-           WHERE id = (
-             SELECT s.id FROM services s
-             JOIN users u ON u.id = s.user_id
-             WHERE s.id = ? AND u.email = ?
-           )`
-        )
-          .bind(id, email)
-          .run();
-        if (changes === 0) throw new Error("Not found");
-
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
-      } catch (err: any) {
-        return new Response(JSON.stringify({ url: session.url }), {
-          status: 400,
-         headers: {
-    ...CORS,
-    "Access-Control-Allow-Origin": origin || "*",
-          },
-        });
-      }
-    }
 
     // ─── Stripe Customer Portal ────────────────────────────────────────────
-if (request.method === "POST" && url.pathname === "/api/portal") {
-  try {
-    const email = await requireAuth(request, env);
-    // …lookup stripe_customer_id, create session…
+     // ─── Stripe Customer Portal ────────────────────────────────────────────
+     if (request.method === "POST" && url.pathname === "/api/portal") {
+       try {
+         const email = await requireAuth(request, env);
+         // fetch stored Stripe customer ID
+         const { stripe_customer_id } = (await env.DB.prepare(
+           `SELECT stripe_customer_id FROM users WHERE email = ?`
+         )
+           .bind(email)
+           .first()) as { stripe_customer_id: string | null };
 
-    if (!session.url) {
-      throw new Error("Failed to create customer portal session");
-    }
+         if (!stripe_customer_id) {
+           throw new Error("No Stripe customer on file");
+         }
 
-    return new Response(
-      JSON.stringify({ url: session.url }),
-      {
-        status: 200,
-        headers: {
-          …CORS,
-          "Access-Control-Allow-Origin": origin || "*"
-        },
-      }
-    );
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({ error: err.message }),
-      {
-        status: 400,
-        headers: {
-          …CORS,
-          "Access-Control-Allow-Origin": origin || "*"
-        },
-      }
-    );
+         const origin = request.headers.get("Origin") ?? "";
+         const stripe = getStripe(env);
+         const session = await stripe.billingPortal.sessions.create({
+           customer: stripe_customer_id,
+           return_url: origin,
+         });
+
+         // ← if we ever fail to get a URL, bail early
+         if (!session.url) {
+           throw new Error("Failed to create customer portal session");
+         }
+        return new Response(JSON.stringify({ url: session.url }), {
+          status: 200,
+          headers: {
+            ...CORS,
+           "Access-Control-Allow-Origin": origin || "*"
+          },
+        });
+       } catch (err: any) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 400,
+          headers: {
+            ...CORS,
+            "Access-Control-Allow-Origin": origin || "*"
+          },
+        });
   }
 }
 
-// ─── Stripe webhook handler ─────────────────────────────────────────────
-if (request.method === "POST" && url.pathname === "/stripe/webhook") {
-  // 1) Grab signature & raw body
-  const sig = request.headers.get("Stripe-Signature")!;
-  const bodyText = await request.text();
+     // ─── Stripe webhook handler ─────────────────────────────────────────────
+     if (request.method === "POST" && url.pathname === "/stripe/webhook") {
+       // 1) Grab signature & raw body
+       const sig = request.headers.get("Stripe-Signature")!;
+       const bodyText = await request.text();
 
-  // 2) Verify signature & parse event
-  let event: Stripe.Event;
-  try {
-    event = getStripe(env).webhooks.constructEvent(
-      bodyText,
-      sig,
-      env.STRIPE_WEBHOOK_SECRET
-    ) as Stripe.Event;
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({ error: `Webhook Error: ${err.message}` }),
-      { status: 400, headers: CORS }
-    );
-  }
+      // declare event *once* with the right typing
+      let event: Stripe.Event;
+      try {
+        event = getStripe(env).webhooks.constructEvent(
+          bodyText,
+          sig,
+          env.STRIPE_WEBHOOK_SECRET
+        ) as Stripe.Event;
+      } catch (err: any) {
+        return new Response(
+          JSON.stringify({ error: `Webhook Error: ${err.message}` }),
+          { status: 400, headers: CORS }
+        );
+      }
 
-  // 3) Handle only customer.created
-  if (event.type === "customer.created") {
-    const customer = event.data.object as Stripe.Customer;
-    const email = normalizeEmail(customer.email || "");
-    const name = customer.name || "";
+       // 2) only act on new customers
+       if (event.type === "customer.created") {
+         const customer = event.data.object as Stripe.Customer;
+         const email = normalizeEmail(customer.email || "");
+         const name = customer.name || "";
 
-    if (email) {
-      await env.DB.prepare(
-        `INSERT INTO users
-           (email, name, password_hash, stripe_customer_id)
-         SELECT ?, ?, '', ?
-         WHERE NOT EXISTS (
-           SELECT 1 FROM users WHERE lower(email) = ?
-         )`
-      )
-        .bind(email, name, customer.id, email)
-        .run();
-    }
-  }
+         if (email) {
+           await env.DB.prepare(
+             `INSERT INTO users
+                (email, name, password_hash, stripe_customer_id)
+              SELECT ?, ?, '', ?
+              WHERE NOT EXISTS (
+                SELECT 1 FROM users WHERE lower(email)=?
+              )`
+           )
+             .bind(email, name, customer.id, email)
+             .run();
+         }
+       }
 
-  // 4) Acknowledge receipt
-  return new Response(JSON.stringify({ received: true }), {
-    headers: CORS,
-  });
-}
+       return new Response(JSON.stringify({ received: true }), {
+         headers: CORS,
+       });
+     }
 
     /* ---------- Fallback ---------- */
     return new Response("Not found", {
