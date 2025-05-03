@@ -80,19 +80,20 @@ if (request.method === "POST" && url.pathname === "/api/signup/check") {
     const { email: rawEmail } = await request.json();
     const email = normalizeEmail(rawEmail);
     const row = await env.DB.prepare(
-      `SELECT password_hash
+      `SELECT password_hash, name
          FROM users
         WHERE lower(email) = ?`
     )
     .bind(email)
-    .first();
+    .first() as { password_hash: string | null; name: string };
 
     if (row) {
       // invited but no password yet
       if (!row.password_hash) {
-        return new Response(JSON.stringify({ status: "existing" }), {
-          headers: CORS,
-        });
+        return new Response(JSON.stringify({
+          status: "existing",
+          name: row.name
+        }), { headers: CORS });
       }
       // fully signed up already
       return new Response(
@@ -145,6 +146,15 @@ if (request.method === "POST" && url.pathname === "/api/signup") {
         )
           .bind(name, password_hash, email)
           .run();
+
+    // ─── update Stripe customer name too ───────
+   if (existing.stripe_customer_id) {
+     const stripe = getStripe(env);
+     await stripe.customers.update(existing.stripe_customer_id, {
+       name,
+     });
+   }
+
       } else {
         // they already signed up fully
         throw new Error("Account already exists");

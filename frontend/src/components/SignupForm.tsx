@@ -21,8 +21,11 @@ export default function SignupForm({ setToken }: Props) {
     e.preventDefault();
     setError(null);
     try {
-      const { status } = await signupCheck(email);
+       const { status, name: existingName } = await signupCheck(email);
       setMode(status);
+      if (status === "existing" && existingName) {
+        setName(existingName);
+      }
       setStep("signup");
     } catch (err: any) {
       setError(err.message || "Check failed");
