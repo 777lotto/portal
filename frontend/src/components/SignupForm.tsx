@@ -63,7 +63,7 @@ export default function SignupForm({ setToken }: Props) {
             required
             placeholder="Email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value.trim().toLowerCase())}
             style={{ width: "100%", marginBottom: "1rem" }}
           />
           <button type="submit" style={{ width: "100%", padding: "0.5rem" }}>
