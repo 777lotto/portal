@@ -68,32 +68,29 @@ export default {
     }
 
     /* ---------- Signup ---------- */
-// STEP 1: Check email only
+/* ─── STEP 1: Check email for signup + return existing name ──────────── */
 if (request.method === "POST" && url.pathname === "/api/signup/check") {
   try {
-    const { email } = await request.json();
-    const row = await env.DB.prepare(
-      `SELECT password_hash FROM users WHERE email = ?`
-    )
-      .bind(email)
-      .first();
-    const { email: rawEmail } = await request.json();
-    const email = normalizeEmail(rawEmail);
-    const row = await env.DB.prepare(
+    // parse & normalize
+    const raw = await request.json();
+    const email = normalizeEmail(raw.email);
+
+    // lookup password_hash + name
+    const existingUser = await env.DB.prepare(
       `SELECT password_hash, name
          FROM users
         WHERE lower(email) = ?`
     )
-    .bind(email)
-    .first() as { password_hash: string | null; name: string };
+      .bind(email)
+      .first() as { password_hash: string | null; name: string };
 
-    if (row) {
-      // invited but no password yet
-      if (!row.password_hash) {
-        return new Response(JSON.stringify({
-          status: "existing",
-          name: row.name
-        }), { headers: CORS });
+    if (existingUser) {
+      if (!existingUser.password_hash) {
+        // imported user, no password yet
+        return new Response(
+          JSON.stringify({ status: "existing", name: existingUser.name }),
+          { headers: CORS }
+        );
       }
       // fully signed up already
       return new Response(
@@ -114,61 +111,57 @@ if (request.method === "POST" && url.pathname === "/api/signup/check") {
   }
 }
 
-// STEP 2: Complete signup or create new
+/* ─── STEP 2: Complete signup or create new ───────────────────────────── */
 if (request.method === "POST" && url.pathname === "/api/signup") {
   try {
-    const { email, name, password } = await request.json();
-    const password_hash = await bcrypt.hash(password, 10);
-    const { email: rawEmail, name, password } = await request.json();
-    const email = normalizeEmail(rawEmail);
+    // parse & normalize payload
+    const raw = await request.json();
+    const email = normalizeEmail(raw.email);
+    const name = raw.name;
+    const password = raw.password;
     const password_hash = await bcrypt.hash(password, 10);
 
     // check for an existing row
-    const existing = await env.DB.prepare(
-      `SELECT password_hash FROM users WHERE email = ?`
-    )
-      .bind(email)
-      .first();
-
-    const existing = await env.DB.prepare(
-      `SELECT password_hash
+    const existingUser = await env.DB.prepare(
+      `SELECT password_hash, stripe_customer_id
          FROM users
         WHERE lower(email) = ?`
     )
-    .bind(email)
-    .first();
+      .bind(email)
+      .first() as { password_hash: string | null; stripe_customer_id: string | null };
 
-    if (existing) {
-      if (!existing.password_hash) {
-        // finish setting up an imported user
+    if (existingUser) {
+      if (!existingUser.password_hash) {
+        // finish setting up imported user
         await env.DB.prepare(
-          `UPDATE users SET name = ?, password_hash = ? WHERE email = ?`
+          `UPDATE users
+              SET name = ?, password_hash = ?
+            WHERE lower(email) = ?`
         )
           .bind(name, password_hash, email)
           .run();
 
-    // ─── update Stripe customer name too ───────
-   if (existing.stripe_customer_id) {
-     const stripe = getStripe(env);
-     await stripe.customers.update(existing.stripe_customer_id, {
-       name,
-     });
-   }
-
+        // sync name to Stripe
+        if (existingUser.stripe_customer_id) {
+          const stripe = getStripe(env);
+          await stripe.customers.update(existingUser.stripe_customer_id, {
+            name,
+          });
+        }
       } else {
-        // they already signed up fully
         throw new Error("Account already exists");
       }
     } else {
-      // totally new signup
+      // brand‑new signup
       await env.DB.prepare(
-        `INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)`
+        `INSERT INTO users (email, name, password_hash)
+           VALUES (?, ?, ?)`
       )
         .bind(email, name, password_hash)
         .run();
     }
 
-    // STEP: 3 issue JWT
+    // issue JWT
     const token = await new SignJWT({ email, name })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
@@ -190,55 +183,50 @@ if (request.method === "POST" && url.pathname === "/api/signup") {
   }
 }
 
-    /* ---------- Login ---------- */
-    if (request.method === "POST" && url.pathname === "/api/login") {
-      try {
-        const { email, password } = await request.json();
-        const { email: rawEmail, password } = await request.json();
-        const email = normalizeEmail(rawEmail);
-        const { results } = await env.DB.prepare(
-          `SELECT email, name, password_hash FROM users WHERE email = ?`
-        )
-          .bind(email)
-          .all();
 
-      const { results } = await env.DB.prepare(
-        `SELECT email, name, password_hash
-          FROM users
-          WHERE lower(email) = ?`
-      )
+/* ---------- Login ---------- */
+if (request.method === "POST" && url.pathname === "/api/login") {
+  try {
+    // 1) parse & normalize payload
+    const raw = await request.json();
+    const email = normalizeEmail(raw.email);
+    const password = raw.password;
+
+    // 2) fetch user by lowercased email
+    const { results: loginResults } = await env.DB.prepare(
+      `SELECT email, name, password_hash
+         FROM users
+        WHERE lower(email) = ?`
+    )
       .bind(email)
       .all();
 
-        if (results.length === 0) throw new Error("Invalid credentials");
-        const user = results[0];
-
-        if (!(await bcrypt.compare(password, user.password_hash))) {
-          throw new Error("Invalid credentials");
-        }
-
-        const token = await new SignJWT({ email: user.email, name: user.name })
-          .setProtectedHeader({ alg: "HS256" })
-          .setIssuedAt()
-          .setExpirationTime("2h")
-          .sign(getJwtSecretKey(env.JWT_SECRET));
-
-        return new Response(JSON.stringify({ token }), {
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
-      } catch (err: any) {
-        return new Response(JSON.stringify({ error: err.message }), {
-          status: 401,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
-      }
+    // 3) validate credentials
+    if (loginResults.length === 0) {
+      throw new Error("Invalid credentials");
     }
+    const user = loginResults[0];
+    if (!(await bcrypt.compare(password, user.password_hash))) {
+      throw new Error("Invalid credentials");
+    }
+
+    // 4) issue JWT
+    const token = await new SignJWT({ email: user.email, name: user.name })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("2h")
+      .sign(getJwtSecretKey(env.JWT_SECRET));
+
+    return new Response(JSON.stringify({ token }), {
+      headers: CORS,
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 401,
+      headers: CORS,
+    });
+  }
+}
 
     /* ---------- Profile ---------- */
     if (request.method === "GET" && url.pathname === "/api/profile") {
