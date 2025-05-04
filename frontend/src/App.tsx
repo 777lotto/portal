@@ -25,9 +25,19 @@ function App() {
           element={<Navigate to={token ? "/dashboard" : "/login"} replace />}
         />
 
-        {/* public auth pages */}
-        <Route path="/login" element={<LoginForm setToken={setToken} />} />
-        <Route path="/signup" element={<SignupForm setToken={setToken} />} />
+        {/* auth */}
+        <Route
+          path="/login"
+          element={
+            token ? <Navigate to="/dashboard" replace /> : <LoginForm setToken={setToken} />
+          }
+        />
+        <Route
+          path="/signup"
+          element={
+            token ? <Navigate to="/dashboard" replace /> : <SignupForm setToken={setToken} />
+          }
+        />
 
         {/* protected pages */}
         <Route

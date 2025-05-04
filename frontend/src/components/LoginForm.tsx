@@ -1,8 +1,7 @@
 // src/components/LoginForm.tsx
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { login } from "../lib/api";
-import { Link } from "react-router-dom";
 
 interface Props {
   setToken: (token: string) => void;
@@ -20,9 +19,6 @@ export default function LoginForm({ setToken }: Props) {
 
     try {
       const token = await login(email, password);
-      if (typeof token !== "string") {
-        throw new Error("Invalid token format");
-      }
       localStorage.setItem("token", token);
       setToken(token);
       navigate("/dashboard");
@@ -37,7 +33,10 @@ export default function LoginForm({ setToken }: Props) {
       <form onSubmit={handleSubmit}>
         <div>
           <input
-            placeholder="Email"
+        id="login-email"
+        name="email"
+        type="email"
+        autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             style={{ width: "100%", marginBottom: "1rem" }}
@@ -45,8 +44,11 @@ export default function LoginForm({ setToken }: Props) {
         </div>
         <div>
           <input
-            type="password"
-            placeholder="Password"
+        id="login-password"
+        name="password"
+        type="password"
+        autoComplete="current-password"
+        placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             style={{ width: "100%", marginBottom: "1rem" }}
@@ -58,11 +60,10 @@ export default function LoginForm({ setToken }: Props) {
       </form>
 
       <p style={{ marginTop: "1rem" }}>
-        Don't have an account? <Link to="/signup">Sign up</Link>
+        Don’t have an account? <Link to="/signup">Sign up</Link>
       </p>
 
       {error && <div style={{ color: "red", marginTop: "1rem" }}>{error}</div>}
     </div>
   );
 }
-

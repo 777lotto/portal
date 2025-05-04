@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default function SignupForm({ setToken }: Props) {
-  const [step, setStep] = useState<"email" | "signup">("email");
+  const [step, setStep] = useState<"email" | "complete">("email");
   const [mode, setMode] = useState<"new" | "existing">("new");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -21,12 +21,12 @@ export default function SignupForm({ setToken }: Props) {
     e.preventDefault();
     setError(null);
     try {
-       const { status, name: existingName } = await signupCheck(email);
+      const { status, name: existingName } = await signupCheck(email);
       setMode(status);
       if (status === "existing" && existingName) {
         setName(existingName);
       }
-      setStep("signup");
+      setStep("complete");
     } catch (err: any) {
       setError(err.message || "Check failed");
     }
@@ -59,14 +59,22 @@ export default function SignupForm({ setToken }: Props) {
       {step === "email" ? (
         <form onSubmit={handleCheck}>
           <input
+            id="signup-email"
+            name="email"
             type="email"
             required
+            autoComplete="email"
             placeholder="Email"
             value={email}
-            onChange={(e) => setEmail(e.target.value.trim().toLowerCase())}
+            onChange={(e) =>
+              setEmail(e.target.value.trim().toLowerCase())
+            }
             style={{ width: "100%", marginBottom: "1rem" }}
           />
-          <button type="submit" style={{ width: "100%", padding: "0.5rem" }}>
+          <button
+            type="submit"
+            style={{ width: "100%", padding: "0.5rem" }}
+          >
             Continue
           </button>
         </form>
@@ -77,6 +85,9 @@ export default function SignupForm({ setToken }: Props) {
           </p>
           <div>
             <input
+              id="signup-name"
+              name="name"
+              autoComplete="name"
               placeholder="Name"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -86,7 +97,10 @@ export default function SignupForm({ setToken }: Props) {
           </div>
           <div>
             <input
+              id="signup-password"
+              name="password"
               type="password"
+              autoComplete="new-password"
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -94,7 +108,10 @@ export default function SignupForm({ setToken }: Props) {
               required
             />
           </div>
-          <button type="submit" style={{ width: "100%", padding: "0.5rem" }}>
+          <button
+            type="submit"
+            style={{ width: "100%", padding: "0.5rem" }}
+          >
             {mode === "new" ? "Sign Up" : "Complete Signup"}
           </button>
         </form>
