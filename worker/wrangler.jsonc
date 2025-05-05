@@ -10,7 +10,6 @@
 	"account_id": "67d3a6021370e7b666fff2023b2db359",
   "compatibility_date": "2025-04-21",
   "routes": [
-  {
     "pattern": "portal.777.foo/api/*",
     }
   ],
