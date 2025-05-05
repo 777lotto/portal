@@ -1,58 +1,21 @@
 // src/lib/api.ts
+// src/lib/api.ts
 import { fetchJson } from "./fetchJson";
 
-const API_URL = "https://portal.777.foo/api";
+/* ---------- low‑level helpers ---------- */
 
-/* ---------- auth helpers ---------- */
-
-export async function login(email: string, password: string): Promise<string> {
-  const { token } = await fetchJson(`${API_URL}/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+export const apiGet = (path: string, token?: string) =>
+  fetchJson(path, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
-  return token;
-}
 
-export async function signup(
-  email: string,
-  name: string,
-  password: string
-) {
-  // returns { token } just like login
-  return await fetchJson(`${API_URL}/signup`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, name, password }),
-  });
-}
-
-/** Check whether an email is new or existing (no password yet) */
-export async function signupCheck(
-  email: string
-): Promise<{ status: "new" | "existing"; name?: string }> {
-  return await fetchJson(`${API_URL}/signup/check`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
-  });
-}
-
-/* ---------- generic helpers ---------- */
-
-export async function apiGet(path: string, token?: string) {
-  return await fetchJson(`${API_URL}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-}
-
-export async function apiPost(
+export const apiPost = (
   path: string,
   body: unknown,
   token?: string,
-  method: "POST" | "PUT" | "DELETE" = "POST"
-) {
-  return await fetchJson(`${API_URL}${path}`, {
+  method: "POST" | "PUT" | "DELETE" = "POST",
+) =>
+  fetchJson(path, {
     method,
     headers: {
       "Content-Type": "application/json",
@@ -60,38 +23,24 @@ export async function apiPost(
     },
     body: JSON.stringify(body),
   });
-}
 
-export async function apiDelete(path: string, token: string) {
-  return apiPost(path, {}, token, "DELETE");
-}
+/* ---------- auth ---------- */
 
-/* ---------- invoice helper ---------- */
+export const login   = (email: string, password: string) =>
+  apiPost("/login", { email, password });
 
-/** Fetch hosted_invoice_url for a service */
-export async function apiGetInvoice(
-  id: number,
-  token: string
-): Promise<{ hosted_invoice_url: string }> {
-  return await fetchJson(`${API_URL}/services/${id}/invoice`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-}
+export const signup  = (email: string, name: string, password: string) =>
+  apiPost("/signup", { email, name, password });
 
-/* ---------- Stripe Customer Portal helper ---------- */
+export const signupCheck = (email: string) =>
+  apiPost("/signup/check", { email });
 
-/**
- * Open the Stripe Customer Portal for the current user.
- * Returns { url } pointing to the hosted portal session.
- */
-export async function apiPortal(
-  token: string
-): Promise<{ url: string }> {
-  return await fetchJson(`${API_URL}/portal`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
-}
+/* ---------- invoices ---------- */
+
+export const getInvoice = (serviceId: number, token: string) =>
+  apiGet(`/services/${serviceId}/invoice`, token);
+
+/* ---------- Stripe Customer Portal ---------- */
+
+export const openPortal = (token: string) =>
+  apiPost("/portal", {}, token);
