@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 
+# ─── Environment files (never commit secrets) ──────────────────────────
+.env
+.env.*            # covers .env.local, .env.production, etc.

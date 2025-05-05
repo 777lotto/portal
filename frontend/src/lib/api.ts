@@ -1,7 +1,7 @@
 // src/lib/api.ts
 import { fetchJson } from "./fetchJson";
 
-const API_URL = "https://worker.mwb-67d.workers.dev/api";
+const API_URL = "https://portal.777.foo/api";
 
 /* ---------- auth helpers ---------- */
 

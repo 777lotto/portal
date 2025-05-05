@@ -8,9 +8,13 @@
 	"main": "src/index.ts",
 	"compatibility_date": "2025-04-24",
 	"account_id": "67d3a6021370e7b666fff2023b2db359",
-	"observability": {
-		"enabled": true
-	},
+  "compatibility_date": "2025-04-21",
+  "routes": [
+    {
+      "pattern": "portal.777.foo/api/*",
+      "script": "worker"
+    }
+  ],
 	"d1_databases": [
     {
       "binding": "DB",            // the name you'll use in your code: env.DB
