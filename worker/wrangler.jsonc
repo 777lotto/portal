@@ -14,7 +14,7 @@
     "pattern": "portal.777.foo/api/*",
     "custom_domain": true
     }
-  ]
+  ],
 	"d1_databases": [
     {
       "binding": "DB",            // the name you'll use in your code: env.DB

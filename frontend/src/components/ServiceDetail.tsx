@@ -1,7 +1,7 @@
 // src/components/ServiceDetail.tsx
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { apiGet, apiGetInvoice } from "../lib/api";
+import { apiGet, getInvoice } from "../lib/api";
 
 interface Service {
   id: number;
@@ -23,7 +23,7 @@ export default function ServiceDetail() {
         const data = await apiGet(`/services/${id}`, token);
         setSvc(data);
         if (data.status === "invoiced" || data.status === "paid") {
-          const { hosted_invoice_url } = await apiGetInvoice(Number(id), token);
+          const { hosted_invoice_url } = await getInvoice(Number(id), token);
           setInvoiceUrl(hosted_invoice_url);
         }
       } catch (e: any) {

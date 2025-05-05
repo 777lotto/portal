@@ -1,6 +1,6 @@
 // src/components/Dashboard.tsx
 import { useEffect, useState } from "react";
-import { apiGet, apiPortal } from "../lib/api";   // ← added apiPortal
+import { apiGet, openPortal } from "../lib/api";   // ← added openPortal
 import { useNavigate } from "react-router-dom";
 
 export default function Dashboard() {
@@ -31,7 +31,7 @@ export default function Dashboard() {
   const handlePortal = async () => {
     try {
       const token = localStorage.getItem("token")!;
-      const { url } = await apiPortal(token);
+      const { url } = await openPortal(token);
       window.open(url, "_blank");
     } catch (err: any) {
       setError(err.message || "Failed to open billing portal");
