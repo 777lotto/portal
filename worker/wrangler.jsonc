@@ -4,15 +4,16 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "worker",
-	"main": "src/index.ts",
-	"compatibility_date": "2025-04-24",
-	"account_id": "67d3a6021370e7b666fff2023b2db359",
+  "name": "worker",                   // ← script name
+  "main": "src/index.ts",             // ← entry file
+  "account_id": "67d3a6021370e7b666fff2023b2db359",   // ← your account
   "compatibility_date": "2025-04-21",
+
+  /* ---------- routes ---------- */
   "routes": [
-    "pattern": "portal.777.foo/api/*",
-    }
+    "portal.777.foo/api/*"            // ← SINGLE STRING, no commas after
   ],
+
 	"d1_databases": [
     {
       "binding": "DB",            // the name you'll use in your code: env.DB
