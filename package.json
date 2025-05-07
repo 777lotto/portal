@@ -1,0 +1,13 @@
+{
+  "name": "portal",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "worker",
+    "packages/shared"
+  ],
+  "scripts": {
+    "build": "echo \"root has no build\"",
+    "lint": "eslint . --ext .ts,.tsx"
+  }
+}
