@@ -1,0 +1,52 @@
+# Editor + Cloudflare‐Wrangler state
+worker/.vscode/
+worker/.wrangler/
+worker/state/
+worker/cache/
+worker/workflows/
+worker/tmp/
+
+# Node modules (if you ever check those in)
+worker/node_modules/
+
+
+*node_modules/
+
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ─── Environment files (never commit secrets) ──────────────────────────
+.env
+.env.*            # covers .env.local, .env.production, etc.
+
+
+
+
+
+
+
+
+

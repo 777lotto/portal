@@ -1,0 +1,20 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    /* from tsconfig.app.json :contentReference[oaicite:0]{index=0}:contentReference[oaicite:1]{index=1} */
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* any node‑only settings from tsconfig.node.json can be dropped,
+       since only vite-env.d.ts and vite.config.ts are in play */
+  },
+  "include": [
+    "src",
+    "src/vite-env.d.ts"
+  ]
+}
