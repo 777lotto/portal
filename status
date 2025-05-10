@@ -1,0 +1,93 @@
+* [33m7256918[m[33m ([m[1;36mHEAD -> [m[1;32m777[m[33m)[m init
+*   [33m439059c[m[33m ([m[1;31morigin/main[m[33m, [m[1;32mmain[m[33m)[m Merge pull request #1 from 777lotto/chore/monorepo-split
+[31m|[m[32m\[m  
+[31m|[m * [33m659273d[m switched to workspace layout
+[31m|[m[31m/[m  
+* [33mab2c44b[m bug
+* [33m4e647ed[m cant be an object must be string
+* [33m2cfccab[m cant be an object must be a plain string
+* [33mfe9b531[m drop custom domain, treating it as a zone route now
+* [33md6bc8a5[m debugg
+* [33mab822dd[m debug
+* [33ma48a07b[m custom domain
+* [33m75becd2[m Initial frontend commit
+* [33m6865fc3[m cors
+* [33m13330b5[m comma in cors
+* [33m9259e87[m webhook handler
+* [33mb4a4b7d[m lowercase email ui
+* [33m0bae81a[m deduplicate
+* [33m3058b3d[m git
+* [33m5e2487b[m git
+* [33m848bfb0[m auto fill name if in stripe
+* [33m21e7efb[m lowercase email
+* [33m154be6a[m password empty import
+* [33md6a28a8[m new signup flow
+* [33m4782c76[m customer import
+* [33m86e3d21[m gg
+* [33m46ae97a[m view only table
+* [33ma2e178a[m service table read only
+* [33m8e47a17[m invoice api
+* [33m133b0fe[m invoice pay api button
+* [33me9d3cdc[m ui
+* [33me15635c[m single service add
+* [33mb0a53e4[m gg
+* [33mbf981bb[m gg
+* [33m5ba90f7[m del
+* [33ma874f2c[m services
+* [33me97154a[m debug
+* [33m3af4d25[m Ignore src/lib helper folder
+* [33me82be96[m remove app
+* [33m0a8d589[m chore: remove unused components/main.tsx
+* [33mc2171b6[m 2 handlers index worker
+* [33md84c37c[m edit on 2nd sql
+* [33md1c5013[m blah
+* [33m9c85562[m sql bug
+* [33m2f7c40e[m io
+* [33med9e03e[m debug
+* [33md118450[m db issue
+* [33mbd8b97e[m db issue
+* [33m316dec2[m db issue
+* [33mdd383b1[m Update index.ts
+* [33mc40fcc1[m functionality for immediate sign in after signup
+* [33m2d0cbaa[m functionality for immediate sign in after signup
+* [33md43affe[m another bug signuo
+* [33mab30a16[m bug in signup.tsx
+* [33m2ee558c[m remove duplicate /api path in services.tsx && dashboard.tsx
+* [33m9034534[m redep
+* [33m0a7b384[m problem solving
+* [33m3fbfd89[m remove duplictate
+* [33m279e029[m more expansion
+* [33mb189396[m adding what happens after login
+* [33m2455d05[m fixed jose pair issue
+* [33m90c3b11[m using api handler
+* [33m9a8e590[m redirect to dash
+* [33mfc70c26[m updated to go in login mode after success
+* [33m4b74e96[m replaced index.ts to async and try/catch
+* [33m018cdab[m changed and added to bcryptJS
+* [33m210caa5[m added snipped code from file
+* [33me6fb234[m Fix CORS issues in index.ts
+* [33mc84e136[m add bcrypt
+* [33m5ec8a99[m update env.d.ts to show d1
+* [33md8d2fa0[m uh oh, big change to index.ts lets hope he gets along with json
+* [33mc5bd488[m take off file extension in migrations_dir jsonc
+* [33ma67395f[m remove angle brackets and deploy
+* [33m922023c[m fixed human error by removing other's error
+* [33mf0604fc[m d1 solved by human
+* [33m6a2b137[m hopeless d1
+* [33m04506c8[m ai is fn up
+* [33m0364df6[m add migrations in json
+* [33mee91ba7[m first sql addition
+* [33m2d89ac6[m added d1 configz
+* [33md3599a2[m Ignore Wrangler/editor state in worker/
+* [33mceec7f9[m cleanup tree
+* [33md6267d7[m simple login flow
+* [33m711e8ae[m updated to login form
+* [33mb967b5d[m install jose
+* [33m88488cb[m Add /api/login and /api/profile routes
+* [33m0f5fb0d[m display ping response in ui
+* [33meceadee[m adjusting test to play ping pong
+* [33m6503d31[m account id...duh
+* [33m4144174[m Clean starter files for customer portal
+* [33m36c506f[m Initial project setup: Vite + React + Tailwind + Worker
+* [33md493db2[m Initialized Cloudflare Worker and project structure
+* [33m8191441[m Create README.md
