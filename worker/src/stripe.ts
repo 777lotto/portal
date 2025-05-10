@@ -1,11 +1,18 @@
 // worker/src/stripe.ts
 import Stripe from "stripe";
 import type { Env } from "./env";
+import { StripeCustomer, StripeInvoice } from "@portal/shared/stripe";
 
-export function getStripe(env: Env) {
-  return new Stripe(env.STRIPE_SECRET_KEY, {
-    apiVersion: "2025-04-30.basil",   // current stable
-  });
+// Create a singleton Stripe instance
+let stripeInstance: Stripe | null = null;
+
+export function getStripe(env: Env): Stripe {
+  if (!stripeInstance) {
+    stripeInstance = new Stripe(env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-04-30.basil", // current stable
+    });
+  }
+  return stripeInstance;
 }
 
 export async function getOrCreateCustomer(
@@ -16,10 +23,11 @@ export async function getOrCreateCustomer(
   const stripe = getStripe(env);
 
   // check if user already has a stripe_customer_id
-  const { stripe_customer_id } = await env.DB.prepare(
+  const result = await env.DB.prepare(
     `SELECT stripe_customer_id FROM users WHERE email = ?`
-  ).bind(email).first() as { stripe_customer_id: string | null };
+  ).bind(email).first();
 
+  const stripe_customer_id = result?.stripe_customer_id;
   if (stripe_customer_id) return stripe_customer_id;
 
   // create new Stripe customer
@@ -38,7 +46,7 @@ export async function createAndSendInvoice(
   customerId: string,
   amount_cents: number,
   description: string
-) {
+): Promise<StripeInvoice> {
   const stripe = getStripe(env);
 
   await stripe.invoiceItems.create({
@@ -55,5 +63,5 @@ export async function createAndSendInvoice(
   });
 
   await stripe.invoices.finalizeInvoice(invoice.id);
-  return invoice;
+  return invoice as unknown as StripeInvoice;
 }

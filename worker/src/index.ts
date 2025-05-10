@@ -7,6 +7,15 @@ import {
   createAndSendInvoice,
   getStripe,
 } from "./stripe";
+import { v4 as uuidv4 } from 'uuid';
+import {
+  getCustomerJobs,
+  getJob,
+  createJob,
+  updateJob,
+  deleteJob,
+  generateCalendarFeed
+} from './calendar';
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                            */
@@ -452,6 +461,206 @@ if (request.method === "DELETE" && url.pathname.startsWith("/api/services/")) {
   }
 }
 
+/* ─── Jobs Endpoints ───────────────────────────────────── */
+if (request.method === "GET" && url.pathname === "/api/jobs") {
+  try {
+    // Verify JWT and get user email
+    const email = await requireAuth(request, env);
+
+    // Lookup the user's ID
+    const userRow = await env.DB.prepare(
+      `SELECT id, stripe_customer_id FROM users WHERE lower(email) = ?`
+    )
+      .bind(email.toLowerCase())
+      .first();
+
+    if (!userRow) throw new Error("User not found");
+    if (!userRow.stripe_customer_id) throw new Error("Customer not found");
+
+    // Get jobs for this customer
+    const jobs = await getCustomerJobs(env, userRow.stripe_customer_id);
+
+    return new Response(JSON.stringify(jobs), {
+      status: 200,
+      headers: CORS,
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 401,
+      headers: CORS,
+    });
+  }
+}
+
+// Get a specific job
+if (request.method === "GET" && url.pathname.match(/^\/api\/jobs\/[a-f0-9-]+$/)) {
+  try {
+    const jobId = url.pathname.split("/").pop()!;
+    const email = await requireAuth(request, env);
+
+    // Get user and customer info
+    const userRow = await env.DB.prepare(
+      `SELECT id, stripe_customer_id FROM users WHERE lower(email) = ?`
+    )
+      .bind(email.toLowerCase())
+      .first();
+
+    if (!userRow || !userRow.stripe_customer_id) throw new Error("User not found");
+
+    // Check if job belongs to customer
+    const job = await env.DB.prepare(
+      `SELECT * FROM jobs WHERE id = ? AND customerId = ?`
+    )
+      .bind(jobId, userRow.stripe_customer_id)
+      .first();
+
+    if (!job) throw new Error("Job not found");
+
+    return new Response(JSON.stringify(job), {
+      status: 200,
+      headers: CORS,
+    });
+  } catch (err: any) {
+    const status = err.message === "Job not found" ? 404 : 401;
+    return new Response(JSON.stringify({ error: err.message }), {
+      status,
+      headers: CORS,
+    });
+  }
+}
+
+// Create a new job (admin-only in this implementation)
+if (request.method === "POST" && url.pathname === "/api/jobs") {
+  try {
+    // Verify user is admin (you might want to add an isAdmin check)
+    const email = await requireAuth(request, env);
+    const userRow = await env.DB.prepare(
+      `SELECT id, stripe_customer_id FROM users WHERE lower(email) = ?`
+    )
+      .bind(email.toLowerCase())
+      .first();
+
+    if (!userRow || !userRow.stripe_customer_id) throw new Error("User not found");
+
+    // Get job data from request
+    const jobData = await request.json();
+
+    // Create the job
+    const newJob = await createJob(env, jobData, userRow.stripe_customer_id);
+
+    return new Response(JSON.stringify(newJob), {
+      status: 201,
+      headers: CORS,
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
+      headers: CORS,
+    });
+  }
+}
+
+// Update a job (admin-only)
+if (request.method === "PUT" && url.pathname.match(/^\/api\/jobs\/[a-f0-9-]+$/)) {
+  try {
+    const jobId = url.pathname.split("/").pop()!;
+    const email = await requireAuth(request, env);
+
+    // Get user and verify permissions
+    const userRow = await env.DB.prepare(
+      `SELECT id, stripe_customer_id FROM users WHERE lower(email) = ?`
+    )
+      .bind(email.toLowerCase())
+      .first();
+
+    if (!userRow || !userRow.stripe_customer_id) throw new Error("User not found");
+
+    // Get update data
+    const updateData = await request.json();
+
+    // Update the job
+    const updatedJob = await updateJob(env, jobId, updateData, userRow.stripe_customer_id);
+
+    return new Response(JSON.stringify(updatedJob), {
+      status: 200,
+      headers: CORS,
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
+      headers: CORS,
+    });
+  }
+}
+
+// Delete a job (admin-only)
+if (request.method === "DELETE" && url.pathname.match(/^\/api\/jobs\/[a-f0-9-]+$/)) {
+  try {
+    const jobId = url.pathname.split("/").pop()!;
+    const email = await requireAuth(request, env);
+
+    // Get user and verify permissions
+    const userRow = await env.DB.prepare(
+      `SELECT id, stripe_customer_id FROM users WHERE lower(email) = ?`
+    )
+      .bind(email.toLowerCase())
+      .first();
+
+    if (!userRow || !userRow.stripe_customer_id) throw new Error("User not found");
+
+    // Delete the job
+    await deleteJob(env, jobId, userRow.stripe_customer_id);
+
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: CORS,
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
+      headers: CORS,
+    });
+  }
+}
+
+// Calendar feed endpoint
+if (request.method === "GET" && url.pathname === "/api/calendar-feed") {
+  try {
+    // This endpoint is special - it uses a token in the URL for external calendar apps
+    const token = url.searchParams.get("token");
+    if (!token) throw new Error("Missing token");
+
+    // Verify the token and get user
+    const { payload } = await jwtVerify(token, getJwtSecretKey(env.JWT_SECRET));
+    const email = payload.email as string;
+
+    // Get customer ID
+    const userRow = await env.DB.prepare(
+      `SELECT stripe_customer_id FROM users WHERE lower(email) = ?`
+    )
+      .bind(email.toLowerCase())
+      .first();
+
+    if (!userRow || !userRow.stripe_customer_id) throw new Error("User not found");
+
+    // Generate iCal feed
+    const icalContent = await generateCalendarFeed(env, userRow.stripe_customer_id);
+
+    return new Response(icalContent, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/calendar",
+        "Content-Disposition": "attachment; filename=\"calendar.ics\"",
+      },
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 401,
+      headers: CORS,
+    });
+  }
+}
+
 
     // ─── Stripe Customer Portal ────────────────────────────────────────────
      // ─── Stripe Customer Portal ────────────────────────────────────────────
@@ -498,51 +707,94 @@ if (request.method === "DELETE" && url.pathname.startsWith("/api/services/")) {
   }
 }
 
-     // ─── Stripe webhook handler ─────────────────────────────────────────────
-     if (request.method === "POST" && url.pathname === "/stripe/webhook") {
-       // 1) Grab signature & raw body
-       const sig = request.headers.get("Stripe-Signature")!;
-       const bodyText = await request.text();
+ // worker/src/index.ts - Stripe webhook section
 
-      // declare event *once* with the right typing
-      let event: Stripe.Event;
-      try {
-        event = getStripe(env).webhooks.constructEvent(
-          bodyText,
-          sig,
-          env.STRIPE_WEBHOOK_SECRET
-        ) as Stripe.Event;
-      } catch (err: any) {
-        return new Response(
-          JSON.stringify({ error: `Webhook Error: ${err.message}` }),
-          { status: 400, headers: CORS }
-        );
+// ─── Stripe webhook handler ─────────────────────────────────────────────
+if (request.method === "POST" && url.pathname === "/stripe/webhook") {
+  // Webhook requests don't need CORS headers
+  const webhookHeaders = {
+    "Content-Type": "application/json"
+  };
+
+  try {
+    // 1) Grab signature & raw body
+    const sig = request.headers.get("Stripe-Signature");
+    if (!sig) {
+      return new Response(
+        JSON.stringify({ error: "Missing Stripe signature" }),
+        { status: 400, headers: webhookHeaders }
+      );
+    }
+
+    const bodyText = await request.text();
+
+    // 2) Verify and parse the webhook
+    const stripe = getStripe(env);
+    const event = stripe.webhooks.constructEvent(
+      bodyText,
+      sig,
+      env.STRIPE_WEBHOOK_SECRET
+    );
+
+    // 3) Handle different event types
+    switch (event.type) {
+      case 'customer.created': {
+        const customer = event.data.object as Stripe.Customer;
+        const email = normalizeEmail(customer.email || "");
+        const name = customer.name || "";
+
+        if (email) {
+          console.log(`Processing new customer: ${email}`);
+          const result = await env.DB.prepare(
+            `INSERT INTO users
+               (email, name, password_hash, stripe_customer_id)
+             SELECT ?, ?, '', ?
+             WHERE NOT EXISTS (
+               SELECT 1 FROM users WHERE lower(email)=?
+             )`
+          )
+            .bind(email, name, customer.id, email)
+            .run();
+
+          console.log(`Customer processing result: ${result.success ? 'success' : 'no change'}`);
+        }
+        break;
       }
 
-       // 2) only act on new customers
-       if (event.type === "customer.created") {
-         const customer = event.data.object as Stripe.Customer;
-         const email = normalizeEmail(customer.email || "");
-         const name = customer.name || "";
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object as Stripe.Invoice;
+        // Handle paid invoice
+        // Update service status in database to 'paid'
+        // Additional logic here
+        break;
+      }
 
-         if (email) {
-           await env.DB.prepare(
-             `INSERT INTO users
-                (email, name, password_hash, stripe_customer_id)
-              SELECT ?, ?, '', ?
-              WHERE NOT EXISTS (
-                SELECT 1 FROM users WHERE lower(email)=?
-              )`
-           )
-             .bind(email, name, customer.id, email)
-             .run();
-         }
-       }
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice;
+        // Handle failed invoice
+        // Additional logic here
+        break;
+      }
+    }
 
-       return new Response(JSON.stringify({ received: true }), {
-         headers: CORS,
-       });
-     }
+    // 4) Return a 200 success to Stripe
+    return new Response(JSON.stringify({ received: true }), {
+      status: 200,
+      headers: webhookHeaders,
+    });
+  } catch (err: any) {
+    // Log the error for debugging
+    console.error(`Webhook Error: ${err.message}`);
+
+    // Return a 400 error to Stripe
+    return new Response(
+      JSON.stringify({
+        error: `Webhook Error: ${err.message}`
+      }),
+      { status: 400, headers: webhookHeaders }
+    );
+  }
+}
 
     /* ---------- Fallback ---------- */
     return new Response("Not found", {

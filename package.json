@@ -7,7 +7,12 @@
     "packages/shared"
   ],
   "scripts": {
-    "build": "echo \"root has no build\"",
-    "lint": "eslint . --ext .ts,.tsx"
+    "build": "npm run build --workspaces",
+    "dev:worker": "npm run dev --workspace=worker",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev": "concurrently \"npm run dev:worker\" \"npm run dev:frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
   }
 }

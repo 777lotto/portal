@@ -10,7 +10,7 @@ worker/tmp/
 worker/node_modules/
 
 
-
+*node_modules/
 
 
 # Logs
