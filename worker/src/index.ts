@@ -711,6 +711,9 @@ if (request.method === "GET" && url.pathname === "/api/calendar-feed") {
 
 // ─── Stripe webhook handler ─────────────────────────────────────────────
 if (request.method === "POST" && url.pathname === "/stripe/webhook") {
+  // Create a clone of the request to ensure we can read the body
+  const clonedRequest = request.clone();
+
   // Webhook requests don't need CORS headers
   const webhookHeaders = {
     "Content-Type": "application/json"
@@ -720,21 +723,34 @@ if (request.method === "POST" && url.pathname === "/stripe/webhook") {
     // 1) Grab signature & raw body
     const sig = request.headers.get("Stripe-Signature");
     if (!sig) {
+      console.error("Missing Stripe signature");
       return new Response(
         JSON.stringify({ error: "Missing Stripe signature" }),
         { status: 400, headers: webhookHeaders }
       );
     }
 
-    const bodyText = await request.text();
+    const bodyText = await clonedRequest.text();
+    console.log(`Webhook received - Signature: ${sig.substring(0, 20)}...`);
+    console.log(`Webhook body length: ${bodyText.length} bytes`);
 
     // 2) Verify and parse the webhook
     const stripe = getStripe(env);
-    const event = stripe.webhooks.constructEvent(
-      bodyText,
-      sig,
-      env.STRIPE_WEBHOOK_SECRET
-    );
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(
+        bodyText,
+        sig,
+        env.STRIPE_WEBHOOK_SECRET
+      );
+      console.log(`Webhook verified, event type: ${event.type}`);
+    } catch (verifyError: any) {
+      console.error(`Webhook verification failed: ${verifyError.message}`);
+      return new Response(
+        JSON.stringify({ error: `Webhook verification failed: ${verifyError.message}` }),
+        { status: 400, headers: webhookHeaders }
+      );
+    }
 
     // 3) Handle different event types
     switch (event.type) {
@@ -757,27 +773,50 @@ if (request.method === "POST" && url.pathname === "/stripe/webhook") {
             .run();
 
           console.log(`Customer processing result: ${result.success ? 'success' : 'no change'}`);
+        } else {
+          console.log(`Customer created without email, skipping user creation`);
         }
         break;
       }
 
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object as Stripe.Invoice;
-        // Handle paid invoice
-        // Update service status in database to 'paid'
-        // Additional logic here
+        console.log(`Invoice paid: ${invoice.id}`);
+
+        // Update service status in database if it exists
+        if (invoice.customer && typeof invoice.customer === 'string') {
+          const { results } = await env.DB.prepare(
+            `UPDATE services
+             SET status = 'paid'
+             WHERE stripe_invoice_id = ?
+             RETURNING id`
+          )
+            .bind(invoice.id)
+            .all();
+
+          console.log(`Updated ${results.length} services to paid status`);
+        }
         break;
       }
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice;
-        // Handle failed invoice
-        // Additional logic here
+        console.log(`Invoice payment failed: ${invoice.id}`);
+
+        // Log the failure but don't change service status
+        if (invoice.customer && typeof invoice.customer === 'string') {
+          console.log(`Payment failed for customer: ${invoice.customer}`);
+        }
         break;
+      }
+
+      default: {
+        console.log(`Unhandled webhook event type: ${event.type}`);
       }
     }
 
     // 4) Return a 200 success to Stripe
+    console.log(`Successfully processed webhook event`);
     return new Response(JSON.stringify({ received: true }), {
       status: 200,
       headers: webhookHeaders,
@@ -785,6 +824,7 @@ if (request.method === "POST" && url.pathname === "/stripe/webhook") {
   } catch (err: any) {
     // Log the error for debugging
     console.error(`Webhook Error: ${err.message}`);
+    if (err.stack) console.error(err.stack);
 
     // Return a 400 error to Stripe
     return new Response(
