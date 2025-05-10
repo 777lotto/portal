@@ -1,5 +1,6 @@
 {
-  "name": "portal",
+  "name": "gutter-portal",
+  "version": "0.1.0",
   "private": true,
   "workspaces": [
     "frontend",
@@ -8,11 +9,20 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces",
+    "build:frontend": "npm run build --workspace=frontend",
+    "build:worker": "npm run build --workspace=worker",
+    "build:shared": "npm run build --workspace=packages/shared",
+    "dev": "concurrently \"npm run dev:worker\" \"npm run dev:frontend\"",
     "dev:worker": "npm run dev --workspace=worker",
     "dev:frontend": "npm run dev --workspace=frontend",
-    "dev": "concurrently \"npm run dev:worker\" \"npm run dev:frontend\""
+    "test": "npm run test --workspace=worker",
+    "deploy:worker": "npm run deploy --workspace=worker",
+    "deploy:frontend": "npm run build:frontend"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

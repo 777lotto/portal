@@ -1,6 +1,6 @@
 // src/lib/api.ts
-// src/lib/api.ts
 import { fetchJson } from "./fetchJson";
+import { Job } from '@portal/shared/calendar';
 
 /* ---------- low‑level helpers ---------- */
 
@@ -26,14 +26,39 @@ export const apiPost = (
 
 /* ---------- auth ---------- */
 
-export const login   = (email: string, password: string) =>
+export const login = (email: string, password: string) =>
   apiPost("/login", { email, password });
 
-export const signup  = (email: string, name: string, password: string) =>
+export const signup = (email: string, name: string, password: string) =>
   apiPost("/signup", { email, name, password });
 
 export const signupCheck = (email: string) =>
   apiPost("/signup/check", { email });
+
+/* ---------- services ---------- */
+
+export const getServices = (token: string) =>
+  apiGet("/services", token);
+
+export const getService = (id: number, token: string) =>
+  apiGet(`/services/${id}`, token);
+
+/* ---------- jobs ---------- */
+
+export const getJobs = (token: string) =>
+  apiGet("/jobs", token);
+
+export const getJob = (id: string, token: string) =>
+  apiGet(`/jobs/${id}`, token);
+
+export const createJob = (job: Omit<Job, 'id' | 'createdAt' | 'updatedAt'>, token: string) =>
+  apiPost("/jobs", job, token);
+
+export const updateJob = (id: string, job: Partial<Job>, token: string) =>
+  apiPost(`/jobs/${id}`, job, token, "PUT");
+
+export const deleteJob = (id: string, token: string) =>
+  apiPost(`/jobs/${id}`, {}, token, "DELETE");
 
 /* ---------- invoices ---------- */
 
@@ -44,3 +69,11 @@ export const getInvoice = (serviceId: number, token: string) =>
 
 export const openPortal = (token: string) =>
   apiPost("/portal", {}, token);
+
+/* ---------- Calendar Integration ---------- */
+
+export const getCalendarFeed = (token: string) =>
+  `${window.location.origin}/api/calendar-feed?token=${token}`;
+
+export const syncCalendar = (calendarUrl: string, token: string) =>
+  apiPost("/calendar-sync", { calendarUrl }, token);

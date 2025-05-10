@@ -58,11 +58,6 @@ export default function Dashboard() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    navigate("/login");
-  };
-
   return (
     <div style={{ padding: "2rem" }}>
       <h1>Welcome to Your Portal</h1>
