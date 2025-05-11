@@ -36,14 +36,58 @@ function getJwtSecretKey(secret: string): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
+async function validateTurnstileToken(token: string, ip: string, env: Env): Promise<boolean> {
+  if (!token) return false;
+
+  try {
+    // Get your secret key from your environment variables
+    const turnstileSecretKey = env.TURNSTILE_SECRET_KEY;
+
+    // Make a request to the Turnstile verification API
+    const formData = new FormData();
+    formData.append('secret', turnstileSecretKey);
+    formData.append('response', token);
+    formData.append('remoteip', ip);
+
+    const result = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      body: formData
+    });
+
+    const outcome = await result.json();
+    return outcome.success === true;
+  } catch (error) {
+    console.error('Turnstile validation error:', error);
+    return false;
+  }
+}
+
 async function requireAuth(request: Request, env: Env) {
   const auth = request.headers.get("Authorization") || "";
   if (!auth.startsWith("Bearer ")) throw new Error("Missing token");
+
+ try {
   const { payload } = await jwtVerify(
     auth.slice(7),
     getJwtSecretKey(env.JWT_SECRET)
   );
+
+  if (!payload.email) {
+      throw new Error("Invalid token payload");
+    }
+
   return payload.email as string;
+} catch (error) {
+    console.error("JWT Verification error:", error);
+    // Add more specific error types for debugging
+    if (error.code === 'ERR_JWS_INVALID') {
+      throw new Error("Invalid token format");
+    } else if (error.code === 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED') {
+      throw new Error("Token signature verification failed");
+    } else {
+      throw new Error("Authentication failed");
+    }
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -77,12 +121,116 @@ export default {
     }
 
     /* ---------- Signup ---------- */
-/* ─── STEP 1: Check email for signup + return existing name ──────────── */
+// ─── Check if email exists as a Stripe customer ────────────────────────
+if (request.method === "POST" && url.pathname === "/api/stripe/check-customer") {
+  try {
+    const { email } = await request.json();
+    if (!email) {
+      throw new Error("Email is required");
+    }
+
+    // First check if the user already exists in our DB
+    const dbUser = await env.DB.prepare(
+      `SELECT stripe_customer_id, name FROM users WHERE lower(email) = ?`
+    ).bind(email.toLowerCase()).first();
+
+    if (dbUser && dbUser.stripe_customer_id) {
+      // User exists in our database with a Stripe ID
+      return new Response(JSON.stringify({
+        exists: true,
+        name: dbUser.name || "",
+      }), {
+        status: 200,
+        headers: CORS,
+      });
+    }
+
+    // Check if user exists in Stripe directly
+    const stripe = getStripe(env);
+    const customers = await stripe.customers.list({
+      email: email.toLowerCase(),
+      limit: 1,
+    });
+
+    if (customers.data.length > 0) {
+      // Customer exists in Stripe
+      const customer = customers.data[0];
+      return new Response(JSON.stringify({
+        exists: true,
+        name: customer.name || "",
+        stripe_customer_id: customer.id
+      }), {
+        status: 200,
+        headers: CORS,
+      });
+    }
+
+    // User doesn't exist in Stripe
+    return new Response(JSON.stringify({
+      exists: false
+    }), {
+      status: 200,
+      headers: CORS,
+    });
+  } catch (err: any) {
+    console.error("Stripe customer check error:", err);
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
+      headers: CORS,
+    });
+  }
+}
+
+// ─── Create a new Stripe customer ────────────────────────────────────────
+if (request.method === "POST" && url.pathname === "/api/stripe/create-customer") {
+  try {
+    const { email, name } = await request.json();
+    if (!email || !name) {
+      throw new Error("Email and name are required");
+    }
+
+    // Create customer in Stripe
+    const stripe = getStripe(env);
+    const customer = await stripe.customers.create({
+      email: email.toLowerCase(),
+      name: name,
+      metadata: {
+        source: "portal_signup"
+      }
+    });
+
+    return new Response(JSON.stringify({
+      success: true,
+      customer_id: customer.id
+    }), {
+      status: 200,
+      headers: CORS,
+    });
+  } catch (err: any) {
+    console.error("Stripe customer creation error:", err);
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
+      headers: CORS,
+    });
+  }
+}
+
+/* ─── STEP 1: Check email for signup + return existing name ──────────── */
 if (request.method === "POST" && url.pathname === "/api/signup/check") {
   try {
     // parse & normalize
     const raw = await request.json();
     const email = normalizeEmail(raw.email);
+    const turnstileToken = raw.turnstileToken;
+    const clientIp = request.headers.get('CF-Connecting-IP') || '';
+
+     const isValid = await validateTurnstileToken(turnstileToken, clientIp, env);
+    if (!isValid) {
+      return new Response(
+        JSON.stringify({ error: "Security check failed. Please try again." }),
+        { status: 400, headers: CORS }
+      );
+    }
 
     // lookup password_hash + name
     const existingUser = await env.DB.prepare(
@@ -120,7 +268,7 @@ if (request.method === "POST" && url.pathname === "/api/signup/check") {
   }
 }
 
-/* ─── STEP 2: Complete signup or create new ───────────────────────────── */
+/* ─── STEP 2: Complete signup or create new ───────────────────────────── */
 if (request.method === "POST" && url.pathname === "/api/signup") {
   try {
     // parse & normalize payload
@@ -150,7 +298,7 @@ if (request.method === "POST" && url.pathname === "/api/signup") {
           .bind(name, password_hash, email)
           .run();
 
-        // sync name to Stripe
+        // sync name to Stripe if customer exists
         if (existingUser.stripe_customer_id) {
           const stripe = getStripe(env);
           await stripe.customers.update(existingUser.stripe_customer_id, {
@@ -161,12 +309,36 @@ if (request.method === "POST" && url.pathname === "/api/signup") {
         throw new Error("Account already exists");
       }
     } else {
-      // brand‑new signup
+      // First check if user exists in Stripe
+      let stripeCustomerId = null;
+      const stripe = getStripe(env);
+      const customers = await stripe.customers.list({
+        email: email.toLowerCase(),
+        limit: 1,
+      });
+
+      if (customers.data.length > 0) {
+        // Customer exists in Stripe, update their name
+        stripeCustomerId = customers.data[0].id;
+        await stripe.customers.update(stripeCustomerId, { name });
+      } else {
+        // Create new Stripe customer
+        const customer = await stripe.customers.create({
+          email,
+          name,
+          metadata: {
+            source: "portal_signup"
+          }
+        });
+        stripeCustomerId = customer.id;
+      }
+
+      // Create user in our database
       await env.DB.prepare(
-        `INSERT INTO users (email, name, password_hash)
-           VALUES (?, ?, ?)`
+        `INSERT INTO users (email, name, password_hash, stripe_customer_id)
+           VALUES (?, ?, ?, ?)`
       )
-        .bind(email, name, password_hash)
+        .bind(email, name, password_hash, stripeCustomerId)
         .run();
     }
 
@@ -174,7 +346,7 @@ if (request.method === "POST" && url.pathname === "/api/signup") {
     const token = await new SignJWT({ email, name })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
-      .setExpirationTime("2h")
+      .setExpirationTime("24h") // Longer token expiration
       .sign(getJwtSecretKey(env.JWT_SECRET));
 
     return new Response(JSON.stringify({ token }), {
@@ -192,6 +364,102 @@ if (request.method === "POST" && url.pathname === "/api/signup") {
   }
 }
 
+// ─── Password Reset Request ────────────────────────────────────────────
+if (request.method === "POST" && url.pathname === "/api/password-reset/request") {
+  try {
+    const { email } = await request.json();
+    if (!email) {
+      throw new Error("Email is required");
+    }
+
+    // Check if user exists
+    const user = await env.DB.prepare(
+      `SELECT id, email, name FROM users WHERE lower(email) = ?`
+    ).bind(email.toLowerCase()).first();
+
+    if (!user) {
+      // Don't reveal if user exists or not for security
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: CORS,
+      });
+    }
+
+    // Generate reset token (valid for 1 hour)
+    const resetToken = await new SignJWT({
+      email: user.email,
+      purpose: "password_reset"
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("1h")
+      .sign(getJwtSecretKey(env.JWT_SECRET));
+
+    // In a real app, you would send an email here with a link like:
+    // https://yourdomain.com/reset-password?token={resetToken}
+
+    // For now, just log it
+    console.log(`Reset token for ${email}: ${resetToken}`);
+
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: CORS,
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
+      headers: CORS,
+    });
+  }
+}
+
+// ─── Password Reset Completion ─────────────────────────────────────────
+if (request.method === "POST" && url.pathname === "/api/password-reset/complete") {
+  try {
+    const { token, newPassword } = await request.json();
+    if (!token || !newPassword) {
+      throw new Error("Token and new password are required");
+    }
+
+    // Verify token
+    try {
+      const { payload } = await jwtVerify(
+        token,
+        getJwtSecretKey(env.JWT_SECRET)
+      );
+
+      if (payload.purpose !== "password_reset" || !payload.email) {
+        throw new Error("Invalid reset token");
+      }
+
+      // Hash new password
+      const password_hash = await bcrypt.hash(newPassword, 10);
+
+      // Update user password
+      const { changes } = await env.DB.prepare(
+        `UPDATE users SET password_hash = ? WHERE lower(email) = ?`
+      ).bind(password_hash, payload.email.toLowerCase()).run();
+
+      if (changes === 0) {
+        throw new Error("User not found");
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: CORS,
+      });
+    } catch (verifyError) {
+      console.error("Token verification error:", verifyError);
+      throw new Error("Invalid or expired reset token");
+    }
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
+      headers: CORS,
+    });
+  }
+}
+
 
 /* ---------- Login ---------- */
 if (request.method === "POST" && url.pathname === "/api/login") {
@@ -200,6 +468,18 @@ if (request.method === "POST" && url.pathname === "/api/login") {
     const raw = await request.json();
     const email = normalizeEmail(raw.email);
     const password = raw.password;
+    const turnstileToken = raw.turnstileToken;
+
+    const clientIp = request.headers.get('CF-Connecting-IP') || '';
+
+    const isValid = await validateTurnstileToken(turnstileToken, clientIp, env);
+    if (!isValid) {
+      return new Response(
+        JSON.stringify({ error: "Security check failed. Please try again." }),
+        { status: 400, headers: CORS }
+      );
+    }
+
 
     // 2) fetch user by lowercased email
     const { results: loginResults } = await env.DB.prepare(
@@ -223,7 +503,7 @@ if (request.method === "POST" && url.pathname === "/api/login") {
     const token = await new SignJWT({ email: user.email, name: user.name })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
-      .setExpirationTime("2h")
+      .setExpirationTime("24h")
       .sign(getJwtSecretKey(env.JWT_SECRET));
 
     return new Response(JSON.stringify({ token }), {

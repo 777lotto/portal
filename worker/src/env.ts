@@ -11,4 +11,7 @@ export interface Env {
   // Stripe
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
+
+  // Turnstile
+  TURNSTILE_SECRET_KEY: string;
 }

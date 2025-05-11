@@ -11,7 +11,8 @@
 
   /* ---------- routes ---------- */
   "routes": [
-    "portal.777.foo/api/*"            // ← SINGLE STRING, no commas after
+    "https://portal.777.foo/api/*",
+    "https://portal.777.foo/stripe/*"           // ← SINGLE STRING, no commas after
   ],
 
 	"d1_databases": [

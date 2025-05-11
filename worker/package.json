@@ -15,7 +15,7 @@
     "@types/uuid": "^10.0.0",
     "typescript": "^5.5.2",
     "vitest": "~3.0.7",
-    "wrangler": "^4.13.2"
+    "wrangler": "^4.13.4"
   },
   "dependencies": {
     "@portal/shared": "*",

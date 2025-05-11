@@ -26,6 +26,20 @@ export const apiPost = (
 
 /* ---------- auth ---------- */
 
+// Add these functions to api.ts
+
+export const checkStripeCustomer = (email: string) =>
+  apiPost("/stripe/check-customer", { email });
+
+export const createStripeCustomer = (email: string, name: string) =>
+  apiPost("/stripe/create-customer", { email, name });
+
+export const requestPasswordReset = (email: string) =>
+  apiPost("/password-reset/request", { email });
+
+export const completePasswordReset = (token: string, newPassword: string) =>
+  apiPost("/password-reset/complete", { token, newPassword });
+
 export const login = (email: string, password: string) =>
   apiPost("/login", { email, password });
 
