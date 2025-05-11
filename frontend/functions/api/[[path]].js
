@@ -1,0 +1,29 @@
+export async function onRequest(context) {
+  // Get the path from the request
+  const url = new URL(context.request.url);
+  const path = url.pathname.replace('/api', ''); // Remove /api prefix
+
+  // Clone the request to modify it
+  const newRequest = new Request(context.request);
+
+  try {
+    // Forward the request to your Worker with the same HTTP method, headers, and body
+    return await context.env.API.fetch(
+      new Request(`${path}${url.search}`, {
+        method: newRequest.method,
+        headers: newRequest.headers,
+        body: newRequest.method !== 'GET' && newRequest.method !== 'HEAD' ? await newRequest.clone().arrayBuffer() : undefined
+      })
+    );
+  } catch (e) {
+    return new Response(JSON.stringify({
+      error: 'Failed to proxy request to API',
+      details: e.message
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+  }
+}

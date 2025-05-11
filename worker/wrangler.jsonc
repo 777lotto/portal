@@ -3,7 +3,7 @@
  * https://developers.cloudflare.com/workers/wrangler/configuration/
  */
 {
-	"$schema": "node_modules/wrangler/config-schema.json",
+  "$schema": "node_modules/wrangler/config-schema.json",
   "name": "worker",                   // ← script name
   "main": "src/index.ts",             // ← entry file
   "account_id": "67d3a6021370e7b666fff2023b2db359",   // ← your account
@@ -15,47 +15,115 @@
     "https://portal.777.foo/stripe/*"           // ← SINGLE STRING, no commas after
   ],
 
-	"d1_databases": [
+  "d1_databases": [
     {
       "binding": "DB",            // the name you'll use in your code: env.DB
       "database_name": "gutter_db",
-	  "database_id": "ee2da6f5-9573-4098-8ed6-57d56638b6ec",
+      "database_id": "ee2da6f5-9573-4098-8ed6-57d56638b6ec",
       "migrations_dir": "./migrations"
     }
-],
+  ],
 
-	/**
-	 * Smart Placement
-	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
-	 */
-	// "placement": { "mode": "smart" },
+  /**
+   * Service Bindings (communicate between multiple Workers)
+   * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
+   */
+  "services": [
+    {
+      "binding": "NOTIFICATION_SERVICE",
+      "service": "notification-worker"
+    },
+    {
+      "binding": "PAYMENT_SERVICE",
+      "service": "payment-processing-worker"
+    },
+    {
+      "binding": "SCHEDULING_SERVICE",
+      "service": "scheduling-worker"
+    }
+  ],
 
-	/**
-	 * Bindings
-	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
-	 * databases, object storage, AI inference, real-time communication and more.
-	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
-	 */
+  /**
+   * Environment Variables
+   * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
+   */
+  "vars": {
+    "ENVIRONMENT": "production",
+    "API_VERSION": "1.0.0"
+  },
 
-	/**
-	 * Environment Variables
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
-	 */
-	// "vars": { "MY_VARIABLE": "production_value" },
-	/**
-	 * Note: Use secrets to store sensitive data.
-	 * https://developers.cloudflare.com/workers/configuration/secrets/
-	 */
+  /**
+   * KV Namespaces for caching and storing data
+   * https://developers.cloudflare.com/workers/wrangler/configuration/#kv-namespaces
+   */
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "your-kv-namespace-id-here",
+      "preview_id": "your-preview-kv-namespace-id-here"
+    }
+  ],
 
-	/**
-	 * Static Assets
-	 * https://developers.cloudflare.com/workers/static-assets/binding/
-	 */
-	// "assets": { "directory": "./public/", "binding": "ASSETS" },
+  /**
+   * Queue configurations for asynchronous task processing
+   * https://developers.cloudflare.com/workers/wrangler/configuration/#queues
+   */
+  "queues": {
+    "producers": [
+      {
+        "binding": "NOTIFICATION_QUEUE",
+        "queue": "notifications"
+      },
+      {
+        "binding": "JOB_QUEUE",
+        "queue": "scheduled-jobs"
+      }
+    ]
+  },
 
-	/**
-	 * Service Bindings (communicate between multiple Workers)
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
-	 */
-	// "services": [{ "binding": "MY_SERVICE", "service": "my-service" }]
-}
+  /**
+   * Smart Placement
+   * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
+   */
+  "placement": { "mode": "smart" },
+
+  /**
+   * Durable Objects for maintaining state
+   * https://developers.cloudflare.com/workers/wrangler/configuration/#durable-objects
+   */
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "USER_SESSIONS",
+        "class_name": "UserSession"
+      }
+    ]
+  },
+
+  /**
+   * Worker Analytics for monitoring and debugging
+   * https://developers.cloudflare.com/workers/wrangler/configuration/#analytics-engine
+   */
+  "analytics_engine_datasets": [
+    {
+      "binding": "ANALYTICS",
+      "dataset": "worker_analytics"
+    }
+  ],
+
+  /**
+   * Development configuration
+   */
+  "dev": {
+    "port": 8787,
+    "local_protocol": "http",
+    "ip": "localhost"
+  },
+
+  /**
+   * Note: Use secrets to store sensitive data.
+   * Run the following in your terminal to add secrets:
+   * wrangler secret put JWT_SECRET
+   * wrangler secret put STRIPE_SECRET_KEY
+   * wrangler secret put STRIPE_WEBHOOK_SECRET
+   */
