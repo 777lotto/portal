@@ -1,7 +1,7 @@
 // src/components/LoginForm.tsx
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { login } from "../lib/api";
+import { login, requestPasswordReset } from "../lib/api";
 import Turnstile from "./Turnstile";
 
 interface Props {
@@ -11,7 +11,10 @@ interface Props {
 export default function LoginForm({ setToken }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [resetEmail, setResetEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
   const navigate = useNavigate();
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const TURNSTILE_SITE_KEY = "0x4AAAAAABcgNHsEZnTPqdEV";
@@ -36,57 +39,148 @@ export default function LoginForm({ setToken }: Props) {
     }
   };
 
+  const handleResetRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+
+    if (!resetEmail) {
+      setError("Please enter your email address");
+      return;
+    }
+
+    if (!turnstileToken) {
+      setError("Please complete the security check");
+      return;
+    }
+
+    try {
+      await requestPasswordReset(resetEmail, turnstileToken);
+      setSuccessMessage("Password reset instructions have been sent to your email");
+      // Optionally switch back to login form after a successful reset request
+      // setTimeout(() => setIsResetting(false), 5000);
+    } catch (err: any) {
+      setError(err.message || "Failed to request password reset");
+    }
+  };
+
   return (
     <div style={{ padding: "2rem" }}>
-      <h1>Login</h1>
+      <h1>{isResetting ? "Reset Password" : "Login"}</h1>
       {!isResetting ? (
-      <form onSubmit={handleSubmit}>
-          <div>
-            <input
-              id="login-email"
-              name="email"
-              type="email"
-              autoComplete="username"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={{ width: "100%", marginBottom: "1rem" }}
-            />
-          </div>
-          <div>
-            <input
-              id="login-password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={{ width: "100%", marginBottom: "1rem" }}
-            />
-          </div>
-          <div style={{ marginBottom: "1rem" }}>
-            <Turnstile
-              sitekey={TURNSTILE_SITE_KEY}
-              onVerify={(token) => setTurnstileToken(token)}
-              theme="auto"
-            />
-          </div>
+        <>
+          <form onSubmit={handleSubmit}>
+            <div>
+              <input
+                id="login-email"
+                name="email"
+                type="email"
+                autoComplete="username"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={{ width: "100%", marginBottom: "1rem" }}
+              />
+            </div>
+            <div>
+              <input
+                id="login-password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{ width: "100%", marginBottom: "1rem" }}
+              />
+            </div>
+            <div style={{ marginBottom: "1rem" }}>
+              <Turnstile
+                sitekey={TURNSTILE_SITE_KEY}
+                onVerify={(token) => setTurnstileToken(token)}
+                theme="auto"
+              />
+            </div>
 
-       <button
-            type="submit"
-            style={{ width: "100%", padding: "0.5rem" }}
-            disabled={!turnstileToken}
-          >
-            Login
-          </button>
-      </form>
-  ) : (
+            <button
+              type="submit"
+              style={{ width: "100%", padding: "0.5rem" }}
+              disabled={!turnstileToken}
+            >
+              Login
+            </button>
+          </form>
+
+          <p style={{ marginTop: "0.5rem", textAlign: "center" }}>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                setIsResetting(true);
+                setTurnstileToken(null); // Reset the token when switching forms
+              }}
+              style={{ fontSize: "0.9rem", color: "#0066cc" }}
+            >
+              Forgot password?
+            </a>
+          </p>
+        </>
+      ) : (
+        <>
+          <form onSubmit={handleResetRequest}>
+            <p style={{ marginBottom: "1rem" }}>
+              Enter your email address and we'll send you instructions to reset your password.
+            </p>
+            <div>
+              <input
+                id="reset-email"
+                name="email"
+                type="email"
+                autoComplete="username"
+                placeholder="Email"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                style={{ width: "100%", marginBottom: "1rem" }}
+              />
+            </div>
+            <div style={{ marginBottom: "1rem" }}>
+              <Turnstile
+                sitekey={TURNSTILE_SITE_KEY}
+                onVerify={(token) => setTurnstileToken(token)}
+                theme="auto"
+              />
+            </div>
+            <button
+              type="submit"
+              style={{ width: "100%", padding: "0.5rem" }}
+              disabled={!turnstileToken}
+            >
+              Send Reset Link
+            </button>
+          </form>
+
+          <p style={{ marginTop: "0.5rem", textAlign: "center" }}>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                setIsResetting(false);
+                setTurnstileToken(null); // Reset the token when switching forms
+              }}
+              style={{ fontSize: "0.9rem", color: "#0066cc" }}
+            >
+              Back to login
+            </a>
+          </p>
+        </>
+      )}
+
       <p style={{ marginTop: "1rem" }}>
-        Don’t have an account? <Link to="/signup">Sign up</Link>
+        Don't have an account? <Link to="/signup">Sign up</Link>
       </p>
 
       {error && <div style={{ color: "red", marginTop: "1rem" }}>{error}</div>}
+      {successMessage && <div style={{ color: "green", marginTop: "1rem" }}>{successMessage}</div>}
     </div>
   );
 }
