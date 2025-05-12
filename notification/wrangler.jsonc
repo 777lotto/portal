@@ -1,0 +1,42 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "notification",
+  "main": "src/index.ts",
+  "account_id": "67d3a6021370e7b666fff2023b2db359",
+  "compatibility_date": "2025-04-21",
+
+  /* ---------- routes ---------- */
+  "routes": [
+    "portal.777.foo/api/notifications/*"
+  ],
+
+  /* ---------- bindings ---------- */
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "gutter_db",
+      "database_id": "ee2da6f5-9573-4098-8ed6-57d56638b6ec"
+    }
+  ],
+
+  /* ---------- vars and secrets ---------- */
+  "vars": {
+    "EMAIL_FROM": "notifications@portal.777.foo",
+    "SMS_FROM_NUMBER": "YOUR_VOIPMS_NUMBER"
+  },
+
+  /* Add these secrets using: wrangler secret put [NAME] */
+  /*
+  SECRET KEYS NEEDED:
+  VOIPMS_USERNAME
+  VOIPMS_PASSWORD
+  */
+
+  /* ---------- service bindings ---------- */
+  "services": [
+    {
+      "binding": "PAYMENT_WORKER",
+      "service": "payment"
+    }
+  ]
+}

@@ -10,5 +10,8 @@
     "./calendar": "./src/calendar.ts",
     "./api": "./src/api.ts",
     "./stripe": "./src/stripe.ts"
+  },
+  "devDependencies": {
+    "wrangler": "^4.14.4"
   }
 }
