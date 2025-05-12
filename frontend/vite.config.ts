@@ -5,9 +5,9 @@ import { resolve } from 'path';
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-    resolve: {
+  resolve: {
     alias: {
-      '@shared': resolve(__dirname, 'packages/shared/src')
+      '@portal/shared': resolve(__dirname, '../packages/shared/src')
     }
   }
 })

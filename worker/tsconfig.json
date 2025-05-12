@@ -1,11 +1,8 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    /* target & libs for Workers */
     "target": "ES2022",
     "lib": ["ES2023"],
-
-    /* noEmit (we bundle via Wrangler) */
     "noEmit": true
   },
   "include": [

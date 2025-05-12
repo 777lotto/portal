@@ -2,6 +2,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
+      "@portal/shared": ["packages/shared/src"],
       "@portal/shared/*": ["packages/shared/src/*"]
     },
 
@@ -13,11 +14,14 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
 
-    /* Bundler‑style resolution for Vite & esbuild */
+    /* Bundler‑style resolution */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "moduleDetection": "force"
   },
+  "references": [
+    { "path": "./packages/shared" }
+  ],
   "exclude": ["node_modules"]
 }

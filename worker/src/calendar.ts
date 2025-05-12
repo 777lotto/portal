@@ -1,7 +1,7 @@
 // worker/src/calendar.ts
 import type { Env } from "./env";
 import { v4 as uuidv4 } from 'uuid';
-import { JobSchema } from "@portal/shared/calendar";
+import { JobSchema } from "@portal/shared";
 
 // Get jobs for a specific customer
 export async function getCustomerJobs(env: Env, customerId: string) {

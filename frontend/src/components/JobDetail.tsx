@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getJob } from "../lib/api";
-import { Job } from '@portal/shared/calendar';
+import { Job } from '@portal/shared';
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();

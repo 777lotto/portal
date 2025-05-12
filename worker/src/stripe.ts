@@ -1,7 +1,7 @@
 // worker/src/stripe.ts
 import Stripe from "stripe";
 import type { Env } from "./env";
-import { StripeCustomer, StripeInvoice } from "@portal/shared/stripe";
+import { StripeCustomer, StripeInvoice } from "@portal/shared";
 
 // Create a singleton Stripe instance
 let stripeInstance: Stripe | null = null;

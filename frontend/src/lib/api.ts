@@ -1,6 +1,6 @@
 // src/lib/api.ts
 import { fetchJson } from "./fetchJson";
-import { Job } from '@portal/shared/calendar';
+import { Job } from '@portal/shared';
 
 /* ---------- low‑level helpers ---------- */
 
