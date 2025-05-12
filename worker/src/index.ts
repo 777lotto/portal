@@ -77,7 +77,7 @@ async function requireAuth(request: Request, env: Env) {
     }
 
   return payload.email as string;
-} catch (error) {
+} catch (error: any) {
     console.error("JWT Verification error:", error);
     // Add more specific error types for debugging
     if (error.code === 'ERR_JWS_INVALID') {
@@ -506,9 +506,7 @@ if (request.method === "POST" && url.pathname === "/api/login") {
       .setExpirationTime("24h")
       .sign(getJwtSecretKey(env.JWT_SECRET));
 
-    return new Response(JSON.stringify({ token }), {
-      headers: CORS,
-    });
+
        return new Response(JSON.stringify({ token }), {
      status: 200,
      headers: CORS,

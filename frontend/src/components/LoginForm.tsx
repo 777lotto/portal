@@ -1,6 +1,7 @@
-// src/components/LoginForm.tsx
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+
+// src/components/LoginForm.tsx - Updated code to handle email prefill
+import { useState, useEffect } from "react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { login, requestPasswordReset } from "../lib/api";
 import Turnstile from "./Turnstile";
 
@@ -16,8 +17,24 @@ export default function LoginForm({ setToken }: Props) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const TURNSTILE_SITE_KEY = "0x4AAAAAABcgNHsEZnTPqdEV";
+
+  // Check for email in URL params (from redirects)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const emailParam = params.get('email');
+    if (emailParam) {
+      setEmail(emailParam);
+      setResetEmail(emailParam);
+
+      // If redirected from signup with existing=true, show a helpful message
+      if (params.get('existing') === 'true') {
+        setSuccessMessage("An account with this email already exists. Please log in.");
+      }
+    }
+  }, [location]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,6 +84,19 @@ export default function LoginForm({ setToken }: Props) {
   return (
     <div style={{ padding: "2rem" }}>
       <h1>{isResetting ? "Reset Password" : "Login"}</h1>
+
+      {successMessage && (
+        <div style={{
+          color: "white",
+          backgroundColor: "#4CAF50",
+          padding: "10px",
+          borderRadius: "4px",
+          marginBottom: "1rem"
+        }}>
+          {successMessage}
+        </div>
+      )}
+
       {!isResetting ? (
         <>
           <form onSubmit={handleSubmit}>
@@ -180,7 +210,6 @@ export default function LoginForm({ setToken }: Props) {
       </p>
 
       {error && <div style={{ color: "red", marginTop: "1rem" }}>{error}</div>}
-      {successMessage && <div style={{ color: "green", marginTop: "1rem" }}>{successMessage}</div>}
     </div>
   );
 }

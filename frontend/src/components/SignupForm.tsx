@@ -1,4 +1,4 @@
-// src/components/SignupForm.tsx
+// src/components/SignupForm.tsx - Updated code
 import { useState, useEffect } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { signupCheck, signup, checkStripeCustomer, createStripeCustomer } from "../lib/api";
@@ -19,7 +19,7 @@ export default function SignupForm({ setToken }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-   const TURNSTILE_SITE_KEY = "0x4AAAAAABcgNHsEZnTPqdEV";
+  const TURNSTILE_SITE_KEY = "0x4AAAAAABcgNHsEZnTPqdEV";
 
   // Check for email in URL params (for redirects)
   useEffect(() => {
@@ -36,7 +36,7 @@ export default function SignupForm({ setToken }: Props) {
     setError(null);
     setIsLoading(true);
 
-        // Only proceed if turnstile is verified in step 1
+    // Only proceed if turnstile is verified in step 1
     if (!turnstileToken) {
       setError("Please complete the security check");
       setIsLoading(false);
@@ -45,7 +45,7 @@ export default function SignupForm({ setToken }: Props) {
 
     try {
       // First check if user exists in portal
-       const { status } = await signupCheck(email, turnstileToken);
+      const { status, name: existingName } = await signupCheck(email, turnstileToken);
 
       if (status === "existing") {
         // User already exists in portal - redirect to login with email
@@ -65,6 +65,7 @@ export default function SignupForm({ setToken }: Props) {
         setMode("new");
       }
 
+      // Save turnstile token for next step - don't reset it
       setStep("complete");
     } catch (err: any) {
       setError(err.message || "Check failed");
