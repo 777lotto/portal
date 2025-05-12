@@ -22,7 +22,7 @@
   /* ---------- vars and secrets ---------- */
   "vars": {
     "EMAIL_FROM": "notifications@portal.777.foo",
-    "SMS_FROM_NUMBER": "YOUR_VOIPMS_NUMBER"
+    "SMS_FROM_NUMBER": "7706977777"
   },
 
   /* Add these secrets using: wrangler secret put [NAME] */
@@ -33,10 +33,10 @@
   */
 
   /* ---------- service bindings ---------- */
-  "services": [
-    {
-      "binding": "PAYMENT_WORKER",
-      "service": "payment"
-    }
-  ]
+//  "services": [
+//    {
+//      "binding": "PAYMENT_WORKER",
+//      "service": "payment"
+//    }
+//  ]
 }
