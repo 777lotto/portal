@@ -45,7 +45,7 @@ export default function SignupForm({ setToken }: Props) {
 
     try {
       // First check if user exists in portal
-      const { status, name: existingName } = await signupCheck(email, turnstileToken);
+       const { status } = await signupCheck(email, turnstileToken);
 
       if (status === "existing") {
         // User already exists in portal - redirect to login with email

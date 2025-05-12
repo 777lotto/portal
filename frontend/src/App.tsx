@@ -12,7 +12,7 @@ import Navbar from "./components/Navbar";
 
 function App() {
   const [token, setToken] = useState<string | null>(null);
-  const [authError, setAuthError] = useState<string | null>(null);
+  // Remove the unused state variable
 
   useEffect(() => {
     setToken(localStorage.getItem("token"));
@@ -21,17 +21,6 @@ function App() {
   return (
     <>
       <Navbar token={token} setToken={setToken} />
-      {authError && (
-        <div style={{
-          backgroundColor: "#ffebee",
-          color: "#c62828",
-          padding: "10px",
-          textAlign: "center",
-          marginBottom: "1rem"
-        }}>
-          {authError}
-        </div>
-      )}
       <Routes>
         {/* root redirect */}
         <Route

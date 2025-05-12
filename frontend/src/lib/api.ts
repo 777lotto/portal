@@ -32,20 +32,20 @@ export const checkStripeCustomer = (email: string) =>
 export const createStripeCustomer = (email: string, name: string) =>
   apiPost("/stripe/create-customer", { email, name });
 
-export const requestPasswordReset = (email: string) =>
-  apiPost("/password-reset/request", { email });
+export const requestPasswordReset = (email: string, turnstileToken?: string) =>
+  apiPost("/password-reset/request", { email, turnstileToken });
 
 export const completePasswordReset = (token: string, newPassword: string) =>
   apiPost("/password-reset/complete", { token, newPassword });
 
-export const login = (email: string, password: string) =>
-  apiPost("/login", { email, password });
+export const login = (email: string, password: string, turnstileToken?: string) =>
+  apiPost("/login", { email, password, turnstileToken });
 
 export const signup = (email: string, name: string, password: string) =>
   apiPost("/signup", { email, name, password });
 
-export const signupCheck = (email: string) =>
-  apiPost("/signup/check", { email });
+export const signupCheck = (email: string, turnstileToken?: string) =>
+  apiPost("/signup/check", { email, turnstileToken });
 
 /* ---------- services ---------- */
 
