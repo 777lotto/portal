@@ -1,0 +1,40 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "payment",
+  "main": "src/index.ts",
+  "account_id": "67d3a6021370e7b666fff2023b2db359",
+  "compatibility_date": "2025-04-21",
+
+  /* ---------- routes ---------- */
+  "routes": [
+    "portal.777.foo/api/payment/*"
+  ],
+
+  /* ---------- bindings ---------- */
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "gutter_db",
+      "database_id": "ee2da6f5-9573-4098-8ed6-57d56638b6ec"
+    }
+  ],
+
+  /* ---------- service bindings ---------- */
+  "services": [
+    {
+      "binding": "NOTIFICATION_WORKER",
+      "service": "notification"
+    }
+  ],
+
+  /* ---------- cron triggers ---------- */
+  "triggers": {
+    "crons": [
+      "0 10 * * *"  // Run daily at 10:00 AM
+    ]
+  },
+
+  /* ---------- vars and secrets ---------- */
+  "vars": {
+    "ENVIRONMENT": "production"
+  }

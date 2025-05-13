@@ -40,6 +40,9 @@ export default function Navbar({ token, setToken }: Props) {
             <Link to="/calendar-sync" style={{ marginRight: "1rem" }}>
               Sync Calendar
             </Link>
+            <Link to="/sms" style={{ marginRight: "1rem" }}>
+              Messages
+            </Link>
           </>
         ) : (
           <>

@@ -5,6 +5,14 @@ import { sendSMS } from './sms';
 import * as appointmentTemplate from './templates/appointment';
 import * as invoiceTemplate from './templates/invoice';
 import * as welcomeTemplate from './templates/welcome';
+import {
+  sendSMS,
+  storeSMSMessage,
+  handleSMSWebhook,
+  getSMSConversations,
+  getSMSConversation
+} from './sms';
+
 
 // Extend the Env interface for notification-specific environment variables
 interface NotificationEnv extends Env {
@@ -252,6 +260,108 @@ export default {
           headers: { 'Content-Type': 'application/json' },
         });
       }
+
+      // SMS webhook endpoint
+if (path === 'sms/webhook' && request.method === 'POST') {
+  return handleSMSWebhook(request, env);
+}
+
+// Send SMS endpoint
+if (path === 'sms/send' && request.method === 'POST') {
+  try {
+    const body = await request.json();
+    const { to, message, userId } = body;
+
+    if (!to || !message) {
+      return new Response(JSON.stringify({ error: 'Missing required parameters' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Send the SMS
+    const result = await sendSMS(env, to, message);
+
+    // If a userId was provided, store the message
+    if (userId && result.success) {
+      await storeSMSMessage(
+        env,
+        userId,
+        to,
+        message,
+        'outgoing',
+        result.messageSid,
+        'delivered'
+      );
+    }
+
+    return new Response(JSON.stringify(result), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// Get SMS conversations
+if (path === 'sms/conversations' && request.method === 'GET') {
+  try {
+    // Extract user ID from request
+    const urlParams = new URLSearchParams(url.search);
+    const userId = urlParams.get('userId');
+
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'User ID is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const conversations = await getSMSConversations(env, parseInt(userId, 10));
+
+    return new Response(JSON.stringify(conversations), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// Get SMS conversation messages
+if (path.match(/^sms\/messages\/\+?[0-9]+$/) && request.method === 'GET') {
+  try {
+    // Extract phone number from path
+    const phoneNumber = path.split('/').pop()!;
+
+    // Extract user ID from request
+    const urlParams = new URLSearchParams(url.search);
+    const userId = urlParams.get('userId');
+
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'User ID is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const messages = await getSMSConversation(env, parseInt(userId, 10), phoneNumber);
+
+    return new Response(JSON.stringify(messages), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
 
       // Default response for unknown paths
       return new Response(JSON.stringify({ error: 'Not found' }), {

@@ -16,6 +16,7 @@ import {
   deleteJob,
   generateCalendarFeed
 } from './calendar';
+import { handleIncomingSMS, sendSMS } from "./sms";
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                            */
@@ -1057,25 +1058,44 @@ if (request.method === "POST" && url.pathname === "/stripe/webhook") {
         break;
       }
 
-      case 'invoice.payment_succeeded': {
-        const invoice = event.data.object as Stripe.Invoice;
-        console.log(`Invoice paid: ${invoice.id}`);
+     case 'invoice.payment_succeeded': {
+  const invoice = event.data.object as Stripe.Invoice;
+  console.log(`Invoice paid: ${invoice.id}`);
 
-        // Update service status in database if it exists
-        if (invoice.customer && typeof invoice.customer === 'string') {
-          const { results } = await env.DB.prepare(
-            `UPDATE services
-             SET status = 'paid'
-             WHERE stripe_invoice_id = ?
-             RETURNING id`
-          )
-            .bind(invoice.id)
-            .all();
+  // Update service status in database if it exists
+  if (invoice.customer && typeof invoice.customer === 'string') {
+    const { results } = await env.DB.prepare(
+      `UPDATE services
+       SET status = 'paid'
+       WHERE stripe_invoice_id = ?
+       RETURNING id`
+    )
+      .bind(invoice.id)
+      .all();
 
-          console.log(`Updated ${results.length} services to paid status`);
-        }
-        break;
+    console.log(`Updated ${results.length} services to paid status`);
+
+    // Mark payment reminders as paid via the payment worker
+    for (const result of results) {
+      try {
+        // Call the payment worker to mark the reminder as paid
+        await env.PAYMENT_WORKER.fetch(
+          new Request('https://portal.777.foo/api/payment/mark-paid', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer internal',
+            },
+            body: JSON.stringify({ serviceId: result.id })
+          })
+        );
+      } catch (err) {
+        console.error(`Failed to mark payment reminder as paid: ${err}`);
       }
+    }
+  }
+  break;
+}
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice;
@@ -1111,6 +1131,101 @@ if (request.method === "POST" && url.pathname === "/stripe/webhook") {
       }),
       { status: 400, headers: webhookHeaders }
     );
+  }
+}
+
+/* ─── SMS webhook endpoint ─────────────────────────────────────────── */
+if (request.method === "POST" && url.pathname === "/api/sms/webhook") {
+  // Forward directly to notification worker without auth (it's a public webhook)
+  return env.NOTIFICATION_WORKER.fetch(
+    new Request('https://portal.777.foo/api/notifications/sms/webhook', {
+      method: 'POST',
+      headers: request.headers,
+      body: request.body
+    })
+  );
+}
+
+/* ─── SMS endpoints requiring auth ─────────────────────────────────────────── */
+if (
+  (request.method === "GET" && url.pathname === "/api/sms/conversations") ||
+  (request.method === "GET" && url.pathname.match(/^\/api\/sms\/messages\/\+?[0-9]+$/)) ||
+  (request.method === "POST" && url.pathname === "/api/sms/send")
+) {
+  try {
+    // Authenticate the request
+    const email = await requireAuth(request, env);
+
+    // Get the user's ID
+    const user = await env.DB.prepare(
+      `SELECT id FROM users WHERE email = ?`
+    ).bind(email).first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Create the forwarded URL with userId added as a query param
+    const forwardUrl = new URL(
+      `https://portal.777.foo/api/notifications${url.pathname.replace('/api', '')}`
+    );
+    forwardUrl.searchParams.append('userId', user.id.toString());
+
+    // Copy any existing query params
+    url.searchParams.forEach((value, key) => {
+      forwardUrl.searchParams.append(key, value);
+    });
+
+    // For POST requests, need to add userId to the body
+    if (request.method === "POST") {
+      const originalBody = await request.json();
+
+      // Create a new request with userId added to body
+      return await env.NOTIFICATION_WORKER.fetch(
+        new Request(forwardUrl.toString(), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': request.headers.get('Authorization') || '',
+          },
+          body: JSON.stringify({
+            ...originalBody,
+            userId: user.id
+          })
+        })
+      );
+    } else {
+      // For GET requests, just forward with the updated URL
+      return await env.NOTIFICATION_WORKER.fetch(
+        new Request(forwardUrl.toString(), {
+          method: 'GET',
+          headers: {
+            'Authorization': request.headers.get('Authorization') || '',
+          }
+        })
+      );
+    }
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 401,
+      headers: CORS,
+    });
+  }
+}
+
+/* ─── Payment service endpoint proxy ─────────────────────────────────────────── */
+if (request.method === "POST" && url.pathname.startsWith("/api/payment/")) {
+  try {
+    // Authenticate the request
+    const email = await requireAuth(request, env);
+
+    // Forward the authenticated request to the payment worker
+    return await env.PAYMENT_WORKER.fetch(request);
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 401,
+      headers: CORS,
+    });
   }
 }
 

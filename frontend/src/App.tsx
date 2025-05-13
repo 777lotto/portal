@@ -9,6 +9,8 @@ import JobCalendar from "./components/Calendar";
 import JobDetail from "./components/JobDetail";
 import CalendarSync from "./components/CalendarSync";
 import Navbar from "./components/Navbar";
+import SMSConversations from "./components/SMSConversations";
+import SMSConversation from "./components/SMSConversation";
 
 function App() {
   const [token, setToken] = useState<string | null>(null);
@@ -71,7 +73,15 @@ function App() {
           path="/calendar-sync"
           element={token ? <CalendarSync /> : <Navigate to="/login" replace />}
         />
-
+        {/* SMS routes */}
+        <Route
+          path="/sms"
+          element={token ? <SMSConversations /> : <Navigate to="/login" replace />}
+        />
+        <Route
+          path="/sms/:phoneNumber"
+          element={token ? <SMSConversation /> : <Navigate to="/login" replace />}
+        />
         {/* catch-all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

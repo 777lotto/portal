@@ -165,3 +165,22 @@ export const scheduleJob = (jobData: Omit<Job, 'id' | 'createdAt' | 'updatedAt'>
 
 export const rescheduleJob = (id: string, newDate: string, token: string) =>
   callSchedulingService('reschedule', { id, newDate }, token);
+
+  /* ---------- SMS ---------- */
+
+export const getConversations = (token: string) =>
+  apiGet("/sms/conversations", token);
+
+export const getConversation = (phoneNumber: string, token: string) =>
+  apiGet(`/sms/messages/${phoneNumber}`, token);
+
+export const sendSMS = (to: string, message: string, token: string) =>
+  apiPost("/sms/send", { to, message }, token);
+
+/* ---------- Payment Reminders ---------- */
+
+export const sendPaymentReminder = (serviceId: number, token: string) =>
+  apiPost(`/payment/send-reminder`, { serviceId }, token);
+
+export const runPaymentReminders = (token: string) =>
+  apiPost("/payment/run-reminders", {}, token);

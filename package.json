@@ -6,19 +6,38 @@
     "frontend",
     "worker",
     "packages/shared",
-    "notification"
+    "notification",
+    "payment"
   ],
-  "scripts": {
-    "shared:build": "cd packages/shared && npm run build",
-    "shared:dev": "cd packages/shared && npm run dev",
-    "frontend:dev": "cd frontend && npm run dev",
-    "worker:dev": "cd worker && npm run dev",
-    "notification:dev": "cd notification && npm run dev",
-    "dev": "concurrently \"npm run shared:dev\" \"npm run worker:dev\" \"npm run frontend:dev\"",
-    "build": "npm run shared:build && concurrently \"cd worker && npm run build\" \"cd frontend && npm run build\" \"cd notification && npm run build\"",
-    "deploy:worker": "cd worker && npm run deploy",
-    "deploy:frontend": "cd frontend && npm run build"
-  },
+"scripts": {
+  "shared:build": "cd packages/shared && npm run build",
+  "shared:dev": "cd packages/shared && npm run dev",
+
+  "frontend:dev": "cd frontend && npm run dev",
+  "frontend:build": "cd frontend && npm run build",
+
+  "worker:dev": "cd worker && npm run dev",
+  "worker:build": "cd worker && npm run build",
+
+  "notification:dev": "cd notification && npm run dev",
+  "notification:build": "cd notification && npm run build",
+
+  "payment:dev": "cd payment && npm run dev",
+  "payment:build": "cd payment && npm run build",
+
+  "dev": "concurrently \"npm run shared:dev\" \"npm run worker:dev\" \"npm run frontend:dev\" \"npm run notification:dev\" \"npm run payment:dev\"",
+
+  "build": "npm run shared:build && concurrently \"npm run worker:build\" \"npm run frontend:build\" \"npm run notification:build\" \"npm run payment:build\"",
+
+  "deploy:worker": "cd worker && npm run deploy",
+  "deploy:frontend": "cd frontend && npm run build && npx wrangler pages deploy dist",
+  "deploy:notification": "cd notification && npm run deploy",
+  "deploy:payment": "cd payment && npm run deploy",
+
+  "migrate": "cd worker && npx wrangler d1 migrations apply gutter_db --env production",
+
+  "deploy": "npm run shared:build && npm run migrate && npm run deploy:worker && npm run deploy:notification && npm run deploy:payment && npm run deploy:frontend"
+},
   "devDependencies": {
     "concurrently": "^8.2.0"
   },

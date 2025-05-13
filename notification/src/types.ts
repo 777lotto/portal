@@ -26,3 +26,23 @@ export interface NotificationRecord {
   metadata: string; // JSON string
   created_at: string;
 }
+
+// SMS message record structure
+export interface SMSMessage {
+  id: number;
+  user_id: number | string;
+  direction: 'incoming' | 'outgoing';
+  phone_number: string;
+  message: string;
+  message_sid?: string;
+  status: 'pending' | 'delivered' | 'failed';
+  created_at: string;
+}
+
+// SMS webhook request from VoIP.ms
+export interface SMSWebhookRequest {
+  from: string;
+  to: string;
+  message: string;
+  id?: string; // message ID from VoIP.ms
+}
