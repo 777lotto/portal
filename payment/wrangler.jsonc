@@ -22,8 +22,8 @@
   /* ---------- service bindings ---------- */
   "services": [
     {
-      "binding": "NOTIFICATION_WORKER",
-      "service": "notification"
+      "binding": "PAYMENT_WORKER",
+      "service": "payment"
     }
   ],
 
