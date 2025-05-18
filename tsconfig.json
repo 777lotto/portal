@@ -21,7 +21,11 @@
     "moduleDetection": "force"
   },
   "references": [
-    { "path": "./packages/shared" }
+    { "path": "./packages/shared" },
+    { "path": "./frontend" },
+    { "path": "./worker" },
+    { "path": "./notification" },
+    { "path": "./payment" }
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "**/node_modules/*"]
 }

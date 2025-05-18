@@ -1,5 +1,5 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
+  "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "payment",
   "main": "src/index.ts",
   "account_id": "67d3a6021370e7b666fff2023b2db359",
@@ -38,3 +38,5 @@
   "vars": {
     "ENVIRONMENT": "production"
   }
+
+}

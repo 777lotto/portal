@@ -1,5 +1,5 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
+  "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "notification",
   "main": "src/index.ts",
   "account_id": "67d3a6021370e7b666fff2023b2db359",
@@ -23,7 +23,7 @@
   "vars": {
     "EMAIL_FROM": "notifications@portal.777.foo",
     "SMS_FROM_NUMBER": "7706977777"
-  },
+  }
 
   /* Add these secrets using: wrangler secret put [NAME] */
   /*
@@ -31,12 +31,4 @@
   VOIPMS_USERNAME
   VOIPMS_PASSWORD
   */
-
-  /* ---------- service bindings ---------- */
-//  "services": [
-//    {
-//      "binding": "PAYMENT_WORKER",
-//      "service": "payment"
-//    }
-//  ]
 }

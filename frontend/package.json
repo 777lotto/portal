@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@portal/shared": "*",
+    "@portal/shared": "workspace:*",
     "@types/react-big-calendar": "^1.16.1",
     "@types/rrule": "^2.1.7",
     "moment": "^2.30.1",

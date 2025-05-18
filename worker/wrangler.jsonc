@@ -1,9 +1,6 @@
-/**
- * For more details on how to configure Wrangler, refer to:
- * https://developers.cloudflare.com/workers/wrangler/configuration/
- */
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
+  // Use an external URL for schema to avoid path issues
+  "$schema": "https://raw.githubusercontent.com/cloudflare/wrangler/main/packages/wrangler/config-schema.json",
   "name": "worker",
   "main": "src/index.ts",
   "account_id": "67d3a6021370e7b666fff2023b2db359",
@@ -34,10 +31,10 @@
       "service": "notification"
     },
     {
-    "binding": "PAYMENT_WORKER",
-    "service": "payment"
-  }
-],
+      "binding": "PAYMENT_WORKER",
+      "service": "payment"
+    }
+  ],
 
   /* ---------- environment variables ---------- */
   "vars": {
@@ -46,7 +43,9 @@
   },
 
   /* ---------- smart placement ---------- */
-  "placement": { "mode": "smart" },
+  "placement": {
+    "mode": "smart"
+  },
 
   /* ---------- development configuration ---------- */
   "dev": {

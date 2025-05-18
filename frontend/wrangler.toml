@@ -1,5 +1,5 @@
 # Pages project configuration
-name = "gutter-portal-frontend"
+name = "portal"
 compatibility_date = "2025-05-11"
 
 [site]

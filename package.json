@@ -5,39 +5,39 @@
   "workspaces": [
     "frontend",
     "worker",
-    "packages/shared",
+    "packages/*",
     "notification",
     "payment"
   ],
-"scripts": {
-  "shared:build": "cd packages/shared && npm run build",
-  "shared:dev": "cd packages/shared && npm run dev",
+  "scripts": {
+    "shared:build": "cd packages/shared && pnpm run build",
+    "shared:dev": "cd packages/shared && pnpm run dev",
 
-  "frontend:dev": "cd frontend && npm run dev",
-  "frontend:build": "cd frontend && npm run build",
+    "frontend:dev": "cd frontend && pnpm run dev",
+    "frontend:build": "cd frontend && pnpm run build",
 
-  "worker:dev": "cd worker && npm run dev",
-  "worker:build": "cd worker && npm run build",
+    "worker:dev": "cd worker && pnpm run dev",
+    "worker:build": "cd worker && pnpm run build",
 
-  "notification:dev": "cd notification && npm run dev",
-  "notification:build": "cd notification && npm run build",
+    "notification:dev": "cd notification && pnpm run dev",
+    "notification:build": "cd notification && pnpm run build",
 
-  "payment:dev": "cd payment && npm run dev",
-  "payment:build": "cd payment && npm run build",
+    "payment:dev": "cd payment && pnpm run dev",
+    "payment:build": "cd payment && pnpm run build",
 
-  "dev": "concurrently \"pnpm run shared:dev\" \"pnpm run worker:dev\" \"pnpm run frontend:dev\" \"pnpm run notification:dev\" \"pnpm run payment:dev\"",
+    "dev": "concurrently \"pnpm run shared:dev\" \"pnpm run worker:dev\" \"pnpm run frontend:dev\" \"pnpm run notification:dev\" \"pnpm run payment:dev\"",
 
-  "build": "pnpm run shared:build && concurrently \"pnpm run worker:build\" \"pnpm run frontend:build\" \"pnpm run notification:build\" \"pnpm run payment:build\"",
+    "build": "pnpm run shared:build && concurrently \"pnpm run worker:build\" \"pnpm run frontend:build\" \"pnpm run notification:build\" \"pnpm run payment:build\"",
 
-  "deploy:worker": "cd worker && npm run deploy",
-  "deploy:frontend": "cd frontend && npm run build && npx wrangler pages deploy dist",
-  "deploy:notification": "cd notification && npm run deploy",
-  "deploy:payment": "cd payment && npm run deploy",
+    "deploy:worker": "cd worker && pnpm run deploy",
+    "deploy:frontend": "cd frontend && pnpm run build && npx wrangler pages deploy dist",
+    "deploy:notification": "cd notification && pnpm run deploy",
+    "deploy:payment": "cd payment && pnpm run deploy",
 
-  "migrate": "cd worker && npx wrangler d1 migrations apply gutter_db --env production",
+    "migrate": "cd worker && npx wrangler d1 migrations apply gutter_db --env production",
 
-  "deploy": "pnpm run shared:build && npm run migrate && npm run deploy:worker && npm run deploy:notification && npm run deploy:payment && npm run deploy:frontend"
-},
+    "deploy": "pnpm run shared:build && pnpm run migrate && pnpm run deploy:worker && pnpm run deploy:notification && pnpm run deploy:payment && pnpm run deploy:frontend"
+  },
   "devDependencies": {
     "concurrently": "^8.2.0"
   },
