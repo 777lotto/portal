@@ -10,7 +10,7 @@ interface Props {
 }
 
 export default function LoginForm({ setToken }: Props) {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [resetEmail, setResetEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +26,7 @@ export default function LoginForm({ setToken }: Props) {
     const params = new URLSearchParams(location.search);
     const emailParam = params.get('email');
     if (emailParam) {
-      setEmail(emailParam);
+      setIdentifier(emailParam);
       setResetEmail(emailParam);
 
       // If redirected from signup with existing=true, show a helpful message
@@ -47,7 +47,7 @@ export default function LoginForm({ setToken }: Props) {
     }
 
     try {
-      const token = await login(email, password, turnstileToken);
+      const token = await login(identifier, password, turnstileToken);
       localStorage.setItem("token", token);
       setToken(token);
       navigate("/dashboard");
@@ -101,16 +101,19 @@ export default function LoginForm({ setToken }: Props) {
         <>
           <form onSubmit={handleSubmit}>
             <div>
-              <input
-                id="login-email"
-                name="email"
-                type="email"
-                autoComplete="username"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{ width: "100%", marginBottom: "1rem" }}
-              />
+             <label htmlFor="login-identifier" style={{ display: "block", marginBottom: "0.5rem" }}>
+               Email or Phone Number
+              </label>
+            <input
+              id="login-identifier"
+              name="identifier"
+              type="text" // Use text to accept both email and phone
+              autoComplete="username" // This will get email/phone suggestions
+              placeholder="Enter email or phone number"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+             style={{ width: "100%", marginBottom: "1rem" }}
+            />
             </div>
             <div>
               <input

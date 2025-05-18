@@ -1,4 +1,5 @@
-// src/index.ts
+
+ // src/index.ts
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import type { Env } from "./env";
@@ -125,9 +126,9 @@ export default {
 // ─── Check if email exists as a Stripe customer ────────────────────────
 if (request.method === "POST" && url.pathname === "/api/stripe/check-customer") {
   try {
-    const { email } = await request.json();
-    if (!email) {
-      throw new Error("Email is required");
+    const { email, phone } = await request.json();
+    if (!email && !phone) {
+      throw new Error("At least one identifier (email or phone) is required");
     }
 
     // First check if the user already exists in our DB

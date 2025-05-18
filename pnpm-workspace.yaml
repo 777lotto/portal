@@ -1,0 +1,7 @@
+packages:
+  - 'frontend'
+  - 'worker'
+  - 'packages/*'
+  - 'notification'
+  - 'payment'
+

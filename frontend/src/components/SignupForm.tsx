@@ -20,6 +20,7 @@ export default function SignupForm({ setToken }: Props) {
   const location = useLocation();
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const TURNSTILE_SITE_KEY = "0x4AAAAAABcgNHsEZnTPqdEV";
+  const [phone, setPhone] = useState("");
 
   // Check for email in URL params (for redirects)
   useEffect(() => {
@@ -30,7 +31,24 @@ export default function SignupForm({ setToken }: Props) {
     }
   }, [location]);
 
-  // STEP 1: check email
+// Add validation function
+const validateIdentifiers = () => {
+  if (!email && !phone) {
+    setError("Please provide either an email address or phone number");
+    return false;
+  }
+  return true;
+};
+
+const handleCheck = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  if (!validateIdentifiers()) return;
+  
+  setError(null);
+  setIsLoading(true);
+  
+    // STEP 1: check email
   const handleCheck = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -45,21 +63,24 @@ export default function SignupForm({ setToken }: Props) {
 
     try {
       // First check if user exists in portal
-      const { status } = await signupCheck(email, turnstileToken);
+      const { status } = await signupCheck(email, phone, turnstileToken);
 
       if (status === "existing") {
         // User already exists in portal - redirect to login with email
-        navigate(`/login?email=${encodeURIComponent(email)}&existing=true`);
-        return;
+        navigate(`/login?${email ? `email=${encodeURIComponent(email)}` : `phone=${encodeURIComponent(phone)}`}&existing=true`);
+      return;      }
       }
-
       // If not in portal, check if user exists in Stripe
-      const stripeResult = await checkStripeCustomer(email);
+      const stripeResult = await checkStripeCustomer(email, phone);
 
       if (stripeResult.exists) {
         // Customer exists in Stripe but not in portal
         setMode("stripe-only");
         setName(stripeResult.name || "");
+        // If they used phone to find customer but no email was provided, use the one from Stripe
+      if (!email && stripeResult.email) {
+        setEmail(stripeResult.email);
+        }
       } else {
         // New user, not in portal or Stripe
         setMode("new");
@@ -106,7 +127,7 @@ export default function SignupForm({ setToken }: Props) {
     <div style={{ padding: "2rem" }}>
       <h1>
         {step === "email"
-          ? "Enter your email"
+          ? "Enter your contact info"
           : mode === "new"
           ? "Create your account"
           : mode === "stripe-only"
@@ -116,19 +137,46 @@ export default function SignupForm({ setToken }: Props) {
 
       {step === "email" ? (
         <form onSubmit={handleCheck}>
-          <input
-            id="signup-email"
-            name="email"
-            type="email"
-            required
-            autoComplete="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) =>
-              setEmail(e.target.value.trim().toLowerCase())
-            }
-            style={{ width: "100%", marginBottom: "1rem" }}
-          />
+          <div style={{ marginBottom: "1rem" }}>
+            <label htmlFor="signup-email" style={{ display: "block", marginBottom: "0.5rem" }}>
+              Email Address {!phone && <span style={{ color: "#dc3545" }}>*</span>}
+            </label>
+            <input
+              id="signup-email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value.trim().toLowerCase())}
+              style={{ width: "100%", padding: "0.5rem" }}
+              required={!phone}
+            />
+          </div>
+          
+          <div style={{ marginBottom: "1rem" }}>
+            <label htmlFor="signup-phone" style={{ display: "block", marginBottom: "0.5rem" }}>
+              Phone Number {!email && <span style={{ color: "#dc3545" }}>*</span>}
+            </label>
+            <input
+              id="signup-phone"
+              name="phone"
+              type="tel"
+              autoComplete="tel"
+              placeholder="(555) 123-4567"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.trim())}
+              style={{ width: "100%", padding: "0.5rem" }}
+              required={!email}
+            />
+          </div>
+          
+          {!email && !phone && (
+            <div style={{ color: "#dc3545", marginBottom: "1rem", fontSize: "0.9rem" }}>
+              Please provide either an email address or phone number
+            </div>
+          )}
+          
           <div style={{ marginBottom: "1rem" }}>
             <Turnstile
               sitekey={TURNSTILE_SITE_KEY}
@@ -139,11 +187,11 @@ export default function SignupForm({ setToken }: Props) {
 
           <button
             type="submit"
-            disabled={isLoading || !turnstileToken}
+            disabled={isLoading || !turnstileToken || (!email && !phone)}
             style={{
               width: "100%",
               padding: "0.5rem",
-              opacity: (isLoading || !turnstileToken) ? 0.7 : 1
+              opacity: (isLoading || !turnstileToken || (!email && !phone)) ? 0.7 : 1
             }}
           >
             {isLoading ? "Checking..." : "Continue"}
@@ -165,9 +213,18 @@ export default function SignupForm({ setToken }: Props) {
             </div>
           )}
 
-          <p>
-            Email: <strong>{email}</strong>
-          </p>
+          {/* Display the contact information provided */}
+          {email && (
+            <p>
+              Email: <strong>{email}</strong>
+            </p>
+          )}
+          {phone && (
+            <p>
+              Phone: <strong>{phone}</strong>
+            </p>
+          )}
+          
           <div>
             <label htmlFor="signup-name" style={{ display: "block", marginBottom: "0.5rem" }}>
               Full Name

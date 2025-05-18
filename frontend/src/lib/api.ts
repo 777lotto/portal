@@ -26,11 +26,11 @@ export const apiPost = (
 
 /* ---------- auth ---------- */
 
-export const checkStripeCustomer = (email: string) =>
-  apiPost("/stripe/check-customer", { email });
+export const checkStripeCustomer = (email: string, phone: string) =>
+  apiPost("/stripe/check-customer", { email, phone });
 
-export const createStripeCustomer = (email: string, name: string) =>
-  apiPost("/stripe/create-customer", { email, name });
+export const createStripeCustomer = (email: string, name: string, phone: string) =>
+  apiPost("/stripe/create-customer", { email, name, phone });
 
 export const requestPasswordReset = (email: string, turnstileToken?: string) =>
   apiPost("/password-reset/request", { email, turnstileToken });
@@ -38,14 +38,14 @@ export const requestPasswordReset = (email: string, turnstileToken?: string) =>
 export const completePasswordReset = (token: string, newPassword: string) =>
   apiPost("/password-reset/complete", { token, newPassword });
 
-export const login = (email: string, password: string, turnstileToken?: string) =>
-  apiPost("/login", { email, password, turnstileToken });
+export const login = (identifier: string, password: string, turnstileToken?: string) =>
+  apiPost("/login", { identifier, password, turnstileToken });
 
-export const signup = (email: string, name: string, password: string) =>
-  apiPost("/signup", { email, name, password });
+export const signup = (email: string, name: string, password: string, phone: string) =>
+  apiPost("/signup", { email, name, password, phone });
 
-export const signupCheck = (email: string, turnstileToken?: string) =>
-  apiPost("/signup/check", { email, turnstileToken });
+export const signupCheck = (email: string, phone: string, turnstileToken?: string) =>
+  apiPost("/signup/check", { email, phone, turnstileToken });
 
 /* ---------- services ---------- */
 
