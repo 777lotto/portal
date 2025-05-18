@@ -1,6 +1,5 @@
 {
-  // Use an external URL for schema to avoid path issues
-  "$schema": "https://raw.githubusercontent.com/cloudflare/wrangler/main/packages/wrangler/config-schema.json",
+  "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "worker",
   "main": "src/index.ts",
   "account_id": "67d3a6021370e7b666fff2023b2db359",
@@ -52,13 +51,32 @@
     "port": 8787,
     "local_protocol": "http",
     "ip": "localhost"
-  }
+  },
 
-  /**
-   * Note: Use secrets to store sensitive data.
-   * Run the following in your terminal to add secrets:
-   * wrangler secret put JWT_SECRET
-   * wrangler secret put STRIPE_SECRET_KEY
-   * wrangler secret put STRIPE_WEBHOOK_SECRET
-   */
+  /* ---------- environment configuration ---------- */
+  "env": {
+    "production": {
+      "vars": {
+        "ENVIRONMENT": "production",
+        "API_VERSION": "1.0.0"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "gutter_db",
+          "database_id": "ee2da6f5-9573-4098-8ed6-57d56638b6ec"
+        }
+      ],
+      "services": [
+        {
+          "binding": "NOTIFICATION_WORKER",
+          "service": "notification"
+        },
+        {
+          "binding": "PAYMENT_WORKER",
+          "service": "payment"
+        }
+      ]
+    }
+  }
 }

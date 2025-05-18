@@ -5,10 +5,6 @@
   "account_id": "67d3a6021370e7b666fff2023b2db359",
   "compatibility_date": "2025-04-21",
 
-  /* ---------- routes ---------- */
-  "routes": [
-    "portal.777.foo/api/payment/*"
-  ],
 
   /* ---------- bindings ---------- */
   "d1_databases": [

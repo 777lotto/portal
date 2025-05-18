@@ -476,6 +476,11 @@ if (request.method === "POST" && url.pathname === "/api/signup/check") {
     return new Response(JSON.stringify({ token }), {
       headers: CORS,
     });
+    } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
+      headers: CORS,
+    });
   }
 }
 
