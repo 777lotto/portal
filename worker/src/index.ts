@@ -384,98 +384,100 @@ if (request.method === "POST" && url.pathname === "/api/signup/check") {
 
         // sync data to Stripe if customer exists
         if (existingUser.stripe_customer_id) {
-          const stripe = getStripe(env);
-          await stripe.customers.update(existingUser.stripe_customer_id, {
-            name,
-            ...(email ? { email } : {}),
-            ...(phone ? { phone } : {})
-        });
+           const stripe = getStripe(env);
+           await stripe.customers.update(existingUser.stripe_customer_id, {
+             name,
+              ...(email ? { email } : {}),
+              ...(phone ? { phone } : {})
+          });
+        }
+      } else {
+        throw new Error("Account already exists");
       }
     } else {
-      throw new Error("Account already exists");
-    }
-  } else {
     // Check if user exists in Stripe
-    let stripeCustomerId = null;
-    const stripe = getStripe(env);
+      let stripeCustomerId = null;
+      const stripe = getStripe(env);
     
     // Try to find by email first
-    let stripeCustomer = null;
-    if (email) {
+      let stripeCustomer = null;
+        if (email) {
       const emailCustomers = await stripe.customers.list({
-        email: email.toLowerCase(),
-        limit: 1,
-      });
+          email: email.toLowerCase(),
+          limit: 1,
+        });
       
-      if (emailCustomers.data.length > 0) {
-        stripeCustomer = emailCustomers.data[0];
+        if (emailCustomers.data.length > 0) {
+          stripeCustomer = emailCustomers.data[0];
+        }
       }
-    }
     
     // If not found by email, try phone
-    if (!stripeCustomer && phone) {
-      const phoneCustomers = await stripe.customers.list({
-        limit: 100,
-      });
+      if (!stripeCustomer && phone) {
+        const phoneCustomers = await stripe.customers.list({
+          limit: 100,
+        });
       
-      stripeCustomer = phoneCustomers.data.find(c => c.phone === phone);
-    }
+        stripeCustomer = phoneCustomers.data.find(c => c.phone === phone);
+      }
     
-    if (stripeCustomer) {
+      if (stripeCustomer) {
       // Customer exists in Stripe, update their info
-      stripeCustomerId = stripeCustomer.id;
-      await stripe.customers.update(stripeCustomerId, {
-        name,
-        ...(email && !stripeCustomer.email ? { email } : {}),
-        ...(phone && !stripeCustomer.phone ? { phone } : {})
-      });
-    } else {
+        stripeCustomerId = stripeCustomer.id;
+        await stripe.customers.update(stripeCustomerId, {
+          name,
+          ...(email && !stripeCustomer.email ? { email } : {}),
+          ...(phone && !stripeCustomer.phone ? { phone } : {})
+        });
+      } else {
       // Create new Stripe customer
-      const customer = await stripe.customers.create({
-        ...(email ? { email } : {}),
-        ...(phone ? { phone } : {}),
-        name,
-        metadata: {
-          source: "portal_signup"
-        }
-      });
-      stripeCustomerId = customer.id;
-    }
+        const customer = await stripe.customers.create({
+          ...(email ? { email } : {}),
+          ...(phone ? { phone } : {}),
+          name,
+          metadata: {
+            source: "portal_signup"
+          }
+        });
+        stripeCustomerId = customer.id;
+      }
 
     // Create user in our database
-    await env.DB.prepare(
-      `INSERT INTO users (email, name, password_hash, stripe_customer_id, phone)
-       VALUES (?, ?, ?, ?, ?)`
-    ).bind(email || null, name, password_hash, stripeCustomerId, phone || null).run();
-  }
+      await env.DB.prepare(
+        `INSERT INTO users (email, name, password_hash, stripe_customer_id, phone)
+        VALUES (?, ?, ?, ?, ?)`
+      ).bind(email || null, name, password_hash, stripeCustomerId, phone || null).run();
+    }
 
   // Find the user to get complete info for JWT
-  let user;
-  if (email) {
-    user = await env.DB.prepare(
-      `SELECT id, email, name, phone FROM users WHERE email = ?`
-    ).bind(email).first();
-  } else {
-    user = await env.DB.prepare(
-      `SELECT id, email, name, phone FROM users WHERE phone = ?`
-    ).bind(phone).first();
-  }
+    let user;
+    if (email) {
+      user = await env.DB.prepare(
+        `SELECT id, email, name, phone FROM users WHERE email = ?`
+      ).bind(email).first();
+    } else {
+      user = await env.DB.prepare(
+        `SELECT id, email, name, phone FROM users WHERE phone = ?`
+      ).bind(phone).first();
+    }
 
   // issue JWT
-  const token = await new SignJWT({ 
-    id: user.id,
-    email: user.email || null, 
-    name: user.name,
-    phone: user.phone || null
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("24h")
-    .sign(getJwtSecretKey(env.JWT_SECRET));
+    const token = await new SignJWT({ 
+      id: user.id,
+      email: user.email || null, 
+      name: user.name,
+      phone: user.phone || null
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("24h")
+      .sign(getJwtSecretKey(env.JWT_SECRET));
 
-  return new Response(JSON.stringify({ token }), {
-    headers: CORS,
-  });
+    return new Response(JSON.stringify({ token }), {
+      headers: CORS,
+    });
+  }
+}
 
 // 5. ─── Password Reset Request ────────────────────────────────────────────
 if (request.method === "POST" && url.pathname === "/api/password-reset/request") {
