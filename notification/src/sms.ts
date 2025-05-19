@@ -2,12 +2,24 @@
 import { Env } from '../../worker/src/env';
 import { SMSMessage, SMSWebhookRequest } from './types';
 
+interface NotificationEnv extends Env {
+  SMS_FROM_NUMBER: string;
+  VOIPMS_USERNAME: string;
+  VOIPMS_PASSWORD: string;
+}
+
+interface SendSMSResult {
+  success: boolean;
+  error?: string;
+  messageSid?: string;
+}
+
 // Send SMS using VoIP.ms
 export async function sendSMS(
-  env: Env,
+  env: NotificationEnv,
   to: string,
   message: string
-): Promise<{ success: boolean; error?: string; messageSid?: string }> {
+): Promise<SendSMSResult> {
   try {
     const from = env.SMS_FROM_NUMBER;
 
@@ -24,7 +36,10 @@ export async function sendSMS(
       method: 'GET',
     });
 
-    const result = await response.json();
+    const result = await response.json() as {
+      status: string;
+      sms?: Array<{ id: string }>;
+    };
 
     // VoIP.ms responds with { status: 'success', sms: [{ id: '123456' }] } on success
     if (result.status === 'success' && result.sms && result.sms.length > 0) {
@@ -34,7 +49,7 @@ export async function sendSMS(
       console.error('SMS sending failed:', result.status);
       return { success: false, error: result.status };
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('SMS sending error:', error);
     return { success: false, error: error.message };
   }
@@ -86,7 +101,7 @@ export async function handleSMSWebhook(
       `SELECT id, name, email FROM users WHERE phone = ?`
     ).bind(payload.from).first();
 
-    const userId = user ? user.id : 0;  // Use 0 for unassigned messages
+    const userId = user ? (user as any).id : 0;  // Use 0 for unassigned messages
 
     // Store the message
     await storeSMSMessage(
@@ -100,12 +115,16 @@ export async function handleSMSWebhook(
 
     // Process the incoming message
     if (user) {
-      await processIncomingSMS(env, user, payload);
+      await processIncomingSMS(env, {
+        id: (user as any).id,
+        name: (user as any).name || '',
+        email: (user as any).email || ''
+      }, payload);
     } else {
       // Handle unknown sender
       const responseMessage = "Sorry, we couldn't identify your account. Please call our office for assistance.";
 
-      await sendSMS(env, payload.from, responseMessage);
+      await sendSMS(env as NotificationEnv, payload.from, responseMessage);
       // Store the response
       await storeSMSMessage(env, 0, payload.from, responseMessage, 'outgoing');
     }
@@ -114,7 +133,7 @@ export async function handleSMSWebhook(
       status: 200,
       headers: { "Content-Type": "application/json" }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("SMS webhook error:", error);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
@@ -147,7 +166,7 @@ async function processIncomingSMS(
       // Update service status to confirmed
       await env.DB.prepare(
         `UPDATE services SET status = 'confirmed' WHERE id = ?`
-      ).bind(upcomingService.id).run();
+      ).bind((upcomingService as any).id).run();
 
       responseMessage = "Thank you for confirming your appointment. We look forward to serving you!";
     } else {
@@ -170,8 +189,9 @@ async function processIncomingSMS(
     ).bind(user.id).first();
 
     if (invoice) {
-      const amountFormatted = (invoice.price_cents / 100).toFixed(2);
-      const paymentLink = `https://portal.777.foo/services/${invoice.id}`;
+      const price_cents = (invoice as any).price_cents || 0;
+      const amountFormatted = (price_cents / 100).toFixed(2);
+      const paymentLink = `https://portal.777.foo/services/${(invoice as any).id}`;
       responseMessage = `You can pay your invoice of $${amountFormatted} here: ${paymentLink}`;
     } else {
       responseMessage = "We don't see any outstanding invoices for your account. If you believe this is an error, please contact our office.";
@@ -183,7 +203,7 @@ async function processIncomingSMS(
   }
 
   // Send the response
-  const result = await sendSMS(env, payload.from, responseMessage);
+  const result = await sendSMS(env as NotificationEnv, payload.from, responseMessage);
 
   // Store the outgoing message
   await storeSMSMessage(
@@ -192,8 +212,8 @@ async function processIncomingSMS(
     payload.from,
     responseMessage,
     'outgoing',
-    result.messageSid,
-    result.success ? 'delivered' : 'failed'
+    (result as any).messageSid,
+    (result as any).success ? 'delivered' : 'failed'
   );
 }
 
@@ -213,7 +233,7 @@ export async function getSMSConversations(
      LIMIT 20`
   ).bind(userId).all();
 
-  return results;
+  return results || [];
 }
 
 // Get SMS messages for a specific conversation
@@ -230,5 +250,5 @@ export async function getSMSConversation(
      LIMIT 100`
   ).bind(userId, phoneNumber).all();
 
-  return results as SMSMessage[];
+  return (results || []) as unknown as SMSMessage[];
 }

@@ -1,18 +1,16 @@
-// notification/src/index.ts
+// notification/src/index.ts - Fixed duplicate declarations
 import { Env } from '../../worker/src/env';
 import { sendEmail } from './email';
-import { sendSMS } from './sms';
-import * as appointmentTemplate from './templates/appointment';
-import * as invoiceTemplate from './templates/invoice';
-import * as welcomeTemplate from './templates/welcome';
-import {
+import { 
   sendSMS,
   storeSMSMessage,
   handleSMSWebhook,
   getSMSConversations,
   getSMSConversation
 } from './sms';
-
+import * as appointmentTemplate from './templates/appointment';
+import * as invoiceTemplate from './templates/invoice';
+import * as welcomeTemplate from './templates/welcome';
 
 // Extend the Env interface for notification-specific environment variables
 interface NotificationEnv extends Env {
@@ -20,7 +18,7 @@ interface NotificationEnv extends Env {
   SMS_FROM_NUMBER: string;
   VOIPMS_USERNAME: string;
   VOIPMS_PASSWORD: string;
-  PAYMENT_WORKER: Fetcher;
+  PAYMENT_WORKER: { fetch: (request: Request) => Promise<Response> };
 }
 
 // Notification types
@@ -79,7 +77,13 @@ export default {
 
       // Send notification endpoint
       if (path === 'send' && request.method === 'POST') {
-        const body = await request.json();
+        const body = await request.json() as {
+          type: string;
+          userId: number | string;
+          data: Record<string, any>;
+          channels?: string[];
+        };
+        
         const { type, userId, data, channels = [ChannelType.EMAIL] } = body;
 
         // Get user info
@@ -97,35 +101,36 @@ export default {
         const results: Record<string, { success: boolean; error?: string }> = {};
 
         // Send email notification if requested
-        if (channels.includes(ChannelType.EMAIL) && user.email) {
+        if (channels.includes(ChannelType.EMAIL) && (user as any).email) {
           switch (type) {
             case NotificationType.WELCOME:
               results.email = await sendEmail(env, {
-                to: user.email,
+                to: (user as any).email || '',
                 subject: 'Welcome to Portal!',
-                html: welcomeTemplate.generateHtml({ name: user.name }),
-                text: welcomeTemplate.generateText({ name: user.name }),
+                html: welcomeTemplate.generateHtml({ name: (user as any).name || '' }),
+                text: welcomeTemplate.generateText({ name: (user as any).name || '' }),
               });
               break;
 
             case NotificationType.APPOINTMENT_CONFIRMATION:
               results.email = await sendEmail(env, {
-                to: user.email,
+                to: (user as any).email || '',
                 subject: 'Your Appointment is Confirmed',
                 html: appointmentTemplate.generateConfirmationHtml({
-                  name: user.name,
-                  date: data.date,
-                  time: data.time,
-                  serviceType: data.serviceType,
+                  name: (user as any).name || '',
+                  date: data.date || '',
+                  time: data.time || '',
+                  serviceType: data.serviceType || '',
                 }),
                 text: appointmentTemplate.generateConfirmationText({
-                  name: user.name,
-                  date: data.date,
-                  time: data.time,
-                  serviceType: data.serviceType,
+                  name: (user as any).name || '',
+                  date: data.date || '',
+                  time: data.time || '',
+                  serviceType: data.serviceType || '',
                 }),
               });
               break;
+//stopped
 
             case NotificationType.APPOINTMENT_REMINDER:
               results.email = await sendEmail(env, {
@@ -197,17 +202,17 @@ export default {
         }
 
         // Send SMS notification if requested
-        if (channels.includes(ChannelType.SMS) && user.phone) {
+       if (channels.includes(ChannelType.SMS) && (user as any).phone) {
           let message = '';
 
           switch (type) {
             case NotificationType.WELCOME:
-              message = `Welcome to Portal, ${user.name}! Your account is now active.`;
+              message = `Welcome to Portal, ${(user as any).name}! Your account is now active.`;
               break;
 
             case NotificationType.APPOINTMENT_CONFIRMATION:
-              message = `Hi ${user.name}, your ${data.serviceType} appointment is confirmed for ${data.date} at ${data.time}.`;
-              break;
+              message = `Hi ${(user as any).name}, your ${data.serviceType} appointment is confirmed for ${data.date} at ${data.time}.`;
+              break; 
 
             case NotificationType.APPOINTMENT_REMINDER:
               message = `Reminder: You have a ${data.serviceType} appointment tomorrow at ${data.time}.`;
@@ -221,7 +226,7 @@ export default {
               message = `Thank you! Your payment of $${data.amount} for invoice #${data.invoiceId} has been received.`;
               break;
 
-            default:
+           default:
               results.sms = {
                 success: false,
                 error: `Unsupported notification type: ${type}`
@@ -230,15 +235,12 @@ export default {
           }
 
           if (message) {
-            results.sms = await sendSMS(env, {
-              to: user.phone,
-              message
-            });
+            results.sms = await sendSMS(env, (user as any).phone || '', message);
           }
         }
 
         // Log notification
-        await env.DB.prepare(
+      await env.DB.prepare(
           `INSERT INTO notifications (user_id, type, channels, status, metadata)
            VALUES (?, ?, ?, ?, ?)`
         ).bind(
@@ -262,49 +264,54 @@ export default {
       }
 
       // SMS webhook endpoint
-if (path === 'sms/webhook' && request.method === 'POST') {
-  return handleSMSWebhook(request, env);
-}
+      if (path === 'sms/webhook' && request.method === 'POST') {
+        return handleSMSWebhook(request, env);
+      }
 
-// Send SMS endpoint
-if (path === 'sms/send' && request.method === 'POST') {
-  try {
-    const body = await request.json();
-    const { to, message, userId } = body;
+      // Send SMS endpoint
+      if (path === 'sms/send' && request.method === 'POST') {
+        try {
+          const body = await request.json() as {
+            to: string;
+            message: string;
+            userId: number | string;
+          };
+          
+          const { to, message, userId } = body;
 
-    if (!to || !message) {
-      return new Response(JSON.stringify({ error: 'Missing required parameters' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+          if (!to || !message) {
+            return new Response(JSON.stringify({ error: 'Missing required parameters' }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
 
-    // Send the SMS
-    const result = await sendSMS(env, to, message);
+          // Send the SMS
+          const result = await sendSMS(env, to, message);
 
-    // If a userId was provided, store the message
-    if (userId && result.success) {
-      await storeSMSMessage(
-        env,
-        userId,
-        to,
-        message,
-        'outgoing',
-        result.messageSid,
-        'delivered'
-      );
-    }
+          // If a userId was provided, store the message
+          if (userId && (result as any).success) {
+            await storeSMSMessage(
+              env,
+              userId,
+              to,
+              message,
+              'outgoing',
+              (result as any).messageSid,
+              'delivered'
+            );
+          }
 
-    return new Response(JSON.stringify(result), {
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-}
+          return new Response(JSON.stringify(result), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        } catch (error: any) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      } 
 
 // Get SMS conversations
 if (path === 'sms/conversations' && request.method === 'GET') {
@@ -364,14 +371,14 @@ if (path.match(/^sms\/messages\/\+?[0-9]+$/) && request.method === 'GET') {
 }
 
       // Default response for unknown paths
-      return new Response(JSON.stringify({ error: 'Not found' }), {
+     return new Response(JSON.stringify({ error: 'Not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
-    } catch (error) {
+    } catch (error: any) {
       return new Response(JSON.stringify({ error: error.message }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' }, 
       });
     }
   },

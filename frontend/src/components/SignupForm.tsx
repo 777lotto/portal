@@ -1,4 +1,4 @@
-// src/components/SignupForm.tsx - Updated code
+// src/components/SignupForm.tsx - Fixed syntax errors
 import { useState, useEffect } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { signupCheck, signup, checkStripeCustomer, createStripeCustomer } from "../lib/api";
@@ -31,26 +31,21 @@ export default function SignupForm({ setToken }: Props) {
     }
   }, [location]);
 
-// Add validation function
-const validateIdentifiers = () => {
-  if (!email && !phone) {
-    setError("Please provide either an email address or phone number");
-    return false;
-  }
-  return true;
-};
+  // Add validation function
+  const validateIdentifiers = () => {
+    if (!email && !phone) {
+      setError("Please provide either an email address or phone number");
+      return false;
+    }
+    return true;
+  };
 
-const handleCheck = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  if (!validateIdentifiers()) return;
-  
-  setError(null);
-  setIsLoading(true);
-  
-    // STEP 1: check email
+  // STEP 1: check email
   const handleCheck = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateIdentifiers()) return;
+    
     setError(null);
     setIsLoading(true);
 
@@ -68,8 +63,9 @@ const handleCheck = async (e: React.FormEvent) => {
       if (status === "existing") {
         // User already exists in portal - redirect to login with email
         navigate(`/login?${email ? `email=${encodeURIComponent(email)}` : `phone=${encodeURIComponent(phone)}`}&existing=true`);
-      return;      }
+        return;
       }
+
       // If not in portal, check if user exists in Stripe
       const stripeResult = await checkStripeCustomer(email, phone);
 
@@ -78,8 +74,8 @@ const handleCheck = async (e: React.FormEvent) => {
         setMode("stripe-only");
         setName(stripeResult.name || "");
         // If they used phone to find customer but no email was provided, use the one from Stripe
-      if (!email && stripeResult.email) {
-        setEmail(stripeResult.email);
+        if (!email && stripeResult.email) {
+          setEmail(stripeResult.email);
         }
       } else {
         // New user, not in portal or Stripe
@@ -106,11 +102,13 @@ const handleCheck = async (e: React.FormEvent) => {
 
       if (mode === "new") {
         // New user - create in Stripe first, then portal
-        await createStripeCustomer(email, name);
-        result = await signup(email, name, password);
+        await createStripeCustomer(email, name, phone);
+        result = await signup(email, name, password, phone);
       } else if (mode === "stripe-only") {
         // User exists in Stripe but not portal - just create portal account
-        result = await signup(email, name, password);
+        result = await signup(email, name, password, phone);
+      } else {
+        throw new Error("Invalid signup mode");
       }
 
       localStorage.setItem("token", result.token);
