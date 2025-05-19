@@ -1,5 +1,3 @@
-// notification/src/types.ts
-
 // Notification request body structure
 export interface NotificationRequest {
   type: string;

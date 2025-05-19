@@ -17,13 +17,13 @@
     "frontend:build": "cd frontend && pnpm run build || echo 'Continuing despite frontend build errors'",
 
     "worker:dev": "cd worker && pnpm run dev",
-    "worker:build": "echo 'Skipping worker TypeScript checks' && exit 0",
+    "worker:build": "cd worker && pnpm run build",
 
     "notification:dev": "cd notification && pnpm run dev",
-    "notification:build": "echo 'Skipping notification TypeScript checks' && exit 0",
+    "notification:build": "cd notification && pnpm run build",
 
     "payment:dev": "cd payment && pnpm run dev",
-    "payment:build": "echo 'Skipping payment TypeScript checks' && exit 0",
+    "payment:build": "cd payment && pnpm run build",
 
     "dev": "concurrently \"pnpm run shared:dev\" \"pnpm run worker:dev\" \"pnpm run frontend:dev\" \"pnpm run notification:dev\" \"pnpm run payment:dev\"",
 

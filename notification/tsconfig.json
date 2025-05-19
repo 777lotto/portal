@@ -3,10 +3,14 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2023"],
-    "noEmit": true
+    "outDir": "dist",
+    "composite": true,
+    "declaration": true
   },
   "include": [
-    "src",
-    "../worker-configuration.d.ts"
+    "src/**/*"
+  ],
+  "references": [
+    { "path": "../packages/shared" }
   ]
 }

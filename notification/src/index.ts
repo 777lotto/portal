@@ -130,25 +130,24 @@ export default {
                 }),
               });
               break;
-//stopped
 
             case NotificationType.APPOINTMENT_REMINDER:
-              results.email = await sendEmail(env, {
-                to: user.email,
-                subject: 'Reminder: Upcoming Appointment',
-                html: appointmentTemplate.generateReminderHtml({
-                  name: user.name,
-                  date: data.date,
-                  time: data.time,
-                  serviceType: data.serviceType,
-                }),
-                text: appointmentTemplate.generateReminderText({
-                  name: user.name,
-                  date: data.date,
-                  time: data.time,
-                  serviceType: data.serviceType,
-                }),
-              });
+                       results.email = await sendEmail(env, {
+            to: (user as any).email || '',
+            subject: 'Reminder: Upcoming Appointment',
+            html: appointmentTemplate.generateReminderHtml({
+              name: (user as any).name || '',
+              date: data.date,
+              time: data.time,
+              serviceType: data.serviceType,
+            }),
+            text: appointmentTemplate.generateReminderText({
+              name: (user as any).name || '',
+              date: data.date,
+              time: data.time,
+              serviceType: data.serviceType,
+            }),
+          }); 
               break;
 
             case NotificationType.INVOICE_CREATED:
@@ -171,7 +170,7 @@ export default {
                 }),
               });
               break;
-
+//stopped needs buggn
             case NotificationType.INVOICE_PAID:
               results.email = await sendEmail(env, {
                 to: user.email,

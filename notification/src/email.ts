@@ -11,6 +11,7 @@ interface EmailParams {
 
 export async function sendEmail(env: any, params: EmailParams): Promise<{ success: boolean; error?: string }> {
   try {
+    // All your existing code goes here inside the try block
     const from = params.from || env.EMAIL_FROM;
     const replyTo = params.replyTo || from;
 
@@ -54,8 +55,8 @@ export async function sendEmail(env: any, params: EmailParams): Promise<{ succes
       console.error('Email sending failed:', error);
       return { success: false, error };
     }
-  } catch (error) {
-    console.error('Email sending error:', error);
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    console.error('Email sending error:', error instanceof Error ? error.message : String(error));
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error occurred' };
   }
 }
