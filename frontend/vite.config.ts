@@ -1,13 +1,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
-import { resolve } from 'path';
+import { resolve } from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@portal/shared': resolve(__dirname, '../packages/shared/src')
+      '@portal/shared': resolve(__dirname, '../packages/shared/src/index.ts')
     }
   }
 })

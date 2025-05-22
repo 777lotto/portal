@@ -17,10 +17,3 @@ export interface AuthPayload {
   name?: string;
 }
 
-// Basic user types
-export interface User {
-  id: number | string;
-  email: string;
-  name: string;
-  stripe_customer_id?: string;
-}
