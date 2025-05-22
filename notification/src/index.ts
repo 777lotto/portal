@@ -1,4 +1,4 @@
-// notification/src/index.ts - Fixed duplicate declarations
+// notification/src/index.ts - Fixed Env extension
 import { Env } from '@portal/shared';
 import { sendEmail } from './email';
 import { 
@@ -85,7 +85,7 @@ export default {
         
         const { type, userId, data, channels = [ChannelType.EMAIL] } = body;
 
-        // Get user info
+        // Get user info - env.DB is available because NotificationEnv extends Env
         const user = await env.DB.prepare(
           'SELECT id, email, name, phone FROM users WHERE id = ?'
         ).bind(userId).first();
