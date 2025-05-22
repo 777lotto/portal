@@ -7,14 +7,11 @@
     "worker",
     "packages/shared",
     "notification",
-    "payment",
-    "tools/dev-tools"
+    "payment"
   ],
   "scripts": {
     "shared:build": "cd packages/shared && pnpm run build",
     "shared:dev": "cd packages/shared && pnpm run dev",
-
-    "dev-tools:add": "cd tools/dev-tools && pnpm add",
 
     "frontend:dev": "cd frontend && pnpm run dev",
     "frontend:build": "cd frontend && pnpm run build || echo 'Continuing despite frontend build errors'",

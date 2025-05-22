@@ -4,5 +4,4 @@ packages:
   - 'packages/*'
   - 'notification'
   - 'payment'
-  - 'tools/*'
 

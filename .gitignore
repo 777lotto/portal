@@ -42,7 +42,6 @@ dist-ssr
 .env
 .env.*            # covers .env.local, .env.production, etc.
 
-.tools/
 
 
 
