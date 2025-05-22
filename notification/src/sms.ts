@@ -1,6 +1,5 @@
 // notification/src/sms.ts
-import { Env } from '../../worker/src/env';
-import { SMSMessage, SMSWebhookRequest } from './types';
+import { Env, SMSMessage, SMSWebhookRequest } from '@portal/shared';
 
 interface NotificationEnv extends Env {
   SMS_FROM_NUMBER: string;
@@ -212,8 +211,8 @@ async function processIncomingSMS(
     payload.from,
     responseMessage,
     'outgoing',
-    (result as any).messageSid,
-    (result as any).success ? 'delivered' : 'failed'
+    result.messageSid,
+    result.success ? 'delivered' : 'failed'
   );
 }
 

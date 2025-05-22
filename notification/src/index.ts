@@ -1,5 +1,5 @@
 // notification/src/index.ts - Fixed duplicate declarations
-import { Env } from '../../worker/src/env';
+import { Env } from '@portal/shared';
 import { sendEmail } from './email';
 import { 
   sendSMS,
@@ -18,7 +18,6 @@ interface NotificationEnv extends Env {
   SMS_FROM_NUMBER: string;
   VOIPMS_USERNAME: string;
   VOIPMS_PASSWORD: string;
-  PAYMENT_WORKER: { fetch: (request: Request) => Promise<Response> };
 }
 
 // Notification types
@@ -98,32 +97,33 @@ export default {
           });
         }
 
+        const userRecord = user as { id: number; email: string; name: string; phone?: string };
         const results: Record<string, { success: boolean; error?: string }> = {};
 
         // Send email notification if requested
-        if (channels.includes(ChannelType.EMAIL) && (user as any).email) {
+        if (channels.includes(ChannelType.EMAIL) && userRecord.email) {
           switch (type) {
             case NotificationType.WELCOME:
               results.email = await sendEmail(env, {
-                to: (user as any).email || '',
+                to: userRecord.email,
                 subject: 'Welcome to Portal!',
-                html: welcomeTemplate.generateHtml({ name: (user as any).name || '' }),
-                text: welcomeTemplate.generateText({ name: (user as any).name || '' }),
+                html: welcomeTemplate.generateHtml({ name: userRecord.name }),
+                text: welcomeTemplate.generateText({ name: userRecord.name }),
               });
               break;
 
             case NotificationType.APPOINTMENT_CONFIRMATION:
               results.email = await sendEmail(env, {
-                to: (user as any).email || '',
+                to: userRecord.email,
                 subject: 'Your Appointment is Confirmed',
                 html: appointmentTemplate.generateConfirmationHtml({
-                  name: (user as any).name || '',
+                  name: userRecord.name,
                   date: data.date || '',
                   time: data.time || '',
                   serviceType: data.serviceType || '',
                 }),
                 text: appointmentTemplate.generateConfirmationText({
-                  name: (user as any).name || '',
+                  name: userRecord.name,
                   date: data.date || '',
                   time: data.time || '',
                   serviceType: data.serviceType || '',
@@ -132,37 +132,37 @@ export default {
               break;
 
             case NotificationType.APPOINTMENT_REMINDER:
-                       results.email = await sendEmail(env, {
-            to: (user as any).email || '',
-            subject: 'Reminder: Upcoming Appointment',
-            html: appointmentTemplate.generateReminderHtml({
-              name: (user as any).name || '',
-              date: data.date,
-              time: data.time,
-              serviceType: data.serviceType,
-            }),
-            text: appointmentTemplate.generateReminderText({
-              name: (user as any).name || '',
-              date: data.date,
-              time: data.time,
-              serviceType: data.serviceType,
-            }),
-          }); 
+              results.email = await sendEmail(env, {
+                to: userRecord.email,
+                subject: 'Reminder: Upcoming Appointment',
+                html: appointmentTemplate.generateReminderHtml({
+                  name: userRecord.name,
+                  date: data.date,
+                  time: data.time,
+                  serviceType: data.serviceType,
+                }),
+                text: appointmentTemplate.generateReminderText({
+                  name: userRecord.name,
+                  date: data.date,
+                  time: data.time,
+                  serviceType: data.serviceType,
+                }),
+              }); 
               break;
 
             case NotificationType.INVOICE_CREATED:
               results.email = await sendEmail(env, {
-                to: user.email,
+                to: userRecord.email,
                 subject: 'New Invoice Available',
                 html: invoiceTemplate.generateInvoiceCreatedHtml({
-                  name: user.name,
+                  name: userRecord.name,
                   invoiceId: data.invoiceId,
                   amount: data.amount,
                   dueDate: data.dueDate,
                   invoiceUrl: data.invoiceUrl,
                 }),
                 text: invoiceTemplate.generateInvoiceCreatedText({
-                  name: user.name,
+                  name: userRecord.name,
                   invoiceId: data.invoiceId,
                   amount: data.amount,
                   dueDate: data.dueDate,
@@ -170,20 +170,20 @@ export default {
                 }),
               });
               break;
-//stopped needs buggn
+
             case NotificationType.INVOICE_PAID:
               results.email = await sendEmail(env, {
-                to: user.email,
+                to: userRecord.email,
                 subject: 'Payment Confirmation',
                 html: invoiceTemplate.generateInvoicePaidHtml({
-                  name: user.name,
+                  name: userRecord.name,
                   invoiceId: data.invoiceId,
                   amount: data.amount,
                   dueDate: data.dueDate,
                   invoiceUrl: data.invoiceUrl,
                 }),
                 text: invoiceTemplate.generateInvoicePaidText({
-                  name: user.name,
+                  name: userRecord.name,
                   invoiceId: data.invoiceId,
                   amount: data.amount,
                   dueDate: data.dueDate,
@@ -201,16 +201,16 @@ export default {
         }
 
         // Send SMS notification if requested
-       if (channels.includes(ChannelType.SMS) && (user as any).phone) {
+        if (channels.includes(ChannelType.SMS) && userRecord.phone) {
           let message = '';
 
           switch (type) {
             case NotificationType.WELCOME:
-              message = `Welcome to Portal, ${(user as any).name}! Your account is now active.`;
+              message = `Welcome to Portal, ${userRecord.name}! Your account is now active.`;
               break;
 
             case NotificationType.APPOINTMENT_CONFIRMATION:
-              message = `Hi ${(user as any).name}, your ${data.serviceType} appointment is confirmed for ${data.date} at ${data.time}.`;
+              message = `Hi ${userRecord.name}, your ${data.serviceType} appointment is confirmed for ${data.date} at ${data.time}.`;
               break; 
 
             case NotificationType.APPOINTMENT_REMINDER:
@@ -225,7 +225,7 @@ export default {
               message = `Thank you! Your payment of $${data.amount} for invoice #${data.invoiceId} has been received.`;
               break;
 
-           default:
+            default:
               results.sms = {
                 success: false,
                 error: `Unsupported notification type: ${type}`
@@ -234,12 +234,12 @@ export default {
           }
 
           if (message) {
-            results.sms = await sendSMS(env, (user as any).phone || '', message);
+            results.sms = await sendSMS(env, userRecord.phone, message);
           }
         }
 
         // Log notification
-      await env.DB.prepare(
+        await env.DB.prepare(
           `INSERT INTO notifications (user_id, type, channels, status, metadata)
            VALUES (?, ?, ?, ?, ?)`
         ).bind(
@@ -289,14 +289,14 @@ export default {
           const result = await sendSMS(env, to, message);
 
           // If a userId was provided, store the message
-          if (userId && (result as any).success) {
+          if (userId && result.success) {
             await storeSMSMessage(
               env,
               userId,
               to,
               message,
               'outgoing',
-              (result as any).messageSid,
+              result.messageSid,
               'delivered'
             );
           }
@@ -312,65 +312,65 @@ export default {
         }
       } 
 
-// Get SMS conversations
-if (path === 'sms/conversations' && request.method === 'GET') {
-  try {
-    // Extract user ID from request
-    const urlParams = new URLSearchParams(url.search);
-    const userId = urlParams.get('userId');
+      // Get SMS conversations
+      if (path === 'sms/conversations' && request.method === 'GET') {
+        try {
+          // Extract user ID from request
+          const urlParams = new URLSearchParams(url.search);
+          const userId = urlParams.get('userId');
 
-    if (!userId) {
-      return new Response(JSON.stringify({ error: 'User ID is required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+          if (!userId) {
+            return new Response(JSON.stringify({ error: 'User ID is required' }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
 
-    const conversations = await getSMSConversations(env, parseInt(userId, 10));
+          const conversations = await getSMSConversations(env, parseInt(userId, 10));
 
-    return new Response(JSON.stringify(conversations), {
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-}
+          return new Response(JSON.stringify(conversations), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        } catch (error: any) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      }
 
-// Get SMS conversation messages
-if (path.match(/^sms\/messages\/\+?[0-9]+$/) && request.method === 'GET') {
-  try {
-    // Extract phone number from path
-    const phoneNumber = path.split('/').pop()!;
+      // Get SMS conversation messages
+      if (path.match(/^sms\/messages\/\+?[0-9]+$/) && request.method === 'GET') {
+        try {
+          // Extract phone number from path
+          const phoneNumber = path.split('/').pop()!;
 
-    // Extract user ID from request
-    const urlParams = new URLSearchParams(url.search);
-    const userId = urlParams.get('userId');
+          // Extract user ID from request
+          const urlParams = new URLSearchParams(url.search);
+          const userId = urlParams.get('userId');
 
-    if (!userId) {
-      return new Response(JSON.stringify({ error: 'User ID is required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+          if (!userId) {
+            return new Response(JSON.stringify({ error: 'User ID is required' }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
 
-    const messages = await getSMSConversation(env, parseInt(userId, 10), phoneNumber);
+          const messages = await getSMSConversation(env, parseInt(userId, 10), phoneNumber);
 
-    return new Response(JSON.stringify(messages), {
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-}
+          return new Response(JSON.stringify(messages), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        } catch (error: any) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      }
 
       // Default response for unknown paths
-     return new Response(JSON.stringify({ error: 'Not found' }), {
+      return new Response(JSON.stringify({ error: 'Not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
