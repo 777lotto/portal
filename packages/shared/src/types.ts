@@ -101,5 +101,23 @@ export interface EmailParams {
   replyTo?: string;
 }
 
-// Update index.ts to export types
-export * from './types';
+// Additional shared types that might be needed
+export interface Service {
+  id: number;
+  user_id: number;
+  service_date: string;
+  status: string;
+  notes?: string;
+  price_cents?: number;
+  stripe_invoice_id?: string;
+}
+
+export interface NotificationRecord {
+  id: number;
+  user_id: number | string;
+  type: string;
+  channels: string; // JSON string
+  status: 'pending' | 'sent' | 'failed';
+  metadata: string; // JSON string
+  created_at: string;
+}

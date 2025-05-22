@@ -5,7 +5,9 @@
     "lib": ["ES2023"],
     "outDir": "dist",
     "composite": true,
-    "declaration": true
+    "declaration": true,
+    "skipLibCheck": true,
+    "noEmit": true
   },
   "include": [
     "src/**/*"
