@@ -1,12 +1,17 @@
 // notification/src/index.ts - Fixed TypeScript errors
-import { Env } from '@portal/shared';
+import { Env, D1Database } from '@portal/shared';
 
 // Extend the Env interface for notification-specific environment variables
 interface NotificationEnv extends Env {
+  // Ensure DB is properly typed
+  DB: D1Database;
+  
+  // Notification-specific vars
   EMAIL_FROM: string;
   SMS_FROM_NUMBER: string;
   VOIPMS_USERNAME: string;
   VOIPMS_PASSWORD: string;
+  
   // AWS SES credentials
   AWS_ACCESS_KEY_ID: string;
   AWS_SECRET_ACCESS_KEY: string;
