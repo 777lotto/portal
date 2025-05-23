@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -45,6 +45,10 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           
       - name: Deploy Frontend
-        run: cd frontend && pnpm run build && pnpm exec wrangler pages deploy dist
+        run: |
+          cd frontend
+          pnpm run build
+          # Try deploying with explicit account ID
+          npx wrangler pages deploy dist --project-name=portal --compatibility-date=2025-04-21 --account-id=67d3a6021370e7b666fff2023b2db359
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
