@@ -39,8 +39,8 @@ async function sendViaSES(env: any, params: EmailParams): Promise<{ success: boo
     const region = env.AWS_REGION || 'us-east-1';
     const host = `email.${region}.amazonaws.com`;
     
-    // Prepare the SES SendEmail parameters
-    const sesPayload = {
+    // Prepare the SES SendEmail parameters with proper typing
+    const sesPayload: Record<string, string> = {
       Action: 'SendEmail',
       Version: '2010-12-01',
       'Destination.ToAddresses.member.1': params.to,
@@ -50,7 +50,7 @@ async function sendViaSES(env: any, params: EmailParams): Promise<{ success: boo
       'Message.Body.Text.Charset': 'UTF-8',
       'Message.Body.Html.Data': params.html,
       'Message.Body.Html.Charset': 'UTF-8',
-      'Source': params.from
+      'Source': params.from || ''
     };
     
     // Add ReplyTo if specified
