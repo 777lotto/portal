@@ -24,7 +24,7 @@ export default function Navbar({ token, setToken }: Props) {
       justifyContent: "space-between"
     }}>
       <div>
-        <strong style={{ marginRight: "2rem" }}>Gutter Portal</strong>
+        <strong style={{ marginRight: "2rem" }}>777 Solutions Customer Portal</strong>
 
         {token ? (
           <>
