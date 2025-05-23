@@ -21,7 +21,7 @@
 
   /* ---------- vars and secrets ---------- */
   "vars": {
-    "EMAIL_FROM": "notifications@portal.777.foo",
+    "EMAIL_FROM": "no-reply@777.foo",
     "SMS_FROM_NUMBER": "7706977777"
   }
 
