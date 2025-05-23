@@ -38,7 +38,7 @@ export function generateInvoiceCreatedHtml(data: InvoiceTemplateData): string {
 
           <div class="invoice-details">
             <p><strong>Invoice #:</strong> ${data.invoiceId}</p>
-            <p><strong>Amount:</strong> ${data.amount}</p>
+            <p><strong>Amount:</strong> $${data.amount}</p>
             <p><strong>Due Date:</strong> ${data.dueDate}</p>
           </div>
 
@@ -64,7 +64,7 @@ Hello ${data.name},
 A new invoice has been created for your recent service.
 
 Invoice #: ${data.invoiceId}
-Amount: ${data.amount}
+Amount: $${data.amount}
 Due Date: ${data.dueDate}
 
 Please visit the following link to view and pay your invoice:
@@ -107,7 +107,7 @@ export function generateInvoicePaidHtml(data: InvoiceTemplateData): string {
 
           <div class="invoice-details">
             <p><strong>Invoice #:</strong> ${data.invoiceId}</p>
-            <p><strong>Amount Paid:</strong> ${data.amount}</p>
+            <p><strong>Amount Paid:</strong> $${data.amount}</p>
             <p><strong>Payment Date:</strong> ${new Date().toLocaleDateString()}</p>
           </div>
 
@@ -133,7 +133,7 @@ Hello ${data.name},
 Thank you for your payment. We've received your payment for the following invoice:
 
 Invoice #: ${data.invoiceId}
-Amount Paid: ${data.amount}
+Amount Paid: $${data.amount}
 Payment Date: ${new Date().toLocaleDateString()}
 
 You can view your receipt and payment history here:

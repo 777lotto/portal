@@ -25,7 +25,7 @@ export interface D1Database {
   prepare(query: string): D1PreparedStatement;
   dump(): Promise<ArrayBuffer>;
   batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]>;
-  exec<T = unknown>(query: string): Promise<D1ExecResult>;
+  exec(query: string): Promise<D1ExecResult>;
 }
 
 export interface D1PreparedStatement {
@@ -116,8 +116,8 @@ export interface NotificationRecord {
   id: number;
   user_id: number | string;
   type: string;
-  channels: string; // JSON string
+  channels: string;
   status: 'pending' | 'sent' | 'failed';
-  metadata: string; // JSON string
+  metadata: string;
   created_at: string;
 }

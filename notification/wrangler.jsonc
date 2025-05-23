@@ -22,7 +22,8 @@
   /* ---------- vars and secrets ---------- */
   "vars": {
     "EMAIL_FROM": "no-reply@777.foo",
-    "SMS_FROM_NUMBER": "7706977777"
+    "SMS_FROM_NUMBER": "7706977777",
+    "AWS_REGION": "us-east-1"
   }
 
   /* Add these secrets using: wrangler secret put [NAME] */
@@ -30,5 +31,7 @@
   SECRET KEYS NEEDED:
   VOIPMS_USERNAME
   VOIPMS_PASSWORD
+  AWS_ACCESS_KEY_ID
+  AWS_SECRET_ACCESS_KEY
   */
 }

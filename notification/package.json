@@ -7,7 +7,8 @@
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "start": "wrangler dev",
-    "build": "pnpm run prebuild && tsc --noEmit"
+    "build": "pnpm run prebuild && tsc --noEmit",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@portal/shared": "workspace:*"

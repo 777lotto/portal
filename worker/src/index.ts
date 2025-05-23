@@ -1,385 +1,244 @@
-// worker/src/index.ts
+// worker/src/index.ts - Main Worker API
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { Env } from '@portal/shared';
-import { sendEmail } from './email';
-import { 
-  sendSMS,
-  storeSMSMessage,
-  handleSMSWebhook,
-  getSMSConversations,
-  getSMSConversation
-} from './sms';
-import * as appointmentTemplate from './templates/appointment';
-import * as invoiceTemplate from './templates/invoice';
-import * as welcomeTemplate from './templates/welcome';
+import { requireAuth } from './auth';
+import { handleSignupCheck, handleSignup, handleLogin } from './handlers/auth';
+import { handleStripeCustomerCheck, handleStripeWebhook } from './handlers/stripe';
+import { handleGetProfile, handleUpdateProfile } from './handlers/profile';
+import { handleListServices, handleGetService, handleCreateInvoice } from './handlers/services';
+import { handleGetJobs, handleGetJobById, handleCalendarFeed } from './handlers/jobs';
 
-// Extend the Env interface for notification-specific environment variables
-interface NotificationEnv extends Env {
-  EMAIL_FROM: string;
-  SMS_FROM_NUMBER: string;
-  VOIPMS_USERNAME: string;
-  VOIPMS_PASSWORD: string;
-}
+const app = new Hono<{ Bindings: Env }>();
 
-// Notification types
-export const NotificationType = {
-  WELCOME: 'welcome',
-  APPOINTMENT_CONFIRMATION: 'appointment_confirmation',
-  APPOINTMENT_REMINDER: 'appointment_reminder',
-  INVOICE_CREATED: 'invoice_created',
-  INVOICE_PAID: 'invoice_paid',
-  INVOICE_OVERDUE: 'invoice_overdue',
-} as const;
+// Add CORS middleware
+app.use('/*', cors());
 
-export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
+// Health check
+app.get('/ping', (c) => c.json({ status: 'ok' }));
 
-// Channel types
-export const ChannelType = {
-  EMAIL: 'email',
-  SMS: 'sms',
-} as const;
+// Auth endpoints
+app.post('/signup/check', async (c) => {
+  return handleSignupCheck(c.req.raw, c.env);
+});
 
-export type ChannelType = typeof ChannelType[keyof typeof ChannelType];
+app.post('/signup', async (c) => {
+  return handleSignup(c.req.raw, c.env);
+});
 
-// Handler function
-export default {
-  async fetch(request: Request, env: NotificationEnv): Promise<Response> {
-    try {
-      const url = new URL(request.url);
-      const path = url.pathname.replace('/api/notifications/', '');
+app.post('/login', async (c) => {
+  return handleLogin(c.req.raw, c.env);
+});
 
-      // CORS handling
-      if (request.method === "OPTIONS") {
-        return new Response(null, {
-          status: 204,
-          headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization",
-          },
-        });
-      }
+// Stripe endpoints
+app.post('/stripe/check-customer', async (c) => {
+  return handleStripeCustomerCheck(c.req.raw, c.env);
+});
 
-      // Health check endpoint
-      if (path === 'ping') {
-        return new Response(JSON.stringify({ status: 'ok' }), {
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
+app.post('/stripe/webhook', async (c) => {
+  return handleStripeWebhook(c.req.raw, c.env);
+});
 
-      // Auth check
-      if (!request.headers.get('Authorization')) {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
+// Protected endpoints
+app.use('/profile/*', async (c, next) => {
+  try {
+    const email = await requireAuth(c.req.raw, c.env);
+    c.set('userEmail', email);
+    await next();
+  } catch (error: any) {
+    return c.json({ error: error.message }, 401);
+  }
+});
 
-      // Send notification endpoint
-      if (path === 'send' && request.method === 'POST') {
-        const body = await request.json() as {
-          type: string;
-          userId: number | string;
-          data: Record<string, any>;
-          channels?: string[];
-        };
-        
-        const { type, userId, data, channels = [ChannelType.EMAIL] } = body;
+app.use('/services/*', async (c, next) => {
+  try {
+    const email = await requireAuth(c.req.raw, c.env);
+    c.set('userEmail', email);
+    await next();
+  } catch (error: any) {
+    return c.json({ error: error.message }, 401);
+  }
+});
 
-        // Get user info
-        const user = await env.DB.prepare(
-          'SELECT id, email, name, phone FROM users WHERE id = ?'
-        ).bind(userId).first();
+app.use('/jobs/*', async (c, next) => {
+  try {
+    const email = await requireAuth(c.req.raw, c.env);
+    c.set('userEmail', email);
+    await next();
+  } catch (error: any) {
+    return c.json({ error: error.message }, 401);
+  }
+});
 
-        if (!user) {
-          return new Response(JSON.stringify({ error: 'User not found' }), {
-            status: 404,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
+// Profile endpoints
+app.get('/profile', async (c) => {
+  const email = c.get('userEmail');
+  return handleGetProfile(c.req.raw, c.env, email);
+});
 
-        const userRecord = user as { id: number; email: string; name: string; phone?: string };
-        const results: Record<string, { success: boolean; error?: string }> = {};
+app.put('/profile', async (c) => {
+  const email = c.get('userEmail');
+  return handleUpdateProfile(c.req.raw, c.env, email);
+});
 
-        // Send email notification if requested
-        if (channels.includes(ChannelType.EMAIL) && userRecord.email) {
-          switch (type) {
-            case NotificationType.WELCOME:
-              results.email = await sendEmail(env, {
-                to: userRecord.email,
-                subject: 'Welcome to Portal!',
-                html: welcomeTemplate.generateHtml({ name: userRecord.name }),
-                text: welcomeTemplate.generateText({ name: userRecord.name }),
-              });
-              break;
+// Services endpoints
+app.get('/services', async (c) => {
+  const email = c.get('userEmail');
+  return handleListServices(c.req.raw, c.env, email);
+});
 
-            case NotificationType.APPOINTMENT_CONFIRMATION:
-              results.email = await sendEmail(env, {
-                to: userRecord.email,
-                subject: 'Your Appointment is Confirmed',
-                html: appointmentTemplate.generateConfirmationHtml({
-                  name: userRecord.name,
-                  date: data.date || '',
-                  time: data.time || '',
-                  serviceType: data.serviceType || '',
-                }),
-                text: appointmentTemplate.generateConfirmationText({
-                  name: userRecord.name,
-                  date: data.date || '',
-                  time: data.time || '',
-                  serviceType: data.serviceType || '',
-                }),
-              });
-              break;
+app.get('/services/:id', async (c) => {
+  const email = c.get('userEmail');
+  const id = parseInt(c.req.param('id'));
+  return handleGetService(c.req.raw, c.env, email, id);
+});
 
-            case NotificationType.APPOINTMENT_REMINDER:
-              results.email = await sendEmail(env, {
-                to: userRecord.email,
-                subject: 'Reminder: Upcoming Appointment',
-                html: appointmentTemplate.generateReminderHtml({
-                  name: userRecord.name,
-                  date: data.date,
-                  time: data.time,
-                  serviceType: data.serviceType,
-                }),
-                text: appointmentTemplate.generateReminderText({
-                  name: userRecord.name,
-                  date: data.date,
-                  time: data.time,
-                  serviceType: data.serviceType,
-                }),
-              }); 
-              break;
+app.post('/services/:id/invoice', async (c) => {
+  const email = c.get('userEmail');
+  const serviceId = parseInt(c.req.param('id'));
+  return handleCreateInvoice(c.req.raw, c.env, email, serviceId);
+});
 
-            case NotificationType.INVOICE_CREATED:
-              results.email = await sendEmail(env, {
-                to: userRecord.email,
-                subject: 'New Invoice Available',
-                html: invoiceTemplate.generateInvoiceCreatedHtml({
-                  name: userRecord.name,
-                  invoiceId: data.invoiceId,
-                  amount: data.amount,
-                  dueDate: data.dueDate,
-                  invoiceUrl: data.invoiceUrl,
-                }),
-                text: invoiceTemplate.generateInvoiceCreatedText({
-                  name: userRecord.name,
-                  invoiceId: data.invoiceId,
-                  amount: data.amount,
-                  dueDate: data.dueDate,
-                  invoiceUrl: data.invoiceUrl,
-                }),
-              });
-              break;
+// Jobs/Calendar endpoints
+app.get('/jobs', async (c) => {
+  return handleGetJobs(c.req.raw, c.env);
+});
 
-            case NotificationType.INVOICE_PAID:
-              results.email = await sendEmail(env, {
-                to: userRecord.email,
-                subject: 'Payment Confirmation',
-                html: invoiceTemplate.generateInvoicePaidHtml({
-                  name: userRecord.name,
-                  invoiceId: data.invoiceId,
-                  amount: data.amount,
-                  dueDate: data.dueDate,
-                  invoiceUrl: data.invoiceUrl,
-                }),
-                text: invoiceTemplate.generateInvoicePaidText({
-                  name: userRecord.name,
-                  invoiceId: data.invoiceId,
-                  amount: data.amount,
-                  dueDate: data.dueDate,
-                  invoiceUrl: data.invoiceUrl,
-                }),
-              });
-              break;
+app.get('/jobs/:id', async (c) => {
+  const url = new URL(c.req.url);
+  return handleGetJobById(c.req.raw, url, c.env);
+});
 
-            default:
-              results.email = {
-                success: false,
-                error: `Unsupported notification type: ${type}`
-              };
-          }
-        }
+app.get('/calendar-feed', async (c) => {
+  const url = new URL(c.req.url);
+  return handleCalendarFeed(c.req.raw, url, c.env);
+});
 
-        // Send SMS notification if requested
-        if (channels.includes(ChannelType.SMS) && userRecord.phone) {
-          let message = '';
+// Stripe Customer Portal
+app.post('/portal', async (c) => {
+  try {
+    const email = await requireAuth(c.req.raw, c.env);
+    
+    // Get user's Stripe customer ID
+    const userRow = await c.env.DB.prepare(
+      `SELECT stripe_customer_id FROM users WHERE lower(email) = ?`
+    ).bind(email.toLowerCase()).first();
 
-          switch (type) {
-            case NotificationType.WELCOME:
-              message = `Welcome to Portal, ${userRecord.name}! Your account is now active.`;
-              break;
-
-            case NotificationType.APPOINTMENT_CONFIRMATION:
-              message = `Hi ${userRecord.name}, your ${data.serviceType} appointment is confirmed for ${data.date} at ${data.time}.`;
-              break; 
-
-            case NotificationType.APPOINTMENT_REMINDER:
-              message = `Reminder: You have a ${data.serviceType} appointment tomorrow at ${data.time}.`;
-              break;
-
-            case NotificationType.INVOICE_CREATED:
-              message = `A new invoice (#${data.invoiceId}) for $${data.amount} has been created. Due: ${data.dueDate}. Log in to view details.`;
-              break;
-
-            case NotificationType.INVOICE_PAID:
-              message = `Thank you! Your payment of $${data.amount} for invoice #${data.invoiceId} has been received.`;
-              break;
-
-            default:
-              results.sms = {
-                success: false,
-                error: `Unsupported notification type: ${type}`
-              };
-              break;
-          }
-
-          if (message) {
-            results.sms = await sendSMS(env, userRecord.phone, message);
-          }
-        }
-
-        // Log notification
-        await env.DB.prepare(
-          `INSERT INTO notifications (user_id, type, channels, status, metadata)
-           VALUES (?, ?, ?, ?, ?)`
-        ).bind(
-          userId,
-          type,
-          JSON.stringify(channels),
-          Object.values(results).some(r => r.success) ? 'sent' : 'failed',
-          JSON.stringify({
-            sentAt: new Date().toISOString(),
-            results,
-            data
-          })
-        ).run();
-
-        return new Response(JSON.stringify({
-          success: Object.values(results).some(r => r.success),
-          results
-        }), {
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-
-      // SMS webhook endpoint
-      if (path === 'sms/webhook' && request.method === 'POST') {
-        return handleSMSWebhook(request, env);
-      }
-
-      // Send SMS endpoint
-      if (path === 'sms/send' && request.method === 'POST') {
-        try {
-          const body = await request.json() as {
-            to: string;
-            message: string;
-            userId: number | string;
-          };
-          
-          const { to, message, userId } = body;
-
-          if (!to || !message) {
-            return new Response(JSON.stringify({ error: 'Missing required parameters' }), {
-              status: 400,
-              headers: { 'Content-Type': 'application/json' },
-            });
-          }
-
-          // Send the SMS
-          const result = await sendSMS(env, to, message);
-
-          // If a userId was provided, store the message
-          if (userId && result.success) {
-            await storeSMSMessage(
-              env,
-              userId,
-              to,
-              message,
-              'outgoing',
-              result.messageSid,
-              'delivered'
-            );
-          }
-
-          return new Response(JSON.stringify(result), {
-            headers: { 'Content-Type': 'application/json' },
-          });
-        } catch (error: any) {
-          return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-      } 
-
-      // Get SMS conversations
-      if (path === 'sms/conversations' && request.method === 'GET') {
-        try {
-          // Extract user ID from request
-          const urlParams = new URLSearchParams(url.search);
-          const userId = urlParams.get('userId');
-
-          if (!userId) {
-            return new Response(JSON.stringify({ error: 'User ID is required' }), {
-              status: 400,
-              headers: { 'Content-Type': 'application/json' },
-            });
-          }
-
-          const conversations = await getSMSConversations(env, parseInt(userId, 10));
-
-          return new Response(JSON.stringify(conversations), {
-            headers: { 'Content-Type': 'application/json' },
-          });
-        } catch (error: any) {
-          return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-      }
-
-      // Get SMS conversation messages
-      if (path.match(/^sms\/messages\/\+?[0-9]+$/) && request.method === 'GET') {
-        try {
-          // Extract phone number from path
-          const phoneNumber = path.split('/').pop()!;
-
-          // Extract user ID from request
-          const urlParams = new URLSearchParams(url.search);
-          const userId = urlParams.get('userId');
-
-          if (!userId) {
-            return new Response(JSON.stringify({ error: 'User ID is required' }), {
-              status: 400,
-              headers: { 'Content-Type': 'application/json' },
-            });
-          }
-
-          const messages = await getSMSConversation(env, parseInt(userId, 10), phoneNumber);
-
-          return new Response(JSON.stringify(messages), {
-            headers: { 'Content-Type': 'application/json' },
-          });
-        } catch (error: any) {
-          return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-      }
-
-      // Default response for unknown paths
-      return new Response(JSON.stringify({ error: 'Not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    } catch (error: any) {
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }, 
-      });
+    if (!userRow || !(userRow as any).stripe_customer_id) {
+      return c.json({ error: "No Stripe customer found" }, 400);
     }
-  },
-};
 
+    const { getStripe } = await import('./stripe');
+    const stripe = getStripe(c.env);
+    
+    const session = await stripe.billingPortal.sessions.create({
+      customer: (userRow as any).stripe_customer_id,
+      return_url: 'https://portal.777.foo/dashboard',
+    });
+
+    return c.json({ url: session.url });
+  } catch (error: any) {
+    console.error("Portal error:", error);
+    return c.json({ error: error.message }, 400);
+  }
+});
+
+// SMS endpoints that proxy to notification worker
+app.get('/sms/conversations', async (c) => {
+  try {
+    const email = await requireAuth(c.req.raw, c.env);
+    
+    // Get user ID
+    const userRow = await c.env.DB.prepare(
+      `SELECT id FROM users WHERE lower(email) = ?`
+    ).bind(email.toLowerCase()).first();
+
+    if (!userRow) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    // Proxy to notification worker
+    const response = await c.env.NOTIFICATION_WORKER.fetch(
+      new Request(`https://portal.777.foo/api/notifications/sms/conversations?userId=${(userRow as any).id}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': c.req.header('Authorization') || '',
+        },
+      })
+    );
+
+    const data = await response.json();
+    return c.json(data, response.status);
+  } catch (error: any) {
+    return c.json({ error: error.message }, 500);
+  }
+});
+
+app.get('/sms/messages/:phoneNumber', async (c) => {
+  try {
+    const email = await requireAuth(c.req.raw, c.env);
+    const phoneNumber = c.req.param('phoneNumber');
+    
+    // Get user ID
+    const userRow = await c.env.DB.prepare(
+      `SELECT id FROM users WHERE lower(email) = ?`
+    ).bind(email.toLowerCase()).first();
+
+    if (!userRow) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    // Proxy to notification worker
+    const response = await c.env.NOTIFICATION_WORKER.fetch(
+      new Request(`https://portal.777.foo/api/notifications/sms/messages/${phoneNumber}?userId=${(userRow as any).id}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': c.req.header('Authorization') || '',
+        },
+      })
+    );
+
+    const data = await response.json();
+    return c.json(data, response.status);
+  } catch (error: any) {
+    return c.json({ error: error.message }, 500);
+  }
+});
+
+app.post('/sms/send', async (c) => {
+  try {
+    const email = await requireAuth(c.req.raw, c.env);
+    const body = await c.req.json();
+    
+    // Get user ID
+    const userRow = await c.env.DB.prepare(
+      `SELECT id FROM users WHERE lower(email) = ?`
+    ).bind(email.toLowerCase()).first();
+
+    if (!userRow) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    // Proxy to notification worker with user ID
+    const response = await c.env.NOTIFICATION_WORKER.fetch(
+      new Request('https://portal.777.foo/api/notifications/sms/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': c.req.header('Authorization') || '',
+        },
+        body: JSON.stringify({
+          ...body,
+          userId: (userRow as any).id
+        })
+      })
+    );
+
+    const data = await response.json();
+    return c.json(data, response.status);
+  } catch (error: any) {
+    return c.json({ error: error.message }, 500);
+  }
+});
+
+export default app;

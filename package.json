@@ -36,7 +36,7 @@
 
     "migrate": "cd worker && pnpm exec wrangler d1 migrations apply gutter_db --env production",
 
-    "deploy": "pnpm run shared:build && pnpm run migrate && pnpm run deploy:worker && pnpm run deploy:notification && pnpm run deploy:payment && pnpm run deploy:frontend"
+    "deploy": "pnpm install && pnpm run shared:build && pnpm run migrate && pnpm run deploy:worker && pnpm run deploy:notification && pnpm run deploy:payment && pnpm run deploy:frontend"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"
