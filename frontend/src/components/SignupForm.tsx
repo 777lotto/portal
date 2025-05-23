@@ -1,4 +1,4 @@
-// src/components/SignupForm.tsx - Fixed syntax errors
+// src/components/SignupForm.tsx - Fixed Turnstile handling and form state
 import { useState, useEffect } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { signupCheck, signup, checkStripeCustomer, createStripeCustomer } from "../lib/api";
@@ -19,6 +19,7 @@ export default function SignupForm({ setToken }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState<string>("initial"); // Key to reset Turnstile
   const TURNSTILE_SITE_KEY = "0x4AAAAAABcgNHsEZnTPqdEV";
   const [phone, setPhone] = useState("");
 
@@ -30,6 +31,11 @@ export default function SignupForm({ setToken }: Props) {
       setEmail(emailParam);
     }
   }, [location]);
+
+  // Reset error when form changes
+  useEffect(() => {
+    setError(null);
+  }, [email, phone, name, password, step]);
 
   // Add validation function
   const validateIdentifiers = () => {
@@ -49,7 +55,7 @@ export default function SignupForm({ setToken }: Props) {
     setError(null);
     setIsLoading(true);
 
-    // Only proceed if turnstile is verified in step 1
+    // Only proceed if turnstile is verified
     if (!turnstileToken) {
       setError("Please complete the security check");
       setIsLoading(false);
@@ -57,12 +63,18 @@ export default function SignupForm({ setToken }: Props) {
     }
 
     try {
+      console.log('Checking signup for:', { email, phone });
+      
       // First check if user exists in portal
       const { status } = await signupCheck(email, phone, turnstileToken);
 
       if (status === "existing") {
         // User already exists in portal - redirect to login with email
-        navigate(`/login?${email ? `email=${encodeURIComponent(email)}` : `phone=${encodeURIComponent(phone)}`}&existing=true`);
+        const params = new URLSearchParams();
+        if (email) params.set('email', email);
+        if (phone) params.set('phone', phone);
+        params.set('existing', 'true');
+        navigate(`/login?${params.toString()}`);
         return;
       }
 
@@ -82,10 +94,14 @@ export default function SignupForm({ setToken }: Props) {
         setMode("new");
       }
 
-      // Save turnstile token for next step - don't reset it
+      // Move to next step - don't reset turnstile token
       setStep("complete");
     } catch (err: any) {
+      console.error('Signup check error:', err);
       setError(err.message || "Check failed");
+      // Reset Turnstile on error
+      setTurnstileToken(null);
+      setTurnstileKey(prev => prev + "-reset");
     } finally {
       setIsLoading(false);
     }
@@ -99,6 +115,8 @@ export default function SignupForm({ setToken }: Props) {
 
     try {
       let result;
+
+      console.log('Completing signup:', { mode, email, name, phone });
 
       if (mode === "new") {
         // New user - create in Stripe first, then portal
@@ -115,10 +133,17 @@ export default function SignupForm({ setToken }: Props) {
       setToken(result.token);
       navigate("/dashboard");
     } catch (err: any) {
+      console.error('Signup error:', err);
       setError(err.message || "Signup failed");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleTurnstileVerify = (token: string) => {
+    console.log('Turnstile verified:', token);
+    setTurnstileToken(token);
+    setError(null); // Clear any security check errors
   };
 
   return (
@@ -178,8 +203,9 @@ export default function SignupForm({ setToken }: Props) {
           <div style={{ marginBottom: "1rem" }}>
             <Turnstile
               sitekey={TURNSTILE_SITE_KEY}
-              onVerify={(token) => setTurnstileToken(token)}
+              onVerify={handleTurnstileVerify}
               theme="auto"
+              key={turnstileKey} // This will reset the component when key changes
             />
           </div>
 
@@ -189,6 +215,11 @@ export default function SignupForm({ setToken }: Props) {
             style={{
               width: "100%",
               padding: "0.5rem",
+              backgroundColor: (isLoading || !turnstileToken || (!email && !phone)) ? "#ccc" : "#007bff",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: (isLoading || !turnstileToken || (!email && !phone)) ? "not-allowed" : "pointer",
               opacity: (isLoading || !turnstileToken || (!email && !phone)) ? 0.7 : 1
             }}
           >
@@ -255,26 +286,47 @@ export default function SignupForm({ setToken }: Props) {
               minLength={6}
             />
           </div>
-          <button
-            type="submit"
-            disabled={isLoading}
-            style={{
-              width: "100%",
-              padding: "0.5rem",
-              backgroundColor: "#4CAF50",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: isLoading ? "not-allowed" : "pointer",
-              opacity: isLoading ? 0.7 : 1
-            }}
-          >
-            {isLoading
-              ? "Processing..."
-              : mode === "new"
-                ? "Create Account"
-                : "Complete Account Setup"}
-          </button>
+          
+          <div style={{ display: "flex", gap: "1rem" }}>
+            <button
+              type="button"
+              onClick={() => {
+                setStep("email");
+                setTurnstileToken(null);
+                setTurnstileKey(prev => prev + "-back");
+              }}
+              style={{
+                padding: "0.5rem 1rem",
+                backgroundColor: "transparent",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+                cursor: "pointer"
+              }}
+            >
+              Back
+            </button>
+            
+            <button
+              type="submit"
+              disabled={isLoading}
+              style={{
+                flex: 1,
+                padding: "0.5rem",
+                backgroundColor: isLoading ? "#ccc" : "#4CAF50",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: isLoading ? "not-allowed" : "pointer",
+                opacity: isLoading ? 0.7 : 1
+              }}
+            >
+              {isLoading
+                ? "Processing..."
+                : mode === "new"
+                  ? "Create Account"
+                  : "Complete Account Setup"}
+            </button>
+          </div>
         </form>
       )}
 

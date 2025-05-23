@@ -1,4 +1,4 @@
-// worker/src/index.ts - Main Worker API
+// worker/src/index.ts - Fixed API routing and error handling
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { Env } from '@portal/shared';
@@ -11,64 +11,132 @@ import { handleGetJobs, handleGetJobById, handleCalendarFeed } from './handlers/
 
 const app = new Hono<{ Bindings: Env }>();
 
-// Add CORS middleware
-app.use('/*', cors());
+// Add CORS middleware with more permissive settings
+app.use('*', cors({
+  origin: ['https://portal.777.foo', 'http://localhost:5173', 'http://localhost:3000'],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+}));
+
+// Add error handling middleware
+app.onError((err, c) => {
+  console.error('Worker error:', err);
+  return c.json({ error: 'Internal server error' }, 500);
+});
 
 // Health check
-app.get('/ping', (c) => c.json({ status: 'ok' }));
+app.get('/ping', (c) => {
+  console.log('Health check requested');
+  return c.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
-// Auth endpoints
+// Debug endpoint
+app.get('/debug', async (c) => {
+  try {
+    // Test database connection
+    const dbTest = await c.env.DB.prepare('SELECT 1 as test').first();
+    
+    return c.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      environment: {
+        hasDB: !!c.env.DB,
+        hasJWTSecret: !!c.env.JWT_SECRET,
+        hasTurnstileSecret: !!c.env.TURNSTILE_SECRET_KEY,
+        hasStripeSecret: !!c.env.STRIPE_SECRET_KEY,
+        hasNotificationWorker: !!c.env.NOTIFICATION_WORKER,
+        hasPaymentWorker: !!c.env.PAYMENT_WORKER,
+      },
+      database: {
+        connected: !!dbTest,
+        testResult: dbTest
+      },
+      headers: {
+        host: c.req.header('host'),
+        userAgent: c.req.header('user-agent'),
+        cfConnectingIp: c.req.header('cf-connecting-ip'),
+      }
+    });
+  } catch (error: any) {
+    return c.json({
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, 500);
+  }
+});
+
+// Auth endpoints - these should be accessible without auth
 app.post('/signup/check', async (c) => {
-  return handleSignupCheck(c.req.raw, c.env);
+  console.log('Signup check requested');
+  try {
+    return await handleSignupCheck(c.req.raw, c.env);
+  } catch (error: any) {
+    console.error('Signup check error:', error);
+    return c.json({ error: error.message }, 500);
+  }
 });
 
 app.post('/signup', async (c) => {
-  return handleSignup(c.req.raw, c.env);
+  console.log('Signup requested');
+  try {
+    return await handleSignup(c.req.raw, c.env);
+  } catch (error: any) {
+    console.error('Signup error:', error);
+    return c.json({ error: error.message }, 500);
+  }
 });
 
 app.post('/login', async (c) => {
-  return handleLogin(c.req.raw, c.env);
+  console.log('Login requested');
+  try {
+    return await handleLogin(c.req.raw, c.env);
+  } catch (error: any) {
+    console.error('Login error:', error);
+    return c.json({ error: error.message }, 500);
+  }
 });
 
 // Stripe endpoints
 app.post('/stripe/check-customer', async (c) => {
-  return handleStripeCustomerCheck(c.req.raw, c.env);
+  console.log('Stripe customer check requested');
+  try {
+    return await handleStripeCustomerCheck(c.req.raw, c.env);
+  } catch (error: any) {
+    console.error('Stripe customer check error:', error);
+    return c.json({ error: error.message }, 500);
+  }
 });
 
 app.post('/stripe/webhook', async (c) => {
-  return handleStripeWebhook(c.req.raw, c.env);
+  console.log('Stripe webhook requested');
+  try {
+    return await handleStripeWebhook(c.req.raw, c.env);
+  } catch (error: any) {
+    console.error('Stripe webhook error:', error);
+    return c.json({ error: error.message }, 500);
+  }
 });
+
+// Auth middleware for protected routes
+const authMiddleware = async (c: any, next: any) => {
+  try {
+    const email = await requireAuth(c.req.raw, c.env);
+    c.set('userEmail', email);
+    await next();
+  } catch (error: any) {
+    console.error('Auth middleware error:', error);
+    return c.json({ error: 'Authentication failed: ' + error.message }, 401);
+  }
+};
 
 // Protected endpoints
-app.use('/profile/*', async (c, next) => {
-  try {
-    const email = await requireAuth(c.req.raw, c.env);
-    c.set('userEmail', email);
-    await next();
-  } catch (error: any) {
-    return c.json({ error: error.message }, 401);
-  }
-});
-
-app.use('/services/*', async (c, next) => {
-  try {
-    const email = await requireAuth(c.req.raw, c.env);
-    c.set('userEmail', email);
-    await next();
-  } catch (error: any) {
-    return c.json({ error: error.message }, 401);
-  }
-});
-
-app.use('/jobs/*', async (c, next) => {
-  try {
-    const email = await requireAuth(c.req.raw, c.env);
-    c.set('userEmail', email);
-    await next();
-  } catch (error: any) {
-    return c.json({ error: error.message }, 401);
-  }
-});
+app.use('/profile/*', authMiddleware);
+app.use('/services/*', authMiddleware);
+app.use('/jobs/*', authMiddleware);
+app.use('/portal', authMiddleware);
+app.use('/sms/*', authMiddleware);
 
 // Profile endpoints
 app.get('/profile', async (c) => {
@@ -117,7 +185,7 @@ app.get('/calendar-feed', async (c) => {
 // Stripe Customer Portal
 app.post('/portal', async (c) => {
   try {
-    const email = await requireAuth(c.req.raw, c.env);
+    const email = c.get('userEmail');
     
     // Get user's Stripe customer ID
     const userRow = await c.env.DB.prepare(
@@ -146,7 +214,7 @@ app.post('/portal', async (c) => {
 // SMS endpoints that proxy to notification worker
 app.get('/sms/conversations', async (c) => {
   try {
-    const email = await requireAuth(c.req.raw, c.env);
+    const email = c.get('userEmail');
     
     // Get user ID
     const userRow = await c.env.DB.prepare(
@@ -176,7 +244,7 @@ app.get('/sms/conversations', async (c) => {
 
 app.get('/sms/messages/:phoneNumber', async (c) => {
   try {
-    const email = await requireAuth(c.req.raw, c.env);
+    const email = c.get('userEmail');
     const phoneNumber = c.req.param('phoneNumber');
     
     // Get user ID
@@ -207,7 +275,7 @@ app.get('/sms/messages/:phoneNumber', async (c) => {
 
 app.post('/sms/send', async (c) => {
   try {
-    const email = await requireAuth(c.req.raw, c.env);
+    const email = c.get('userEmail');
     const body = await c.req.json();
     
     // Get user ID
@@ -239,6 +307,17 @@ app.post('/sms/send', async (c) => {
   } catch (error: any) {
     return c.json({ error: error.message }, 500);
   }
+});
+
+// Catch-all for debugging
+app.all('*', (c) => {
+  console.log(`Unhandled request: ${c.req.method} ${c.req.url}`);
+  return c.json({ 
+    error: 'Not found', 
+    method: c.req.method, 
+    path: c.req.url,
+    timestamp: new Date().toISOString()
+  }, 404);
 });
 
 export default app;
