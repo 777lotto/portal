@@ -1,4 +1,4 @@
-// notification/src/index.ts - Minimal version to resolve build issues
+// notification/src/index.ts - Fixed TypeScript errors
 import { Env } from '@portal/shared';
 
 // Extend the Env interface for notification-specific environment variables
@@ -35,7 +35,7 @@ export const ChannelType = {
 export type ChannelType = typeof ChannelType[keyof typeof ChannelType];
 
 // Simple email sending function (placeholder for SES)
-async function sendEmail(env: NotificationEnv, params: {
+async function sendEmail(_env: NotificationEnv, params: {
   to: string;
   subject: string;
   html: string;
@@ -47,7 +47,7 @@ async function sendEmail(env: NotificationEnv, params: {
 }
 
 // Simple SMS sending function (placeholder for VoIP.ms)
-async function sendSMS(env: NotificationEnv, to: string, message: string): Promise<{ success: boolean; error?: string; messageSid?: string }> {
+async function sendSMS(_env: NotificationEnv, to: string, message: string): Promise<{ success: boolean; error?: string; messageSid?: string }> {
   // For now, just log and return success
   console.log(`Would send SMS to ${to}: ${message}`);
   return { success: true, messageSid: 'test-' + Date.now() };

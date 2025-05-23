@@ -10,24 +10,37 @@
     "payment"
   ],
   "scripts": {
+    "clean": "rimraf packages/shared/dist worker/dist notification/dist payment/dist frontend/dist",
+    
     "shared:build": "cd packages/shared && pnpm run build",
     "shared:dev": "cd packages/shared && pnpm run dev",
-
-    "frontend:dev": "cd frontend && pnpm run dev",
-    "frontend:build": "cd frontend && pnpm run build || echo 'Continuing despite frontend build errors'",
+    "shared:clean": "rimraf packages/shared/dist",
 
     "worker:dev": "cd worker && pnpm run dev",
     "worker:build": "cd worker && pnpm run build",
+    "worker:clean": "rimraf worker/dist",
 
     "notification:dev": "cd notification && pnpm run dev",
     "notification:build": "cd notification && pnpm run build",
+    "notification:clean": "rimraf notification/dist",
 
     "payment:dev": "cd payment && pnpm run dev",
     "payment:build": "cd payment && pnpm run build",
+    "payment:clean": "rimraf payment/dist",
+
+    "frontend:dev": "cd frontend && pnpm run dev",
+    "frontend:build": "cd frontend && pnpm run build",
+    "frontend:clean": "rimraf frontend/dist",
 
     "dev": "concurrently \"pnpm run shared:dev\" \"pnpm run worker:dev\" \"pnpm run frontend:dev\" \"pnpm run notification:dev\" \"pnpm run payment:dev\"",
 
-    "build": "pnpm run shared:build && concurrently \"pnpm run worker:build\" \"pnpm run frontend:build\" \"pnpm run notification:build\" \"pnpm run payment:build\"",
+    "build:shared": "pnpm run shared:clean && pnpm run shared:build",
+    "build:workers": "concurrently \"pnpm run worker:build\" \"pnpm run notification:build\" \"pnpm run payment:build\"",
+    "build:frontend": "pnpm run frontend:build || echo 'Frontend build failed but continuing'",
+    
+    "build": "pnpm run build:shared && pnpm run build:workers && pnpm run build:frontend",
+
+    "typecheck": "concurrently \"cd packages/shared && tsc --noEmit\" \"cd worker && tsc --noEmit\" \"cd notification && tsc --noEmit\" \"cd payment && tsc --noEmit\" \"cd frontend && tsc --noEmit\"",
 
     "deploy:worker": "cd worker && pnpm run deploy",
     "deploy:frontend": "cd frontend && pnpm run build && pnpm exec wrangler pages deploy dist",
@@ -36,10 +49,13 @@
 
     "migrate": "cd worker && pnpm exec wrangler d1 migrations apply gutter_db --env production",
 
-    "deploy": "pnpm install && pnpm run shared:build && pnpm run migrate && pnpm run deploy:worker && pnpm run deploy:notification && pnpm run deploy:payment && pnpm run deploy:frontend"
+    "deploy": "pnpm install && pnpm run build && pnpm run migrate && concurrently \"pnpm run deploy:worker\" \"pnpm run deploy:notification\" \"pnpm run deploy:payment\" && pnpm run deploy:frontend",
+
+    "test": "cd worker && pnpm run test"
   },
   "devDependencies": {
-    "concurrently": "^8.2.0"
+    "concurrently": "^8.2.0",
+    "rimraf": "^5.0.10"
   },
   "engines": {
     "node": ">=18.0.0"

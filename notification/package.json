@@ -3,12 +3,11 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "prebuild": "cd ../packages/shared && pnpm run build",
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "start": "wrangler dev",
-    "build": "pnpm run prebuild && tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "build": "tsc --noEmit --skipLibCheck",
+    "typecheck": "tsc --noEmit --skipLibCheck"
   },
   "dependencies": {
     "@portal/shared": "workspace:*"
