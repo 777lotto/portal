@@ -1,5 +1,5 @@
-// worker/src/handlers/auth.ts - Enhanced with debug logging
-import { Env, User } from "@portal/shared";
+// worker/src/handlers/auth.ts - Fixed to work with the API
+import { Env } from "@portal/shared";
 import { 
   normalizeEmail, 
   validateTurnstileToken, 
@@ -13,26 +13,19 @@ import { CORS } from "../utils";
 // Handle signup check
 export async function handleSignupCheck(request: Request, env: Env): Promise<Response> {
   try {
-    console.log('=== SIGNUP CHECK START ===');
+    console.log('📝 Processing signup check...');
     
     // parse & normalize
     const data = await request.json() as any;
-    console.log('Request data:', { 
-      email: data.email, 
-      phone: data.phone,
-      hasTurnstileToken: !!data.turnstileToken 
-    });
+    console.log('📝 Signup check data:', data);
     
     const email = data.email ? normalizeEmail(data.email) : "";
     const phone = data.phone ? data.phone.trim() : "";
     const turnstileToken = data.turnstileToken;
     const clientIp = request.headers.get('CF-Connecting-IP') || '';
 
-    console.log('Normalized data:', { email, phone, clientIp });
-
     // Validate at least one identifier
     if (!email && !phone) {
-      console.log('ERROR: No email or phone provided');
       return new Response(
         JSON.stringify({ error: "Email address or phone number is required" }), 
         { status: 400, headers: CORS }
@@ -40,12 +33,8 @@ export async function handleSignupCheck(request: Request, env: Env): Promise<Res
     }
 
     // Validate turnstile
-    console.log('Validating Turnstile token...');
     const isValid = await validateTurnstileToken(turnstileToken, clientIp, env);
-    console.log('Turnstile validation result:', isValid);
-    
     if (!isValid) {
-      console.log('ERROR: Turnstile validation failed');
       return new Response(
         JSON.stringify({ error: "Security check failed. Please try again." }),
         { status: 400, headers: CORS }
@@ -56,29 +45,27 @@ export async function handleSignupCheck(request: Request, env: Env): Promise<Res
     let existingUser = null;
     
     if (email) {
-      console.log('Checking for existing user by email:', email);
+      console.log(`🔍 Checking for existing user with email: ${email}`);
       existingUser = await env.DB.prepare(
         `SELECT password_hash, name, phone
            FROM users
           WHERE lower(email) = ?`
       ).bind(email).first();
-      console.log('Email lookup result:', existingUser ? 'Found' : 'Not found');
     }
     
     // If not found by email, try phone
     if (!existingUser && phone) {
-      console.log('Checking for existing user by phone:', phone);
+      console.log(`🔍 Checking for existing user with phone: ${phone}`);
       existingUser = await env.DB.prepare(
         `SELECT password_hash, name, email
            FROM users
           WHERE phone = ?`
       ).bind(phone).first();
-      console.log('Phone lookup result:', existingUser ? 'Found' : 'Not found');
     }
 
     if (existingUser) {
+      console.log('👤 Found existing user:', existingUser);
       if (!(existingUser as any).password_hash) {
-        console.log('User exists but no password - imported user');
         // imported user, no password yet
         return new Response(
           JSON.stringify({ 
@@ -91,7 +78,6 @@ export async function handleSignupCheck(request: Request, env: Env): Promise<Res
         );
       }
 
-      console.log('User already fully signed up');
       // fully signed up already
       return new Response(
         JSON.stringify({ error: "Account already exists" }),
@@ -99,36 +85,28 @@ export async function handleSignupCheck(request: Request, env: Env): Promise<Res
       );
     }
 
-    console.log('Brand new user');
     // brand‑new user
+    console.log('✨ New user detected');
     return new Response(JSON.stringify({ status: "new" }), {
       headers: CORS,
     });
   } catch (err: any) {
-    console.error('SIGNUP CHECK ERROR:', err);
-    return new Response(JSON.stringify({ 
-      error: err.message,
-      stack: err.stack 
-    }), {
-      status: 500,
+    console.error('❌ Signup check error:', err);
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
       headers: CORS,
     });
   }
 }
 
-// Handle signup
+// Handle full signup
 export async function handleSignup(request: Request, env: Env): Promise<Response> {
   try {
-    console.log('=== SIGNUP START ===');
+    console.log('✍️ Processing signup...');
     
     // parse & normalize payload
     const data = await request.json() as any;
-    console.log('Signup data:', { 
-      email: data.email, 
-      phone: data.phone, 
-      name: data.name,
-      hasPassword: !!data.password 
-    });
+    console.log('✍️ Signup data:', data);
     
     const email = data.email ? normalizeEmail(data.email) : "";
     const phone = data.phone ? data.phone.trim() : "";
@@ -136,28 +114,28 @@ export async function handleSignup(request: Request, env: Env): Promise<Response
     const password = data.password;
 
     if (!name || !password) {
-      return new Response(JSON.stringify({ error: "Name and password are required" }), {
-        status: 400,
-        headers: CORS,
-      });
+      return new Response(
+        JSON.stringify({ error: "Name and password are required" }),
+        { status: 400, headers: CORS }
+      );
     }
 
     if (!email && !phone) {
-      return new Response(JSON.stringify({ error: "Email or phone is required" }), {
-        status: 400,
-        headers: CORS,
-      });
+      return new Response(
+        JSON.stringify({ error: "Email or phone number is required" }),
+        { status: 400, headers: CORS }
+      );
     }
 
-    console.log('Hashing password...');
     const password_hash = await hashPassword(password);
+    console.log('🔒 Password hashed');
 
     // Check if user already exists
     let existingUser = null;
     if (email) {
       existingUser = await env.DB.prepare(
         `SELECT id FROM users WHERE lower(email) = ?`
-      ).bind(email.toLowerCase()).first();
+      ).bind(email).first();
     }
     if (!existingUser && phone) {
       existingUser = await env.DB.prepare(
@@ -166,23 +144,40 @@ export async function handleSignup(request: Request, env: Env): Promise<Response
     }
 
     if (existingUser) {
-      console.log('User already exists');
-      return new Response(JSON.stringify({ error: "User already exists" }), {
-        status: 400,
-        headers: CORS,
-      });
+      return new Response(
+        JSON.stringify({ error: "User already exists" }),
+        { status: 400, headers: CORS }
+      );
     }
 
-    // Create user
-    console.log('Creating new user...');
+    // Create user in database
+    console.log('💾 Creating user in database...');
     const result = await env.DB.prepare(
-      `INSERT INTO users (email, name, password_hash, phone)
-       VALUES (?, ?, ?, ?)`
+      `INSERT INTO users (email, name, password_hash, phone) VALUES (?, ?, ?, ?)`
     ).bind(email || null, name, password_hash, phone || null).run();
 
-    console.log('User created with ID:', result.meta.last_row_id);
+    console.log('✅ User created with ID:', result.meta.last_row_id);
 
-    // Find the user to get complete info for JWT
+    // Create Stripe customer if we have an email
+    let stripe_customer_id = null;
+    if (email) {
+      try {
+        console.log('💳 Creating Stripe customer...');
+        stripe_customer_id = await getOrCreateCustomer(env, email, name);
+        
+        // Update user with Stripe customer ID
+        await env.DB.prepare(
+          `UPDATE users SET stripe_customer_id = ? WHERE id = ?`
+        ).bind(stripe_customer_id, result.meta.last_row_id).run();
+        
+        console.log('✅ Stripe customer created:', stripe_customer_id);
+      } catch (stripeError: any) {
+        console.error('❌ Stripe customer creation failed:', stripeError);
+        // Continue without Stripe - user can be created later
+      }
+    }
+
+    // Get the complete user record for JWT
     let user: any = {};
     if (email) {
       user = await env.DB.prepare(
@@ -194,8 +189,11 @@ export async function handleSignup(request: Request, env: Env): Promise<Response
       ).bind(phone).first();
     }
 
-    console.log('User for JWT:', { id: user.id, email: user.email, name: user.name });
+    if (!user) {
+      throw new Error("Failed to retrieve created user");
+    }
 
+    console.log('🎫 Creating JWT token...');
     // issue JWT
     const token = await createJwtToken({ 
       id: user.id,
@@ -204,18 +202,22 @@ export async function handleSignup(request: Request, env: Env): Promise<Response
       phone: user.phone || null
     }, env.JWT_SECRET);
 
-    console.log('JWT created successfully');
-
-    return new Response(JSON.stringify({ token }), {
+    console.log('✅ Signup completed successfully');
+    return new Response(JSON.stringify({ 
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        phone: user.phone
+      }
+    }), {
       headers: CORS,
     });
   } catch (err: any) {
-    console.error('SIGNUP ERROR:', err);
-    return new Response(JSON.stringify({ 
-      error: err.message,
-      stack: err.stack 
-    }), {
-      status: 500,
+    console.error('❌ Signup error:', err);
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
       headers: CORS,
     });
   }
@@ -223,86 +225,92 @@ export async function handleSignup(request: Request, env: Env): Promise<Response
 
 export async function handleLogin(request: Request, env: Env): Promise<Response> {
   try {
-    console.log('=== LOGIN START ===');
+    console.log('🔐 Processing login...');
     
-    // Implementation details...
     const data = await request.json() as any;
-    console.log('Login attempt for:', data.identifier);
+    console.log('🔐 Login data:', data);
     
     const identifier = data.identifier.trim();
     const password = data.password;
     const turnstileToken = data.turnstileToken;
 
     const clientIp = request.headers.get('CF-Connecting-IP') || '';
-    console.log('Validating Turnstile for login...');
     const isValid = await validateTurnstileToken(turnstileToken, clientIp, env);
-    
     if (!isValid) {
-      console.log('Login Turnstile validation failed');
       return new Response(
         JSON.stringify({ error: "Security check failed. Please try again." }),
         { status: 400, headers: CORS }
       );
     }
 
-    // Try to find user by email or phone
-    let user: any = null;
-    
-    // Check if identifier looks like email
-    if (identifier.includes('@')) {
-      console.log('Looking up user by email');
+    // Check if identifier is email or phone
+    const isEmail = identifier.includes('@');
+    let user: any;
+
+    if (isEmail) {
+      console.log(`🔍 Looking up user by email: ${identifier}`);
       user = await env.DB.prepare(
         `SELECT id, email, name, phone, password_hash FROM users WHERE lower(email) = ?`
       ).bind(identifier.toLowerCase()).first();
     } else {
-      console.log('Looking up user by phone');
+      console.log(`🔍 Looking up user by phone: ${identifier}`);
       user = await env.DB.prepare(
         `SELECT id, email, name, phone, password_hash FROM users WHERE phone = ?`
       ).bind(identifier).first();
     }
 
     if (!user) {
-      console.log('User not found');
+      console.log('❌ User not found');
       return new Response(
         JSON.stringify({ error: "Invalid credentials" }),
+        { status: 401, headers: CORS }
+      );
+    }
+
+    if (!user.password_hash) {
+      return new Response(
+        JSON.stringify({ error: "Account exists but password not set. Please contact support." }),
         { status: 401, headers: CORS }
       );
     }
 
     // Verify password
-    console.log('Verifying password...');
-    const isValidPassword = await verifyPassword(password, user.password_hash);
-    
-    if (!isValidPassword) {
-      console.log('Invalid password');
+    console.log('🔒 Verifying password...');
+    const passwordValid = await verifyPassword(password, user.password_hash);
+    if (!passwordValid) {
+      console.log('❌ Invalid password');
       return new Response(
         JSON.stringify({ error: "Invalid credentials" }),
         { status: 401, headers: CORS }
       );
     }
 
+    console.log('🎫 Creating JWT token...');
     // Issue JWT
-    console.log('Creating login JWT...');
     const token = await createJwtToken({
       id: user.id,
-      email: user.email,
+      email: user.email || null,
       name: user.name,
-      phone: user.phone
+      phone: user.phone || null
     }, env.JWT_SECRET);
 
-    console.log('Login successful for user:', user.id);
-
-    return new Response(JSON.stringify({ token }), {
+    console.log('✅ Login successful');
+    return new Response(JSON.stringify({ 
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        phone: user.phone
+      }
+    }), {
       status: 200,
       headers: CORS,
     });
   } catch (err: any) {
-    console.error('LOGIN ERROR:', err);
-    return new Response(JSON.stringify({ 
-      error: err.message,
-      stack: err.stack 
-    }), {
-      status: 500,
+    console.error('❌ Login error:', err);
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 401,
       headers: CORS,
     });
   }

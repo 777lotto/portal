@@ -1,3 +1,4 @@
+
 {
   "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "worker",
@@ -7,10 +8,7 @@
 
   /* ---------- routes ---------- */
   "routes": [
-    "https://portal.777.foo/api/*",
-    "https://portal.777.foo/stripe/*",
-    "portal.777.foo/notification/*",
-    "portal.777.foo/api/payment/*"
+    "portal.777.foo/api/*"
   ],
 
   /* ---------- database ---------- */
@@ -44,6 +42,13 @@
   /* ---------- smart placement ---------- */
   "placement": {
     "mode": "smart"
+  },
+
+  /* ---------- observability ---------- */
+  "observability": {
+    "logs": {
+      "enabled": true
+    }
   },
 
   /* ---------- development configuration ---------- */

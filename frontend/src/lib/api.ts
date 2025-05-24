@@ -1,4 +1,4 @@
-// src/lib/api.ts
+// frontend/src/lib/api.ts - Fixed with proper types
 import { fetchJson } from "./fetchJson";
 import { Job } from '@portal/shared';
 
@@ -55,10 +55,10 @@ export const getServices = (token: string) =>
 export const getService = (id: number, token: string) =>
   apiGet(`/services/${id}`, token);
 
-export const createService = (serviceData: any, token: string) =>
+export const createService = (serviceData: Record<string, unknown>, token: string) =>
   apiPost("/services", serviceData, token);
 
-export const updateService = (id: number, serviceData: any, token: string) =>
+export const updateService = (id: number, serviceData: Record<string, unknown>, token: string) =>
   apiPost(`/services/${id}`, serviceData, token, "PUT");
 
 export const deleteService = (id: number, token: string) =>
@@ -86,7 +86,7 @@ export const deleteJob = (id: string, token: string) =>
 export const getProfile = (token: string) =>
   apiGet("/profile", token);
 
-export const updateProfile = (profileData: any, token: string) =>
+export const updateProfile = (profileData: Record<string, unknown>, token: string) =>
   apiPost("/profile", profileData, token, "PUT");
 
 /* ---------- invoices ---------- */
@@ -94,7 +94,7 @@ export const updateProfile = (profileData: any, token: string) =>
 export const getInvoice = (serviceId: number, token: string) =>
   apiGet(`/services/${serviceId}/invoice`, token);
 
-export const createInvoice = (serviceId: number, invoiceData: any, token: string) =>
+export const createInvoice = (serviceId: number, invoiceData: Record<string, unknown>, token: string) =>
   apiPost(`/services/${serviceId}/invoice`, invoiceData, token);
 
 /* ---------- Stripe Customer Portal ---------- */
@@ -112,18 +112,18 @@ export const syncCalendar = (calendarUrl: string, token: string) =>
 
 /* ---------- Worker Service Binding ---------- */
 
-export const callWorkerService = (serviceName: string, path: string, data?: any, token?: string) =>
+export const callWorkerService = (serviceName: string, path: string, data?: Record<string, unknown>, token?: string) =>
   apiPost(`/worker-service/${serviceName}${path}`, data || {}, token);
 
 // Helper functions for specific worker services
 
-export const callNotificationService = (action: string, data: any, token: string) =>
+export const callNotificationService = (action: string, data: Record<string, unknown>, token: string) =>
   callWorkerService('notification', `/${action}`, data, token);
 
-export const callPaymentProcessingService = (action: string, data: any, token: string) =>
+export const callPaymentProcessingService = (action: string, data: Record<string, unknown>, token: string) =>
   callWorkerService('payment', `/${action}`, data, token);
 
-export const callSchedulingService = (action: string, data: any, token: string) =>
+export const callSchedulingService = (action: string, data: Record<string, unknown>, token: string) =>
   callWorkerService('scheduling', `/${action}`, data, token);
 
 // Specific notification functions
@@ -166,7 +166,7 @@ export const scheduleJob = (jobData: Omit<Job, 'id' | 'createdAt' | 'updatedAt'>
 export const rescheduleJob = (id: string, newDate: string, token: string) =>
   callSchedulingService('reschedule', { id, newDate }, token);
 
-  /* ---------- SMS ---------- */
+/* ---------- SMS ---------- */
 
 export const getConversations = (token: string) =>
   apiGet("/sms/conversations", token);

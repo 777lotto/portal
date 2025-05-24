@@ -1,3 +1,5 @@
+// packages/shared/src/index.ts - Make sure all types are exported
+
 // Export calendar types and functions
 export * from './calendar';
 
@@ -11,5 +13,5 @@ export type {
   AuthPayload 
 } from './api';
 
-// Export all types from types.ts (this includes the main User type)
+// Export all types from types.ts (this includes the main User type and Env)
 export * from './types';

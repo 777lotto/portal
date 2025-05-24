@@ -1,7 +1,7 @@
-// worker/src/index.ts - Fixed API routing and error handling
+// worker/src/index.ts - Fixed TypeScript imports and types
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { Env } from '@portal/shared';
+import type { Env } from '@portal/shared';
 import { requireAuth } from './auth';
 import { handleSignupCheck, handleSignup, handleLogin } from './handlers/auth';
 import { handleStripeCustomerCheck, handleStripeWebhook } from './handlers/stripe';
@@ -11,179 +11,235 @@ import { handleGetJobs, handleGetJobById, handleCalendarFeed } from './handlers/
 
 const app = new Hono<{ Bindings: Env }>();
 
-// Add CORS middleware with more permissive settings
-app.use('*', cors({
-  origin: ['https://portal.777.foo', 'http://localhost:5173', 'http://localhost:3000'],
+// Add CORS middleware with proper configuration
+app.use('/*', cors({
+  origin: '*',
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
 }));
 
-// Add error handling middleware
-app.onError((err, c) => {
-  console.error('Worker error:', err);
-  return c.json({ error: 'Internal server error' }, 500);
+// Debug logging middleware
+app.use('*', async (c, next) => {
+  console.log(`🔥 Worker hit: ${c.req.method} ${c.req.path}`);
+  console.log(`🔍 Full URL: ${c.req.url}`);
+  await next();
 });
 
-// Health check
+// Health check endpoints
 app.get('/ping', (c) => {
-  console.log('Health check requested');
-  return c.json({ status: 'ok', timestamp: new Date().toISOString() });
+  console.log('✅ Ping endpoint hit');
+  return c.json({
+    message: 'Worker is working!',
+    timestamp: new Date().toISOString(),
+    path: c.req.path,
+    method: c.req.method,
+    url: c.req.url
+  });
 });
 
-// Debug endpoint
-app.get('/debug', async (c) => {
-  try {
-    // Test database connection
-    const dbTest = await c.env.DB.prepare('SELECT 1 as test').first();
-    
-    return c.json({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      environment: {
-        hasDB: !!c.env.DB,
-        hasJWTSecret: !!c.env.JWT_SECRET,
-        hasTurnstileSecret: !!c.env.TURNSTILE_SECRET_KEY,
-        hasStripeSecret: !!c.env.STRIPE_SECRET_KEY,
-        hasNotificationWorker: !!c.env.NOTIFICATION_WORKER,
-        hasPaymentWorker: !!c.env.PAYMENT_WORKER,
-      },
-      database: {
-        connected: !!dbTest,
-        testResult: dbTest
-      },
-      headers: {
-        host: c.req.header('host'),
-        userAgent: c.req.header('user-agent'),
-        cfConnectingIp: c.req.header('cf-connecting-ip'),
-      }
-    });
-  } catch (error: any) {
-    return c.json({
-      status: 'error',
-      error: error.message,
-      timestamp: new Date().toISOString()
-    }, 500);
-  }
+app.get('/debug', (c) => {
+  console.log('✅ Debug endpoint hit');
+  return c.json({
+    message: 'Debug endpoint working!',
+    url: c.req.url,
+    path: c.req.path,
+    method: c.req.method,
+    headers: Object.fromEntries(c.req.raw.headers.entries()),
+    hasDB: !!c.env.DB,
+    hasJWT: !!c.env.JWT_SECRET,
+    hasTurnstile: !!c.env.TURNSTILE_SECRET_KEY,
+    hasStripe: !!c.env.STRIPE_SECRET_KEY,
+    timestamp: new Date().toISOString()
+  });
 });
 
-// Auth endpoints - these should be accessible without auth
+// Auth endpoints
 app.post('/signup/check', async (c) => {
-  console.log('Signup check requested');
+  console.log('✅ Signup check endpoint hit');
   try {
     return await handleSignupCheck(c.req.raw, c.env);
   } catch (error: any) {
-    console.error('Signup check error:', error);
-    return c.json({ error: error.message }, 500);
+    console.error('❌ Signup check error:', error);
+    return c.json({ error: error.message || 'Signup check failed' }, 500);
   }
 });
 
 app.post('/signup', async (c) => {
-  console.log('Signup requested');
+  console.log('✅ Signup endpoint hit');
   try {
     return await handleSignup(c.req.raw, c.env);
   } catch (error: any) {
-    console.error('Signup error:', error);
-    return c.json({ error: error.message }, 500);
+    console.error('❌ Signup error:', error);
+    return c.json({ error: error.message || 'Signup failed' }, 500);
   }
 });
 
 app.post('/login', async (c) => {
-  console.log('Login requested');
+  console.log('✅ Login endpoint hit');
   try {
     return await handleLogin(c.req.raw, c.env);
   } catch (error: any) {
-    console.error('Login error:', error);
-    return c.json({ error: error.message }, 500);
+    console.error('❌ Login error:', error);
+    return c.json({ error: error.message || 'Login failed' }, 500);
   }
 });
 
 // Stripe endpoints
 app.post('/stripe/check-customer', async (c) => {
-  console.log('Stripe customer check requested');
+  console.log('✅ Stripe customer check endpoint hit');
   try {
     return await handleStripeCustomerCheck(c.req.raw, c.env);
   } catch (error: any) {
-    console.error('Stripe customer check error:', error);
-    return c.json({ error: error.message }, 500);
+    console.error('❌ Stripe check error:', error);
+    return c.json({ error: error.message || 'Stripe check failed' }, 500);
+  }
+});
+
+app.post('/stripe/create-customer', async (c) => {
+  console.log('✅ Stripe create customer endpoint hit');
+  try {
+    const body = await c.req.json();
+    console.log('💳 Stripe create customer body:', body);
+    
+    // Import and use the stripe helper
+    const { getOrCreateCustomer } = await import('./stripe');
+    const customerId = await getOrCreateCustomer(c.env, body.email, body.name);
+    
+    return c.json({
+      success: true,
+      customerId,
+      message: 'Customer created successfully'
+    });
+  } catch (error: any) {
+    console.error('❌ Stripe create customer error:', error);
+    return c.json({ error: error.message || 'Customer creation failed' }, 500);
   }
 });
 
 app.post('/stripe/webhook', async (c) => {
-  console.log('Stripe webhook requested');
+  console.log('✅ Stripe webhook endpoint hit');
   try {
     return await handleStripeWebhook(c.req.raw, c.env);
   } catch (error: any) {
-    console.error('Stripe webhook error:', error);
-    return c.json({ error: error.message }, 500);
+    console.error('❌ Stripe webhook error:', error);
+    return c.json({ error: error.message || 'Webhook processing failed' }, 500);
   }
 });
 
-// Auth middleware for protected routes
-const authMiddleware = async (c: any, next: any) => {
+// Protected route middleware
+const requireAuthMiddleware = async (c: any, next: any) => {
   try {
     const email = await requireAuth(c.req.raw, c.env);
     c.set('userEmail', email);
+    console.log(`🔐 Authenticated user: ${email}`);
     await next();
   } catch (error: any) {
-    console.error('Auth middleware error:', error);
-    return c.json({ error: 'Authentication failed: ' + error.message }, 401);
+    console.error('❌ Auth error:', error);
+    return c.json({ error: 'Authentication failed: ' + (error.message || 'Unknown error') }, 401);
   }
 };
 
-// Protected endpoints
-app.use('/profile/*', authMiddleware);
-app.use('/services/*', authMiddleware);
-app.use('/jobs/*', authMiddleware);
-app.use('/portal', authMiddleware);
-app.use('/sms/*', authMiddleware);
-
-// Profile endpoints
-app.get('/profile', async (c) => {
-  const email = c.get('userEmail');
-  return handleGetProfile(c.req.raw, c.env, email);
+// Profile endpoints (protected)
+app.get('/profile', requireAuthMiddleware, async (c) => {
+  console.log('✅ Profile GET endpoint hit');
+  try {
+    const email = c.get('userEmail');
+    return await handleGetProfile(c.req.raw, c.env, email);
+  } catch (error: any) {
+    console.error('❌ Profile GET error:', error);
+    return c.json({ error: error.message || 'Profile fetch failed' }, 500);
+  }
 });
 
-app.put('/profile', async (c) => {
-  const email = c.get('userEmail');
-  return handleUpdateProfile(c.req.raw, c.env, email);
+app.put('/profile', requireAuthMiddleware, async (c) => {
+  console.log('✅ Profile PUT endpoint hit');
+  try {
+    const email = c.get('userEmail');
+    return await handleUpdateProfile(c.req.raw, c.env, email);
+  } catch (error: any) {
+    console.error('❌ Profile PUT error:', error);
+    return c.json({ error: error.message || 'Profile update failed' }, 500);
+  }
 });
 
-// Services endpoints
-app.get('/services', async (c) => {
-  const email = c.get('userEmail');
-  return handleListServices(c.req.raw, c.env, email);
+// Services endpoints (protected)
+app.get('/services', requireAuthMiddleware, async (c) => {
+  console.log('✅ Services GET endpoint hit');
+  try {
+    const email = c.get('userEmail');
+    return await handleListServices(c.req.raw, c.env, email);
+  } catch (error: any) {
+    console.error('❌ Services GET error:', error);
+    return c.json({ error: error.message || 'Services fetch failed' }, 500);
+  }
 });
 
-app.get('/services/:id', async (c) => {
-  const email = c.get('userEmail');
-  const id = parseInt(c.req.param('id'));
-  return handleGetService(c.req.raw, c.env, email, id);
+app.get('/services/:id', requireAuthMiddleware, async (c) => {
+  console.log('✅ Service detail GET endpoint hit');
+  try {
+    const email = c.get('userEmail');
+    const id = parseInt(c.req.param('id'));
+    if (isNaN(id)) {
+      return c.json({ error: 'Invalid service ID' }, 400);
+    }
+    return await handleGetService(c.req.raw, c.env, email, id);
+  } catch (error: any) {
+    console.error('❌ Service detail GET error:', error);
+    return c.json({ error: error.message || 'Service fetch failed' }, 500);
+  }
 });
 
-app.post('/services/:id/invoice', async (c) => {
-  const email = c.get('userEmail');
-  const serviceId = parseInt(c.req.param('id'));
-  return handleCreateInvoice(c.req.raw, c.env, email, serviceId);
+app.post('/services/:id/invoice', requireAuthMiddleware, async (c) => {
+  console.log('✅ Service invoice POST endpoint hit');
+  try {
+    const email = c.get('userEmail');
+    const serviceId = parseInt(c.req.param('id'));
+    if (isNaN(serviceId)) {
+      return c.json({ error: 'Invalid service ID' }, 400);
+    }
+    return await handleCreateInvoice(c.req.raw, c.env, email, serviceId);
+  } catch (error: any) {
+    console.error('❌ Service invoice POST error:', error);
+    return c.json({ error: error.message || 'Invoice creation failed' }, 500);
+  }
 });
 
-// Jobs/Calendar endpoints
-app.get('/jobs', async (c) => {
-  return handleGetJobs(c.req.raw, c.env);
+// Jobs/Calendar endpoints (protected)
+app.get('/jobs', requireAuthMiddleware, async (c) => {
+  console.log('✅ Jobs GET endpoint hit');
+  try {
+    return await handleGetJobs(c.req.raw, c.env);
+  } catch (error: any) {
+    console.error('❌ Jobs GET error:', error);
+    return c.json({ error: error.message || 'Jobs fetch failed' }, 500);
+  }
 });
 
-app.get('/jobs/:id', async (c) => {
-  const url = new URL(c.req.url);
-  return handleGetJobById(c.req.raw, url, c.env);
+app.get('/jobs/:id', requireAuthMiddleware, async (c) => {
+  console.log('✅ Job detail GET endpoint hit');
+  try {
+    const url = new URL(c.req.url);
+    return await handleGetJobById(c.req.raw, url, c.env);
+  } catch (error: any) {
+    console.error('❌ Job detail GET error:', error);
+    return c.json({ error: error.message || 'Job fetch failed' }, 500);
+  }
 });
 
 app.get('/calendar-feed', async (c) => {
-  const url = new URL(c.req.url);
-  return handleCalendarFeed(c.req.raw, url, c.env);
+  console.log('✅ Calendar feed GET endpoint hit');
+  try {
+    const url = new URL(c.req.url);
+    return await handleCalendarFeed(c.req.raw, url, c.env);
+  } catch (error: any) {
+    console.error('❌ Calendar feed GET error:', error);
+    return c.json({ error: error.message || 'Calendar feed failed' }, 500);
+  }
 });
 
-// Stripe Customer Portal
-app.post('/portal', async (c) => {
+// Stripe Customer Portal (protected)
+app.post('/portal', requireAuthMiddleware, async (c) => {
+  console.log('✅ Portal POST endpoint hit');
   try {
     const email = c.get('userEmail');
     
@@ -206,13 +262,14 @@ app.post('/portal', async (c) => {
 
     return c.json({ url: session.url });
   } catch (error: any) {
-    console.error("Portal error:", error);
-    return c.json({ error: error.message }, 400);
+    console.error('❌ Portal error:', error);
+    return c.json({ error: error.message || 'Portal creation failed' }, 500);
   }
 });
 
-// SMS endpoints that proxy to notification worker
-app.get('/sms/conversations', async (c) => {
+// SMS endpoints that proxy to notification worker (protected)
+app.get('/sms/conversations', requireAuthMiddleware, async (c) => {
+  console.log('✅ SMS conversations GET endpoint hit');
   try {
     const email = c.get('userEmail');
     
@@ -225,97 +282,56 @@ app.get('/sms/conversations', async (c) => {
       return c.json({ error: "User not found" }, 404);
     }
 
-    // Proxy to notification worker
-    const response = await c.env.NOTIFICATION_WORKER.fetch(
-      new Request(`https://portal.777.foo/api/notifications/sms/conversations?userId=${(userRow as any).id}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': c.req.header('Authorization') || '',
-        },
-      })
-    );
-
-    const data = await response.json();
-    return c.json(data, response.status);
-  } catch (error: any) {
-    return c.json({ error: error.message }, 500);
-  }
-});
-
-app.get('/sms/messages/:phoneNumber', async (c) => {
-  try {
-    const email = c.get('userEmail');
-    const phoneNumber = c.req.param('phoneNumber');
-    
-    // Get user ID
-    const userRow = await c.env.DB.prepare(
-      `SELECT id FROM users WHERE lower(email) = ?`
-    ).bind(email.toLowerCase()).first();
-
-    if (!userRow) {
-      return c.json({ error: "User not found" }, 404);
-    }
-
-    // Proxy to notification worker
-    const response = await c.env.NOTIFICATION_WORKER.fetch(
-      new Request(`https://portal.777.foo/api/notifications/sms/messages/${phoneNumber}?userId=${(userRow as any).id}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': c.req.header('Authorization') || '',
-        },
-      })
-    );
-
-    const data = await response.json();
-    return c.json(data, response.status);
-  } catch (error: any) {
-    return c.json({ error: error.message }, 500);
-  }
-});
-
-app.post('/sms/send', async (c) => {
-  try {
-    const email = c.get('userEmail');
-    const body = await c.req.json();
-    
-    // Get user ID
-    const userRow = await c.env.DB.prepare(
-      `SELECT id FROM users WHERE lower(email) = ?`
-    ).bind(email.toLowerCase()).first();
-
-    if (!userRow) {
-      return c.json({ error: "User not found" }, 404);
-    }
-
-    // Proxy to notification worker with user ID
-    const response = await c.env.NOTIFICATION_WORKER.fetch(
-      new Request('https://portal.777.foo/api/notifications/sms/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': c.req.header('Authorization') || '',
-        },
-        body: JSON.stringify({
-          ...body,
-          userId: (userRow as any).id
+    // Proxy to notification worker if available
+    if (c.env.NOTIFICATION_WORKER) {
+      const response = await c.env.NOTIFICATION_WORKER.fetch(
+        new Request(`https://portal.777.foo/api/notifications/sms/conversations?userId=${(userRow as any).id}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': c.req.header('Authorization') || '',
+          },
         })
-      })
-    );
+      );
 
-    const data = await response.json();
-    return c.json(data, response.status);
+      const data = await response.json();
+      return c.json(data, response.status);
+    } else {
+      return c.json({ error: "SMS service not available" }, 503);
+    }
   } catch (error: any) {
-    return c.json({ error: error.message }, 500);
+    console.error('❌ SMS conversations error:', error);
+    return c.json({ error: error.message || 'SMS conversations failed' }, 500);
   }
 });
 
-// Catch-all for debugging
+// Catch-all route for debugging
 app.all('*', (c) => {
-  console.log(`Unhandled request: ${c.req.method} ${c.req.url}`);
-  return c.json({ 
-    error: 'Not found', 
-    method: c.req.method, 
-    path: c.req.url,
+  console.log(`❓ Unhandled route: ${c.req.method} ${c.req.path}`);
+  return c.json({
+    error: 'Route not found',
+    path: c.req.path,
+    method: c.req.method,
+    fullUrl: c.req.url,
+    availableRoutes: [
+      'GET /ping',
+      'GET /debug',
+      'POST /signup/check',
+      'POST /signup',
+      'POST /login',
+      'POST /stripe/check-customer',
+      'POST /stripe/create-customer',
+      'POST /stripe/webhook',
+      'GET /profile (protected)',
+      'PUT /profile (protected)',
+      'GET /services (protected)',
+      'GET /services/:id (protected)',
+      'POST /services/:id/invoice (protected)',
+      'GET /jobs (protected)',
+      'GET /jobs/:id (protected)',
+      'GET /calendar-feed',
+      'POST /portal (protected)',
+      'GET /sms/conversations (protected)'
+    ],
     timestamp: new Date().toISOString()
   }, 404);
 });

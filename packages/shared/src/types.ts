@@ -1,4 +1,4 @@
-// packages/shared/src/types.ts
+// packages/shared/src/types.ts - Complete with all needed types
 
 // Environment variable types shared across workers
 export interface Env {
@@ -15,9 +15,9 @@ export interface Env {
   // Turnstile
   TURNSTILE_SECRET_KEY: string;
   
-  // Worker bindings
-  NOTIFICATION_WORKER: { fetch: (request: Request) => Promise<Response> };
-  PAYMENT_WORKER: { fetch: (request: Request) => Promise<Response> };
+  // Service bindings (optional - not all workers have all bindings)
+  NOTIFICATION_WORKER?: { fetch: (request: Request) => Promise<Response> };
+  PAYMENT_WORKER?: { fetch: (request: Request) => Promise<Response> };
 }
 
 // D1 database types
