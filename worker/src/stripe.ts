@@ -1,7 +1,6 @@
-// worker/src/stripe.ts
+// worker/src/stripe.ts - Fixed with correct Stripe API version
 import Stripe from "stripe";
 import type { Env } from "./env";
-import { StripeCustomer, StripeInvoice } from "@portal/shared";
 
 // Create a singleton Stripe instance
 let stripeInstance: Stripe | null = null;
@@ -9,7 +8,7 @@ let stripeInstance: Stripe | null = null;
 export function getStripe(env: Env): Stripe {
   if (!stripeInstance) {
     stripeInstance = new Stripe(env.STRIPE_SECRET_KEY, {
-      apiVersion: "2025-04-30.basil", // current stable
+      apiVersion: "2025-04-30.basil", // Latest version from Stripe dashboard
     });
   }
   return stripeInstance;
@@ -46,7 +45,7 @@ export async function createAndSendInvoice(
   customerId: string,
   amount_cents: number,
   description: string
-): Promise<StripeInvoice> {
+): Promise<Stripe.Invoice> {
   const stripe = getStripe(env);
 
   await stripe.invoiceItems.create({
@@ -63,5 +62,5 @@ export async function createAndSendInvoice(
   });
 
   await stripe.invoices.finalizeInvoice(invoice.id);
-  return invoice as unknown as StripeInvoice;
+  return invoice;
 }

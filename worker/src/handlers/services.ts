@@ -1,5 +1,5 @@
 // worker/src/handlers/services.ts
-import { Env } from "@portal/shared";
+import type { Env } from "../env";
 import { CORS, errorResponse } from "../utils";
 import { getStripe } from "../stripe";
 
@@ -175,26 +175,28 @@ export async function handleCreateInvoice(request: Request, env: Env, email: str
 
       // Send an invoice email notification via the notification worker
       try {
-        await env.NOTIFICATION_WORKER.fetch(
-          new Request('https://portal.777.foo/api/notifications/send', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': request.headers.get('Authorization') || '',
-            },
-            body: JSON.stringify({
-              type: 'invoice_created',
-              userId: serviceData.user_id,
-              data: {
-                invoiceId: invoice.id,
-                amount: (invoiceData.amount_cents / 100).toFixed(2),
-                dueDate: formattedDueDate,
-                invoiceUrl: finalizedInvoice.hosted_invoice_url || '#'
+        if (env.NOTIFICATION_WORKER) {
+          await env.NOTIFICATION_WORKER.fetch(
+            new Request('https://portal.777.foo/api/notifications/send', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': request.headers.get('Authorization') || '',
               },
-              channels: ['email', 'sms']
+              body: JSON.stringify({
+                type: 'invoice_created',
+                userId: serviceData.user_id,
+                data: {
+                  invoiceId: invoice.id,
+                  amount: (invoiceData.amount_cents / 100).toFixed(2),
+                  dueDate: formattedDueDate,
+                  invoiceUrl: finalizedInvoice.hosted_invoice_url || '#'
+                },
+                channels: ['email', 'sms']
+              })
             })
-          })
-        );
+          );
+        }
       } catch (notificationError: any) {
         console.error("Failed to send invoice notification:", notificationError);
         // Don't fail the request if notification fails

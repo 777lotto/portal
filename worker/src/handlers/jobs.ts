@@ -1,5 +1,5 @@
 // worker/src/handlers/jobs.ts
-import { Env } from "@portal/shared";
+import type { Env } from "../env";
 import { requireAuth } from "../auth";
 import { getCustomerJobs, getJob, generateCalendarFeed } from "../calendar";
 import { CORS, errorResponse } from "../utils";
@@ -66,12 +66,11 @@ export async function handleGetJobById(request: Request, url: URL, env: Env): Pr
 
 export async function handleCalendarFeed(request: Request, url: URL, env: Env): Promise<Response> {
   try {
-    // Implementation...
     const token = url.searchParams.get("token");
     if (!token) throw new Error("Missing token");
 
-    // Return iCal feed
-    return new Response("iCal content", {
+    // For now, return a simple response - you'll need to implement calendar feed generation
+    return new Response("BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR", {
       status: 200,
       headers: {
         "Content-Type": "text/calendar",

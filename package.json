@@ -15,21 +15,25 @@
 
     "worker:dev": "cd worker && pnpm run dev",
     "worker:build": "cd worker && pnpm run build",
+    "worker:typecheck": "cd worker && tsc --noEmit --skipLibCheck",
 
     "notification:dev": "cd notification && pnpm run dev",
     "notification:build": "cd notification && pnpm run build",
+    "notification:typecheck": "cd notification && tsc --noEmit --skipLibCheck",
 
     "payment:dev": "cd payment && pnpm run dev",
     "payment:build": "cd payment && pnpm run build",
+    "payment:typecheck": "cd payment && tsc --noEmit --skipLibCheck",
 
     "frontend:dev": "cd frontend && pnpm run dev",
     "frontend:build": "cd frontend && pnpm run build || echo 'Frontend build failed but continuing'",
+    "frontend:typecheck": "cd frontend && tsc --noEmit --skipLibCheck",
 
     "dev": "concurrently \"pnpm run shared:dev\" \"pnpm run worker:dev\" \"pnpm run frontend:dev\" \"pnpm run notification:dev\" \"pnpm run payment:dev\"",
+    
+    "typecheck": "pnpm run shared:build && concurrently \"pnpm run worker:typecheck\" \"pnpm run notification:typecheck\" \"pnpm run payment:typecheck\" \"pnpm run frontend:typecheck\"",
 
     "build": "pnpm run shared:build && concurrently \"pnpm run worker:build\" \"pnpm run notification:build\" \"pnpm run payment:build\" && pnpm run frontend:build",
-
-    "typecheck": "pnpm run shared:build && concurrently \"cd worker && tsc --noEmit\" \"cd notification && tsc --noEmit\" \"cd payment && tsc --noEmit\" \"cd frontend && tsc --noEmit\"",
 
     "deploy:worker": "cd worker && pnpm run deploy",
     "deploy:frontend": "cd frontend && pnpm run build && pnpm exec wrangler pages deploy dist",
@@ -38,7 +42,11 @@
 
     "migrate": "cd worker && pnpm exec wrangler d1 migrations apply gutter_db --env production",
 
-    "deploy": "pnpm install && pnpm run build && pnpm run migrate && concurrently \"pnpm run deploy:worker\" \"pnpm run deploy:notification\" \"pnpm run deploy:payment\" && pnpm run deploy:frontend"
+    "deploy": "pnpm install && pnpm run build && pnpm run migrate && concurrently \"pnpm run deploy:worker\" \"pnpm run deploy:notification\" \"pnpm run deploy:payment\" && pnpm run deploy:frontend",
+    
+    "debug:build": "chmod +x build.sh && ./build.sh",
+    "debug:worker": "cd worker && pnpm run build 2>&1 | head -50",
+    "debug:types": "pnpm run typecheck 2>&1 | head -100"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"

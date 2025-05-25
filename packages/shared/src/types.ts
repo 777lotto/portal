@@ -1,23 +1,37 @@
-// packages/shared/src/types.ts - Complete with all needed types
+// packages/shared/src/types.ts - Complete shared types
 
-// Environment variable types shared across workers
-export interface Env {
+// Base environment interface - this is the minimal shared structure
+export interface BaseEnv {
   // D1 Database
   DB: D1Database;
   
   // Secrets
   JWT_SECRET: string;
   
-  // Stripe
+  // Stripe (optional - not all workers use Stripe)
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+  
+  // Turnstile (optional)
+  TURNSTILE_SECRET_KEY?: string;
+}
+
+// Main worker environment (extends base with service bindings)
+export interface Env extends BaseEnv {
+  // Stripe is required for main worker
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
   
-  // Turnstile
+  // Turnstile is required for main worker
   TURNSTILE_SECRET_KEY: string;
   
   // Service bindings (optional - not all workers have all bindings)
   NOTIFICATION_WORKER?: { fetch: (request: Request) => Promise<Response> };
   PAYMENT_WORKER?: { fetch: (request: Request) => Promise<Response> };
+  
+  // Environment variables
+  ENVIRONMENT?: string;
+  API_VERSION?: string;
 }
 
 // D1 database types
@@ -101,7 +115,7 @@ export interface EmailParams {
   replyTo?: string;
 }
 
-// Additional shared types that might be needed
+// Service types
 export interface Service {
   id: number;
   user_id: number;
@@ -120,4 +134,22 @@ export interface NotificationRecord {
   status: 'pending' | 'sent' | 'failed';
   metadata: string;
   created_at: string;
+}
+
+// API response types
+export interface ApiResponse<T = any> {
+  data?: T;
+  error?: string;
+}
+
+export interface ApiError {
+  message: string;
+  code?: string;
+  status?: number;
+}
+
+// Authentication types
+export interface AuthPayload {
+  email: string;
+  name?: string;
 }

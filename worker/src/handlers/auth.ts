@@ -1,5 +1,5 @@
 // worker/src/handlers/auth.ts - Fixed to work with the API
-import { Env } from "@portal/shared";
+import type { Env } from "../env";
 import { 
   normalizeEmail, 
   validateTurnstileToken, 

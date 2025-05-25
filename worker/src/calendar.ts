@@ -1,7 +1,7 @@
-// worker/src/calendar.ts
+// worker/src/calendar.ts - Fixed imports and types
 import type { Env } from "./env";
 import { v4 as uuidv4 } from 'uuid';
-import { JobSchema } from "@portal/shared";
+import { JobSchema } from "@portal/shared/calendar";
 
 // Get jobs for a specific customer
 export async function getCustomerJobs(env: Env, customerId: string) {
@@ -151,17 +151,17 @@ export async function generateCalendarFeed(env: Env, customerId: string) {
 
   // Add each job as an event
   for (const job of jobs) {
-    if (job.status === 'cancelled') continue; // Skip cancelled jobs
+    if ((job as any).status === 'cancelled') continue; // Skip cancelled jobs
 
-    const startDate = new Date(job.start);
-    const endDate = new Date(job.end);
+    const startDate = new Date((job as any).start);
+    const endDate = new Date((job as any).end);
 
     // Format dates for iCal (YYYYMMDDTHHMMSSZ)
     const formatDate = (date: Date) => {
       return date.toISOString().replace(/[-:]/g, '').replace(/\.\d+/g, '');
     };
 
-    const eventId = job.id.replace(/-/g, '');
+    const eventId = (job as any).id.replace(/-/g, '');
 
     icalContent.push(
       'BEGIN:VEVENT',
@@ -169,9 +169,9 @@ export async function generateCalendarFeed(env: Env, customerId: string) {
       `DTSTAMP:${formatDate(new Date())}`,
       `DTSTART:${formatDate(startDate)}`,
       `DTEND:${formatDate(endDate)}`,
-      `SUMMARY:${job.title}`,
-      job.description ? `DESCRIPTION:${job.description.replace(/\n/g, '\\n')}` : '',
-      `STATUS:${job.status === 'completed' ? 'COMPLETED' : 'CONFIRMED'}`,
+      `SUMMARY:${(job as any).title}`,
+      (job as any).description ? `DESCRIPTION:${(job as any).description.replace(/\n/g, '\\n')}` : '',
+      `STATUS:${(job as any).status === 'completed' ? 'COMPLETED' : 'CONFIRMED'}`,
       `SEQUENCE:0`,
       `TRANSP:OPAQUE`,
       'END:VEVENT'

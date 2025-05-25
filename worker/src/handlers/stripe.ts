@@ -1,5 +1,5 @@
 // worker/src/handlers/stripe.ts - Fixed Stripe handlers
-import { Env } from "@portal/shared";
+import type { Env } from "../env";
 import { getStripe } from "../stripe";
 import { CORS } from "../utils";
 
@@ -131,25 +131,27 @@ export async function handleStripeWebhook(request: Request, env: Env): Promise<R
           
           // Send payment confirmation notification
           try {
-            await env.NOTIFICATION_WORKER.fetch(
-              new Request('https://portal.777.foo/api/notifications/send', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': 'Bearer webhook-internal',
-                },
-                body: JSON.stringify({
-                  type: 'invoice_paid',
-                  userId: (service as any).user_id,
-                  data: {
-                    invoiceId: invoice.id,
-                    amount: (invoice.amount_paid / 100).toFixed(2),
-                    serviceId: (service as any).id
+            if (env.NOTIFICATION_WORKER) {
+              await env.NOTIFICATION_WORKER.fetch(
+                new Request('https://portal.777.foo/api/notifications/send', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer webhook-internal',
                   },
-                  channels: ['email']
+                  body: JSON.stringify({
+                    type: 'invoice_paid',
+                    userId: (service as any).user_id,
+                    data: {
+                      invoiceId: invoice.id,
+                      amount: (invoice.amount_paid / 100).toFixed(2),
+                      serviceId: (service as any).id
+                    },
+                    channels: ['email']
+                  })
                 })
-              })
-            );
+              );
+            }
           } catch (notificationError) {
             console.error('❌ Failed to send payment confirmation:', notificationError);
           }
@@ -169,25 +171,27 @@ export async function handleStripeWebhook(request: Request, env: Env): Promise<R
         
         if (failedService) {
           try {
-            await env.NOTIFICATION_WORKER.fetch(
-              new Request('https://portal.777.foo/api/notifications/send', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': 'Bearer webhook-internal',
-                },
-                body: JSON.stringify({
-                  type: 'payment_failed',
-                  userId: (failedService as any).user_id,
-                  data: {
-                    invoiceId: failedInvoice.id,
-                    amount: (failedInvoice.amount_due / 100).toFixed(2),
-                    serviceId: (failedService as any).id
+            if (env.NOTIFICATION_WORKER) {
+              await env.NOTIFICATION_WORKER.fetch(
+                new Request('https://portal.777.foo/api/notifications/send', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer webhook-internal',
                   },
-                  channels: ['email', 'sms']
+                  body: JSON.stringify({
+                    type: 'payment_failed',
+                    userId: (failedService as any).user_id,
+                    data: {
+                      invoiceId: failedInvoice.id,
+                      amount: (failedInvoice.amount_due / 100).toFixed(2),
+                      serviceId: (failedService as any).id
+                    },
+                    channels: ['email', 'sms']
+                  })
                 })
-              })
-            );
+              );
+            }
           } catch (notificationError) {
             console.error('❌ Failed to send payment failure notification:', notificationError);
           }

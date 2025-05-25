@@ -1,5 +1,5 @@
 // worker/src/handlers/profile.ts
-import { Env } from "@portal/shared";
+import type { Env } from "../env";
 import { CORS, errorResponse } from "../utils";
 
 /**
@@ -91,7 +91,8 @@ export async function handleUpdateProfile(request: Request, env: Env, email: str
     // Also update Stripe customer if available
     if ((userRecord as any).stripe_customer_id && (updateData.name || updateData.phone)) {
       try {
-        const stripe = (await import("../stripe")).getStripe(env);
+        const { getStripe } = await import("../stripe");
+        const stripe = getStripe(env);
         const stripeUpdateData: any = {};
         
         if (updateData.name) stripeUpdateData.name = updateData.name;
