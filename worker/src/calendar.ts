@@ -142,11 +142,12 @@ export async function updateJob(env: Env, jobId: string, updateData: any, custom
 
 // Delete a job
 export async function deleteJob(env: Env, jobId: string, customerId: string): Promise<{ success: boolean }> {
-  const { changes } = await env.DB.prepare(
+  const result = await env.DB.prepare(
     `DELETE FROM jobs WHERE id = ? AND customerId = ?`
   ).bind(jobId, customerId).run();
 
-  if (changes === 0) {
+  // Check if any rows were affected using the meta property
+  if (result.meta.changes === 0) {
     throw new Error("Job not found or you don't have permission to delete it");
   }
 

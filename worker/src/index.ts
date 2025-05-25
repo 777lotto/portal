@@ -301,7 +301,8 @@ app.get('/sms/conversations', requireAuthMiddleware, async (c) => {
       );
 
       const data = await response.json() as any;
-      return c.json(data, response.status);
+      // Fix: Use proper Hono response with proper status code casting
+      return c.json(data, response.ok ? 200 : 500);
     } else {
       return c.json({ error: "SMS service not available" }, 503);
     }

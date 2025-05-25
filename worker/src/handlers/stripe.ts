@@ -1,6 +1,6 @@
 // worker/src/handlers/stripe.ts - Fixed with proper imports and types
 import type { Env } from "@portal/shared";
-import { getStripe, findCustomerByIdentifier } from "../stripe";
+import { getStripe, findCustomerByIdentifier, getOrCreateCustomer } from "../stripe";
 import { CORS } from "../utils";
 
 interface StripeCustomerCheckRequest {
@@ -84,7 +84,6 @@ export async function handleStripeCustomerCreate(request: Request, env: Env): Pr
       throw new Error("Email and name are required");
     }
 
-    import { getOrCreateCustomer } from "../stripe";
     const customerId = await getOrCreateCustomer(env, email, name, phone);
     
     return new Response(JSON.stringify({
