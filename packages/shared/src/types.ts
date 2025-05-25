@@ -1,7 +1,4 @@
-// Fix all TypeScript compilation issues
-
-// 1. First, update packages/shared/src/types.ts
-// packages/shared/src/types.ts - Complete shared types with proper exports
+// packages/shared/src/types.ts - Updated with proper Stripe integration
 
 // Base environment interface - this is the minimal shared structure
 export interface BaseEnv {
@@ -73,13 +70,93 @@ export interface D1ExecResult {
   duration: number;
 }
 
-// User-related types
+// User-related types with proper Stripe integration
 export interface User {
   id: number | string;
   email: string;
   name: string;
   phone?: string;
   stripe_customer_id?: string;
+  password_hash?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Service types with Stripe integration
+export interface Service {
+  id: number;
+  user_id: number;
+  service_date: string;
+  status: 'upcoming' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'invoiced' | 'paid';
+  notes?: string;
+  price_cents?: number;
+  stripe_invoice_id?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Stripe-specific types for better type safety
+export interface StripeCustomerData {
+  id: string;
+  email?: string | null;
+  name?: string | null;
+  phone?: string | null;
+  created: number;
+  metadata?: Record<string, string>;
+}
+
+export interface StripeInvoiceData {
+  id: string;
+  customer: string;
+  amount_due: number;
+  amount_paid: number;
+  currency: string;
+  status: 'draft' | 'open' | 'paid' | 'uncollectible' | 'void';
+  hosted_invoice_url?: string | null;
+  created: number;
+  due_date?: number | null;
+}
+
+// API request/response types
+export interface StripeCustomerCheckRequest {
+  email?: string;
+  phone?: string;
+}
+
+export interface StripeCustomerCheckResponse {
+  exists: boolean;
+  customerId?: string;
+  email?: string;
+  name?: string;
+  phone?: string;
+}
+
+export interface StripeCustomerCreateRequest {
+  email: string;
+  name: string;
+  phone?: string;
+}
+
+export interface StripeCustomerCreateResponse {
+  success: boolean;
+  customerId: string;
+  message: string;
+}
+
+// Invoice creation types
+export interface InvoiceCreateRequest {
+  amount_cents: number;
+  description: string;
+  due_days?: number;
+}
+
+export interface InvoiceCreateResponse {
+  id: string;
+  status: string;
+  amount_due: number;
+  hosted_invoice_url?: string;
+  due_date: string;
+  service_id: number;
 }
 
 // SMS types
@@ -118,17 +195,6 @@ export interface EmailParams {
   replyTo?: string;
 }
 
-// Service types
-export interface Service {
-  id: number;
-  user_id: number;
-  service_date: string;
-  status: string;
-  notes?: string;
-  price_cents?: number;
-  stripe_invoice_id?: string;
-}
-
 export interface NotificationRecord {
   id: number;
   user_id: number | string;
@@ -143,6 +209,7 @@ export interface NotificationRecord {
 export interface ApiResponse<T = any> {
   data?: T;
   error?: string;
+  success?: boolean;
 }
 
 export interface ApiError {
@@ -155,4 +222,40 @@ export interface ApiError {
 export interface AuthPayload {
   email: string;
   name?: string;
+  phone?: string;
+}
+
+export interface LoginRequest {
+  identifier: string; // email or phone
+  password: string;
+  turnstileToken?: string;
+}
+
+export interface SignupRequest {
+  email?: string;
+  phone?: string;
+  name: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: {
+    id: number;
+    email?: string;
+    name: string;
+    phone?: string;
+  };
+}
+
+// Portal/Dashboard types
+export interface PortalSession {
+  url: string;
+}
+
+// Common database record interface
+export interface DatabaseRecord {
+  id: number;
+  created_at?: string;
+  updated_at?: string;
 }
