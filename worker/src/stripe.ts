@@ -78,6 +78,11 @@ export async function createAndSendInvoice(
     auto_advance: true, // Automatically finalize and send
   });
 
+  // Ensure invoice.id exists before finalizing
+  if (!invoice.id) {
+    throw new Error("Failed to create invoice - no ID returned");
+  }
+
   // Finalize the invoice
   const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoice.id);
   

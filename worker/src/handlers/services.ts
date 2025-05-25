@@ -1,5 +1,5 @@
 // worker/src/handlers/services.ts - Fixed with proper type assertions
-import type { Env } from "../env";
+import type { Env } from "@portal/shared";
 import { CORS, errorResponse } from "../utils";
 import { getStripe } from "../stripe";
 
@@ -169,6 +169,11 @@ export async function handleCreateInvoice(request: Request, env: Env, email: str
           service_id: serviceId.toString()
         }
       });
+      
+      // Ensure invoice.id exists before finalizing
+      if (!invoice.id) {
+        throw new Error("Failed to create invoice");
+      }
       
       const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoice.id);
 

@@ -96,7 +96,9 @@ export async function handleCalendarFeed(request: Request, url: URL, env: Env): 
       headers: {
         "Content-Type": "text/calendar",
         "Content-Disposition": "attachment; filename=\"calendar.ics\"",
-        ...CORS,
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
       },
     });
   } catch (err: any) {

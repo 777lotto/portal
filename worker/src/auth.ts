@@ -30,7 +30,7 @@ export async function validateTurnstileToken(token: string, ip: string, env: Env
       body: formData
     });
 
-    const outcome = await result.json();
+    const outcome = await result.json() as { success: boolean };
     return outcome.success === true;
   } catch (error) {
     console.error('Turnstile validation error:', error);

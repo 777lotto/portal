@@ -84,7 +84,7 @@ export async function handleStripeCustomerCreate(request: Request, env: Env): Pr
       throw new Error("Email and name are required");
     }
 
-    const { getOrCreateCustomer } = await import('../stripe');
+    import { getOrCreateCustomer } from "../stripe";
     const customerId = await getOrCreateCustomer(env, email, name, phone);
     
     return new Response(JSON.stringify({

@@ -8,8 +8,17 @@ import { handleStripeCustomerCheck, handleStripeCustomerCreate, handleStripeWebh
 import { handleGetProfile, handleUpdateProfile } from './handlers/profile';
 import { handleListServices, handleGetService, handleCreateInvoice } from './handlers/services';
 import { handleGetJobs, handleGetJobById, handleCalendarFeed } from './handlers/jobs';
+import { getOrCreateCustomer } from './stripe';
 
-const app = new Hono<{ Bindings: Env }>();
+// Define proper context type for Hono
+type Context = {
+  Bindings: Env;
+  Variables: {
+    userEmail: string;
+  };
+};
+
+const app = new Hono<Context>();
 
 // Add CORS middleware with proper configuration
 app.use('/*', cors({
@@ -101,8 +110,6 @@ app.post('/stripe/create-customer', async (c) => {
     const body = await c.req.json();
     console.log('💳 Stripe create customer body:', body);
     
-    // Import and use the stripe helper
-    const { getOrCreateCustomer } = await import('./stripe');
     const customerId = await getOrCreateCustomer(c.env, body.email, body.name);
     
     return c.json({
@@ -143,7 +150,7 @@ const requireAuthMiddleware = async (c: any, next: any) => {
 app.get('/profile', requireAuthMiddleware, async (c) => {
   console.log('✅ Profile GET endpoint hit');
   try {
-    const email = c.get('userEmail');
+    const email = c.get('userEmail') as string;
     return await handleGetProfile(c.req.raw, c.env, email);
   } catch (error: any) {
     console.error('❌ Profile GET error:', error);
@@ -154,7 +161,7 @@ app.get('/profile', requireAuthMiddleware, async (c) => {
 app.put('/profile', requireAuthMiddleware, async (c) => {
   console.log('✅ Profile PUT endpoint hit');
   try {
-    const email = c.get('userEmail');
+    const email = c.get('userEmail') as string;
     return await handleUpdateProfile(c.req.raw, c.env, email);
   } catch (error: any) {
     console.error('❌ Profile PUT error:', error);
@@ -166,7 +173,7 @@ app.put('/profile', requireAuthMiddleware, async (c) => {
 app.get('/services', requireAuthMiddleware, async (c) => {
   console.log('✅ Services GET endpoint hit');
   try {
-    const email = c.get('userEmail');
+    const email = c.get('userEmail') as string;
     return await handleListServices(c.req.raw, c.env, email);
   } catch (error: any) {
     console.error('❌ Services GET error:', error);
@@ -177,7 +184,7 @@ app.get('/services', requireAuthMiddleware, async (c) => {
 app.get('/services/:id', requireAuthMiddleware, async (c) => {
   console.log('✅ Service detail GET endpoint hit');
   try {
-    const email = c.get('userEmail');
+    const email = c.get('userEmail') as string;
     const id = parseInt(c.req.param('id'));
     if (isNaN(id)) {
       return c.json({ error: 'Invalid service ID' }, 400);
@@ -192,7 +199,7 @@ app.get('/services/:id', requireAuthMiddleware, async (c) => {
 app.post('/services/:id/invoice', requireAuthMiddleware, async (c) => {
   console.log('✅ Service invoice POST endpoint hit');
   try {
-    const email = c.get('userEmail');
+    const email = c.get('userEmail') as string;
     const serviceId = parseInt(c.req.param('id'));
     if (isNaN(serviceId)) {
       return c.json({ error: 'Invalid service ID' }, 400);
@@ -241,7 +248,7 @@ app.get('/calendar-feed', async (c) => {
 app.post('/portal', requireAuthMiddleware, async (c) => {
   console.log('✅ Portal POST endpoint hit');
   try {
-    const email = c.get('userEmail');
+    const email = c.get('userEmail') as string;
     
     // Get user's Stripe customer ID
     const userRow = await c.env.DB.prepare(
@@ -271,7 +278,7 @@ app.post('/portal', requireAuthMiddleware, async (c) => {
 app.get('/sms/conversations', requireAuthMiddleware, async (c) => {
   console.log('✅ SMS conversations GET endpoint hit');
   try {
-    const email = c.get('userEmail');
+    const email = c.get('userEmail') as string;
     
     // Get user ID
     const userRow = await c.env.DB.prepare(
@@ -293,7 +300,7 @@ app.get('/sms/conversations', requireAuthMiddleware, async (c) => {
         })
       );
 
-      const data = await response.json();
+      const data = await response.json() as any;
       return c.json(data, response.status);
     } else {
       return c.json({ error: "SMS service not available" }, 503);

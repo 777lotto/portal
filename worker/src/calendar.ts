@@ -1,5 +1,5 @@
 // worker/src/calendar.ts - Fixed imports and types
-import type { Env } from "./env";
+import type { Env } from "@portal/shared";
 import { v4 as uuidv4 } from 'uuid';
 import { JobSchema } from "@portal/shared/calendar";
 

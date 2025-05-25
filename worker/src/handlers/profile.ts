@@ -1,6 +1,7 @@
 // worker/src/handlers/profile.ts - Fixed with proper type assertions
-import type { Env } from "../env";
+import type { Env } from "@portal/shared";
 import { CORS, errorResponse } from "../utils";
+import { getStripe } from "../stripe";
 
 interface UserRecord {
   id: number;
@@ -99,7 +100,6 @@ export async function handleUpdateProfile(request: Request, env: Env, email: str
     // Also update Stripe customer if available
     if (userRecord.stripe_customer_id && (updateData.name || updateData.phone)) {
       try {
-        const { getStripe } = await import("../stripe");
         const stripe = getStripe(env);
         const stripeUpdateData: any = {};
         
