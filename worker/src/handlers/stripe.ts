@@ -1,7 +1,26 @@
-// worker/src/handlers/stripe.ts - Fixed Stripe handlers
-import type { Env } from "../env";
+// worker/src/handlers/stripe.ts - Fixed with proper imports and types
+import type { Env } from "@portal/shared";
 import { getStripe } from "../stripe";
 import { CORS } from "../utils";
+
+interface StripeCustomer {
+  id: string;
+  email?: string | null;
+  name?: string | null;
+  phone?: string | null;
+}
+
+interface ServiceRecord {
+  id: number;
+  user_id: number;
+  stripe_invoice_id?: string;
+}
+
+interface UserRecord {
+  id: number;
+  user_id: number;
+  email: string;
+}
 
 export async function handleStripeCustomerCheck(request: Request, env: Env): Promise<Response> {
   try {
@@ -20,7 +39,7 @@ export async function handleStripeCustomerCheck(request: Request, env: Env): Pro
     const stripe = getStripe(env);
     
     // Search for existing customer by email
-    let existingCustomer = null;
+    let existingCustomer: StripeCustomer | null = null;
     if (email) {
       console.log(`🔍 Searching Stripe for customer with email: ${email}`);
       const customers = await stripe.customers.list({
@@ -29,7 +48,7 @@ export async function handleStripeCustomerCheck(request: Request, env: Env): Pro
       });
       
       if (customers.data.length > 0) {
-        existingCustomer = customers.data[0];
+        existingCustomer = customers.data[0] as StripeCustomer;
         console.log('✅ Found existing Stripe customer:', existingCustomer.id);
       }
     }
@@ -42,7 +61,7 @@ export async function handleStripeCustomerCheck(request: Request, env: Env): Pro
       });
       
       if (customers.data.length > 0) {
-        existingCustomer = customers.data[0];
+        existingCustomer = customers.data[0] as StripeCustomer;
         console.log('✅ Found existing Stripe customer by phone:', existingCustomer.id);
       }
     }
@@ -119,7 +138,7 @@ export async function handleStripeWebhook(request: Request, env: Env): Promise<R
           `SELECT s.*, u.email FROM services s 
            JOIN users u ON u.id = s.user_id 
            WHERE s.stripe_invoice_id = ?`
-        ).bind(invoice.id).first();
+        ).bind(invoice.id).first() as (ServiceRecord & UserRecord) | null;
         
         if (service) {
           // Update service status to paid
@@ -141,11 +160,11 @@ export async function handleStripeWebhook(request: Request, env: Env): Promise<R
                   },
                   body: JSON.stringify({
                     type: 'invoice_paid',
-                    userId: (service as any).user_id,
+                    userId: service.user_id,
                     data: {
                       invoiceId: invoice.id,
                       amount: (invoice.amount_paid / 100).toFixed(2),
-                      serviceId: (service as any).id
+                      serviceId: service.id
                     },
                     channels: ['email']
                   })
@@ -167,7 +186,7 @@ export async function handleStripeWebhook(request: Request, env: Env): Promise<R
           `SELECT s.*, u.email FROM services s 
            JOIN users u ON u.id = s.user_id 
            WHERE s.stripe_invoice_id = ?`
-        ).bind(failedInvoice.id).first();
+        ).bind(failedInvoice.id).first() as (ServiceRecord & UserRecord) | null;
         
         if (failedService) {
           try {
@@ -181,11 +200,11 @@ export async function handleStripeWebhook(request: Request, env: Env): Promise<R
                   },
                   body: JSON.stringify({
                     type: 'payment_failed',
-                    userId: (failedService as any).user_id,
+                    userId: failedService.user_id,
                     data: {
                       invoiceId: failedInvoice.id,
                       amount: (failedInvoice.amount_due / 100).toFixed(2),
-                      serviceId: (failedService as any).id
+                      serviceId: failedService.id
                     },
                     channels: ['email', 'sms']
                   })

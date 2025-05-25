@@ -1,7 +1,7 @@
 // worker/src/index.ts - Fixed TypeScript imports and types
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import type { Env } from './env';
+import type { Env } from '@portal/shared';
 import { requireAuth } from './auth';
 import { handleSignupCheck, handleSignup, handleLogin } from './handlers/auth';
 import { handleStripeCustomerCheck, handleStripeWebhook } from './handlers/stripe';

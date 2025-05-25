@@ -1,5 +1,5 @@
-// worker/src/handlers/auth.ts - Fixed to work with the API
-import type { Env } from "../env";
+// worker/src/handlers/auth.ts - Fixed imports and types
+import type { Env } from "@portal/shared";
 import { 
   normalizeEmail, 
   validateTurnstileToken, 
@@ -9,6 +9,15 @@ import {
 } from "../auth";
 import { getOrCreateCustomer } from "../stripe";
 import { CORS } from "../utils";
+
+interface UserRecord {
+  id: number;
+  email?: string;
+  name: string;
+  phone?: string;
+  password_hash?: string;
+  stripe_customer_id?: string;
+}
 
 // Handle signup check
 export async function handleSignupCheck(request: Request, env: Env): Promise<Response> {
@@ -42,7 +51,7 @@ export async function handleSignupCheck(request: Request, env: Env): Promise<Res
     }
 
     // lookup existing user by email or phone
-    let existingUser = null;
+    let existingUser: UserRecord | null = null;
     
     if (email) {
       console.log(`🔍 Checking for existing user with email: ${email}`);
@@ -50,7 +59,7 @@ export async function handleSignupCheck(request: Request, env: Env): Promise<Res
         `SELECT password_hash, name, phone
            FROM users
           WHERE lower(email) = ?`
-      ).bind(email).first();
+      ).bind(email).first() as UserRecord | null;
     }
     
     // If not found by email, try phone
@@ -60,19 +69,19 @@ export async function handleSignupCheck(request: Request, env: Env): Promise<Res
         `SELECT password_hash, name, email
            FROM users
           WHERE phone = ?`
-      ).bind(phone).first();
+      ).bind(phone).first() as UserRecord | null;
     }
 
     if (existingUser) {
       console.log('👤 Found existing user:', existingUser);
-      if (!(existingUser as any).password_hash) {
+      if (!existingUser.password_hash) {
         // imported user, no password yet
         return new Response(
           JSON.stringify({ 
             status: "existing", 
-            name: (existingUser as any).name,
-            email: (existingUser as any).email || email,
-            phone: (existingUser as any).phone || phone 
+            name: existingUser.name,
+            email: existingUser.email || email,
+            phone: existingUser.phone || phone 
           }),
           { headers: CORS }
         );
@@ -131,16 +140,16 @@ export async function handleSignup(request: Request, env: Env): Promise<Response
     console.log('🔒 Password hashed');
 
     // Check if user already exists
-    let existingUser = null;
+    let existingUser: UserRecord | null = null;
     if (email) {
       existingUser = await env.DB.prepare(
         `SELECT id FROM users WHERE lower(email) = ?`
-      ).bind(email).first();
+      ).bind(email).first() as UserRecord | null;
     }
     if (!existingUser && phone) {
       existingUser = await env.DB.prepare(
         `SELECT id FROM users WHERE phone = ?`
-      ).bind(phone).first();
+      ).bind(phone).first() as UserRecord | null;
     }
 
     if (existingUser) {
@@ -178,15 +187,15 @@ export async function handleSignup(request: Request, env: Env): Promise<Response
     }
 
     // Get the complete user record for JWT
-    let user: any = {};
+    let user: UserRecord | null = null;
     if (email) {
       user = await env.DB.prepare(
         `SELECT id, email, name, phone FROM users WHERE email = ?`
-      ).bind(email).first();
+      ).bind(email).first() as UserRecord | null;
     } else {
       user = await env.DB.prepare(
         `SELECT id, email, name, phone FROM users WHERE phone = ?`
-      ).bind(phone).first();
+      ).bind(phone).first() as UserRecord | null;
     }
 
     if (!user) {
@@ -245,18 +254,18 @@ export async function handleLogin(request: Request, env: Env): Promise<Response>
 
     // Check if identifier is email or phone
     const isEmail = identifier.includes('@');
-    let user: any;
+    let user: UserRecord | null;
 
     if (isEmail) {
       console.log(`🔍 Looking up user by email: ${identifier}`);
       user = await env.DB.prepare(
         `SELECT id, email, name, phone, password_hash FROM users WHERE lower(email) = ?`
-      ).bind(identifier.toLowerCase()).first();
+      ).bind(identifier.toLowerCase()).first() as UserRecord | null;
     } else {
       console.log(`🔍 Looking up user by phone: ${identifier}`);
       user = await env.DB.prepare(
         `SELECT id, email, name, phone, password_hash FROM users WHERE phone = ?`
-      ).bind(identifier).first();
+      ).bind(identifier).first() as UserRecord | null;
     }
 
     if (!user) {

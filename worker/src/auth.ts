@@ -1,7 +1,7 @@
 // worker/src/auth.ts - Fixed imports and types
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
-import type { Env } from "./env";
+import type { Env } from "@portal/shared";
 
 // Helper to normalize email
 export function normalizeEmail(raw: string): string {

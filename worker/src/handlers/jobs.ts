@@ -1,8 +1,13 @@
-// worker/src/handlers/jobs.ts
-import type { Env } from "../env";
+// worker/src/handlers/jobs.ts - Fixed with proper imports and types
+import type { Env } from "@portal/shared";
 import { requireAuth } from "../auth";
-import { getCustomerJobs, getJob, generateCalendarFeed } from "../calendar";
+import { getCustomerJobs, generateCalendarFeed } from "../calendar";
 import { CORS, errorResponse } from "../utils";
+
+interface UserRecord {
+  id: number;
+  stripe_customer_id?: string;
+}
 
 export async function handleGetJobs(request: Request, env: Env): Promise<Response> {
   try {
@@ -14,13 +19,13 @@ export async function handleGetJobs(request: Request, env: Env): Promise<Respons
       `SELECT id, stripe_customer_id FROM users WHERE lower(email) = ?`
     )
       .bind(email.toLowerCase())
-      .first();
+      .first() as UserRecord | null;
 
     if (!userRow) throw new Error("User not found");
-    if (!(userRow as any).stripe_customer_id) throw new Error("Customer not found");
+    if (!userRow.stripe_customer_id) throw new Error("Customer not found");
 
     // Get jobs for this customer
-    const jobs = await getCustomerJobs(env, (userRow as any).stripe_customer_id);
+    const jobs = await getCustomerJobs(env, userRow.stripe_customer_id);
 
     return new Response(JSON.stringify(jobs), {
       status: 200,
@@ -41,15 +46,15 @@ export async function handleGetJobById(request: Request, url: URL, env: Env): Pr
       `SELECT id, stripe_customer_id FROM users WHERE lower(email) = ?`
     )
       .bind(email.toLowerCase())
-      .first();
+      .first() as UserRecord | null;
 
-    if (!userRow || !(userRow as any).stripe_customer_id) throw new Error("User not found");
+    if (!userRow || !userRow.stripe_customer_id) throw new Error("User not found");
 
     // Check if job belongs to customer
     const job = await env.DB.prepare(
       `SELECT * FROM jobs WHERE id = ? AND customerId = ?`
     )
-      .bind(jobId, (userRow as any).stripe_customer_id)
+      .bind(jobId, userRow.stripe_customer_id)
       .first();
 
     if (!job) throw new Error("Job not found");
@@ -69,12 +74,29 @@ export async function handleCalendarFeed(request: Request, url: URL, env: Env): 
     const token = url.searchParams.get("token");
     if (!token) throw new Error("Missing token");
 
-    // For now, return a simple response - you'll need to implement calendar feed generation
-    return new Response("BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR", {
+    // Verify the token to get user email
+    const email = await requireAuth(request, env);
+
+    // Get user's customer ID
+    const userRow = await env.DB.prepare(
+      `SELECT stripe_customer_id FROM users WHERE lower(email) = ?`
+    )
+      .bind(email.toLowerCase())
+      .first() as UserRecord | null;
+
+    if (!userRow || !userRow.stripe_customer_id) {
+      throw new Error("Customer not found");
+    }
+
+    // Generate calendar feed for this customer
+    const calendarContent = await generateCalendarFeed(env, userRow.stripe_customer_id);
+
+    return new Response(calendarContent, {
       status: 200,
       headers: {
         "Content-Type": "text/calendar",
         "Content-Disposition": "attachment; filename=\"calendar.ics\"",
+        ...CORS,
       },
     });
   } catch (err: any) {

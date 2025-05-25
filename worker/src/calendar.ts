@@ -3,17 +3,37 @@ import type { Env } from "./env";
 import { v4 as uuidv4 } from 'uuid';
 import { JobSchema } from "@portal/shared/calendar";
 
+interface UserRecord {
+  id: number;
+  stripe_customer_id?: string;
+}
+
+interface JobRecord {
+  id: string;
+  customerId: string;
+  title: string;
+  description?: string;
+  start: string;
+  end: string;
+  recurrence: string;
+  rrule?: string;
+  status: string;
+  crewId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Get jobs for a specific customer
-export async function getCustomerJobs(env: Env, customerId: string) {
+export async function getCustomerJobs(env: Env, customerId: string): Promise<JobRecord[]> {
   const { results } = await env.DB.prepare(
     `SELECT * FROM jobs WHERE customerId = ? ORDER BY start DESC`
   ).bind(customerId).all();
 
-  return results;
+  return (results || []) as JobRecord[];
 }
 
 // Get a specific job by ID
-export async function getJob(env: Env, jobId: string, customerId?: string) {
+export async function getJob(env: Env, jobId: string, customerId?: string): Promise<JobRecord> {
   const query = customerId
     ? `SELECT * FROM jobs WHERE id = ? AND customerId = ?`
     : `SELECT * FROM jobs WHERE id = ?`;
@@ -24,7 +44,7 @@ export async function getJob(env: Env, jobId: string, customerId?: string) {
 
   const job = await env.DB.prepare(query)
     .bind(...params)
-    .first();
+    .first() as JobRecord | null;
 
   if (!job) {
     throw new Error("Job not found");
@@ -34,7 +54,7 @@ export async function getJob(env: Env, jobId: string, customerId?: string) {
 }
 
 // Create a new job
-export async function createJob(env: Env, jobData: any, customerId: string) {
+export async function createJob(env: Env, jobData: any, customerId: string): Promise<JobRecord> {
   // Parse and validate job data
   const parsedJob = JobSchema.parse({
     ...jobData,
@@ -67,11 +87,11 @@ export async function createJob(env: Env, jobData: any, customerId: string) {
     parsedJob.updatedAt
   ).run();
 
-  return parsedJob;
+  return parsedJob as JobRecord;
 }
 
 // Update an existing job
-export async function updateJob(env: Env, jobId: string, updateData: any, customerId: string) {
+export async function updateJob(env: Env, jobId: string, updateData: any, customerId: string): Promise<JobRecord> {
   // First check if job exists and belongs to customer
   const existingJob = await getJob(env, jobId, customerId);
   if (!existingJob) {
@@ -117,11 +137,11 @@ export async function updateJob(env: Env, jobId: string, updateData: any, custom
     customerId
   ).run();
 
-  return parsedJob;
+  return parsedJob as JobRecord;
 }
 
 // Delete a job
-export async function deleteJob(env: Env, jobId: string, customerId: string) {
+export async function deleteJob(env: Env, jobId: string, customerId: string): Promise<{ success: boolean }> {
   const { changes } = await env.DB.prepare(
     `DELETE FROM jobs WHERE id = ? AND customerId = ?`
   ).bind(jobId, customerId).run();
@@ -134,7 +154,7 @@ export async function deleteJob(env: Env, jobId: string, customerId: string) {
 }
 
 // Generate an iCal feed for a customer's jobs
-export async function generateCalendarFeed(env: Env, customerId: string) {
+export async function generateCalendarFeed(env: Env, customerId: string): Promise<string> {
   // Get all active jobs for the customer
   const jobs = await getCustomerJobs(env, customerId);
 
@@ -151,17 +171,17 @@ export async function generateCalendarFeed(env: Env, customerId: string) {
 
   // Add each job as an event
   for (const job of jobs) {
-    if ((job as any).status === 'cancelled') continue; // Skip cancelled jobs
+    if (job.status === 'cancelled') continue; // Skip cancelled jobs
 
-    const startDate = new Date((job as any).start);
-    const endDate = new Date((job as any).end);
+    const startDate = new Date(job.start);
+    const endDate = new Date(job.end);
 
     // Format dates for iCal (YYYYMMDDTHHMMSSZ)
     const formatDate = (date: Date) => {
       return date.toISOString().replace(/[-:]/g, '').replace(/\.\d+/g, '');
     };
 
-    const eventId = (job as any).id.replace(/-/g, '');
+    const eventId = job.id.replace(/-/g, '');
 
     icalContent.push(
       'BEGIN:VEVENT',
@@ -169,9 +189,9 @@ export async function generateCalendarFeed(env: Env, customerId: string) {
       `DTSTAMP:${formatDate(new Date())}`,
       `DTSTART:${formatDate(startDate)}`,
       `DTEND:${formatDate(endDate)}`,
-      `SUMMARY:${(job as any).title}`,
-      (job as any).description ? `DESCRIPTION:${(job as any).description.replace(/\n/g, '\\n')}` : '',
-      `STATUS:${(job as any).status === 'completed' ? 'COMPLETED' : 'CONFIRMED'}`,
+      `SUMMARY:${job.title}`,
+      job.description ? `DESCRIPTION:${job.description.replace(/\n/g, '\\n')}` : '',
+      `STATUS:${job.status === 'completed' ? 'COMPLETED' : 'CONFIRMED'}`,
       `SEQUENCE:0`,
       `TRANSP:OPAQUE`,
       'END:VEVENT'

@@ -1,4 +1,7 @@
-// packages/shared/src/types.ts - Complete shared types
+// Fix all TypeScript compilation issues
+
+// 1. First, update packages/shared/src/types.ts
+// packages/shared/src/types.ts - Complete shared types with proper exports
 
 // Base environment interface - this is the minimal shared structure
 export interface BaseEnv {
@@ -34,7 +37,7 @@ export interface Env extends BaseEnv {
   API_VERSION?: string;
 }
 
-// D1 database types
+// D1 database types - properly exported
 export interface D1Database {
   prepare(query: string): D1PreparedStatement;
   dump(): Promise<ArrayBuffer>;
@@ -44,7 +47,7 @@ export interface D1Database {
 
 export interface D1PreparedStatement {
   bind(...values: any[]): D1PreparedStatement;
-  first<T = unknown>(colName?: string): Promise<T>;
+  first<T = unknown>(colName?: string): Promise<T | null>;
   run<T = unknown>(): Promise<D1Result<T>>;
   all<T = unknown>(): Promise<D1Result<T>>;
   raw<T = unknown>(): Promise<T[]>;

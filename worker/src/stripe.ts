@@ -1,4 +1,4 @@
-// worker/src/stripe.ts - Fixed with correct Stripe API version
+// worker/src/stripe.ts - Fixed with correct Stripe API version and proper types
 import Stripe from "stripe";
 import type { Env } from "./env";
 
@@ -8,7 +8,7 @@ let stripeInstance: Stripe | null = null;
 export function getStripe(env: Env): Stripe {
   if (!stripeInstance) {
     stripeInstance = new Stripe(env.STRIPE_SECRET_KEY, {
-      apiVersion: "2025-04-30.basil", // Latest version from Stripe dashboard
+      apiVersion: '2022-11-15',
     });
   }
   return stripeInstance;
@@ -21,18 +21,20 @@ export async function getOrCreateCustomer(
 ): Promise<string> {
   const stripe = getStripe(env);
 
-  // check if user already has a stripe_customer_id
+  // Check if user already has a stripe_customer_id
   const result = await env.DB.prepare(
     `SELECT stripe_customer_id FROM users WHERE email = ?`
   ).bind(email).first();
 
-  const stripe_customer_id = result?.stripe_customer_id;
-  if (stripe_customer_id) return stripe_customer_id;
+  const existingRecord = result as { stripe_customer_id?: string } | null;
+  if (existingRecord?.stripe_customer_id) {
+    return existingRecord.stripe_customer_id;
+  }
 
-  // create new Stripe customer
+  // Create new Stripe customer
   const customer = await stripe.customers.create({ email, name });
 
-  // save to D1
+  // Save to D1
   await env.DB.prepare(
     `UPDATE users SET stripe_customer_id = ? WHERE email = ?`
   ).bind(customer.id, email).run();
@@ -61,6 +63,6 @@ export async function createAndSendInvoice(
     days_until_due: 0,
   });
 
-  await stripe.invoices.finalizeInvoice(invoice.id);
-  return invoice;
+  const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoice.id);
+  return finalizedInvoice;
 }

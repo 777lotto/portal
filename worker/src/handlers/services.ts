@@ -1,7 +1,25 @@
-// worker/src/handlers/services.ts
+// worker/src/handlers/services.ts - Fixed with proper type assertions
 import type { Env } from "../env";
 import { CORS, errorResponse } from "../utils";
 import { getStripe } from "../stripe";
+
+interface UserRecord {
+  id: number;
+  email?: string;
+  name?: string;
+  phone?: string;
+  stripe_customer_id?: string;
+}
+
+interface ServiceRecord {
+  id: number;
+  user_id: number;
+  service_date: string;
+  status: string;
+  notes?: string;
+  price_cents?: number;
+  stripe_invoice_id?: string;
+}
 
 /**
  * Handle GET /api/services endpoint
@@ -16,7 +34,7 @@ export async function handleListServices(request: Request, env: Env, email: stri
        WHERE lower(email) = ?`
     )
       .bind(email.toLowerCase())
-      .first();
+      .first() as UserRecord | null;
     
     if (!userRow) throw new Error("User not found");
 
@@ -27,7 +45,7 @@ export async function handleListServices(request: Request, env: Env, email: stri
        WHERE user_id = ?
        ORDER BY service_date DESC`
     )
-      .bind((userRow as any).id)
+      .bind(userRow.id)
       .all();
 
     return new Response(JSON.stringify(servicesList || []), {
@@ -86,24 +104,17 @@ export async function handleCreateInvoice(request: Request, env: Env, email: str
        WHERE s.id = ? AND lower(u.email) = ?`
     )
       .bind(serviceId, email.toLowerCase())
-      .first();
+      .first() as (ServiceRecord & UserRecord) | null;
 
     if (!service) {
       throw new Error("Service not found");
     }
 
-    const serviceData = service as {
-      id: number;
-      user_id: number;
-      stripe_invoice_id?: string;
-      stripe_customer_id?: string;
-    };
-
     // Check if there's already an invoice
-    if (serviceData.stripe_invoice_id) {
+    if (service.stripe_invoice_id) {
       return new Response(JSON.stringify({ 
         error: "Invoice already exists for this service",
-        invoice_id: serviceData.stripe_invoice_id
+        invoice_id: service.stripe_invoice_id
       }), {
         status: 400,
         headers: CORS,
@@ -111,7 +122,7 @@ export async function handleCreateInvoice(request: Request, env: Env, email: str
     }
 
     // Check if customer has a Stripe ID
-    if (!serviceData.stripe_customer_id) {
+    if (!service.stripe_customer_id) {
       return new Response(JSON.stringify({ 
         error: "Customer does not have a Stripe account" 
       }), {
@@ -140,7 +151,7 @@ export async function handleCreateInvoice(request: Request, env: Env, email: str
       
       // First create an invoice item
       await stripe.invoiceItems.create({
-        customer: serviceData.stripe_customer_id,
+        customer: service.stripe_customer_id,
         amount: invoiceData.amount_cents,
         currency: "usd",
         description: invoiceData.description,
@@ -151,7 +162,7 @@ export async function handleCreateInvoice(request: Request, env: Env, email: str
       
       // Then create and finalize the invoice
       const invoice = await stripe.invoices.create({
-        customer: serviceData.stripe_customer_id,
+        customer: service.stripe_customer_id,
         collection_method: "send_invoice",
         days_until_due: daysUntilDue,
         metadata: {
@@ -185,7 +196,7 @@ export async function handleCreateInvoice(request: Request, env: Env, email: str
               },
               body: JSON.stringify({
                 type: 'invoice_created',
-                userId: serviceData.user_id,
+                userId: service.user_id,
                 data: {
                   invoiceId: invoice.id,
                   amount: (invoiceData.amount_cents / 100).toFixed(2),

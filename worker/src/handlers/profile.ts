@@ -1,6 +1,14 @@
-// worker/src/handlers/profile.ts
+// worker/src/handlers/profile.ts - Fixed with proper type assertions
 import type { Env } from "../env";
 import { CORS, errorResponse } from "../utils";
+
+interface UserRecord {
+  id: number;
+  email: string;
+  name: string;
+  phone?: string;
+  stripe_customer_id?: string;
+}
 
 /**
  * Handle GET /api/profile endpoint
@@ -45,7 +53,7 @@ export async function handleUpdateProfile(request: Request, env: Env, email: str
        WHERE lower(email) = ?`
     )
       .bind(email.toLowerCase())
-      .first();
+      .first() as UserRecord | null;
 
     if (!userRecord) {
       throw new Error("User not found");
@@ -79,17 +87,17 @@ export async function handleUpdateProfile(request: Request, env: Env, email: str
     }
 
     // Add the user ID for the WHERE clause
-    values.push((userRecord as any).id);
+    values.push(userRecord.id);
 
     // Update the user record
-    const result = await env.DB.prepare(
+    await env.DB.prepare(
       `UPDATE users
        SET ${fields.join(", ")}
        WHERE id = ?`
     ).bind(...values).run();
 
     // Also update Stripe customer if available
-    if ((userRecord as any).stripe_customer_id && (updateData.name || updateData.phone)) {
+    if (userRecord.stripe_customer_id && (updateData.name || updateData.phone)) {
       try {
         const { getStripe } = await import("../stripe");
         const stripe = getStripe(env);
@@ -98,7 +106,7 @@ export async function handleUpdateProfile(request: Request, env: Env, email: str
         if (updateData.name) stripeUpdateData.name = updateData.name;
         if (updateData.phone) stripeUpdateData.phone = updateData.phone;
         
-        await stripe.customers.update((userRecord as any).stripe_customer_id, stripeUpdateData);
+        await stripe.customers.update(userRecord.stripe_customer_id, stripeUpdateData);
       } catch (stripeError) {
         console.error("Failed to update Stripe customer:", stripeError);
         // We don't want to fail the entire request if just the Stripe update fails
@@ -110,7 +118,7 @@ export async function handleUpdateProfile(request: Request, env: Env, email: str
       `SELECT id, email, name, phone
        FROM users
        WHERE id = ?`
-    ).bind((userRecord as any).id).first();
+    ).bind(userRecord.id).first();
 
     return new Response(JSON.stringify(updatedUser), {
       status: 200,
