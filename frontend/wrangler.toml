@@ -1,0 +1,11 @@
+
+name = "portal"
+compatibility_date = "2025-04-21"
+pages_build_output_dir = "dist"
+
+[env.production]
+account_id = "67d3a6021370e7b666fff2023b2db359"
+
+[[env.production.services]]
+binding = "API"
+service = "worker"
