@@ -19,7 +19,7 @@ export default function LoginForm({ setToken }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const TURNSTILE_SITE_KEY = "0x4AAAAAABcgNHsEZnTPqdEV";
+  const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "0x4AAAAAABcgNHsEZnTPqdEV";
 
   // Check for email in URL params (from redirects)
   useEffect(() => {

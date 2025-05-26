@@ -20,7 +20,7 @@ export default function SignupForm({ setToken }: Props) {
   const location = useLocation();
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileKey, setTurnstileKey] = useState<string>("initial"); // Key to reset Turnstile
-  const TURNSTILE_SITE_KEY = "0x4AAAAAABcgNHsEZnTPqdEV";
+  const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "0x4AAAAAABcgNHsEZnTPqdEV";
   const [phone, setPhone] = useState("");
 
   // Check for email in URL params (for redirects)

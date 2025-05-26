@@ -1,4 +1,4 @@
-// frontend/src/lib/fetchJson.ts - Fixed API URL handling
+// frontend/src/lib/fetchJson.ts - Fixed TypeScript errors
 const API_BASE = import.meta.env.VITE_API_URL || 'https://portal.777.foo/api';
 
 export async function fetchJson(
@@ -58,7 +58,7 @@ export async function fetchJson(
       const contentType = res.headers.get("content-type") || "";
       
       if (contentType.includes("application/json")) {
-        const errorData = await res.json();
+        const errorData = await res.json() as { error?: string; message?: string };
         errorText = errorData.error || errorData.message || `HTTP ${res.status}`;
         console.error('❌ API Error (JSON):', errorData);
       } else {
