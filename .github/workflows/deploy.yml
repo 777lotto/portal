@@ -30,22 +30,39 @@ jobs:
         run: cd packages/shared && pnpm run build
         
       - name: Apply D1 Migrations
-        run: cd worker && npx wrangler d1 migrations apply gutter_db --env production
+        run: |
+          echo "Applying D1 migrations..."
+          cd worker && npx wrangler d1 migrations apply gutter_db --env production
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         
-      - name: Deploy Main Worker
-        run: cd worker && pnpm run deploy
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          
       - name: Deploy Notification Worker  
-        run: cd notification && pnpm run deploy
+        run: |
+          echo "Deploying notification worker..."
+          cd notification
+          echo "Current directory: $(pwd)"
+          echo "Files in directory: $(ls -la)"
+          pnpm run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           
       - name: Deploy Payment Worker
-        run: cd payment && pnpm run deploy  
+        run: |
+          echo "Deploying payment worker..."
+          cd payment
+          echo "Current directory: $(pwd)"
+          echo "Files in directory: $(ls -la)"
+          pnpm run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        
+      - name: Deploy Main Worker
+        run: |
+          echo "Deploying main worker..."
+          cd worker
+          echo "Current directory: $(pwd)"
+          echo "Files in directory: $(ls -la)"
+          pnpm run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           
