@@ -1,6 +1,4 @@
-// packages/shared/src/types.ts - Updated with proper Stripe integration
-
-// Base environment interface - this is the minimal shared structure
+// Base environment interface - this is the minimal shared structure that all workers extend
 export interface BaseEnv {
   // D1 Database
   DB: D1Database;

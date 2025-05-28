@@ -8,6 +8,7 @@
     "outDir": "dist",
     "composite": true,
     "declaration": true,
+    "noEmit": true,
     "baseUrl": ".",
     "paths": {
       "@portal/shared": ["../packages/shared/src/index.ts"],
