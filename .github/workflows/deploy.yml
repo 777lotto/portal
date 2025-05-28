@@ -44,27 +44,44 @@ jobs:
         run: |
           echo "Deploying notification worker..."
           cd notification
-          # Set secrets if they exist
-          if [ ! -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
+          
+          # Only set secrets if they exist and are not placeholder values
+          if [ ! -z "$AWS_ACCESS_KEY_ID" ] && [ "$AWS_ACCESS_KEY_ID" != "****" ] && [ "$AWS_ACCESS_KEY_ID" != "YOUR_KEY_HERE" ]; then
             echo "Setting AWS_ACCESS_KEY_ID secret..."
-            echo "${{ secrets.AWS_ACCESS_KEY_ID }}" | npx wrangler secret put AWS_ACCESS_KEY_ID
+            echo "$AWS_ACCESS_KEY_ID" | npx wrangler secret put AWS_ACCESS_KEY_ID
+          else
+            echo "Skipping AWS_ACCESS_KEY_ID (not set or is placeholder)"
           fi
-          if [ ! -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+          
+          if [ ! -z "$AWS_SECRET_ACCESS_KEY" ] && [ "$AWS_SECRET_ACCESS_KEY" != "****" ] && [ "$AWS_SECRET_ACCESS_KEY" != "YOUR_SECRET_HERE" ]; then
             echo "Setting AWS_SECRET_ACCESS_KEY secret..."
-            echo "${{ secrets.AWS_SECRET_ACCESS_KEY }}" | npx wrangler secret put AWS_SECRET_ACCESS_KEY
+            echo "$AWS_SECRET_ACCESS_KEY" | npx wrangler secret put AWS_SECRET_ACCESS_KEY  
+          else
+            echo "Skipping AWS_SECRET_ACCESS_KEY (not set or is placeholder)"
           fi
-          if [ ! -z "${{ secrets.VOIPMS_USERNAME }}" ]; then
+          
+          if [ ! -z "$VOIPMS_USERNAME" ] && [ "$VOIPMS_USERNAME" != "****" ]; then
             echo "Setting VOIPMS_USERNAME secret..."
-            echo "${{ secrets.VOIPMS_USERNAME }}" | npx wrangler secret put VOIPMS_USERNAME
+            echo "$VOIPMS_USERNAME" | npx wrangler secret put VOIPMS_USERNAME
+          else
+            echo "Skipping VOIPMS_USERNAME (not set or is placeholder)"
           fi
-          if [ ! -z "${{ secrets.VOIPMS_PASSWORD }}" ]; then
+          
+          if [ ! -z "$VOIPMS_PASSWORD" ] && [ "$VOIPMS_PASSWORD" != "****" ]; then
             echo "Setting VOIPMS_PASSWORD secret..."
-            echo "${{ secrets.VOIPMS_PASSWORD }}" | npx wrangler secret put VOIPMS_PASSWORD
+            echo "$VOIPMS_PASSWORD" | npx wrangler secret put VOIPMS_PASSWORD
+          else
+            echo "Skipping VOIPMS_PASSWORD (not set or is placeholder)"
           fi
+          
           # Deploy the worker
           npx wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          VOIPMS_USERNAME: ${{ secrets.VOIPMS_USERNAME }}
+          VOIPMS_PASSWORD: ${{ secrets.VOIPMS_PASSWORD }}
           
       - name: Deploy Payment Worker
         run: |
@@ -78,27 +95,47 @@ jobs:
         run: |
           echo "Deploying main worker..."
           cd worker
-          # Set required secrets
-          if [ ! -z "${{ secrets.JWT_SECRET }}" ]; then
+          
+          # Set required secrets with validation
+          if [ ! -z "$JWT_SECRET" ] && [ "$JWT_SECRET" != "****" ]; then
             echo "Setting JWT_SECRET..."
-            echo "${{ secrets.JWT_SECRET }}" | npx wrangler secret put JWT_SECRET
+            echo "$JWT_SECRET" | npx wrangler secret put JWT_SECRET
+          else
+            echo "ERROR: JWT_SECRET is required but not set properly"
+            exit 1
           fi
-          if [ ! -z "${{ secrets.STRIPE_SECRET_KEY }}" ]; then
+          
+          if [ ! -z "$STRIPE_SECRET_KEY" ] && [ "$STRIPE_SECRET_KEY" != "****" ]; then
             echo "Setting STRIPE_SECRET_KEY..."
-            echo "${{ secrets.STRIPE_SECRET_KEY }}" | npx wrangler secret put STRIPE_SECRET_KEY
+            echo "$STRIPE_SECRET_KEY" | npx wrangler secret put STRIPE_SECRET_KEY
+          else
+            echo "ERROR: STRIPE_SECRET_KEY is required but not set properly"
+            exit 1
           fi
-          if [ ! -z "${{ secrets.STRIPE_WEBHOOK_SECRET }}" ]; then
+          
+          if [ ! -z "$STRIPE_WEBHOOK_SECRET" ] && [ "$STRIPE_WEBHOOK_SECRET" != "****" ]; then
             echo "Setting STRIPE_WEBHOOK_SECRET..."
-            echo "${{ secrets.STRIPE_WEBHOOK_SECRET }}" | npx wrangler secret put STRIPE_WEBHOOK_SECRET
+            echo "$STRIPE_WEBHOOK_SECRET" | npx wrangler secret put STRIPE_WEBHOOK_SECRET
+          else
+            echo "WARNING: STRIPE_WEBHOOK_SECRET not set"
           fi
-          if [ ! -z "${{ secrets.TURNSTILE_SECRET_KEY }}" ]; then
+          
+          if [ ! -z "$TURNSTILE_SECRET_KEY" ] && [ "$TURNSTILE_SECRET_KEY" != "****" ]; then
             echo "Setting TURNSTILE_SECRET_KEY..."
-            echo "${{ secrets.TURNSTILE_SECRET_KEY }}" | npx wrangler secret put TURNSTILE_SECRET_KEY
+            echo "$TURNSTILE_SECRET_KEY" | npx wrangler secret put TURNSTILE_SECRET_KEY
+          else
+            echo "ERROR: TURNSTILE_SECRET_KEY is required but not set properly"
+            exit 1
           fi
+          
           # Deploy the worker
           npx wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
           
       - name: Deploy Frontend
         run: |
@@ -111,18 +148,14 @@ jobs:
       - name: Post-deployment health checks
         run: |
           echo "Running post-deployment health checks..."
-          # Wait a moment for deployment to propagate
           sleep 10
           
-          # Check main worker
           echo "Checking main worker..."
           curl -f https://portal.777.foo/api/ping || echo "Main worker health check failed"
           
-          # Check notification worker
           echo "Checking notification worker..."
           curl -f https://portal.777.foo/api/notifications/ping || echo "Notification worker health check failed"
           
-          # Check payment worker
           echo "Checking payment worker..."
           curl -f https://portal.777.foo/api/payment/ping || echo "Payment worker health check failed"
           

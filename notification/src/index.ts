@@ -1,4 +1,4 @@
-// notification/src/index.ts - Fixed with proper error handling and validation
+// notification/src/index.ts - Safe mode with graceful credential handling
 import { sendEmail } from './email';
 import { sendSMS, handleSMSWebhook, getSMSConversations, getSMSConversation } from './sms';
 
@@ -21,7 +21,7 @@ interface NotificationEnv extends BaseEnv {
   VOIPMS_PASSWORD?: string;
 }
 
-// D1 database types
+// D1 database types (copied to avoid import issues)
 interface D1Database {
   prepare(query: string): D1PreparedStatement;
   dump(): Promise<ArrayBuffer>;
@@ -57,29 +57,21 @@ interface D1ExecResult {
   duration: number;
 }
 
-// Notification types
-export const NotificationType = {
-  WELCOME: 'welcome',
-  APPOINTMENT_CONFIRMATION: 'appointment_confirmation',
-  APPOINTMENT_REMINDER: 'appointment_reminder',
-  INVOICE_CREATED: 'invoice_created',
-  INVOICE_PAID: 'invoice_paid',
-  INVOICE_OVERDUE: 'invoice_overdue',
-  PAYMENT_REMINDER: 'payment_reminder',
-} as const;
+// Check if credentials are valid (not placeholder values)
+function isValidCredential(value?: string): value is string {
+  if (!value) return false;
+  
+  const invalidValues = ['****', '***', 'YOUR_KEY_HERE', 'PLACEHOLDER', '', 'undefined', 'null'];
+  return !invalidValues.includes(value.toLowerCase()) && value.length > 8;
+}
 
-export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
-
-// Channel types
-export const ChannelType = {
-  EMAIL: 'email',
-  SMS: 'sms',
-} as const;
-
-export type ChannelType = typeof ChannelType[keyof typeof ChannelType];
-
-// Validate environment variables
-function validateEnv(env: NotificationEnv): { isValid: boolean; errors: string[] } {
+// Validate environment variables safely
+function validateEnv(env: NotificationEnv): { 
+  isValid: boolean; 
+  errors: string[]; 
+  emailEnabled: boolean;
+  smsEnabled: boolean;
+} {
   const errors: string[] = [];
   
   if (!env.EMAIL_FROM) {
@@ -90,19 +82,27 @@ function validateEnv(env: NotificationEnv): { isValid: boolean; errors: string[]
     errors.push('SMS_FROM_NUMBER is required');
   }
   
-  // Validate AWS credentials if email is needed
-  if (!env.AWS_ACCESS_KEY_ID || !env.AWS_SECRET_ACCESS_KEY) {
-    console.warn('AWS credentials not configured - email notifications will be disabled');
+  // Check if AWS credentials are valid
+  const emailEnabled = isValidCredential(env.AWS_ACCESS_KEY_ID) && 
+                       isValidCredential(env.AWS_SECRET_ACCESS_KEY);
+  
+  if (!emailEnabled) {
+    console.warn('⚠️  AWS credentials not configured or invalid - email notifications disabled');
   }
   
-  // Validate VoIP.ms credentials if SMS is needed
-  if (!env.VOIPMS_USERNAME || !env.VOIPMS_PASSWORD) {
-    console.warn('VoIP.ms credentials not configured - SMS notifications will be disabled');
+  // Check if VoIP.ms credentials are valid
+  const smsEnabled = isValidCredential(env.VOIPMS_USERNAME) && 
+                     isValidCredential(env.VOIPMS_PASSWORD);
+  
+  if (!smsEnabled) {
+    console.warn('⚠️  VoIP.ms credentials not configured or invalid - SMS notifications disabled');
   }
   
   return {
     isValid: errors.length === 0,
-    errors
+    errors,
+    emailEnabled,
+    smsEnabled
   };
 }
 
@@ -114,8 +114,14 @@ async function sendEmailNotification(
     subject: string;
     html: string;
     text: string;
-  }
+  },
+  emailEnabled: boolean
 ): Promise<{ success: boolean; error?: string }> {
+  if (!emailEnabled) {
+    console.log('📧 Email disabled - skipping email notification');
+    return { success: false, error: 'Email service not configured' };
+  }
+
   try {
     // Validate email parameters
     if (!params.to || !params.subject || (!params.html && !params.text)) {
@@ -128,14 +134,9 @@ async function sendEmailNotification(
       throw new Error('Invalid email address format');
     }
     
-    // Check if AWS credentials are available
-    if (!env.AWS_ACCESS_KEY_ID || !env.AWS_SECRET_ACCESS_KEY) {
-      throw new Error('AWS credentials not configured');
-    }
-    
     return await sendEmail(env, params);
   } catch (error: any) {
-    console.error('Email notification error:', error);
+    console.error('📧 Email notification error:', error);
     return { 
       success: false, 
       error: error.message || 'Email sending failed' 
@@ -147,28 +148,29 @@ async function sendEmailNotification(
 async function sendSMSNotification(
   env: NotificationEnv,
   to: string,
-  message: string
+  message: string,
+  smsEnabled: boolean
 ): Promise<{ success: boolean; error?: string; messageSid?: string }> {
+  if (!smsEnabled) {
+    console.log('📱 SMS disabled - skipping SMS notification');
+    return { success: false, error: 'SMS service not configured' };
+  }
+
   try {
     // Validate SMS parameters
     if (!to || !message) {
       throw new Error('Missing required SMS parameters');
     }
     
-    // Basic phone number validation (remove non-digits and check length)
+    // Basic phone number validation
     const cleanPhone = to.replace(/\D/g, '');
     if (cleanPhone.length < 10 || cleanPhone.length > 15) {
       throw new Error('Invalid phone number format');
     }
     
-    // Check if VoIP.ms credentials are available
-    if (!env.VOIPMS_USERNAME || !env.VOIPMS_PASSWORD) {
-      throw new Error('VoIP.ms credentials not configured');
-    }
-    
     return await sendSMS(env, to, message);
   } catch (error: any) {
-    console.error('SMS notification error:', error);
+    console.error('📱 SMS notification error:', error);
     return { 
       success: false, 
       error: error.message || 'SMS sending failed' 
@@ -204,16 +206,20 @@ export default {
           status: 'ok',
           timestamp: new Date().toISOString(),
           validation: validation.isValid ? 'passed' : 'warnings',
+          services: {
+            email: validation.emailEnabled ? 'enabled' : 'disabled',
+            sms: validation.smsEnabled ? 'enabled' : 'disabled'
+          },
           warnings: validation.errors.length > 0 ? validation.errors : undefined
         }), {
           headers: { 'Content-Type': 'application/json' },
         });
       }
 
-      // Validate environment first
+      // Validate environment
       const validation = validateEnv(env);
       if (!validation.isValid) {
-        console.error('Environment validation failed:', validation.errors);
+        console.error('❌ Environment validation failed:', validation.errors);
         return new Response(JSON.stringify({ 
           error: 'Service configuration error',
           details: validation.errors
@@ -241,7 +247,7 @@ export default {
           channels?: string[];
         };
         
-        const { type, userId, data, channels = [ChannelType.EMAIL] } = body;
+        const { type, userId, data, channels = ['email'] } = body;
 
         if (!type || !userId) {
           return new Response(JSON.stringify({ 
@@ -274,7 +280,7 @@ export default {
         const results: Record<string, { success: boolean; error?: string }> = {};
 
         // Send email notification if requested
-        if (channels.includes(ChannelType.EMAIL) && userRecord.email) {
+        if (channels.includes('email') && userRecord.email) {
           const subject = `Gutter Portal: ${type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`;
           const html = generateEmailHTML(type, userRecord.name, data);
           const text = generateEmailText(type, userRecord.name, data);
@@ -284,43 +290,46 @@ export default {
             subject,
             html,
             text,
-          });
+          }, validation.emailEnabled);
         }
 
         // Send SMS notification if requested
-        if (channels.includes(ChannelType.SMS) && userRecord.phone) {
+        if (channels.includes('sms') && userRecord.phone) {
           const message = generateSMSMessage(type, userRecord.name, data);
-          const smsResult = await sendSMSNotification(env, userRecord.phone, message);
+          const smsResult = await sendSMSNotification(env, userRecord.phone, message, validation.smsEnabled);
           results.sms = {
             success: smsResult.success,
             error: smsResult.error
           };
         }
 
-        // Log notification attempt
-        try {
-          await env.DB.prepare(
-            `INSERT INTO notifications (user_id, type, channels, status, metadata)
-             VALUES (?, ?, ?, ?, ?)`
-          ).bind(
-            userId,
-            type,
-            JSON.stringify(channels),
-            Object.values(results).some(r => r.success) ? 'sent' : 'failed',
-            JSON.stringify({
-              sentAt: new Date().toISOString(),
-              results,
-              data
-            })
-          ).run();
-        } catch (dbError) {
-          console.error('Failed to log notification:', dbError);
-          // Don't fail the entire request if logging fails
+        // Log notification attempt (only if at least one channel was attempted)
+        if (Object.keys(results).length > 0) {
+          try {
+            await env.DB.prepare(
+              `INSERT INTO notifications (user_id, type, channels, status, metadata)
+               VALUES (?, ?, ?, ?, ?)`
+            ).bind(
+              userId,
+              type,
+              JSON.stringify(channels),
+              Object.values(results).some(r => r.success) ? 'sent' : 'failed',
+              JSON.stringify({
+                sentAt: new Date().toISOString(),
+                results,
+                data
+              })
+            ).run();
+          } catch (dbError) {
+            console.error('Failed to log notification:', dbError);
+            // Don't fail the entire request if logging fails
+          }
         }
 
         return new Response(JSON.stringify({
           success: Object.values(results).some(r => r.success),
-          results
+          results,
+          message: Object.keys(results).length === 0 ? 'No channels available for notification' : undefined
         }), {
           headers: { 'Content-Type': 'application/json' },
         });
