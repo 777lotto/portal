@@ -55,7 +55,7 @@ export default {
 
       // Send payment reminder endpoint
       if (path === 'send-reminder' && request.method === 'POST') {
-        const body = await request.json();
+        const body = await request.json() as { serviceId?: number };
         const { serviceId } = body;
 
         if (!serviceId) {
