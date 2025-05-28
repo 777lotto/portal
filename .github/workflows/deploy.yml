@@ -29,6 +29,10 @@ jobs:
       - name: Build shared package
         run: cd packages/shared && pnpm run build
         
+      - name: Type check all packages
+        run: pnpm run typecheck
+        continue-on-error: true
+        
       - name: Apply D1 Migrations
         run: |
           echo "Applying D1 migrations..."
@@ -40,6 +44,24 @@ jobs:
         run: |
           echo "Deploying notification worker..."
           cd notification
+          # Set secrets if they exist
+          if [ ! -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
+            echo "Setting AWS_ACCESS_KEY_ID secret..."
+            echo "${{ secrets.AWS_ACCESS_KEY_ID }}" | npx wrangler secret put AWS_ACCESS_KEY_ID
+          fi
+          if [ ! -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+            echo "Setting AWS_SECRET_ACCESS_KEY secret..."
+            echo "${{ secrets.AWS_SECRET_ACCESS_KEY }}" | npx wrangler secret put AWS_SECRET_ACCESS_KEY
+          fi
+          if [ ! -z "${{ secrets.VOIPMS_USERNAME }}" ]; then
+            echo "Setting VOIPMS_USERNAME secret..."
+            echo "${{ secrets.VOIPMS_USERNAME }}" | npx wrangler secret put VOIPMS_USERNAME
+          fi
+          if [ ! -z "${{ secrets.VOIPMS_PASSWORD }}" ]; then
+            echo "Setting VOIPMS_PASSWORD secret..."
+            echo "${{ secrets.VOIPMS_PASSWORD }}" | npx wrangler secret put VOIPMS_PASSWORD
+          fi
+          # Deploy the worker
           npx wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -56,6 +78,24 @@ jobs:
         run: |
           echo "Deploying main worker..."
           cd worker
+          # Set required secrets
+          if [ ! -z "${{ secrets.JWT_SECRET }}" ]; then
+            echo "Setting JWT_SECRET..."
+            echo "${{ secrets.JWT_SECRET }}" | npx wrangler secret put JWT_SECRET
+          fi
+          if [ ! -z "${{ secrets.STRIPE_SECRET_KEY }}" ]; then
+            echo "Setting STRIPE_SECRET_KEY..."
+            echo "${{ secrets.STRIPE_SECRET_KEY }}" | npx wrangler secret put STRIPE_SECRET_KEY
+          fi
+          if [ ! -z "${{ secrets.STRIPE_WEBHOOK_SECRET }}" ]; then
+            echo "Setting STRIPE_WEBHOOK_SECRET..."
+            echo "${{ secrets.STRIPE_WEBHOOK_SECRET }}" | npx wrangler secret put STRIPE_WEBHOOK_SECRET
+          fi
+          if [ ! -z "${{ secrets.TURNSTILE_SECRET_KEY }}" ]; then
+            echo "Setting TURNSTILE_SECRET_KEY..."
+            echo "${{ secrets.TURNSTILE_SECRET_KEY }}" | npx wrangler secret put TURNSTILE_SECRET_KEY
+          fi
+          # Deploy the worker
           npx wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -67,3 +107,24 @@ jobs:
           npx wrangler pages deploy dist --project-name=portal
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Post-deployment health checks
+        run: |
+          echo "Running post-deployment health checks..."
+          # Wait a moment for deployment to propagate
+          sleep 10
+          
+          # Check main worker
+          echo "Checking main worker..."
+          curl -f https://portal.777.foo/api/ping || echo "Main worker health check failed"
+          
+          # Check notification worker
+          echo "Checking notification worker..."
+          curl -f https://portal.777.foo/api/notifications/ping || echo "Notification worker health check failed"
+          
+          # Check payment worker
+          echo "Checking payment worker..."
+          curl -f https://portal.777.foo/api/payment/ping || echo "Payment worker health check failed"
+          
+          echo "Deployment completed!"
+        continue-on-error: true

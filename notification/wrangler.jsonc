@@ -5,12 +5,10 @@
   "account_id": "67d3a6021370e7b666fff2023b2db359",
   "compatibility_date": "2025-04-21",
 
-  /* ---------- routes ---------- */
   "routes": [
     "portal.777.foo/api/notifications/*"
   ],
 
-  /* ---------- bindings ---------- */
   "d1_databases": [
     {
       "binding": "DB",
@@ -19,19 +17,9 @@
     }
   ],
 
-  /* ---------- vars and secrets ---------- */
   "vars": {
     "EMAIL_FROM": "no-reply@777.foo",
     "SMS_FROM_NUMBER": "7706977777",
     "AWS_REGION": "us-east-1"
   }
-
-  /* Add these secrets using: wrangler secret put [NAME] */
-  /*
-  SECRET KEYS NEEDED:
-  VOIPMS_USERNAME
-  VOIPMS_PASSWORD
-  AWS_ACCESS_KEY_ID
-  AWS_SECRET_ACCESS_KEY
-  */
 }
