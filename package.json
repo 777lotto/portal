@@ -30,20 +30,20 @@
 
     "frontend:dev": "cd frontend && pnpm run dev",
     "frontend:build": "cd frontend && pnpm run build",
-    "frontend:deploy": "cd frontend && pnpm run build && pnpm exec wrangler pages deploy dist --project-name=portal",
+    "frontend:deploy": "cd frontend && pnpm run build && pnpm exec wrangler deploy",
     "frontend:typecheck": "cd frontend && tsc --noEmit --skipLibCheck",
 
-    "dev": "concurrently \"pnpm run shared:dev\" \"pnpm run worker:dev\" \"pnpm run frontend:dev\" \"pnpm run notification:dev\" \"pnpm run payment:dev\"",
+    "dev": "concurrently \"pnpm run shared:dev\" \"pnpm run worker:dev\" \"pnpm run notification:dev\" \"pnpm run payment:dev\" \"pnpm run frontend:dev\"",
     
     "typecheck": "pnpm run shared:build && concurrently \"pnpm run worker:typecheck\" \"pnpm run notification:typecheck\" \"pnpm run payment:typecheck\" \"pnpm run frontend:typecheck\"",
 
     "build": "pnpm run shared:build && concurrently \"pnpm run worker:build\" \"pnpm run notification:build\" \"pnpm run payment:build\" && pnpm run frontend:build",
 
-    "deploy:workers": "concurrently \"pnpm run worker:deploy\" \"pnpm run notification:deploy\" \"pnpm run payment:deploy\"",
+    "deploy:workers": "concurrently \"pnpm run worker:deploy\" \"pnpm run notification:deploy\" \"pnpm run payment:deploy\" \"pnpm run frontend:deploy\"",
     
     "migrate": "cd worker && pnpm exec wrangler d1 migrations apply gutter_db --env production",
 
-    "deploy": "pnpm install && pnpm run build && pnpm run migrate && pnpm run deploy:workers && pnpm run frontend:deploy" 
+    "deploy": "pnpm install && pnpm run build && pnpm run migrate && pnpm run deploy:workers" 
   },
   "devDependencies": {
     "concurrently": "^8.2.0"

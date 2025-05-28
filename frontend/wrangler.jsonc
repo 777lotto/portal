@@ -1,0 +1,54 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "portal-frontend",
+  "main": "src/worker.ts",
+  "account_id": "67d3a6021370e7b666fff2023b2db359",
+  "compatibility_date": "2024-12-01",
+  
+  "routes": [
+    { "pattern": "portal.777.foo/*", "zone_name": "777.foo" }
+  ],
+
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS"
+  },
+
+  "services": [
+    {
+      "binding": "API",
+      "service": "worker"
+    }
+  ],
+
+  "vars": {
+    "ENVIRONMENT": "production"
+  },
+
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+
+  "dev": {
+    "port": 8788,
+    "local_protocol": "http",
+    "ip": "localhost"
+  },
+
+  "env": {
+    "production": {
+      "routes": [
+        { "pattern": "portal.777.foo/*", "zone_name": "777.foo" }
+      ],
+      "services": [
+        {
+          "binding": "API",
+          "service": "worker"
+        }
+      ],
+      "vars": {
+        "ENVIRONMENT": "production"
+      }
+    }
+  }
+}
