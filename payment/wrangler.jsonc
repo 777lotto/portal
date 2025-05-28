@@ -3,14 +3,12 @@
   "name": "payment",
   "main": "src/index.ts",
   "account_id": "67d3a6021370e7b666fff2023b2db359",
-  "compatibility_date": "2025-04-21",
+  "compatibility_date": "2024-12-01",
 
-  /* ---------- routes ---------- */
   "routes": [
     "portal.777.foo/api/payment/*"
   ],
 
-  /* ---------- bindings ---------- */
   "d1_databases": [
     {
       "binding": "DB",
@@ -19,7 +17,6 @@
     }
   ],
 
-  /* ---------- service bindings ---------- */
   "services": [
     {
       "binding": "NOTIFICATION_WORKER",
@@ -27,15 +24,17 @@
     }
   ],
 
-  /* ---------- cron triggers ---------- */
   "triggers": {
     "crons": [
       "0 10 * * *"
     ]
   },
 
-  /* ---------- vars and secrets ---------- */
   "vars": {
     "ENVIRONMENT": "production"
-  }
+  },
+
+  "compatibility_flags": [
+    "nodejs_compat"
+  ]
 }
