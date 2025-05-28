@@ -1,4 +1,4 @@
-// frontend/vite.config.ts - Updated with better dev setup
+// frontend/vite.config.ts - Updated with proper environment handling
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import { resolve } from 'path'
@@ -16,25 +16,34 @@ export default defineConfig({
     proxy: {
       // Proxy API calls to your worker during development
       '/api': {
-        target: 'https://portal.777.foo',
+        target: process.env.VITE_API_URL || 'http://localhost:8787',
         changeOrigin: true,
-        secure: true,
+        secure: false, // Set to true in production
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
             console.log('proxy error', err);
-          });
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
-            console.log('Sending Request to the Target:', req.method, req.url);
-          });
-          proxy.on('proxyRes', (proxyRes, req, _res) => {
-            console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
           });
         },
       }
     }
   },
   define: {
-    // Make sure environment variables are available
-    'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || 'https://portal.777.foo/api')
+    // Make environment variables available to the React app
+    'import.meta.env.VITE_API_URL': JSON.stringify(
+      process.env.VITE_API_URL || 'http://localhost:8787/api'
+    ),
+    'import.meta.env.VITE_TURNSTILE_SITE_KEY': JSON.stringify(
+      process.env.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAABcgNHsEZnTPqdEV'
+    ),
+    'import.meta.env.VITE_STRIPE_PK': JSON.stringify(
+      process.env.VITE_STRIPE_PK || 'pk_test_placeholder'
+    ),
+  },
+  build: {
+    // Ensure environment variables are available during build
+    rollupOptions: {
+      // Make sure to replace process.env variables during build
+      plugins: []
+    }
   }
 })

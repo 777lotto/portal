@@ -142,13 +142,14 @@ jobs:
           echo "Deploying frontend worker..."
           cd frontend
           
-          # Build the React app
-          pnpm run build
-          
-          # Deploy as worker with static assets
+          # Build the React app with environment variables
+          echo "Building React app with environment variables..."
           npx wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          VITE_API_URL: "https://portal.777.foo/api"
+          VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
+          VITE_STRIPE_PK: ${{ secrets.VITE_STRIPE_PK }}
 
       - name: Post-deployment health checks
         run: |

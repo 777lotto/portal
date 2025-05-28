@@ -22,7 +22,10 @@
   ],
 
   "vars": {
-    "ENVIRONMENT": "production"
+    "ENVIRONMENT": "production",
+    "VITE_API_URL": "https://portal.777.foo/api",
+    "VITE_TURNSTILE_SITE_KEY": "0x4AAAAAABcgNHsEZnTPqdEV",
+    "VITE_STRIPE_PK": "pk_live_51QSAo7Fw0123456789..."
   },
 
   "compatibility_flags": [
@@ -32,7 +35,12 @@
   "dev": {
     "port": 8788,
     "local_protocol": "http",
-    "ip": "localhost"
+    "ip": "localhost",
+    "vars": {
+      "VITE_API_URL": "https://portal.777.foo/api",
+      "VITE_TURNSTILE_SITE_KEY": "0x4AAAAAABcgNHsEZnTPqdEV",
+      "VITE_STRIPE_PK": "pk_live_51MBf4rHNec9XrT0Fy63H12UL5Vxkcw5GNVmyuXS8b3DdYbBAQVVtd1wpshGBgwZtz8NkCHz7ZhExYDDt0fn9RTGd009jbyk3Gj"
+    }
   },
 
   "env": {
@@ -47,7 +55,10 @@
         }
       ],
       "vars": {
-        "ENVIRONMENT": "production"
+        "ENVIRONMENT": "production",
+        "VITE_API_URL": "https://portal.777.foo/api",
+        "VITE_TURNSTILE_SITE_KEY": "0x4AAAAAABcgNHsEZnTPqdEV",
+        "VITE_STRIPE_PK": "pk_live_51QSAo7Fw0123456789..."
       }
     }
   }
