@@ -1,4 +1,4 @@
-// frontend/src/worker.ts - Updated with service bindings for API proxying
+// frontend/src/worker.ts - Fixed API routing
 export interface Env {
   ASSETS: Fetcher;
   API_WORKER: Fetcher;
@@ -11,46 +11,99 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     
-    console.log(`Frontend worker handling: ${url.pathname}`);
+    console.log(`🌐 Frontend worker handling: ${request.method} ${url.pathname}`);
     
     // Handle API requests by proxying to appropriate worker via service bindings
     if (url.pathname.startsWith('/api/')) {
-      console.log('Proxying API request via service binding');
+      console.log('🔄 Proxying API request via service binding');
       
-      // Remove /api prefix for the actual worker
-      const apiPath = url.pathname.replace('/api', '');
-      const apiUrl = new URL(apiPath, 'https://internal.api');
-      apiUrl.search = url.search;
+      // Create new URL for the target worker - keep the full path including /api
+      const targetUrl = new URL(request.url);
       
-      const apiRequest = new Request(apiUrl.toString(), {
+      // Create the proxied request with the same URL structure
+      const proxyRequest = new Request(targetUrl.toString(), {
         method: request.method,
         headers: request.headers,
-        body: request.body,
+        body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
       });
 
       try {
         // Route to appropriate worker based on path
-        if (apiPath.startsWith('/notifications/')) {
+        if (url.pathname.startsWith('/api/notifications/')) {
           console.log('→ Routing to NOTIFICATION_WORKER');
-          return await env.NOTIFICATION_WORKER.fetch(apiRequest);
-        } else if (apiPath.startsWith('/payment/')) {
+          // Remove /api prefix for notification worker
+          const notificationUrl = new URL(url.pathname.replace('/api', ''), 'https://notification.internal');
+          notificationUrl.search = url.search;
+          
+          const notificationRequest = new Request(notificationUrl.toString(), {
+            method: request.method,
+            headers: request.headers,
+            body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
+          });
+          
+          return await env.NOTIFICATION_WORKER.fetch(notificationRequest);
+          
+        } else if (url.pathname.startsWith('/api/payment/')) {
           console.log('→ Routing to PAYMENT_WORKER');
-          return await env.PAYMENT_WORKER.fetch(apiRequest);
+          // Remove /api prefix for payment worker
+          const paymentUrl = new URL(url.pathname.replace('/api', ''), 'https://payment.internal');
+          paymentUrl.search = url.search;
+          
+          const paymentRequest = new Request(paymentUrl.toString(), {
+            method: request.method,
+            headers: request.headers,
+            body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
+          });
+          
+          return await env.PAYMENT_WORKER.fetch(paymentRequest);
+          
         } else {
           console.log('→ Routing to API_WORKER (main)');
-          // Default to main API worker
-          return await env.API_WORKER.fetch(apiRequest);
+          // For main API worker, we need to remove /api prefix since Hono routes don't expect it
+          const mainApiUrl = new URL(url.pathname.replace('/api', '') || '/', 'https://main.internal');
+          mainApiUrl.search = url.search;
+          
+          const mainApiRequest = new Request(mainApiUrl.toString(), {
+            method: request.method,
+            headers: request.headers,
+            body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
+          });
+          
+          console.log(`📤 Forwarding to main API: ${mainApiRequest.url}`);
+          const response = await env.API_WORKER.fetch(mainApiRequest);
+          
+          console.log(`📥 Response from main API: ${response.status}`);
+          return response;
         }
       } catch (error) {
-        console.error('Service binding proxy error:', error);
+        console.error('❌ Service binding proxy error:', error);
         return new Response(JSON.stringify({ 
           error: 'Service temporarily unavailable',
-          details: error instanceof Error ? error.message : 'Unknown error'
+          details: error instanceof Error ? error.message : 'Unknown error',
+          path: url.pathname,
+          method: request.method
         }), {
           status: 503,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+          }
         });
       }
+    }
+
+    // Handle CORS preflight for non-API requests
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        },
+      });
     }
 
     // Handle static assets and SPA routing
@@ -110,7 +163,7 @@ export default {
       });
       
     } catch (error) {
-      console.error('Frontend worker error:', error);
+      console.error('❌ Frontend worker error:', error);
       return new Response('Internal Server Error', { 
         status: 500,
         headers: { 'Content-Type': 'text/plain' }

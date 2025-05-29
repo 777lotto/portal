@@ -1,4 +1,4 @@
-// worker/src/index.ts - Enhanced CORS and debugging
+// worker/src/index.ts - Fixed routing and CORS
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { Env } from '@portal/shared';
@@ -20,9 +20,9 @@ type Context = {
 
 const app = new Hono<Context>();
 
-// Enhanced CORS middleware with explicit options
+// Enhanced CORS middleware - allow all origins for now to debug
 app.use('/*', cors({
-  origin: ['http://localhost:5173', 'https://portal.777.foo', 'http://localhost:3000'],
+  origin: '*', // Allow all origins temporarily for debugging
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: false,
@@ -34,30 +34,39 @@ app.use('*', async (c, next) => {
   const method = c.req.method;
   const path = c.req.path;
   const origin = c.req.header('origin');
-  const userAgent = c.req.header('user-agent');
   
-  console.log(`🔥 [${new Date().toISOString()}] ${method} ${path}`);
+  console.log(`🔥 [MAIN-WORKER] ${method} ${path}`);
   console.log(`🌐 Origin: ${origin || 'none'}`);
   console.log(`🔍 Full URL: ${c.req.url}`);
-  console.log(`👤 User-Agent: ${userAgent?.substring(0, 50) || 'none'}`);
   
   await next();
   
   const duration = Date.now() - start;
-  console.log(`⏱️  Request completed in ${duration}ms`);
+  console.log(`⏱️  [MAIN-WORKER] Request completed in ${duration}ms`);
 });
 
-// Health check endpoints with more details
+// Root endpoint for testing
+app.get('/', (c) => {
+  console.log('✅ Root endpoint hit');
+  return c.json({
+    message: 'Main API Worker is working!',
+    timestamp: new Date().toISOString(),
+    path: c.req.path,
+    method: c.req.method,
+    worker: 'main-api'
+  });
+});
+
+// Health check endpoints
 app.get('/ping', (c) => {
   console.log('✅ Ping endpoint hit');
   return c.json({
-    message: 'Worker is working!',
+    message: 'Main API Worker is working!',
     timestamp: new Date().toISOString(),
     path: c.req.path,
     method: c.req.method,
     url: c.req.url,
-    headers: Object.fromEntries(c.req.raw.headers.entries()),
-    worker: 'main'
+    worker: 'main-api'
   });
 });
 
@@ -74,7 +83,7 @@ app.get('/debug', (c) => {
     hasTurnstile: !!c.env.TURNSTILE_SECRET_KEY,
     hasStripe: !!c.env.STRIPE_SECRET_KEY,
     timestamp: new Date().toISOString(),
-    worker: 'main',
+    worker: 'main-api',
     environment: c.env.ENVIRONMENT || 'development'
   });
 });
@@ -82,62 +91,57 @@ app.get('/debug', (c) => {
 // CORS preflight handler for all routes
 app.options('*', (c) => {  
   console.log(`✅ CORS preflight for ${c.req.path}`);
-  return c.text('', 204);
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+      'Access-Control-Max-Age': '86400',
+    }
+  });
 });
 
-// Auth endpoints with enhanced error handling
+// Auth endpoints
 app.post('/signup/check', async (c) => {
-  console.log('✅ Signup check endpoint hit');
-  console.log('📝 Request body preview:', await c.req.text().then(body => body.substring(0, 200)));
-  
+  console.log('✅ [MAIN-WORKER] Signup check endpoint hit');
   try {
-    // Re-create request since we consumed the body above
-    const body = await c.req.json();
-    const newRequest = new Request(c.req.url, {
-      method: 'POST',
-      headers: c.req.raw.headers,
-      body: JSON.stringify(body)
-    });
-    
-    return await handleSignupCheck(newRequest, c.env);
+    return await handleSignupCheck(c.req.raw, c.env);
   } catch (error: any) {
     console.error('❌ Signup check error:', error);
     return c.json({ 
-      error: error.message || 'Signup check failed',
-      details: error.stack?.substring(0, 200)
+      error: error.message || 'Signup check failed'
     }, 500);
   }
 });
 
 app.post('/signup', async (c) => {
-  console.log('✅ Signup endpoint hit');
+  console.log('✅ [MAIN-WORKER] Signup endpoint hit');
   try {
     return await handleSignup(c.req.raw, c.env);
   } catch (error: any) {
     console.error('❌ Signup error:', error);
     return c.json({ 
-      error: error.message || 'Signup failed',
-      details: error.stack?.substring(0, 200)
+      error: error.message || 'Signup failed'
     }, 500);
   }
 });
 
 app.post('/login', async (c) => {
-  console.log('✅ Login endpoint hit');
+  console.log('✅ [MAIN-WORKER] Login endpoint hit');
   try {
     return await handleLogin(c.req.raw, c.env);
   } catch (error: any) {
     console.error('❌ Login error:', error);
     return c.json({ 
-      error: error.message || 'Login failed',
-      details: error.stack?.substring(0, 200)
+      error: error.message || 'Login failed'
     }, 500);
   }
 });
 
 // Stripe endpoints
 app.post('/stripe/check-customer', async (c) => {
-  console.log('✅ Stripe customer check endpoint hit');
+  console.log('✅ [MAIN-WORKER] Stripe customer check endpoint hit');
   try {
     return await handleStripeCustomerCheck(c.req.raw, c.env);
   } catch (error: any) {
@@ -147,7 +151,7 @@ app.post('/stripe/check-customer', async (c) => {
 });
 
 app.post('/stripe/create-customer', async (c) => {
-  console.log('✅ Stripe create customer endpoint hit');
+  console.log('✅ [MAIN-WORKER] Stripe create customer endpoint hit');
   try {
     const body = await c.req.json();
     console.log('💳 Stripe create customer body:', body);
@@ -166,7 +170,7 @@ app.post('/stripe/create-customer', async (c) => {
 });
 
 app.post('/stripe/webhook', async (c) => {
-  console.log('✅ Stripe webhook endpoint hit');
+  console.log('✅ [MAIN-WORKER] Stripe webhook endpoint hit');
   try {
     return await handleStripeWebhook(c.req.raw, c.env);
   } catch (error: any) {
@@ -180,7 +184,7 @@ const requireAuthMiddleware = async (c: any, next: any) => {
   try {
     const email = await requireAuth(c.req.raw, c.env);
     c.set('userEmail', email);
-    console.log(`🔐 Authenticated user: ${email}`);
+    console.log(`🔐 [MAIN-WORKER] Authenticated user: ${email}`);
     await next();
   } catch (error: any) {
     console.error('❌ Auth error:', error);
@@ -190,7 +194,7 @@ const requireAuthMiddleware = async (c: any, next: any) => {
 
 // Profile endpoints (protected)
 app.get('/profile', requireAuthMiddleware, async (c) => {
-  console.log('✅ Profile GET endpoint hit');
+  console.log('✅ [MAIN-WORKER] Profile GET endpoint hit');
   try {
     const email = c.get('userEmail') as string;
     return await handleGetProfile(c.req.raw, c.env, email);
@@ -201,7 +205,7 @@ app.get('/profile', requireAuthMiddleware, async (c) => {
 });
 
 app.put('/profile', requireAuthMiddleware, async (c) => {
-  console.log('✅ Profile PUT endpoint hit');
+  console.log('✅ [MAIN-WORKER] Profile PUT endpoint hit');
   try {
     const email = c.get('userEmail') as string;
     return await handleUpdateProfile(c.req.raw, c.env, email);
@@ -213,7 +217,7 @@ app.put('/profile', requireAuthMiddleware, async (c) => {
 
 // Services endpoints (protected)
 app.get('/services', requireAuthMiddleware, async (c) => {
-  console.log('✅ Services GET endpoint hit');
+  console.log('✅ [MAIN-WORKER] Services GET endpoint hit');
   try {
     const email = c.get('userEmail') as string;
     return await handleListServices(c.req.raw, c.env, email);
@@ -224,7 +228,7 @@ app.get('/services', requireAuthMiddleware, async (c) => {
 });
 
 app.get('/services/:id', requireAuthMiddleware, async (c) => {
-  console.log('✅ Service detail GET endpoint hit');
+  console.log('✅ [MAIN-WORKER] Service detail GET endpoint hit');
   try {
     const email = c.get('userEmail') as string;
     const id = parseInt(c.req.param('id'));
@@ -239,7 +243,7 @@ app.get('/services/:id', requireAuthMiddleware, async (c) => {
 });
 
 app.post('/services/:id/invoice', requireAuthMiddleware, async (c) => {
-  console.log('✅ Service invoice POST endpoint hit');
+  console.log('✅ [MAIN-WORKER] Service invoice POST endpoint hit');
   try {
     const email = c.get('userEmail') as string;
     const serviceId = parseInt(c.req.param('id'));
@@ -255,7 +259,7 @@ app.post('/services/:id/invoice', requireAuthMiddleware, async (c) => {
 
 // Jobs/Calendar endpoints (protected)
 app.get('/jobs', requireAuthMiddleware, async (c) => {
-  console.log('✅ Jobs GET endpoint hit');
+  console.log('✅ [MAIN-WORKER] Jobs GET endpoint hit');
   try {
     return await handleGetJobs(c.req.raw, c.env);
   } catch (error: any) {
@@ -265,7 +269,7 @@ app.get('/jobs', requireAuthMiddleware, async (c) => {
 });
 
 app.get('/jobs/:id', requireAuthMiddleware, async (c) => {
-  console.log('✅ Job detail GET endpoint hit');
+  console.log('✅ [MAIN-WORKER] Job detail GET endpoint hit');
   try {
     const url = new URL(c.req.url);
     return await handleGetJobById(c.req.raw, url, c.env);
@@ -276,7 +280,7 @@ app.get('/jobs/:id', requireAuthMiddleware, async (c) => {
 });
 
 app.get('/calendar-feed', async (c) => {
-  console.log('✅ Calendar feed GET endpoint hit');
+  console.log('✅ [MAIN-WORKER] Calendar feed GET endpoint hit');
   try {
     const url = new URL(c.req.url);
     return await handleCalendarFeed(c.req.raw, url, c.env);
@@ -288,7 +292,7 @@ app.get('/calendar-feed', async (c) => {
 
 // Stripe Customer Portal (protected)
 app.post('/portal', requireAuthMiddleware, async (c) => {
-  console.log('✅ Portal POST endpoint hit');
+  console.log('✅ [MAIN-WORKER] Portal POST endpoint hit');
   try {
     const email = c.get('userEmail') as string;
     
@@ -318,7 +322,7 @@ app.post('/portal', requireAuthMiddleware, async (c) => {
 
 // SMS endpoints that proxy to notification worker (protected)
 app.get('/sms/conversations', requireAuthMiddleware, async (c) => {
-  console.log('✅ SMS conversations GET endpoint hit');
+  console.log('✅ [MAIN-WORKER] SMS conversations GET endpoint hit');
   try {
     const email = c.get('userEmail') as string;
     
@@ -353,9 +357,9 @@ app.get('/sms/conversations', requireAuthMiddleware, async (c) => {
   }
 });
 
-// Enhanced catch-all route for debugging
+// Catch-all route for debugging
 app.all('*', (c) => {
-  console.log(`❓ Unhandled route: ${c.req.method} ${c.req.path}`);
+  console.log(`❓ [MAIN-WORKER] Unhandled route: ${c.req.method} ${c.req.path}`);
   console.log(`🔍 Headers:`, Object.fromEntries(c.req.raw.headers.entries()));
   
   return c.json({
@@ -363,8 +367,9 @@ app.all('*', (c) => {
     path: c.req.path,
     method: c.req.method,
     fullUrl: c.req.url,
-    receivedHeaders: Object.fromEntries(c.req.raw.headers.entries()),
+    worker: 'main-api',
     availableRoutes: [
+      'GET /',
       'GET /ping',
       'GET /debug',
       'POST /signup/check',
