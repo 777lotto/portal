@@ -8,8 +8,15 @@
   "routes": [
     { "pattern": "portal.777.foo", "zone_name": "777.foo" },
     { "pattern": "portal.777.foo/", "zone_name": "777.foo" },
-    { "pattern": "portal.777.foo/static/*", "zone_name": "777.foo" },
-    { "pattern": "portal.777.foo/assets/*", "zone_name": "777.foo" }
+    { "pattern": "portal.777.foo/login", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/signup", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/dashboard", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/services*", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/calendar*", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/sms*", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/jobs*", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/assets/*", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/static/*", "zone_name": "777.foo" }
   ],
 
   "assets": {
@@ -34,10 +41,19 @@
   "env": {
     "production": {
       "routes": [
-        { "pattern": "portal.777.foo", "zone_name": "777.foo" },
         { "pattern": "portal.777.foo/", "zone_name": "777.foo" },
         { "pattern": "portal.777.foo/static/*", "zone_name": "777.foo" },
-        { "pattern": "portal.777.foo/assets/*", "zone_name": "777.foo" }
+        { "pattern": "portal.777.foo/assets/*", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/login", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/signup", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/dashboard", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/services", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/services/*", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/calendar", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/calendar-sync", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/sms", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/sms/*", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/jobs/*", "zone_name": "777.foo" }
       ],
       "vars": {
         "ENVIRONMENT": "production"

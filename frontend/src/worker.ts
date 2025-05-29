@@ -1,4 +1,4 @@
-// frontend/src/worker.ts
+// frontend/src/worker.ts - Updated for specific routes
 export interface Env {
   ASSETS: Fetcher;
   API?: Fetcher;
@@ -9,22 +9,33 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     
-    // Handle API requests - let them pass through to main worker
+    console.log(`Frontend worker handling: ${url.pathname}`);
+    
+    // API requests should never reach this worker now
     if (url.pathname.startsWith('/api/')) {
-      // For API requests, we want them to be handled by the main worker
-      // Since this frontend worker doesn't handle API routes, 
-      // they should be caught by the main worker's route pattern
-      return new Response('API route - should be handled by main worker', { status: 404 });
+      console.error('API request reached frontend worker - route configuration issue!');
+      return new Response('API route misconfiguration', { status: 500 });
     }
 
-    // Handle static assets
     try {
       // Try to get the static asset first
       const assetResponse = await env.ASSETS.fetch(request);
       
       // If asset exists and is successful, return it
       if (assetResponse.status < 400) {
-        return assetResponse;
+        // Add cache headers for static assets
+        const response = new Response(assetResponse.body, {
+          status: assetResponse.status,
+          headers: assetResponse.headers
+        });
+        
+        // Cache static assets but not HTML files
+        if (!url.pathname.endsWith('.html') && 
+            (url.pathname.includes('/assets/') || url.pathname.includes('/static/'))) {
+          response.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+        
+        return response;
       }
       
       // For SPA routing - serve index.html for non-asset requests
@@ -32,8 +43,11 @@ export default {
       const indexRequest = new Request(
         new URL('/index.html', request.url).toString(),
         {
-          method: request.method,
-          headers: request.headers,
+          method: 'GET', // Always GET for index.html
+          headers: {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': request.headers.get('Accept-Language') || 'en-US,en;q=0.5',
+          },
         }
       );
       
@@ -43,21 +57,29 @@ export default {
         return new Response(indexResponse.body, {
           status: 200,
           headers: {
-            ...Object.fromEntries(indexResponse.headers.entries()),
             'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'no-cache',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+            // Security headers
+            'X-Frame-Options': 'DENY',
+            'X-Content-Type-Options': 'nosniff',
+            'Referrer-Policy': 'strict-origin-when-cross-origin',
           },
         });
       }
       
-      // Return the original asset response (likely 404)
-      return assetResponse;
+      // If we can't serve index.html, return 404
+      return new Response('Page not found', { 
+        status: 404,
+        headers: { 'Content-Type': 'text/plain' }
+      });
       
     } catch (error) {
-      console.error('Asset serving error:', error);
-      return new Response(JSON.stringify({ error: 'Internal Server Error' }), { 
+      console.error('Frontend worker error:', error);
+      return new Response('Internal Server Error', { 
         status: 500,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'text/plain' }
       });
     }
   },

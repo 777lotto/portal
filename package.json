@@ -39,11 +39,28 @@
 
     "build": "pnpm run shared:build && concurrently \"pnpm run worker:build\" \"pnpm run notification:build\" \"pnpm run payment:build\" && pnpm run frontend:build",
 
-    "deploy:workers": "concurrently \"pnpm run worker:deploy\" \"pnpm run notification:deploy\" \"pnpm run payment:deploy\" \"pnpm run frontend:deploy\"",
+    "deploy:workers:ordered": "cd notification && npx wrangler deploy && cd ../payment && npx wrangler deploy && cd ../worker && npx wrangler deploy && cd ../frontend && pnpm run build && npx wrangler deploy",
     
     "migrate": "cd worker && pnpm exec wrangler d1 migrations apply gutter_db --env production",
 
-    "deploy": "pnpm install && pnpm run build && pnpm run migrate && pnpm run deploy:workers" 
+    "deploy": "pnpm install && pnpm run build && pnpm run migrate && pnpm run deploy:workers:ordered",
+
+    "routes:list": "cd worker && npx wrangler routes list",
+    "routes:clear": "echo 'Route clearing must be done manually via Cloudflare dashboard'",
+    
+    "test:api": "curl https://portal.777.foo/api/ping && curl https://portal.777.foo/api/debug",
+    "test:frontend": "curl https://portal.777.foo/ && curl https://portal.777.foo/login",
+    
+    "clean": "pnpm run clean:deps && pnpm run clean:build",
+    "clean:deps": "rm -rf node_modules */node_modules */*/node_modules",
+    "clean:build": "rm -rf */dist */build */.wrangler",
+    
+    "logs:worker": "cd worker && npx wrangler tail",
+    "logs:notification": "cd notification && npx wrangler tail",
+    "logs:payment": "cd payment && npx wrangler tail",
+    "logs:frontend": "cd frontend && npx wrangler tail",
+    
+    "fix:routes": "pnpm run deploy:workers:ordered && pnpm run routes:list"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"
