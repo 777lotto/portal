@@ -1,4 +1,4 @@
-// frontend/src/worker.ts - Fixed TypeScript version
+// frontend/src/worker.ts
 export interface Env {
   ASSETS: Fetcher;
   API?: Fetcher;
@@ -9,25 +9,12 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     
-    // Handle API requests - proxy to main worker
+    // Handle API requests - let them pass through to main worker
     if (url.pathname.startsWith('/api/')) {
-      try {
-        // Use service binding if available
-        if (env.API) {
-          return env.API.fetch(request);
-        }
-        
-        // Fallback: proxy to API worker directly
-        // Since we don't have the API binding, let the request fall through
-        // to the main worker which handles /api/* routes
-        return fetch(request);
-      } catch (error) {
-        console.error('API proxy error:', error);
-        return new Response(JSON.stringify({ error: 'API Error' }), { 
-          status: 502,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
+      // For API requests, we want them to be handled by the main worker
+      // Since this frontend worker doesn't handle API routes, 
+      // they should be caught by the main worker's route pattern
+      return new Response('API route - should be handled by main worker', { status: 404 });
     }
 
     // Handle static assets
@@ -41,27 +28,26 @@ export default {
       }
       
       // For SPA routing - serve index.html for non-asset requests
-      if (!url.pathname.includes('.') && !url.pathname.startsWith('/api/')) {
-        const indexRequest = new Request(
-          new URL('/index.html', request.url).toString(),
-          {
-            method: request.method,
-            headers: request.headers,
-          }
-        );
-        
-        const indexResponse = await env.ASSETS.fetch(indexRequest);
-        
-        if (indexResponse.ok) {
-          return new Response(indexResponse.body, {
-            status: 200,
-            headers: {
-              ...Object.fromEntries(indexResponse.headers.entries()),
-              'Content-Type': 'text/html; charset=utf-8',
-              'Cache-Control': 'no-cache',
-            },
-          });
+      // This handles all your React Router routes
+      const indexRequest = new Request(
+        new URL('/index.html', request.url).toString(),
+        {
+          method: request.method,
+          headers: request.headers,
         }
+      );
+      
+      const indexResponse = await env.ASSETS.fetch(indexRequest);
+      
+      if (indexResponse.ok) {
+        return new Response(indexResponse.body, {
+          status: 200,
+          headers: {
+            ...Object.fromEntries(indexResponse.headers.entries()),
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-cache',
+          },
+        });
       }
       
       // Return the original asset response (likely 404)
