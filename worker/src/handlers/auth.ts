@@ -1,4 +1,4 @@
-// worker/src/handlers/auth.ts - Fixed imports and types
+// worker/src/handlers/auth.ts - Fixed JWT token creation and validation
 import type { Env } from "@portal/shared";
 import { 
   normalizeEmail, 
@@ -56,7 +56,7 @@ export async function handleSignupCheck(request: Request, env: Env): Promise<Res
     if (email) {
       console.log(`🔍 Checking for existing user with email: ${email}`);
       existingUser = await env.DB.prepare(
-        `SELECT password_hash, name, phone
+        `SELECT password_hash, name, phone, email
            FROM users
           WHERE lower(email) = ?`
       ).bind(email).first() as UserRecord | null;
@@ -66,7 +66,7 @@ export async function handleSignupCheck(request: Request, env: Env): Promise<Res
     if (!existingUser && phone) {
       console.log(`🔍 Checking for existing user with phone: ${phone}`);
       existingUser = await env.DB.prepare(
-        `SELECT password_hash, name, email
+        `SELECT password_hash, name, email, phone
            FROM users
           WHERE phone = ?`
       ).bind(phone).first() as UserRecord | null;
@@ -115,7 +115,7 @@ export async function handleSignup(request: Request, env: Env): Promise<Response
     
     // parse & normalize payload
     const data = await request.json() as any;
-    console.log('✍️ Signup data:', data);
+    console.log('✍️ Signup data:', { ...data, password: '[REDACTED]' });
     
     const email = data.email ? normalizeEmail(data.email) : "";
     const phone = data.phone ? data.phone.trim() : "";
@@ -137,7 +137,6 @@ export async function handleSignup(request: Request, env: Env): Promise<Response
     }
 
     const password_hash = await hashPassword(password);
-    console.log('🔒 Password hashed');
 
     // Check if user already exists
     let existingUser: UserRecord | null = null;
@@ -186,30 +185,30 @@ export async function handleSignup(request: Request, env: Env): Promise<Response
       }
     }
 
-    // Get the complete user record for JWT
-    let user: UserRecord | null = null;
-    if (email) {
-      user = await env.DB.prepare(
-        `SELECT id, email, name, phone FROM users WHERE email = ?`
-      ).bind(email).first() as UserRecord | null;
-    } else {
-      user = await env.DB.prepare(
-        `SELECT id, email, name, phone FROM users WHERE phone = ?`
-      ).bind(phone).first() as UserRecord | null;
-    }
+    // Get the complete user record for JWT - ensure we have all fields
+    const user = await env.DB.prepare(
+      `SELECT id, email, name, phone FROM users WHERE id = ?`
+    ).bind(result.meta.last_row_id).first() as UserRecord | null;
 
     if (!user) {
       throw new Error("Failed to retrieve created user");
     }
 
     console.log('🎫 Creating JWT token...');
-    // issue JWT
-    const token = await createJwtToken({ 
-      id: user.id,
-      email: user.email || null, 
+    
+    // Create a clean payload for JWT - ensure all fields are properly typed
+    const jwtPayload = {
+      id: Number(user.id), // Ensure it's a number
+      email: user.email || null,
       name: user.name,
-      phone: user.phone || null
-    }, env.JWT_SECRET);
+      phone: user.phone || null,
+      iat: Math.floor(Date.now() / 1000) // Add issued at time
+    };
+
+    console.log('JWT payload:', jwtPayload);
+
+    // issue JWT with explicit typing
+    const token = await createJwtToken(jwtPayload, env.JWT_SECRET, "7d"); // 7 day expiry
 
     console.log('✅ Signup completed successfully');
     return new Response(JSON.stringify({ 
@@ -237,7 +236,7 @@ export async function handleLogin(request: Request, env: Env): Promise<Response>
     console.log('🔐 Processing login...');
     
     const data = await request.json() as any;
-    console.log('🔐 Login data:', data);
+    console.log('🔐 Login data:', { ...data, password: '[REDACTED]' });
     
     const identifier = data.identifier.trim();
     const password = data.password;
@@ -295,13 +294,20 @@ export async function handleLogin(request: Request, env: Env): Promise<Response>
     }
 
     console.log('🎫 Creating JWT token...');
-    // Issue JWT
-    const token = await createJwtToken({
-      id: user.id,
+    
+    // Create a clean payload for JWT - ensure all fields are properly typed
+    const jwtPayload = {
+      id: Number(user.id), // Ensure it's a number
       email: user.email || null,
       name: user.name,
-      phone: user.phone || null
-    }, env.JWT_SECRET);
+      phone: user.phone || null,
+      iat: Math.floor(Date.now() / 1000) // Add issued at time
+    };
+
+    console.log('JWT payload:', jwtPayload);
+
+    // Issue JWT with explicit typing
+    const token = await createJwtToken(jwtPayload, env.JWT_SECRET, "7d"); // 7 day expiry
 
     console.log('✅ Login successful');
     return new Response(JSON.stringify({ 
