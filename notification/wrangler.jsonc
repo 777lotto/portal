@@ -3,10 +3,13 @@
   "name": "notification",
   "main": "src/index.ts",
   "account_id": "67d3a6021370e7b666fff2023b2db359",
-  "compatibility_date": "2024-05-28",
+  "compatibility_date": "2024-12-01",
 
   "routes": [
-    "portal.777.foo/api/notifications/*"
+    {
+      "pattern": "portal.777.foo/api/notifications/*",
+      "zone_name": "777.foo"
+    }
   ],
 
   "d1_databases": [
@@ -25,5 +28,28 @@
 
   "compatibility_flags": [
     "nodejs_compat"
-  ]
+  ],
+
+  "env": {
+    "production": {
+      "routes": [
+        {
+          "pattern": "portal.777.foo/api/notifications/*",
+          "zone_name": "777.foo"
+        }
+      ],
+      "vars": {
+        "EMAIL_FROM": "no-reply@777.foo",
+        "SMS_FROM_NUMBER": "7706977777",
+        "AWS_REGION": "us-east-1"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "gutter_db",
+          "database_id": "ee2da6f5-9573-4098-8ed6-57d56638b6ec"
+        }
+      ]
+    }
+  }
 }

@@ -6,7 +6,10 @@
   "compatibility_date": "2024-12-01",
 
   "routes": [
-    "portal.777.foo/api/payment/*"
+    {
+      "pattern": "portal.777.foo/api/payment/*",
+      "zone_name": "777.foo"
+    }
   ],
 
   "d1_databases": [
@@ -36,5 +39,37 @@
 
   "compatibility_flags": [
     "nodejs_compat"
-  ]
+  ],
+
+  "env": {
+    "production": {
+      "routes": [
+        {
+          "pattern": "portal.777.foo/api/payment/*",
+          "zone_name": "777.foo"
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "gutter_db",
+          "database_id": "ee2da6f5-9573-4098-8ed6-57d56638b6ec"
+        }
+      ],
+      "services": [
+        {
+          "binding": "NOTIFICATION_WORKER",
+          "service": "notification"
+        }
+      ],
+      "triggers": {
+        "crons": [
+          "0 10 * * *"
+        ]
+      },
+      "vars": {
+        "ENVIRONMENT": "production"
+      }
+    }
+  }
 }
