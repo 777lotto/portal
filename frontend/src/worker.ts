@@ -17,60 +17,23 @@ export default {
     if (url.pathname.startsWith('/api/')) {
       console.log('🔄 Proxying API request via service binding');
       
-      // Create new URL for the target worker - keep the full path including /api
-      const targetUrl = new URL(request.url);
-      
-      // Create the proxied request with the same URL structure
-      const proxyRequest = new Request(targetUrl.toString(), {
-        method: request.method,
-        headers: request.headers,
-        body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
-      });
-
       try {
         // Route to appropriate worker based on path
         if (url.pathname.startsWith('/api/notifications/')) {
           console.log('→ Routing to NOTIFICATION_WORKER');
-          // Remove /api prefix for notification worker
-          const notificationUrl = new URL(url.pathname.replace('/api', ''), 'https://notification.internal');
-          notificationUrl.search = url.search;
-          
-          const notificationRequest = new Request(notificationUrl.toString(), {
-            method: request.method,
-            headers: request.headers,
-            body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
-          });
-          
-          return await env.NOTIFICATION_WORKER.fetch(notificationRequest);
+          // Forward the full request to notification worker
+          return await env.NOTIFICATION_WORKER.fetch(request);
           
         } else if (url.pathname.startsWith('/api/payment/')) {
           console.log('→ Routing to PAYMENT_WORKER');
-          // Remove /api prefix for payment worker
-          const paymentUrl = new URL(url.pathname.replace('/api', ''), 'https://payment.internal');
-          paymentUrl.search = url.search;
-          
-          const paymentRequest = new Request(paymentUrl.toString(), {
-            method: request.method,
-            headers: request.headers,
-            body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
-          });
-          
-          return await env.PAYMENT_WORKER.fetch(paymentRequest);
+          // Forward the full request to payment worker
+          return await env.PAYMENT_WORKER.fetch(request);
           
         } else {
           console.log('→ Routing to API_WORKER (main)');
-          // For main API worker, we need to remove /api prefix since Hono routes don't expect it
-          const mainApiUrl = new URL(url.pathname.replace('/api', '') || '/', 'https://main.internal');
-          mainApiUrl.search = url.search;
-          
-          const mainApiRequest = new Request(mainApiUrl.toString(), {
-            method: request.method,
-            headers: request.headers,
-            body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
-          });
-          
-          console.log(`📤 Forwarding to main API: ${mainApiRequest.url}`);
-          const response = await env.API_WORKER.fetch(mainApiRequest);
+          // For main API worker, forward the full request
+          console.log(`📤 Forwarding to main API: ${request.url}`);
+          const response = await env.API_WORKER.fetch(request);
           
           console.log(`📥 Response from main API: ${response.status}`);
           return response;

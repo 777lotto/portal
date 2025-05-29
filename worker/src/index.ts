@@ -1,4 +1,4 @@
-// worker/src/index.ts - Fixed routing and CORS
+// worker/src/index.ts - Fixed routing to handle /api prefix
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { Env } from '@portal/shared';
@@ -20,9 +20,9 @@ type Context = {
 
 const app = new Hono<Context>();
 
-// Enhanced CORS middleware - allow all origins for now to debug
+// Enhanced CORS middleware - allow all origins for debugging
 app.use('/*', cors({
-  origin: '*', // Allow all origins temporarily for debugging
+  origin: '*',
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: false,
@@ -33,11 +33,12 @@ app.use('*', async (c, next) => {
   const start = Date.now();
   const method = c.req.method;
   const path = c.req.path;
+  const fullUrl = c.req.url;
   const origin = c.req.header('origin');
   
   console.log(`🔥 [MAIN-WORKER] ${method} ${path}`);
   console.log(`🌐 Origin: ${origin || 'none'}`);
-  console.log(`🔍 Full URL: ${c.req.url}`);
+  console.log(`🔍 Full URL: ${fullUrl}`);
   
   await next();
   
@@ -45,7 +46,21 @@ app.use('*', async (c, next) => {
   console.log(`⏱️  [MAIN-WORKER] Request completed in ${duration}ms`);
 });
 
-// Root endpoint for testing
+// CORS preflight handler for all routes
+app.options('*', (c) => {  
+  console.log(`✅ CORS preflight for ${c.req.path}`);
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+      'Access-Control-Max-Age': '86400',
+    }
+  });
+});
+
+// Root endpoint for testing (handles both / and /api/)
 app.get('/', (c) => {
   console.log('✅ Root endpoint hit');
   return c.json({
@@ -57,9 +72,32 @@ app.get('/', (c) => {
   });
 });
 
-// Health check endpoints
+app.get('/api', (c) => {
+  console.log('✅ API root endpoint hit');
+  return c.json({
+    message: 'Main API Worker is working!',
+    timestamp: new Date().toISOString(),
+    path: c.req.path,
+    method: c.req.method,
+    worker: 'main-api'
+  });
+});
+
+// Health check endpoints (both with and without /api prefix)
 app.get('/ping', (c) => {
   console.log('✅ Ping endpoint hit');
+  return c.json({
+    message: 'Main API Worker is working!',
+    timestamp: new Date().toISOString(),
+    path: c.req.path,
+    method: c.req.method,
+    url: c.req.url,
+    worker: 'main-api'
+  });
+});
+
+app.get('/api/ping', (c) => {
+  console.log('✅ API Ping endpoint hit');
   return c.json({
     message: 'Main API Worker is working!',
     timestamp: new Date().toISOString(),
@@ -88,22 +126,26 @@ app.get('/debug', (c) => {
   });
 });
 
-// CORS preflight handler for all routes
-app.options('*', (c) => {  
-  console.log(`✅ CORS preflight for ${c.req.path}`);
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-      'Access-Control-Max-Age': '86400',
-    }
+app.get('/api/debug', (c) => {
+  console.log('✅ API Debug endpoint hit');
+  return c.json({
+    message: 'Debug endpoint working!',
+    url: c.req.url,
+    path: c.req.path,
+    method: c.req.method,
+    headers: Object.fromEntries(c.req.raw.headers.entries()),
+    hasDB: !!c.env.DB,
+    hasJWT: !!c.env.JWT_SECRET,
+    hasTurnstile: !!c.env.TURNSTILE_SECRET_KEY,
+    hasStripe: !!c.env.STRIPE_SECRET_KEY,
+    timestamp: new Date().toISOString(),
+    worker: 'main-api',
+    environment: c.env.ENVIRONMENT || 'development'
   });
 });
 
-// Auth endpoints
-app.post('/signup/check', async (c) => {
+// Auth endpoints (with /api prefix)
+app.post('/api/signup/check', async (c) => {
   console.log('✅ [MAIN-WORKER] Signup check endpoint hit');
   try {
     return await handleSignupCheck(c.req.raw, c.env);
@@ -115,7 +157,7 @@ app.post('/signup/check', async (c) => {
   }
 });
 
-app.post('/signup', async (c) => {
+app.post('/api/signup', async (c) => {
   console.log('✅ [MAIN-WORKER] Signup endpoint hit');
   try {
     return await handleSignup(c.req.raw, c.env);
@@ -127,7 +169,7 @@ app.post('/signup', async (c) => {
   }
 });
 
-app.post('/login', async (c) => {
+app.post('/api/login', async (c) => {
   console.log('✅ [MAIN-WORKER] Login endpoint hit');
   try {
     return await handleLogin(c.req.raw, c.env);
@@ -139,8 +181,8 @@ app.post('/login', async (c) => {
   }
 });
 
-// Stripe endpoints
-app.post('/stripe/check-customer', async (c) => {
+// Stripe endpoints (with /api prefix)
+app.post('/api/stripe/check-customer', async (c) => {
   console.log('✅ [MAIN-WORKER] Stripe customer check endpoint hit');
   try {
     return await handleStripeCustomerCheck(c.req.raw, c.env);
@@ -150,7 +192,7 @@ app.post('/stripe/check-customer', async (c) => {
   }
 });
 
-app.post('/stripe/create-customer', async (c) => {
+app.post('/api/stripe/create-customer', async (c) => {
   console.log('✅ [MAIN-WORKER] Stripe create customer endpoint hit');
   try {
     const body = await c.req.json();
@@ -169,7 +211,7 @@ app.post('/stripe/create-customer', async (c) => {
   }
 });
 
-app.post('/stripe/webhook', async (c) => {
+app.post('/api/stripe/webhook', async (c) => {
   console.log('✅ [MAIN-WORKER] Stripe webhook endpoint hit');
   try {
     return await handleStripeWebhook(c.req.raw, c.env);
@@ -192,8 +234,8 @@ const requireAuthMiddleware = async (c: any, next: any) => {
   }
 };
 
-// Profile endpoints (protected)
-app.get('/profile', requireAuthMiddleware, async (c) => {
+// Profile endpoints (protected, with /api prefix)
+app.get('/api/profile', requireAuthMiddleware, async (c) => {
   console.log('✅ [MAIN-WORKER] Profile GET endpoint hit');
   try {
     const email = c.get('userEmail') as string;
@@ -204,7 +246,7 @@ app.get('/profile', requireAuthMiddleware, async (c) => {
   }
 });
 
-app.put('/profile', requireAuthMiddleware, async (c) => {
+app.put('/api/profile', requireAuthMiddleware, async (c) => {
   console.log('✅ [MAIN-WORKER] Profile PUT endpoint hit');
   try {
     const email = c.get('userEmail') as string;
@@ -215,8 +257,8 @@ app.put('/profile', requireAuthMiddleware, async (c) => {
   }
 });
 
-// Services endpoints (protected)
-app.get('/services', requireAuthMiddleware, async (c) => {
+// Services endpoints (protected, with /api prefix)
+app.get('/api/services', requireAuthMiddleware, async (c) => {
   console.log('✅ [MAIN-WORKER] Services GET endpoint hit');
   try {
     const email = c.get('userEmail') as string;
@@ -227,7 +269,7 @@ app.get('/services', requireAuthMiddleware, async (c) => {
   }
 });
 
-app.get('/services/:id', requireAuthMiddleware, async (c) => {
+app.get('/api/services/:id', requireAuthMiddleware, async (c) => {
   console.log('✅ [MAIN-WORKER] Service detail GET endpoint hit');
   try {
     const email = c.get('userEmail') as string;
@@ -242,7 +284,7 @@ app.get('/services/:id', requireAuthMiddleware, async (c) => {
   }
 });
 
-app.post('/services/:id/invoice', requireAuthMiddleware, async (c) => {
+app.post('/api/services/:id/invoice', requireAuthMiddleware, async (c) => {
   console.log('✅ [MAIN-WORKER] Service invoice POST endpoint hit');
   try {
     const email = c.get('userEmail') as string;
@@ -257,8 +299,8 @@ app.post('/services/:id/invoice', requireAuthMiddleware, async (c) => {
   }
 });
 
-// Jobs/Calendar endpoints (protected)
-app.get('/jobs', requireAuthMiddleware, async (c) => {
+// Jobs/Calendar endpoints (protected, with /api prefix)
+app.get('/api/jobs', requireAuthMiddleware, async (c) => {
   console.log('✅ [MAIN-WORKER] Jobs GET endpoint hit');
   try {
     return await handleGetJobs(c.req.raw, c.env);
@@ -268,7 +310,7 @@ app.get('/jobs', requireAuthMiddleware, async (c) => {
   }
 });
 
-app.get('/jobs/:id', requireAuthMiddleware, async (c) => {
+app.get('/api/jobs/:id', requireAuthMiddleware, async (c) => {
   console.log('✅ [MAIN-WORKER] Job detail GET endpoint hit');
   try {
     const url = new URL(c.req.url);
@@ -279,7 +321,7 @@ app.get('/jobs/:id', requireAuthMiddleware, async (c) => {
   }
 });
 
-app.get('/calendar-feed', async (c) => {
+app.get('/api/calendar-feed', async (c) => {
   console.log('✅ [MAIN-WORKER] Calendar feed GET endpoint hit');
   try {
     const url = new URL(c.req.url);
@@ -290,8 +332,8 @@ app.get('/calendar-feed', async (c) => {
   }
 });
 
-// Stripe Customer Portal (protected)
-app.post('/portal', requireAuthMiddleware, async (c) => {
+// Stripe Customer Portal (protected, with /api prefix)
+app.post('/api/portal', requireAuthMiddleware, async (c) => {
   console.log('✅ [MAIN-WORKER] Portal POST endpoint hit');
   try {
     const email = c.get('userEmail') as string;
@@ -320,8 +362,8 @@ app.post('/portal', requireAuthMiddleware, async (c) => {
   }
 });
 
-// SMS endpoints that proxy to notification worker (protected)
-app.get('/sms/conversations', requireAuthMiddleware, async (c) => {
+// SMS endpoints that proxy to notification worker (protected, with /api prefix)
+app.get('/api/sms/conversations', requireAuthMiddleware, async (c) => {
   console.log('✅ [MAIN-WORKER] SMS conversations GET endpoint hit');
   try {
     const email = c.get('userEmail') as string;
@@ -370,24 +412,27 @@ app.all('*', (c) => {
     worker: 'main-api',
     availableRoutes: [
       'GET /',
+      'GET /api',
       'GET /ping',
+      'GET /api/ping',
       'GET /debug',
-      'POST /signup/check',
-      'POST /signup',
-      'POST /login',
-      'POST /stripe/check-customer',
-      'POST /stripe/create-customer',
-      'POST /stripe/webhook',
-      'GET /profile (protected)',
-      'PUT /profile (protected)',
-      'GET /services (protected)',
-      'GET /services/:id (protected)',
-      'POST /services/:id/invoice (protected)',
-      'GET /jobs (protected)',
-      'GET /jobs/:id (protected)',
-      'GET /calendar-feed',
-      'POST /portal (protected)',
-      'GET /sms/conversations (protected)'
+      'GET /api/debug',
+      'POST /api/signup/check',
+      'POST /api/signup',
+      'POST /api/login',
+      'POST /api/stripe/check-customer',
+      'POST /api/stripe/create-customer',
+      'POST /api/stripe/webhook',
+      'GET /api/profile (protected)',
+      'PUT /api/profile (protected)',
+      'GET /api/services (protected)',
+      'GET /api/services/:id (protected)',
+      'POST /api/services/:id/invoice (protected)',
+      'GET /api/jobs (protected)',
+      'GET /api/jobs/:id (protected)',
+      'GET /api/calendar-feed',
+      'POST /api/portal (protected)',
+      'GET /api/sms/conversations (protected)'
     ],
     timestamp: new Date().toISOString()
   }, 404);
