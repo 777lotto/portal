@@ -1,61 +1,78 @@
-// frontend/src/worker.ts - New Worker entry point for static assets
+// frontend/src/worker.ts - Fixed TypeScript version
+export interface Env {
+  ASSETS: Fetcher;
+  API?: Fetcher;
+  ENVIRONMENT?: string;
+}
+
 export default {
-  async fetch(request: Request, env: any): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     
     // Handle API requests - proxy to main worker
     if (url.pathname.startsWith('/api/')) {
-      // If you have the API worker binding, use it
-      if (env.API) {
-        return env.API.fetch(request);
+      try {
+        // Use service binding if available
+        if (env.API) {
+          return env.API.fetch(request);
+        }
+        
+        // Fallback: proxy to API worker directly
+        // Since we don't have the API binding, let the request fall through
+        // to the main worker which handles /api/* routes
+        return fetch(request);
+      } catch (error) {
+        console.error('API proxy error:', error);
+        return new Response(JSON.stringify({ error: 'API Error' }), { 
+          status: 502,
+          headers: { 'Content-Type': 'application/json' }
+        });
       }
-      
-      // Otherwise, proxy to the API worker
-      const apiUrl = new URL(request.url);
-      apiUrl.hostname = 'portal.777.foo'; // or your API domain
-      
-      return fetch(new Request(apiUrl.toString(), {
-        method: request.method,
-        headers: request.headers,
-        body: request.method !== 'GET' && request.method !== 'HEAD' 
-          ? request.body 
-          : undefined,
-      }));
     }
 
     // Handle static assets
     try {
-      // Try to get the static asset
+      // Try to get the static asset first
       const assetResponse = await env.ASSETS.fetch(request);
       
-      // If asset exists, return it
-      if (assetResponse.status !== 404) {
+      // If asset exists and is successful, return it
+      if (assetResponse.status < 400) {
         return assetResponse;
       }
       
       // For SPA routing - serve index.html for non-asset requests
-      if (!url.pathname.includes('.')) {
-        const indexResponse = await env.ASSETS.fetch(
-          new Request(new URL('/index.html', request.url).toString())
+      if (!url.pathname.includes('.') && !url.pathname.startsWith('/api/')) {
+        const indexRequest = new Request(
+          new URL('/index.html', request.url).toString(),
+          {
+            method: request.method,
+            headers: request.headers,
+          }
         );
         
-        // Set proper headers for SPA routing
-        return new Response(indexResponse.body, {
-          ...indexResponse,
-          headers: {
-            ...Object.fromEntries(indexResponse.headers.entries()),
-            'Content-Type': 'text/html',
-            'Cache-Control': 'no-cache', // Don't cache the SPA shell
-          },
-        });
+        const indexResponse = await env.ASSETS.fetch(indexRequest);
+        
+        if (indexResponse.ok) {
+          return new Response(indexResponse.body, {
+            status: 200,
+            headers: {
+              ...Object.fromEntries(indexResponse.headers.entries()),
+              'Content-Type': 'text/html; charset=utf-8',
+              'Cache-Control': 'no-cache',
+            },
+          });
+        }
       }
       
-      // Return 404 for actual missing assets
-      return new Response('Not Found', { status: 404 });
+      // Return the original asset response (likely 404)
+      return assetResponse;
       
     } catch (error) {
-      console.error('Static asset error:', error);
-      return new Response('Internal Server Error', { status: 500 });
+      console.error('Asset serving error:', error);
+      return new Response(JSON.stringify({ error: 'Internal Server Error' }), { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
   },
 };

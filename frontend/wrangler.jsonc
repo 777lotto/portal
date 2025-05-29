@@ -6,7 +6,18 @@
   "compatibility_date": "2024-12-01",
   
   "routes": [
-    { "pattern": "portal.777.foo/*", "zone_name": "777.foo" }
+    { "pattern": "portal.777.foo/", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/dashboard*", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/login", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/signup", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/services*", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/calendar*", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/sms*", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/assets/*", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/static/*", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/*.js", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/*.css", "zone_name": "777.foo" },
+    { "pattern": "portal.777.foo/*.ico", "zone_name": "777.foo" }
   ],
 
   "assets": {
@@ -14,18 +25,8 @@
     "binding": "ASSETS"
   },
 
-  "services": [
-    {
-      "binding": "API",
-      "service": "worker"
-    }
-  ],
-
   "vars": {
-    "ENVIRONMENT": "production",
-    "VITE_API_URL": "https://portal.777.foo/api",
-    "VITE_TURNSTILE_SITE_KEY": "0x4AAAAAABcgNHsEZnTPqdEV",
-    "VITE_STRIPE_PK": "pk_live_51QSAo7Fw0123456789..."
+    "ENVIRONMENT": "production"
   },
 
   "compatibility_flags": [
@@ -35,30 +36,27 @@
   "dev": {
     "port": 8788,
     "local_protocol": "http",
-    "ip": "localhost",
-    "vars": {
-      "VITE_API_URL": "https://portal.777.foo/api",
-      "VITE_TURNSTILE_SITE_KEY": "0x4AAAAAABcgNHsEZnTPqdEV",
-      "VITE_STRIPE_PK": "pk_live_51MBf4rHNec9XrT0Fy63H12UL5Vxkcw5GNVmyuXS8b3DdYbBAQVVtd1wpshGBgwZtz8NkCHz7ZhExYDDt0fn9RTGd009jbyk3Gj"
-    }
+    "ip": "localhost"
   },
 
   "env": {
     "production": {
       "routes": [
-        { "pattern": "portal.777.foo/*", "zone_name": "777.foo" }
-      ],
-      "services": [
-        {
-          "binding": "API",
-          "service": "worker"
-        }
+        { "pattern": "portal.777.foo/", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/dashboard*", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/login", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/signup", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/services*", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/calendar*", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/sms*", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/assets/*", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/static/*", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/*.js", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/*.css", "zone_name": "777.foo" },
+        { "pattern": "portal.777.foo/*.ico", "zone_name": "777.foo" }
       ],
       "vars": {
-        "ENVIRONMENT": "production",
-        "VITE_API_URL": "https://portal.777.foo/api",
-        "VITE_TURNSTILE_SITE_KEY": "0x4AAAAAABcgNHsEZnTPqdEV",
-        "VITE_STRIPE_PK": "pk_live_51QSAo7Fw0123456789..."
+        "ENVIRONMENT": "production"
       }
     }
   }
