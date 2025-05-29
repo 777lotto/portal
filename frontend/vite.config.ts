@@ -1,4 +1,4 @@
-// frontend/vite.config.ts - Handle path mapping here instead of tsconfig
+// frontend/vite.config.ts - Removed proxy, hitting worker directly
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import { resolve } from 'path'
@@ -12,13 +12,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    proxy: {
-      '/api': {
-        target: process.env.VITE_API_URL || 'http://localhost:8787',
-        changeOrigin: true,
-        secure: false,
-      }
-    }
+    // Removed proxy - we'll hit the worker directly at localhost:8787
   },
   define: {
     'import.meta.env.VITE_API_URL': JSON.stringify(

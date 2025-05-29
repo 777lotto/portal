@@ -1,5 +1,8 @@
-// frontend/src/lib/fetchJson.ts - Fixed TypeScript errors
-const API_BASE = import.meta.env.VITE_API_URL || 'https://portal.777.foo/api';
+// frontend/src/lib/fetchJson.ts - Fixed with proper dev/prod URL handling
+const isDev = import.meta.env.DEV;
+const API_BASE = isDev 
+  ? 'http://localhost:8787'  // Development: direct to worker (routes don't have /api prefix in Hono)
+  : 'https://portal.777.foo/api'; // Production
 
 export async function fetchJson(
   input: RequestInfo,
@@ -38,20 +41,26 @@ export async function fetchJson(
 
   const requestOptions: RequestInit = {
     ...init,
-    headers
+    headers,
+    // Add explicit mode for dev environment
+    mode: isDev ? 'cors' : 'same-origin',
+    credentials: isDev ? 'omit' : 'same-origin',
   };
 
   console.log('📤 Request options:', {
     method: requestOptions.method || 'GET',
     url,
     headers: Object.fromEntries(headers.entries()),
-    hasBody: !!requestOptions.body
+    hasBody: !!requestOptions.body,
+    mode: requestOptions.mode,
+    credentials: requestOptions.credentials
   });
 
   try {
     const res = await fetch(url, requestOptions);
     
     console.log('📥 Response status:', res.status);
+    console.log('📥 Response headers:', Object.fromEntries(res.headers.entries()));
     
     if (!res.ok) {
       let errorText: string;
@@ -85,6 +94,12 @@ export async function fetchJson(
     }
   } catch (error) {
     console.error('❌ Fetch error:', error);
+    
+    // Provide more helpful error messages
+    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      throw new Error('Unable to connect to server. Please check your internet connection and try again.');
+    }
+    
     throw error;
   }
 }

@@ -1,4 +1,4 @@
-// worker/src/index.ts - Fixed TypeScript imports and types
+// worker/src/index.ts - Enhanced CORS and debugging
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { Env } from '@portal/shared';
@@ -20,21 +20,34 @@ type Context = {
 
 const app = new Hono<Context>();
 
-// Add CORS middleware with proper configuration
+// Enhanced CORS middleware with explicit options
 app.use('/*', cors({
-  origin: '*',
+  origin: ['http://localhost:5173', 'https://portal.777.foo', 'http://localhost:3000'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: false,
 }));
 
-// Debug logging middleware
+// Enhanced debug logging middleware
 app.use('*', async (c, next) => {
-  console.log(`🔥 Worker hit: ${c.req.method} ${c.req.path}`);
+  const start = Date.now();
+  const method = c.req.method;
+  const path = c.req.path;
+  const origin = c.req.header('origin');
+  const userAgent = c.req.header('user-agent');
+  
+  console.log(`🔥 [${new Date().toISOString()}] ${method} ${path}`);
+  console.log(`🌐 Origin: ${origin || 'none'}`);
   console.log(`🔍 Full URL: ${c.req.url}`);
+  console.log(`👤 User-Agent: ${userAgent?.substring(0, 50) || 'none'}`);
+  
   await next();
+  
+  const duration = Date.now() - start;
+  console.log(`⏱️  Request completed in ${duration}ms`);
 });
 
-// Health check endpoints
+// Health check endpoints with more details
 app.get('/ping', (c) => {
   console.log('✅ Ping endpoint hit');
   return c.json({
@@ -42,7 +55,9 @@ app.get('/ping', (c) => {
     timestamp: new Date().toISOString(),
     path: c.req.path,
     method: c.req.method,
-    url: c.req.url
+    url: c.req.url,
+    headers: Object.fromEntries(c.req.raw.headers.entries()),
+    worker: 'main'
   });
 });
 
@@ -58,18 +73,39 @@ app.get('/debug', (c) => {
     hasJWT: !!c.env.JWT_SECRET,
     hasTurnstile: !!c.env.TURNSTILE_SECRET_KEY,
     hasStripe: !!c.env.STRIPE_SECRET_KEY,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    worker: 'main',
+    environment: c.env.ENVIRONMENT || 'development'
   });
 });
 
-// Auth endpoints
+// CORS preflight handler for all routes
+app.options('*', (c) => {  
+  console.log(`✅ CORS preflight for ${c.req.path}`);
+  return c.text('', 204);
+});
+
+// Auth endpoints with enhanced error handling
 app.post('/signup/check', async (c) => {
   console.log('✅ Signup check endpoint hit');
+  console.log('📝 Request body preview:', await c.req.text().then(body => body.substring(0, 200)));
+  
   try {
-    return await handleSignupCheck(c.req.raw, c.env);
+    // Re-create request since we consumed the body above
+    const body = await c.req.json();
+    const newRequest = new Request(c.req.url, {
+      method: 'POST',
+      headers: c.req.raw.headers,
+      body: JSON.stringify(body)
+    });
+    
+    return await handleSignupCheck(newRequest, c.env);
   } catch (error: any) {
     console.error('❌ Signup check error:', error);
-    return c.json({ error: error.message || 'Signup check failed' }, 500);
+    return c.json({ 
+      error: error.message || 'Signup check failed',
+      details: error.stack?.substring(0, 200)
+    }, 500);
   }
 });
 
@@ -79,7 +115,10 @@ app.post('/signup', async (c) => {
     return await handleSignup(c.req.raw, c.env);
   } catch (error: any) {
     console.error('❌ Signup error:', error);
-    return c.json({ error: error.message || 'Signup failed' }, 500);
+    return c.json({ 
+      error: error.message || 'Signup failed',
+      details: error.stack?.substring(0, 200)
+    }, 500);
   }
 });
 
@@ -89,7 +128,10 @@ app.post('/login', async (c) => {
     return await handleLogin(c.req.raw, c.env);
   } catch (error: any) {
     console.error('❌ Login error:', error);
-    return c.json({ error: error.message || 'Login failed' }, 500);
+    return c.json({ 
+      error: error.message || 'Login failed',
+      details: error.stack?.substring(0, 200)
+    }, 500);
   }
 });
 
@@ -301,7 +343,6 @@ app.get('/sms/conversations', requireAuthMiddleware, async (c) => {
       );
 
       const data = await response.json() as any;
-      // Fix: Use proper Hono response with proper status code casting
       return c.json(data, response.ok ? 200 : 500);
     } else {
       return c.json({ error: "SMS service not available" }, 503);
@@ -312,14 +353,17 @@ app.get('/sms/conversations', requireAuthMiddleware, async (c) => {
   }
 });
 
-// Catch-all route for debugging
+// Enhanced catch-all route for debugging
 app.all('*', (c) => {
   console.log(`❓ Unhandled route: ${c.req.method} ${c.req.path}`);
+  console.log(`🔍 Headers:`, Object.fromEntries(c.req.raw.headers.entries()));
+  
   return c.json({
     error: 'Route not found',
     path: c.req.path,
     method: c.req.method,
     fullUrl: c.req.url,
+    receivedHeaders: Object.fromEntries(c.req.raw.headers.entries()),
     availableRoutes: [
       'GET /ping',
       'GET /debug',
