@@ -5,19 +5,7 @@
   "account_id": "67d3a6021370e7b666fff2023b2db359",
   "compatibility_date": "2024-12-01",
   
-  "routes": [
-    { "pattern": "portal.777.foo", "zone_name": "777.foo" },
-    { "pattern": "portal.777.foo/", "zone_name": "777.foo" },
-    { "pattern": "portal.777.foo/login", "zone_name": "777.foo" },
-    { "pattern": "portal.777.foo/signup", "zone_name": "777.foo" },
-    { "pattern": "portal.777.foo/dashboard", "zone_name": "777.foo" },
-    { "pattern": "portal.777.foo/services*", "zone_name": "777.foo" },
-    { "pattern": "portal.777.foo/calendar*", "zone_name": "777.foo" },
-    { "pattern": "portal.777.foo/sms*", "zone_name": "777.foo" },
-    { "pattern": "portal.777.foo/jobs*", "zone_name": "777.foo" },
-    { "pattern": "portal.777.foo/assets/*", "zone_name": "777.foo" },
-    { "pattern": "portal.777.foo/static/*", "zone_name": "777.foo" }
-  ],
+  "routes": [],
 
   "assets": {
     "directory": "./dist",
@@ -40,21 +28,7 @@
 
   "env": {
     "production": {
-      "routes": [
-        { "pattern": "portal.777.foo/", "zone_name": "777.foo" },
-        { "pattern": "portal.777.foo/static/*", "zone_name": "777.foo" },
-        { "pattern": "portal.777.foo/assets/*", "zone_name": "777.foo" },
-        { "pattern": "portal.777.foo/login", "zone_name": "777.foo" },
-        { "pattern": "portal.777.foo/signup", "zone_name": "777.foo" },
-        { "pattern": "portal.777.foo/dashboard", "zone_name": "777.foo" },
-        { "pattern": "portal.777.foo/services", "zone_name": "777.foo" },
-        { "pattern": "portal.777.foo/services/*", "zone_name": "777.foo" },
-        { "pattern": "portal.777.foo/calendar", "zone_name": "777.foo" },
-        { "pattern": "portal.777.foo/calendar-sync", "zone_name": "777.foo" },
-        { "pattern": "portal.777.foo/sms", "zone_name": "777.foo" },
-        { "pattern": "portal.777.foo/sms/*", "zone_name": "777.foo" },
-        { "pattern": "portal.777.foo/jobs/*", "zone_name": "777.foo" }
-      ],
+      "routes": [],
       "vars": {
         "ENVIRONMENT": "production"
       }
