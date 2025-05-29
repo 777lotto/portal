@@ -1,4 +1,4 @@
-// worker/src/index.ts - Fixed routing to handle /api prefix
+// worker/src/index.ts - Fixed SMS conversations endpoint
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { Env } from '@portal/shared';
@@ -377,10 +377,13 @@ app.get('/api/sms/conversations', requireAuthMiddleware, async (c) => {
       return c.json({ error: "User not found" }, 404);
     }
 
+    const userId = (userRow as any).id;
+    console.log(`📱 Getting SMS conversations for user ID: ${userId}`);
+
     // Proxy to notification worker if available
     if (c.env.NOTIFICATION_WORKER) {
       const response = await c.env.NOTIFICATION_WORKER.fetch(
-        new Request(`https://portal.777.foo/api/notifications/sms/conversations?userId=${(userRow as any).id}`, {
+        new Request(`https://portal.777.foo/api/notifications/sms/conversations?userId=${userId}`, {
           method: 'GET',
           headers: {
             'Authorization': c.req.header('Authorization') || '',
@@ -388,14 +391,130 @@ app.get('/api/sms/conversations', requireAuthMiddleware, async (c) => {
         })
       );
 
-      const data = await response.json() as any;
-      return c.json(data, response.ok ? 200 : 500);
+      if (response.ok) {
+        const data = await response.json() as any;
+        console.log(`✅ SMS conversations retrieved:`, data);
+        return c.json(data);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Notification worker error:', errorText);
+        return c.json({ error: "SMS service error: " + errorText }, response.status);
+      }
     } else {
+      console.error('❌ NOTIFICATION_WORKER not available');
       return c.json({ error: "SMS service not available" }, 503);
     }
   } catch (error: any) {
     console.error('❌ SMS conversations error:', error);
     return c.json({ error: error.message || 'SMS conversations failed' }, 500);
+  }
+});
+
+// SMS messages for specific conversation (protected, with /api prefix)
+app.get('/api/sms/messages/:phoneNumber', requireAuthMiddleware, async (c) => {
+  console.log('✅ [MAIN-WORKER] SMS messages GET endpoint hit');
+  try {
+    const email = c.get('userEmail') as string;
+    const phoneNumber = c.req.param('phoneNumber');
+    
+    // Get user ID
+    const userRow = await c.env.DB.prepare(
+      `SELECT id FROM users WHERE lower(email) = ?`
+    ).bind(email.toLowerCase()).first();
+
+    if (!userRow) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    const userId = (userRow as any).id;
+    console.log(`📱 Getting SMS messages for user ID: ${userId}, phone: ${phoneNumber}`);
+
+    // Proxy to notification worker if available
+    if (c.env.NOTIFICATION_WORKER) {
+      const response = await c.env.NOTIFICATION_WORKER.fetch(
+        new Request(`https://portal.777.foo/api/notifications/sms/messages/${phoneNumber}?userId=${userId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': c.req.header('Authorization') || '',
+          },
+        })
+      );
+
+      if (response.ok) {
+        const data = await response.json() as any;
+        console.log(`✅ SMS messages retrieved for ${phoneNumber}`);
+        return c.json(data);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Notification worker error:', errorText);
+        return c.json({ error: "SMS service error: " + errorText }, response.status);
+      }
+    } else {
+      console.error('❌ NOTIFICATION_WORKER not available');
+      return c.json({ error: "SMS service not available" }, 503);
+    }
+  } catch (error: any) {
+    console.error('❌ SMS messages error:', error);
+    return c.json({ error: error.message || 'SMS messages failed' }, 500);
+  }
+});
+
+// Send SMS endpoint (protected, with /api prefix)
+app.post('/api/sms/send', requireAuthMiddleware, async (c) => {
+  console.log('✅ [MAIN-WORKER] SMS send POST endpoint hit');
+  try {
+    const email = c.get('userEmail') as string;
+    const body = await c.req.json();
+    
+    // Get user ID
+    const userRow = await c.env.DB.prepare(
+      `SELECT id FROM users WHERE lower(email) = ?`
+    ).bind(email.toLowerCase()).first();
+
+    if (!userRow) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    const userId = (userRow as any).id;
+    console.log(`📱 Sending SMS for user ID: ${userId}, to: ${body.to}`);
+
+    // Proxy to notification worker if available
+    if (c.env.NOTIFICATION_WORKER) {
+      const response = await c.env.NOTIFICATION_WORKER.fetch(
+        new Request(`https://portal.777.foo/api/notifications/send`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': c.req.header('Authorization') || '',
+          },
+          body: JSON.stringify({
+            type: 'direct_sms',
+            userId: userId,
+            data: {
+              to: body.to,
+              message: body.message
+            },
+            channels: ['sms']
+          })
+        })
+      );
+
+      if (response.ok) {
+        const data = await response.json() as any;
+        console.log(`✅ SMS sent successfully`);
+        return c.json(data);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ SMS send error:', errorText);
+        return c.json({ error: "SMS send failed: " + errorText }, response.status);
+      }
+    } else {
+      console.error('❌ NOTIFICATION_WORKER not available');
+      return c.json({ error: "SMS service not available" }, 503);
+    }
+  } catch (error: any) {
+    console.error('❌ SMS send error:', error);
+    return c.json({ error: error.message || 'SMS send failed' }, 500);
   }
 });
 
@@ -432,7 +551,9 @@ app.all('*', (c) => {
       'GET /api/jobs/:id (protected)',
       'GET /api/calendar-feed',
       'POST /api/portal (protected)',
-      'GET /api/sms/conversations (protected)'
+      'GET /api/sms/conversations (protected)',
+      'GET /api/sms/messages/:phoneNumber (protected)',
+      'POST /api/sms/send (protected)'
     ],
     timestamp: new Date().toISOString()
   }, 404);
