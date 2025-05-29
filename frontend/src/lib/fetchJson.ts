@@ -1,8 +1,10 @@
-// frontend/src/lib/fetchJson.ts - Fixed with proper dev/prod URL handling
+// frontend/src/lib/fetchJson.ts - Updated for service binding approach
 const isDev = import.meta.env.DEV;
+
+// With service bindings, we always use the same API base since the frontend worker handles proxying
 const API_BASE = isDev 
-  ? 'http://localhost:8787'  // Development: direct to worker (routes don't have /api prefix in Hono)
-  : 'https://portal.777.foo/api'; // Production
+  ? 'http://localhost:8788/api'  // Development: frontend worker will proxy to other workers
+  : 'https://portal.777.foo/api'; // Production: frontend worker will proxy via service bindings
 
 export async function fetchJson(
   input: RequestInfo,
@@ -42,9 +44,9 @@ export async function fetchJson(
   const requestOptions: RequestInit = {
     ...init,
     headers,
-    // Add explicit mode for dev environment
-    mode: isDev ? 'cors' : 'same-origin',
-    credentials: isDev ? 'omit' : 'same-origin',
+    // Use same-origin for both dev and prod since we're going through the frontend worker
+    mode: 'same-origin',
+    credentials: 'same-origin',
   };
 
   console.log('📤 Request options:', {

@@ -5,13 +5,6 @@
   "account_id": "67d3a6021370e7b666fff2023b2db359",
   "compatibility_date": "2024-12-01",
 
-  "routes": [
-    {
-      "pattern": "portal.777.foo/api/payment/*",
-      "zone_name": "777.foo"
-    }
-  ],
-
   "d1_databases": [
     {
       "binding": "DB",
@@ -43,12 +36,6 @@
 
   "env": {
     "production": {
-      "routes": [
-        {
-          "pattern": "portal.777.foo/api/payment/*",
-          "zone_name": "777.foo"
-        }
-      ],
       "d1_databases": [
         {
           "binding": "DB",

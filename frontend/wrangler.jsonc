@@ -14,6 +14,21 @@
     "binding": "ASSETS"
   },
 
+  "services": [
+    {
+      "binding": "API_WORKER",
+      "service": "worker"
+    },
+    {
+      "binding": "NOTIFICATION_WORKER", 
+      "service": "notification"
+    },
+    {
+      "binding": "PAYMENT_WORKER",
+      "service": "payment"
+    }
+  ],
+
   "vars": {
     "ENVIRONMENT": "production"
   },
@@ -32,6 +47,20 @@
     "production": {
       "routes": [
         { "pattern": "portal.777.foo/*", "zone_name": "777.foo" }
+      ],
+      "services": [
+        {
+          "binding": "API_WORKER",
+          "service": "worker"
+        },
+        {
+          "binding": "NOTIFICATION_WORKER", 
+          "service": "notification"
+        },
+        {
+          "binding": "PAYMENT_WORKER",
+          "service": "payment"
+        }
       ],
       "vars": {
         "ENVIRONMENT": "production"
