@@ -137,13 +137,27 @@ jobs:
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
           
-      - name: Deploy Frontend Worker
+      - name: Build and Deploy Frontend Worker
         run: |
-          echo "Deploying frontend worker..."
+          echo "Building and deploying frontend worker..."
           cd frontend
           
           # Build the React app with environment variables
           echo "Building React app with environment variables..."
+          export VITE_API_URL="https://portal.777.foo/api"
+          export VITE_TURNSTILE_SITE_KEY="${{ secrets.VITE_TURNSTILE_SITE_KEY }}"
+          export VITE_STRIPE_PK="${{ secrets.VITE_STRIPE_PK }}"
+          
+          # Build the React app
+          pnpm run build
+          
+          # Verify the dist directory exists
+          if [ ! -d "dist" ]; then
+            echo "ERROR: Frontend build failed - dist directory not found"
+            exit 1
+          fi
+          
+          echo "Frontend build successful, deploying with Wrangler..."
           npx wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
