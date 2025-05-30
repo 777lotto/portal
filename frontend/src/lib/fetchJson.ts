@@ -1,9 +1,15 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'https://portal.777.foo/api';
+// frontend/src/lib/fetchJson.ts - Fixed types for strict TypeScript
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
-export async function fetchJson(
+interface ApiErrorResponse {
+  error?: string;
+  message?: string;
+}
+
+export async function fetchJson<T = unknown>(
   input: string,
-  init: RequestInit = {},
-): Promise<any> {
+  init: RequestInit = {}
+): Promise<T> {
   // Build full URL
   let url: string;
   if (input.startsWith('http')) {
@@ -41,10 +47,21 @@ export async function fetchJson(
       const contentType = res.headers.get("content-type") || "";
       
       if (contentType.includes("application/json")) {
-        const errorData = await res.json() as { error?: string; message?: string };
-        errorText = errorData.error || errorData.message || `HTTP ${res.status}`;
+        try {
+          const errorData = await res.json() as ApiErrorResponse;
+          errorText = errorData.error || errorData.message || `HTTP ${res.status}`;
+        } catch {
+          errorText = `HTTP ${res.status} - ${res.statusText}`;
+        }
       } else {
-        errorText = await res.text();
+        errorText = await res.text() || `HTTP ${res.status} - ${res.statusText}`;
+      }
+      
+      // Handle specific status codes
+      if (res.status === 401) {
+        localStorage.removeItem("token");
+        window.location.href = "/login";
+        throw new Error("Session expired. Please log in again.");
       }
       
       throw new Error(errorText);
@@ -53,11 +70,11 @@ export async function fetchJson(
     const responseContentType = res.headers.get("content-type") || "";
     
     if (responseContentType.includes("application/json")) {
-      return await res.json();
+      return await res.json() as T;
     } else if (responseContentType.startsWith("text/")) {
-      return await res.text();
+      return await res.text() as T;
     } else {
-      return {};
+      return {} as T;
     }
   } catch (error) {
     console.error('❌ Fetch error:', error);

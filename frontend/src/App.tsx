@@ -1,3 +1,4 @@
+// frontend/src/App.tsx - Updated for Cloudflare integration
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import LoginForm from "./components/LoginForm";
@@ -12,13 +13,70 @@ import Navbar from "./components/Navbar";
 import SMSConversations from "./components/SMSConversations";
 import SMSConversation from "./components/SMSConversation";
 
+// Removed bogus global types - not needed with Cloudflare Vite plugin
+
 function App() {
   const [token, setToken] = useState<string | null>(null);
-  // Remove the unused state variable
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    setToken(localStorage.getItem("token"));
+    // Initialize the app
+    const initializeApp = async () => {
+      try {
+        // Get token from localStorage
+        const storedToken = localStorage.getItem("token");
+        setToken(storedToken);
+
+        // In development, test if the API is accessible
+        if (import.meta.env.DEV) {
+          try {
+            const response = await fetch('/api/ping', { 
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (response.ok) {
+              console.log('✅ API is ready');
+            } else {
+              console.warn('⚠️  API not ready yet, but continuing...');
+            }
+          } catch (error) {
+            console.warn('⚠️  Could not reach API during initialization:', error);
+          }
+        }
+
+        setIsReady(true);
+      } catch (error) {
+        console.error('App initialization error:', error);
+        setIsReady(true); // Continue anyway
+      }
+    };
+
+    initializeApp();
   }, []);
+
+  // Show loading state while initializing
+  if (!isReady) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        flexDirection: 'column',
+        gap: '1rem'
+      }}>
+        <div>Loading...</div>
+        {import.meta.env.DEV && (
+          <div style={{ fontSize: '0.8rem', color: '#666' }}>
+            Starting up...
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -73,6 +131,7 @@ function App() {
           path="/calendar-sync"
           element={token ? <CalendarSync /> : <Navigate to="/login" replace />}
         />
+        
         {/* SMS routes */}
         <Route
           path="/sms"
@@ -82,9 +141,27 @@ function App() {
           path="/sms/:phoneNumber"
           element={token ? <SMSConversation /> : <Navigate to="/login" replace />}
         />
+        
         {/* catch-all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      
+      {/* Development debug info */}
+      {import.meta.env.DEV && (
+        <div style={{
+          position: 'fixed',
+          bottom: '10px',
+          right: '10px',
+          background: 'rgba(0,0,0,0.8)',
+          color: 'white',
+          padding: '8px',
+          fontSize: '10px',
+          borderRadius: '4px',
+          fontFamily: 'monospace'
+        }}>
+          ENV: {import.meta.env.MODE} | API: {import.meta.env.VITE_API_URL || '/api'}
+        </div>
+      )}
     </>
   );
 }

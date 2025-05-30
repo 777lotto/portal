@@ -1,4 +1,4 @@
-// worker/src/auth.ts - Fixed JWT handling with better error messages
+// worker/src/auth.ts - Fixed JWT implementation
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import type { Env } from "@portal/shared";
@@ -38,117 +38,92 @@ export async function validateTurnstileToken(token: string, ip: string, env: Env
   }
 }
 
-// Require authentication and return email - FIXED
+// FIXED: More robust auth function
 export async function requireAuth(request: Request, env: Env): Promise<string> {
   const auth = request.headers.get("Authorization") || "";
-  console.log('🔍 Auth header received:', auth ? `Bearer ${auth.slice(7, 20)}...` : 'none');
   
   if (!auth.startsWith("Bearer ")) {
-    console.error('❌ Missing or invalid Authorization header format');
     throw new Error("Missing or invalid authorization header");
   }
 
-  const token = auth.slice(7); // Remove "Bearer " prefix
-  console.log('🎫 Token extracted, length:', token.length);
-
+  const token = auth.slice(7);
+  
   if (!token || token.length < 10) {
-    console.error('❌ Token too short or empty');
     throw new Error("Invalid token format");
   }
 
   try {
-    console.log('🔓 Verifying JWT token...');
-    
     const { payload } = await jwtVerify(
       token,
-      getJwtSecretKey(env.JWT_SECRET)
+      getJwtSecretKey(env.JWT_SECRET),
+      {
+        algorithms: ['HS256']
+      }
     );
 
-    console.log('✅ JWT payload verified:', {
-      id: payload.id,
-      email: payload.email,
-      name: payload.name,
-      iat: payload.iat,
-      exp: payload.exp
-    });
-
-    // Ensure we have an email or phone to identify the user
+    // FIXED: Better payload validation
     if (!payload.email && !payload.phone) {
-      console.error('❌ Token payload missing user identifier');
       throw new Error("Invalid token payload - missing user identifier");
     }
 
-    // Return email if available, otherwise use phone as fallback identifier
-    const identifier = payload.email as string || payload.phone as string;
-    console.log('✅ User authenticated:', identifier);
+    // FIXED: Ensure we return the email for user identification
+    const identifier = payload.email as string;
+    if (!identifier) {
+      throw new Error("Token missing email");
+    }
     
     return identifier;
   } catch (error: any) {
-    console.error("❌ JWT Verification error:", error);
+    console.error("JWT Verification error:", error);
     
-    // Provide more specific error messages
-    if (error.code === 'ERR_JWS_INVALID') {
-      throw new Error("Invalid token format");
+    // FIXED: More specific error handling
+    if (error.code === 'ERR_JWT_EXPIRED') {
+      throw new Error("Token has expired - please log in again");
     } else if (error.code === 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED') {
-      throw new Error("Token signature verification failed");
-    } else if (error.code === 'ERR_JWT_EXPIRED') {
-      throw new Error("Token has expired - please log in again");
-    } else if (error.name === 'JWTExpired') {
-      throw new Error("Token has expired - please log in again");
+      throw new Error("Invalid token signature");
     } else {
-      console.error("Detailed JWT error:", {
-        name: error.name,
-        code: error.code,
-        message: error.message
-      });
       throw new Error("Authentication failed");
     }
   }
 }
 
-// Create a new JWT token - FIXED
+// FIXED: More reliable JWT creation
 export async function createJwtToken(
   payload: Record<string, any>, 
   secret: string, 
   expiresIn: string = "7d"
 ): Promise<string> {
   try {
-    console.log('🔐 Creating JWT with payload:', payload);
-    
-    // Ensure payload has required fields and proper types
+    // FIXED: Ensure payload has required fields
     const cleanPayload = {
-      ...payload,
-      id: Number(payload.id), // Ensure ID is a number
-      iat: Math.floor(Date.now() / 1000) // Current timestamp
+      id: Number(payload.id),
+      email: payload.email || null,
+      name: payload.name || '',
+      phone: payload.phone || null,
+      iat: Math.floor(Date.now() / 1000)
     };
 
-    console.log('🔐 Clean payload for JWT:', cleanPayload);
-
     const jwt = new SignJWT(cleanPayload)
-      .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+      .setProtectedHeader({ 
+        alg: "HS256", 
+        typ: "JWT" 
+      })
       .setIssuedAt()
       .setExpirationTime(expiresIn);
 
     const token = await jwt.sign(getJwtSecretKey(secret));
     
-    console.log('✅ JWT created successfully, length:', token.length);
-    
-    // Validate the token we just created by parsing it
+    // FIXED: Validate the created token immediately
     try {
-      const testVerify = await jwtVerify(token, getJwtSecretKey(secret));
-      console.log('✅ JWT validation test passed:', {
-        id: testVerify.payload.id,
-        email: testVerify.payload.email,
-        exp: testVerify.payload.exp
-      });
+      await jwtVerify(token, getJwtSecretKey(secret));
     } catch (testError) {
-      console.error('❌ JWT validation test failed:', testError);
-      throw new Error('Created JWT token is invalid');
+      console.error('Created JWT is invalid:', testError);
+      throw new Error('Failed to create valid JWT token');
     }
     
     return token;
   } catch (error: any) {
-    console.error('❌ JWT creation error:', error);
+    console.error('JWT creation error:', error);
     throw new Error(`Failed to create authentication token: ${error.message}`);
   }
 }
