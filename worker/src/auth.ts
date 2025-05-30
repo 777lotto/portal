@@ -1,4 +1,4 @@
-// worker/src/auth.ts - Fixed JWT implementation
+// worker/src/auth.ts - Fixed JWT implementation with proper error handling
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import type { Env } from "@portal/shared";
@@ -19,6 +19,10 @@ export async function validateTurnstileToken(token: string, ip: string, env: Env
 
   try {
     const turnstileSecretKey = env.TURNSTILE_SECRET_KEY;
+    if (!turnstileSecretKey) {
+      console.warn('⚠️  Turnstile secret key not configured');
+      return false;
+    }
 
     const formData = new FormData();
     formData.append('secret', turnstileSecretKey);
@@ -30,7 +34,12 @@ export async function validateTurnstileToken(token: string, ip: string, env: Env
       body: formData
     });
 
-    const outcome = await result.json() as { success: boolean };
+    const outcome = await result.json() as { success: boolean; 'error-codes'?: string[] };
+    
+    if (!outcome.success && outcome['error-codes']) {
+      console.error('Turnstile validation failed:', outcome['error-codes']);
+    }
+    
     return outcome.success === true;
   } catch (error) {
     console.error('Turnstile validation error:', error);
@@ -38,21 +47,29 @@ export async function validateTurnstileToken(token: string, ip: string, env: Env
   }
 }
 
-// FIXED: More robust auth function
+// Auth middleware - extracts and validates JWT token
 export async function requireAuth(request: Request, env: Env): Promise<string> {
   const auth = request.headers.get("Authorization") || "";
+  
+  // Log auth header for debugging
+  console.log('🔐 Auth header:', auth ? `Bearer ${auth.slice(7, 15)}...` : 'None');
   
   if (!auth.startsWith("Bearer ")) {
     throw new Error("Missing or invalid authorization header");
   }
 
-  const token = auth.slice(7);
+  const token = auth.slice(7).trim();
   
   if (!token || token.length < 10) {
     throw new Error("Invalid token format");
   }
 
   try {
+    // Ensure JWT secret is available
+    if (!env.JWT_SECRET) {
+      throw new Error("JWT_SECRET not configured");
+    }
+
     const { payload } = await jwtVerify(
       token,
       getJwtSecretKey(env.JWT_SECRET),
@@ -61,47 +78,65 @@ export async function requireAuth(request: Request, env: Env): Promise<string> {
       }
     );
 
-    // FIXED: Better payload validation
+    console.log('✅ JWT verified, payload:', {
+      id: payload.id,
+      email: payload.email ? '***' : 'none',
+      phone: payload.phone ? '***' : 'none',
+      exp: payload.exp
+    });
+
+    // Validate payload structure
     if (!payload.email && !payload.phone) {
       throw new Error("Invalid token payload - missing user identifier");
     }
 
-    // FIXED: Ensure we return the email for user identification
-    const identifier = payload.email as string;
+    // Return the user's email for identification
+    const identifier = payload.email as string || payload.phone as string;
     if (!identifier) {
-      throw new Error("Token missing email");
+      throw new Error("Token missing user identifier");
     }
     
-    return identifier;
+    return payload.email as string || ''; // Return email for backward compatibility
   } catch (error: any) {
-    console.error("JWT Verification error:", error);
+    console.error("❌ JWT Verification error:", error.message || error);
     
-    // FIXED: More specific error handling
-    if (error.code === 'ERR_JWT_EXPIRED') {
+    // Provide specific error messages
+    if (error.code === 'ERR_JWT_EXPIRED' || error.message?.includes('expired')) {
       throw new Error("Token has expired - please log in again");
     } else if (error.code === 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED') {
       throw new Error("Invalid token signature");
+    } else if (error.code === 'ERR_JWT_CLAIM_VALIDATION_FAILED') {
+      throw new Error("Token validation failed");
     } else {
-      throw new Error("Authentication failed");
+      throw new Error(`Authentication failed: ${error.message || 'Unknown error'}`);
     }
   }
 }
 
-// FIXED: More reliable JWT creation
+// Create JWT token with proper structure
 export async function createJwtToken(
   payload: Record<string, any>, 
   secret: string, 
   expiresIn: string = "7d"
 ): Promise<string> {
   try {
-    // FIXED: Ensure payload has required fields
+    if (!secret) {
+      throw new Error("JWT secret not provided");
+    }
+
+    // Clean and validate payload
     const cleanPayload = {
-      id: Number(payload.id),
+      id: Number(payload.id) || 0,
       email: payload.email || null,
       name: payload.name || '',
       phone: payload.phone || null,
-      iat: Math.floor(Date.now() / 1000)
     };
+
+    console.log('🎫 Creating JWT for user:', {
+      id: cleanPayload.id,
+      email: cleanPayload.email ? '***' : 'none',
+      phone: cleanPayload.phone ? '***' : 'none'
+    });
 
     const jwt = new SignJWT(cleanPayload)
       .setProtectedHeader({ 
@@ -109,31 +144,45 @@ export async function createJwtToken(
         typ: "JWT" 
       })
       .setIssuedAt()
-      .setExpirationTime(expiresIn);
+      .setExpirationTime(expiresIn)
+      .setJti(crypto.randomUUID()); // Add JWT ID for tracking
 
     const token = await jwt.sign(getJwtSecretKey(secret));
     
-    // FIXED: Validate the created token immediately
+    // Validate the created token immediately
     try {
-      await jwtVerify(token, getJwtSecretKey(secret));
+      const { payload: testPayload } = await jwtVerify(token, getJwtSecretKey(secret));
+      console.log('✅ JWT created and validated successfully');
     } catch (testError) {
-      console.error('Created JWT is invalid:', testError);
+      console.error('❌ Created JWT is invalid:', testError);
       throw new Error('Failed to create valid JWT token');
     }
     
     return token;
   } catch (error: any) {
-    console.error('JWT creation error:', error);
+    console.error('❌ JWT creation error:', error);
     throw new Error(`Failed to create authentication token: ${error.message}`);
   }
 }
 
-// Hash password
+// Hash password with bcrypt
 export async function hashPassword(password: string): Promise<string> {
+  if (!password || password.length < 6) {
+    throw new Error("Password must be at least 6 characters long");
+  }
   return await bcrypt.hash(password, 10);
 }
 
-// Verify password
+// Verify password against hash
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return await bcrypt.compare(password, hash);
+  if (!password || !hash) {
+    return false;
+  }
+  
+  try {
+    return await bcrypt.compare(password, hash);
+  } catch (error) {
+    console.error('Password verification error:', error);
+    return false;
+  }
 }

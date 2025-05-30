@@ -1,4 +1,4 @@
-// frontend/src/worker.ts - Fixed API routing
+// frontend/src/worker.ts - Fixed API routing with proper error handling
 export interface Env {
   ASSETS: Fetcher;
   API_WORKER: Fetcher;
@@ -18,25 +18,22 @@ export default {
       console.log('🔄 Proxying API request via service binding');
       
       try {
+        // Clone the request to ensure we can modify it
+        const apiRequest = new Request(request);
+        
         // Route to appropriate worker based on path
         if (url.pathname.startsWith('/api/notifications/')) {
           console.log('→ Routing to NOTIFICATION_WORKER');
-          // Forward the full request to notification worker
-          return await env.NOTIFICATION_WORKER.fetch(request);
+          return await env.NOTIFICATION_WORKER.fetch(apiRequest);
           
         } else if (url.pathname.startsWith('/api/payment/')) {
           console.log('→ Routing to PAYMENT_WORKER');
-          // Forward the full request to payment worker
-          return await env.PAYMENT_WORKER.fetch(request);
+          return await env.PAYMENT_WORKER.fetch(apiRequest);
           
         } else {
           console.log('→ Routing to API_WORKER (main)');
-          // For main API worker, forward the full request
-          console.log(`📤 Forwarding to main API: ${request.url}`);
-          const response = await env.API_WORKER.fetch(request);
-          
-          console.log(`📥 Response from main API: ${response.status}`);
-          return response;
+          // The main worker handles all /api/* routes
+          return await env.API_WORKER.fetch(apiRequest);
         }
       } catch (error) {
         console.error('❌ Service binding proxy error:', error);
@@ -69,6 +66,16 @@ export default {
       });
     }
 
+    // For development, handle the root path specifically
+    if (url.pathname === '/' && env.ENVIRONMENT === 'development') {
+      // In dev, check if this is the Vite dev server request
+      const acceptHeader = request.headers.get('Accept') || '';
+      if (!acceptHeader.includes('text/html')) {
+        // This might be a Vite HMR request, let it through
+        return env.ASSETS.fetch(request);
+      }
+    }
+
     // Handle static assets and SPA routing
     try {
       // Try to get the static asset first
@@ -81,49 +88,51 @@ export default {
           headers: assetResponse.headers
         });
         
-        // Cache static assets but not HTML files
-        if (url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|webp)$/)) {
+        // Add caching headers for static assets
+        const assetPath = url.pathname;
+        if (assetPath.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|webp)$/)) {
           response.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+        } else if (assetPath.endsWith('.html')) {
+          response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
         }
         
         return response;
       }
       
-      // For SPA routing - serve index.html for non-asset requests
-      const indexRequest = new Request(
-        new URL('/index.html', request.url).toString(),
-        {
-          method: 'GET',
-          headers: {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': request.headers.get('Accept-Language') || 'en-US,en;q=0.5',
-          },
+      // For SPA routing - serve index.html for non-asset 404s
+      if (assetResponse.status === 404 && !url.pathname.includes('.')) {
+        const indexRequest = new Request(
+          new URL('/index.html', request.url).toString(),
+          {
+            method: 'GET',
+            headers: {
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              'Accept-Language': request.headers.get('Accept-Language') || 'en-US,en;q=0.5',
+            },
+          }
+        );
+        
+        const indexResponse = await env.ASSETS.fetch(indexRequest);
+        
+        if (indexResponse.ok) {
+          return new Response(indexResponse.body, {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0',
+              // Security headers
+              'X-Frame-Options': 'DENY',
+              'X-Content-Type-Options': 'nosniff',
+              'Referrer-Policy': 'strict-origin-when-cross-origin',
+            },
+          });
         }
-      );
-      
-      const indexResponse = await env.ASSETS.fetch(indexRequest);
-      
-      if (indexResponse.ok) {
-        return new Response(indexResponse.body, {
-          status: 200,
-          headers: {
-            'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-            // Security headers
-            'X-Frame-Options': 'DENY',
-            'X-Content-Type-Options': 'nosniff',
-            'Referrer-Policy': 'strict-origin-when-cross-origin',
-          },
-        });
       }
       
-      // If we can't serve index.html, return 404
-      return new Response('Page not found', { 
-        status: 404,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+      // Return the original response if not handling SPA routing
+      return assetResponse;
       
     } catch (error) {
       console.error('❌ Frontend worker error:', error);

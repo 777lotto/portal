@@ -1,14 +1,17 @@
-// frontend/vite.config.ts - Fixed with Cloudflare integration
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
-import { cloudflare } from '@cloudflare/vite-plugin'
+import { cloudflareDevProxy } from '@cloudflare/vite-plugin'
 import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [
     react(),
-    cloudflare({
-      configPath: '../worker/wrangler.jsonc'
+    cloudflareDevProxy({
+      // This tells the plugin to proxy API requests to your worker
+      configPath: './wrangler.jsonc',
+      persistState: false,
+      // Ensure your worker runs on a different port
+      port: 8788,
     })
   ],
   resolve: {
@@ -18,13 +21,12 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    // REMOVED: proxy since cloudflareDevProxy handles this
   },
   define: {
     'import.meta.env.VITE_API_URL': JSON.stringify(
       process.env.NODE_ENV === 'production' 
         ? 'https://portal.777.foo/api'
-        : '/api' // Use relative path with cloudflareDevProxy
+        : '' // Empty string - the proxy will handle /api routes
     ),
     'import.meta.env.VITE_TURNSTILE_SITE_KEY': JSON.stringify(
       process.env.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAABcgNHsEZnTPqdEV'

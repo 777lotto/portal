@@ -1,9 +1,21 @@
-// frontend/src/lib/fetchJson.ts - Fixed types for strict TypeScript
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+// frontend/src/lib/fetchJson.ts - Improved error handling and API communication
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 interface ApiErrorResponse {
   error?: string;
   message?: string;
+  details?: any;
+}
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public details?: any
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
 }
 
 export async function fetchJson<T = unknown>(
@@ -15,74 +27,127 @@ export async function fetchJson<T = unknown>(
   if (input.startsWith('http')) {
     url = input;
   } else {
-    const cleanBase = API_BASE.replace(/\/$/, '');
-    const cleanPath = input.replace(/^\//, '');
-    url = `${cleanBase}/${cleanPath}`;
+    // Ensure proper path joining
+    const base = API_BASE || '';
+    const path = input.startsWith('/') ? input : `/${input}`;
+    url = base + path;
   }
 
-  console.log('🌐 Making API request to:', url);
+  console.log(`🌐 API Request: ${init.method || 'GET'} ${url}`);
 
   // Merge headers safely
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...Object.fromEntries(new Headers(init.headers).entries())
-  };
+  const headers = new Headers(init.headers);
+  
+  // Set default content type if not provided
+  if (!headers.has('Content-Type') && init.body && typeof init.body === 'string') {
+    headers.set('Content-Type', 'application/json');
+  }
 
   // Add auth token if available
   const token = localStorage.getItem("token");
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+    console.log('🔐 Added auth token to request');
   }
 
   const requestOptions: RequestInit = {
     ...init,
     headers,
+    // Ensure cookies are sent in production
+    credentials: 'same-origin',
   };
 
   try {
+    const startTime = Date.now();
     const res = await fetch(url, requestOptions);
+    const duration = Date.now() - startTime;
     
+    console.log(`📥 API Response: ${res.status} (${duration}ms)`);
+    
+    // Handle non-OK responses
     if (!res.ok) {
-      let errorText: string;
+      let errorMessage: string = `HTTP ${res.status}`;
+      let errorDetails: any = undefined;
+      
       const contentType = res.headers.get("content-type") || "";
       
       if (contentType.includes("application/json")) {
         try {
           const errorData = await res.json() as ApiErrorResponse;
-          errorText = errorData.error || errorData.message || `HTTP ${res.status}`;
-        } catch {
-          errorText = `HTTP ${res.status} - ${res.statusText}`;
+          errorMessage = errorData.error || errorData.message || errorMessage;
+          errorDetails = errorData.details;
+          console.error('❌ API Error:', errorData);
+        } catch (e) {
+          console.error('Failed to parse error response:', e);
+          errorMessage = `${res.status} - ${res.statusText}`;
         }
       } else {
-        errorText = await res.text() || `HTTP ${res.status} - ${res.statusText}`;
+        const text = await res.text();
+        if (text) {
+          errorMessage = text.substring(0, 200); // Limit error message length
+        }
       }
       
       // Handle specific status codes
       if (res.status === 401) {
+        console.log('🚪 401 Unauthorized - clearing token and redirecting to login');
         localStorage.removeItem("token");
-        window.location.href = "/login";
-        throw new Error("Session expired. Please log in again.");
+        
+        // Only redirect if we're not already on the login page
+        if (!window.location.pathname.includes('/login')) {
+          // Store the current path to redirect back after login
+          const returnPath = window.location.pathname + window.location.search;
+          if (returnPath && returnPath !== '/') {
+            sessionStorage.setItem('returnPath', returnPath);
+          }
+          window.location.href = "/login";
+        }
+        
+        throw new ApiError("Session expired. Please log in again.", 401);
       }
       
-      throw new Error(errorText);
+      throw new ApiError(errorMessage, res.status, errorDetails);
     }
 
+    // Parse response based on content type
     const responseContentType = res.headers.get("content-type") || "";
     
     if (responseContentType.includes("application/json")) {
-      return await res.json() as T;
-    } else if (responseContentType.startsWith("text/")) {
-      return await res.text() as T;
+      const data = await res.json() as T;
+      console.log('✅ API Success:', data);
+      return data;
+    } else if (responseContentType.includes("text/")) {
+      const text = await res.text();
+      return text as T;
+    } else if (responseContentType.includes("text/calendar")) {
+      // Handle iCal responses
+      const text = await res.text();
+      return text as T;
     } else {
+      // No content or unknown type
+      console.log('📭 No content or unknown content type:', responseContentType);
       return {} as T;
     }
   } catch (error) {
     console.error('❌ Fetch error:', error);
     
+    // Network errors
     if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-      throw new Error('Unable to connect to server. Please check your internet connection and try again.');
+      throw new ApiError(
+        'Unable to connect to server. Please check your internet connection.',
+        0
+      );
     }
     
-    throw error;
+    // Re-throw ApiErrors as-is
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    
+    // Wrap other errors
+    throw new ApiError(
+      error instanceof Error ? error.message : 'An unexpected error occurred',
+      0
+    );
   }
 }
