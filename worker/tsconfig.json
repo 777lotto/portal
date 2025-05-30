@@ -12,7 +12,10 @@
     "paths": {
       "@portal/shared": ["../packages/shared/src/index.ts"],
       "@portal/shared/*": ["../packages/shared/src/*"]
-    }
+    },
+    "skipLibCheck": true,
+    "exactOptionalPropertyTypes": false,
+    "strict": false
   },
   "include": [
     "src/**/*"

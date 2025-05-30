@@ -1,3 +1,5 @@
+// Update tsconfig.json in root
+
 {
   "compilerOptions": {
     "baseUrl": ".",
@@ -20,10 +22,15 @@
     "isolatedModules": true,
     "moduleDetection": "force",
     
-    /* Add these for better Workers compatibility */
+    /* Workers compatibility */
     "target": "ES2022",
     "lib": ["ES2023", "WebWorker"],
-    "types": ["@cloudflare/workers-types"]
+    "types": ["@cloudflare/workers-types"],
+    
+    /* Type checking improvements */
+    "exactOptionalPropertyTypes": false,
+    "noImplicitReturns": true,
+    "noImplicitOverride": true
   },
   "references": [
     { "path": "./packages/shared" },
