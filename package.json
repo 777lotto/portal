@@ -1,66 +1,27 @@
 {
-  "name": "portal",
-  "version": "0.1.0",
-  "private": true,
-  "workspaces": [
-    "frontend",
-    "worker",
-    "packages/shared",
-    "notification", 
-    "payment"
-  ],
   "scripts": {
     "shared:build": "cd packages/shared && pnpm run build",
     "shared:dev": "cd packages/shared && pnpm run dev",
-
     "worker:dev": "cd worker && pnpm run dev",
-    "worker:build": "cd worker && tsc --noEmit --skipLibCheck || echo 'TypeScript check completed with warnings'",
+    "worker:build": "cd worker && tsc --noEmit --skipLibCheck",
     "worker:deploy": "cd worker && pnpm run deploy",
-    "worker:typecheck": "cd worker && tsc --noEmit --skipLibCheck || echo 'TypeScript check completed with warnings'",
-
     "notification:dev": "cd notification && pnpm run dev",
-    "notification:build": "cd notification && tsc --noEmit --skipLibCheck || echo 'TypeScript check completed with warnings'",
+    "notification:build": "cd notification && tsc --noEmit --skipLibCheck",
     "notification:deploy": "cd notification && pnpm run deploy",
-    "notification:typecheck": "cd notification && tsc --noEmit --skipLibCheck || echo 'TypeScript check completed with warnings'",
-
     "payment:dev": "cd payment && pnpm run dev",
     "payment:build": "cd payment && echo 'Build check passed'",
     "payment:deploy": "cd payment && pnpm run deploy",
-    "payment:typecheck": "cd payment && tsc --noEmit --skipLibCheck || echo 'TypeScript check completed with warnings'",
-
     "frontend:dev": "cd frontend && pnpm run dev",
     "frontend:build": "cd frontend && pnpm run build",
     "frontend:deploy": "cd frontend && pnpm run build && pnpm exec wrangler deploy",
-    "frontend:typecheck": "cd frontend && tsc --noEmit --skipLibCheck || echo 'TypeScript check completed with warnings'",
-
-    "dev": "concurrently \"pnpm run shared:dev\" \"pnpm run worker:dev\" \"pnpm run notification:dev\" \"pnpm run payment:dev\" \"pnpm run frontend:dev\"",
-    
-    "typecheck": "pnpm run shared:build && concurrently \"pnpm run worker:typecheck\" \"pnpm run notification:typecheck\" \"pnpm run payment:typecheck\" \"pnpm run frontend:typecheck\"",
-
+    "dev": "pnpm run shared:build && concurrently \"pnpm run shared:dev\" \"pnpm run worker:dev\" \"pnpm run notification:dev\" \"pnpm run payment:dev\" \"pnpm run frontend:dev\"",
+    "typecheck": "pnpm run shared:build && echo 'Type checking all packages...' && tsc --build --force",
     "build": "pnpm run shared:build && concurrently \"pnpm run worker:build\" \"pnpm run notification:build\" \"pnpm run payment:build\" && pnpm run frontend:build",
-
-    "deploy:workers:ordered": "cd notification && npx wrangler deploy && cd ../payment && npx wrangler deploy && cd ../worker && npx wrangler deploy && cd ../frontend && pnpm run build && npx wrangler deploy",
-    
+    "deploy:workers:ordered": "pnpm run shared:build && cd notification && npx wrangler deploy && cd ../payment && npx wrangler deploy && cd ../worker && npx wrangler deploy && cd ../frontend && pnpm run build && npx wrangler deploy",
     "migrate": "cd worker && pnpm exec wrangler d1 migrations apply gutter_db --env production",
-
-    "deploy": "pnpm install && pnpm run migrate && pnpm run deploy:workers:ordered",
-
-    "test:api": "curl -f https://portal.777.foo/api/ping || echo 'API test failed'",
-    "test:frontend": "curl -f https://portal.777.foo/ || echo 'Frontend test failed'",
-    
-    "clean": "pnpm run clean:deps && pnpm run clean:build",
-    "clean:deps": "rm -rf node_modules */node_modules */*/node_modules",
-    "clean:build": "rm -rf */dist */build */.wrangler",
-    
-    "logs:worker": "cd worker && npx wrangler tail",
-    "logs:notification": "cd notification && npx wrangler tail",
-    "logs:payment": "cd payment && npx wrangler tail",
-    "logs:frontend": "cd frontend && npx wrangler tail"
+    "deploy": "pnpm install && pnpm run migrate && pnpm run deploy:workers:ordered"
   },
   "devDependencies": {
-    "concurrently": "^8.2.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "concurrently": "^9.1.2"
   }
 }

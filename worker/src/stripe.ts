@@ -8,7 +8,7 @@ let stripeInstance: Stripe | null = null;
 export function getStripe(env: Env): Stripe {
   if (!stripeInstance) {
     stripeInstance = new Stripe(env.STRIPE_SECRET_KEY, {
-      apiVersion: '2025-04-30.basil', // Your confirmed API version
+      apiVersion: '2025-05-28.basil', // Your confirmed API version
       typescript: true, // Enable TypeScript support
     });
   }

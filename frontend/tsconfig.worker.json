@@ -1,15 +1,23 @@
 {
-  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "lib": ["ES2020", "WebWorker"],
-    "types": ["@cloudflare/workers-types"],
-    "noEmit": false,
-    "module": "ESNext",
     "target": "ES2022",
+    "lib": ["ES2022", "WebWorker"],
+    "module": "ESNext",
     "moduleResolution": "bundler",
+    "types": ["@cloudflare/workers-types"],
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@portal/shared": ["../packages/shared/src/index.ts"],
+      "@portal/shared/*": ["../packages/shared/src/*"]
+    }
   },
-  "include": ["src/worker.ts"],
-  "exclude": ["src/**/*.tsx", "src/**/*.spec.ts", "src/**/*.test.ts"]
+  "include": ["src/worker.ts", "src/vite-env.d.ts"],
+  "exclude": ["src/**/*.tsx", "src/**/*.test.ts", "src/main.tsx", "src/App.tsx"],
+  "references": [{ "path": "../packages/shared" }]
 }

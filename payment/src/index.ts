@@ -107,7 +107,7 @@ export default {
 async function sendPaymentReminder(
   env: PaymentEnv,
   serviceId: number
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
     // Get service details and user contact info
     const service = await env.DB.prepare(
