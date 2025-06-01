@@ -4,13 +4,26 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": ["ES2020", "DOM", "DOM.Iterable", "WebWorker"],
     "module": "ESNext",
+    "moduleResolution": "bundler",
     "noEmit": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "types": ["@cloudflare/workers-types", "vite/client"],
+    "skipLibCheck": true,
+    "paths": {
+      "@portal/shared": ["../packages/shared/src/index.ts"],
+      "@portal/shared/*": ["../packages/shared/src/*"]
+    }
   },
   "include": [
-    "src",
-    "src/vite-env.d.ts"
+    "src/**/*",
+    "src/vite-env.d.ts",
+    "src/worker.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build"
   ]
 }

@@ -73,6 +73,7 @@ jobs:
         run: |
           echo "Building and deploying frontend worker..."
           cd frontend
+          # Build without TypeScript checks (Vite will handle it)
           pnpm run build
           npx wrangler deploy
         env:

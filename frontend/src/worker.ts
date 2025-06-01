@@ -1,14 +1,20 @@
-// frontend/src/worker.ts - Fixed API routing with proper error handling
+// frontend/src/worker.ts
 export interface Env {
   ASSETS: Fetcher;
   API_WORKER: Fetcher;
-  NOTIFICATION_WORKER: Fetcher;
-  PAYMENT_WORKER: Fetcher;
+  NOTIFICATION_WORKER?: Fetcher;
+  PAYMENT_WORKER?: Fetcher;
   ENVIRONMENT?: string;
 }
 
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+interface WorkerModule {
+  default: {
+    fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response>;
+  };
+}
+
+const worker: WorkerModule['default'] = {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     
     console.log(`🌐 Frontend worker handling: ${request.method} ${url.pathname}`);
@@ -22,11 +28,11 @@ export default {
         const apiRequest = new Request(request);
         
         // Route to appropriate worker based on path
-        if (url.pathname.startsWith('/api/notifications/')) {
+        if (url.pathname.startsWith('/api/notifications/') && env.NOTIFICATION_WORKER) {
           console.log('→ Routing to NOTIFICATION_WORKER');
           return await env.NOTIFICATION_WORKER.fetch(apiRequest);
           
-        } else if (url.pathname.startsWith('/api/payment/')) {
+        } else if (url.pathname.startsWith('/api/payment/') && env.PAYMENT_WORKER) {
           console.log('→ Routing to PAYMENT_WORKER');
           return await env.PAYMENT_WORKER.fetch(apiRequest);
           
@@ -143,3 +149,5 @@ export default {
     }
   },
 };
+
+export default worker;
