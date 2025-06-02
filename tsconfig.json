@@ -32,6 +32,5 @@
     { "path": "./worker/tsconfig.json" },
     { "path": "./notification/tsconfig.json" },
     { "path": "./payment/tsconfig.json" }
-  ],
-  "exclude": ["node_modules", "**/node_modules/*", "**/dist/*"]
+  ]
 }

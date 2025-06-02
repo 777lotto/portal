@@ -14,10 +14,11 @@
       "@portal/shared/*": ["../packages/shared/src/*"]
     },
     "skipLibCheck": true,
-    "exactOptionalPropertyTypes": false,
-    "strict": false,
-    "noImplicitAny": false,
-    "strictNullChecks": false
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true
   },
   "include": [
     "src/**/*"
