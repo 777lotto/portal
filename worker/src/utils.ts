@@ -6,23 +6,23 @@ export const CORS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 } as const;
 
-// A helper function for standardized error responses
+// Update errorResponse function
 export function errorResponse(message: string, status: number = 400): Response {
   return new Response(
     JSON.stringify({ error: message }),
     {
-      status,
+      status, // This is fine - Response accepts number
       headers: CORS,
     }
   );
 }
 
-// Helper for successful JSON responses
+// Update jsonResponse function  
 export function jsonResponse(data: any, status: number = 200): Response {
   return new Response(
     JSON.stringify(data),
     {
-      status,
+      status, // This is fine - Response accepts number
       headers: CORS,
     }
   );

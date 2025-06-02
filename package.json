@@ -1,4 +1,16 @@
 {
+  "name": "portal",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "worker",
+    "packages/shared",
+    "notification",
+    "payment"
+
+  ],
+  "packageManager": "pnpm@10.11.0",
   "scripts": {
     "shared:build": "cd packages/shared && pnpm run build",
     "shared:dev": "cd packages/shared && pnpm run dev",

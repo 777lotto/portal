@@ -42,8 +42,9 @@ dist-ssr
 .env
 .env.*            # covers .env.local, .env.production, etc.
 
-
-
+package-lock.json
+yarn.lock
+.pnpm-store/
 
 
 
