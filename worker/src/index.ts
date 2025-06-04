@@ -398,7 +398,7 @@ app.get('/api/sms/conversations', requireAuthMiddleware, async (c) => {
       } else {
         const errorText = await response.text();
         console.error('❌ Notification worker error:', errorText);
-        return c.json({ error: "SMS service error: " + errorText }, response.status);
+        return c.json({ error: `SMS service error: ${errorText}` }, response.status);
       }
     } else {
       console.error('❌ NOTIFICATION_WORKER not available');
@@ -506,7 +506,7 @@ app.post('/api/sms/send', requireAuthMiddleware, async (c) => {
       } else {
         const errorText = await response.text();
         console.error('❌ SMS send error:', errorText);
-        return c.json({ error: "SMS send failed: " + errorText }, response.status);
+        return c.json({ error: `SMS service error: ${errorText}` }, response.status);
       }
     } else {
       console.error('❌ NOTIFICATION_WORKER not available');
