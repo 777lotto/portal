@@ -1,4 +1,4 @@
-// worker/src/index.ts - Fixed SMS conversations endpoint
+// worker/src/index.ts
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { Env } from '@portal/shared';
@@ -9,6 +9,7 @@ import { handleGetProfile, handleUpdateProfile } from './handlers/profile';
 import { handleListServices, handleGetService, handleCreateInvoice } from './handlers/services';
 import { handleGetJobs, handleGetJobById, handleCalendarFeed } from './handlers/jobs';
 import { getOrCreateCustomer } from './stripe';
+import { errorResponse } from './utils'; // Import the helper
 
 // Define proper context type for Hono
 type Context = {
@@ -35,19 +36,19 @@ app.use('*', async (c, next) => {
   const path = c.req.path;
   const fullUrl = c.req.url;
   const origin = c.req.header('origin');
-  
+
   console.log(`🔥 [MAIN-WORKER] ${method} ${path}`);
   console.log(`🌐 Origin: ${origin || 'none'}`);
   console.log(`🔍 Full URL: ${fullUrl}`);
-  
+
   await next();
-  
+
   const duration = Date.now() - start;
   console.log(`⏱️  [MAIN-WORKER] Request completed in ${duration}ms`);
 });
 
 // CORS preflight handler for all routes
-app.options('*', (c) => {  
+app.options('*', (c) => {
   console.log(`✅ CORS preflight for ${c.req.path}`);
   return new Response(null, {
     status: 204,
@@ -151,9 +152,7 @@ app.post('/api/signup/check', async (c) => {
     return await handleSignupCheck(c.req.raw, c.env);
   } catch (error: any) {
     console.error('❌ Signup check error:', error);
-    return c.json({ 
-      error: error.message || 'Signup check failed'
-    }, 500);
+    return errorResponse(error.message || 'Signup check failed', 500);
   }
 });
 
@@ -163,9 +162,7 @@ app.post('/api/signup', async (c) => {
     return await handleSignup(c.req.raw, c.env);
   } catch (error: any) {
     console.error('❌ Signup error:', error);
-    return c.json({ 
-      error: error.message || 'Signup failed'
-    }, 500);
+    return errorResponse(error.message || 'Signup failed', 500);
   }
 });
 
@@ -175,9 +172,7 @@ app.post('/api/login', async (c) => {
     return await handleLogin(c.req.raw, c.env);
   } catch (error: any) {
     console.error('❌ Login error:', error);
-    return c.json({ 
-      error: error.message || 'Login failed'
-    }, 500);
+    return errorResponse(error.message || 'Login failed', 500);
   }
 });
 
@@ -188,7 +183,7 @@ app.post('/api/stripe/check-customer', async (c) => {
     return await handleStripeCustomerCheck(c.req.raw, c.env);
   } catch (error: any) {
     console.error('❌ Stripe check error:', error);
-    return c.json({ error: error.message || 'Stripe check failed' }, 500);
+    return errorResponse(error.message || 'Stripe check failed', 500);
   }
 });
 
@@ -197,9 +192,9 @@ app.post('/api/stripe/create-customer', async (c) => {
   try {
     const body = await c.req.json();
     console.log('💳 Stripe create customer body:', body);
-    
+
     const customerId = await getOrCreateCustomer(c.env, body.email, body.name);
-    
+
     return c.json({
       success: true,
       customerId,
@@ -207,7 +202,7 @@ app.post('/api/stripe/create-customer', async (c) => {
     });
   } catch (error: any) {
     console.error('❌ Stripe create customer error:', error);
-    return c.json({ error: error.message || 'Customer creation failed' }, 500);
+    return errorResponse(error.message || 'Customer creation failed', 500);
   }
 });
 
@@ -217,7 +212,7 @@ app.post('/api/stripe/webhook', async (c) => {
     return await handleStripeWebhook(c.req.raw, c.env);
   } catch (error: any) {
     console.error('❌ Stripe webhook error:', error);
-    return c.json({ error: error.message || 'Webhook processing failed' }, 500);
+    return errorResponse(error.message || 'Webhook processing failed', 500);
   }
 });
 
@@ -227,11 +222,19 @@ const requireAuthMiddleware = async (c: any, next: any) => {
     const email = await requireAuth(c.req.raw, c.env);
     c.set('userEmail', email);
     console.log(`🔐 [MAIN-WORKER] Authenticated user: ${email}`);
+
+    // Continue to the next handler in the chain
     await next();
+
   } catch (error: any) {
     console.error('❌ Auth error:', error);
-    return c.json({ error: 'Authentication failed: ' + (error.message || 'Unknown error') }, 401);
+    // On failure, immediately return a 401 response
+    return errorResponse('Authentication failed: ' + (error.message || 'Unknown error'), 401);
   }
+
+  // On success, after the next handlers have run, return their response.
+  // This makes the function's return type consistent.
+  return c.res;
 };
 
 // Profile endpoints (protected, with /api prefix)
@@ -242,7 +245,7 @@ app.get('/api/profile', requireAuthMiddleware, async (c) => {
     return await handleGetProfile(c.req.raw, c.env, email);
   } catch (error: any) {
     console.error('❌ Profile GET error:', error);
-    return c.json({ error: error.message || 'Profile fetch failed' }, 500);
+    return errorResponse(error.message || 'Profile fetch failed', 500);
   }
 });
 
@@ -253,7 +256,7 @@ app.put('/api/profile', requireAuthMiddleware, async (c) => {
     return await handleUpdateProfile(c.req.raw, c.env, email);
   } catch (error: any) {
     console.error('❌ Profile PUT error:', error);
-    return c.json({ error: error.message || 'Profile update failed' }, 500);
+    return errorResponse(error.message || 'Profile update failed', 500);
   }
 });
 
@@ -265,7 +268,7 @@ app.get('/api/services', requireAuthMiddleware, async (c) => {
     return await handleListServices(c.req.raw, c.env, email);
   } catch (error: any) {
     console.error('❌ Services GET error:', error);
-    return c.json({ error: error.message || 'Services fetch failed' }, 500);
+    return errorResponse(error.message || 'Services fetch failed', 500);
   }
 });
 
@@ -275,12 +278,12 @@ app.get('/api/services/:id', requireAuthMiddleware, async (c) => {
     const email = c.get('userEmail') as string;
     const id = parseInt(c.req.param('id'));
     if (isNaN(id)) {
-      return c.json({ error: 'Invalid service ID' }, 400);
+      return errorResponse('Invalid service ID', 400);
     }
     return await handleGetService(c.req.raw, c.env, email, id);
   } catch (error: any) {
     console.error('❌ Service detail GET error:', error);
-    return c.json({ error: error.message || 'Service fetch failed' }, 500);
+    return errorResponse(error.message || 'Service fetch failed', 500);
   }
 });
 
@@ -290,12 +293,12 @@ app.post('/api/services/:id/invoice', requireAuthMiddleware, async (c) => {
     const email = c.get('userEmail') as string;
     const serviceId = parseInt(c.req.param('id'));
     if (isNaN(serviceId)) {
-      return c.json({ error: 'Invalid service ID' }, 400);
+      return errorResponse('Invalid service ID', 400);
     }
     return await handleCreateInvoice(c.req.raw, c.env, email, serviceId);
   } catch (error: any) {
     console.error('❌ Service invoice POST error:', error);
-    return c.json({ error: error.message || 'Invoice creation failed' }, 500);
+    return errorResponse(error.message || 'Invoice creation failed', 500);
   }
 });
 
@@ -306,7 +309,7 @@ app.get('/api/jobs', requireAuthMiddleware, async (c) => {
     return await handleGetJobs(c.req.raw, c.env);
   } catch (error: any) {
     console.error('❌ Jobs GET error:', error);
-    return c.json({ error: error.message || 'Jobs fetch failed' }, 500);
+    return errorResponse(error.message || 'Jobs fetch failed', 500);
   }
 });
 
@@ -317,7 +320,7 @@ app.get('/api/jobs/:id', requireAuthMiddleware, async (c) => {
     return await handleGetJobById(c.req.raw, url, c.env);
   } catch (error: any) {
     console.error('❌ Job detail GET error:', error);
-    return c.json({ error: error.message || 'Job fetch failed' }, 500);
+    return errorResponse(error.message || 'Job fetch failed', 500);
   }
 });
 
@@ -328,7 +331,7 @@ app.get('/api/calendar-feed', async (c) => {
     return await handleCalendarFeed(c.req.raw, url, c.env);
   } catch (error: any) {
     console.error('❌ Calendar feed GET error:', error);
-    return c.json({ error: error.message || 'Calendar feed failed' }, 500);
+    return errorResponse(error.message || 'Calendar feed failed', 500);
   }
 });
 
@@ -337,19 +340,19 @@ app.post('/api/portal', requireAuthMiddleware, async (c) => {
   console.log('✅ [MAIN-WORKER] Portal POST endpoint hit');
   try {
     const email = c.get('userEmail') as string;
-    
+
     // Get user's Stripe customer ID
     const userRow = await c.env.DB.prepare(
       `SELECT stripe_customer_id FROM users WHERE lower(email) = ?`
     ).bind(email.toLowerCase()).first();
 
     if (!userRow || !(userRow as any).stripe_customer_id) {
-      return c.json({ error: "No Stripe customer found" }, 400);
+      return errorResponse("No Stripe customer found", 400);
     }
 
     const { getStripe } = await import('./stripe');
     const stripe = getStripe(c.env);
-    
+
     const session = await stripe.billingPortal.sessions.create({
       customer: (userRow as any).stripe_customer_id,
       return_url: 'https://portal.777.foo/dashboard',
@@ -358,7 +361,7 @@ app.post('/api/portal', requireAuthMiddleware, async (c) => {
     return c.json({ url: session.url });
   } catch (error: any) {
     console.error('❌ Portal error:', error);
-    return c.json({ error: error.message || 'Portal creation failed' }, 500);
+    return errorResponse(error.message || 'Portal creation failed', 500);
   }
 });
 
@@ -367,14 +370,14 @@ app.get('/api/sms/conversations', requireAuthMiddleware, async (c) => {
   console.log('✅ [MAIN-WORKER] SMS conversations GET endpoint hit');
   try {
     const email = c.get('userEmail') as string;
-    
+
     // Get user ID
     const userRow = await c.env.DB.prepare(
       `SELECT id FROM users WHERE lower(email) = ?`
     ).bind(email.toLowerCase()).first();
 
     if (!userRow) {
-      return c.json({ error: "User not found" }, 404);
+      return errorResponse("User not found", 404);
     }
 
     const userId = (userRow as any).id;
@@ -398,15 +401,15 @@ app.get('/api/sms/conversations', requireAuthMiddleware, async (c) => {
       } else {
         const errorText = await response.text();
         console.error('❌ Notification worker error:', errorText);
-        return c.json({ error: `SMS service error: ${errorText}` }, response.status);
+        return errorResponse(`SMS service error: ${errorText}`, response.status);
       }
     } else {
       console.error('❌ NOTIFICATION_WORKER not available');
-      return c.json({ error: "SMS service not available" }, 503);
+      return errorResponse("SMS service not available", 503);
     }
   } catch (error: any) {
     console.error('❌ SMS conversations error:', error);
-    return c.json({ error: error.message || 'SMS conversations failed' }, 500);
+    return errorResponse(error.message || 'SMS conversations failed', 500);
   }
 });
 
@@ -416,14 +419,14 @@ app.get('/api/sms/messages/:phoneNumber', requireAuthMiddleware, async (c) => {
   try {
     const email = c.get('userEmail') as string;
     const phoneNumber = c.req.param('phoneNumber');
-    
+
     // Get user ID
     const userRow = await c.env.DB.prepare(
       `SELECT id FROM users WHERE lower(email) = ?`
     ).bind(email.toLowerCase()).first();
 
     if (!userRow) {
-      return c.json({ error: "User not found" }, 404);
+      return errorResponse("User not found", 404);
     }
 
     const userId = (userRow as any).id;
@@ -447,15 +450,15 @@ app.get('/api/sms/messages/:phoneNumber', requireAuthMiddleware, async (c) => {
       } else {
         const errorText = await response.text();
         console.error('❌ Notification worker error:', errorText);
-        return c.json({ error: "SMS service error: " + errorText }, response.status);
+        return errorResponse("SMS service error: " + errorText, response.status);
       }
     } else {
       console.error('❌ NOTIFICATION_WORKER not available');
-      return c.json({ error: "SMS service not available" }, 503);
+      return errorResponse("SMS service not available", 503);
     }
   } catch (error: any) {
     console.error('❌ SMS messages error:', error);
-    return c.json({ error: error.message || 'SMS messages failed' }, 500);
+    return errorResponse(error.message || 'SMS messages failed', 500);
   }
 });
 
@@ -465,14 +468,14 @@ app.post('/api/sms/send', requireAuthMiddleware, async (c) => {
   try {
     const email = c.get('userEmail') as string;
     const body = await c.req.json();
-    
+
     // Get user ID
     const userRow = await c.env.DB.prepare(
       `SELECT id FROM users WHERE lower(email) = ?`
     ).bind(email.toLowerCase()).first();
 
     if (!userRow) {
-      return c.json({ error: "User not found" }, 404);
+      return errorResponse("User not found", 404);
     }
 
     const userId = (userRow as any).id;
@@ -506,15 +509,15 @@ app.post('/api/sms/send', requireAuthMiddleware, async (c) => {
       } else {
         const errorText = await response.text();
         console.error('❌ SMS send error:', errorText);
-        return c.json({ error: `SMS service error: ${errorText}` }, response.status);
+        return errorResponse(`SMS service error: ${errorText}`, response.status);
       }
     } else {
       console.error('❌ NOTIFICATION_WORKER not available');
-      return c.json({ error: "SMS service not available" }, 503);
+      return errorResponse("SMS service not available", 503);
     }
   } catch (error: any) {
     console.error('❌ SMS send error:', error);
-    return c.json({ error: error.message || 'SMS send failed' }, 500);
+    return errorResponse(error.message || 'SMS send failed', 500);
   }
 });
 
@@ -522,7 +525,8 @@ app.post('/api/sms/send', requireAuthMiddleware, async (c) => {
 app.all('*', (c) => {
   console.log(`❓ [MAIN-WORKER] Unhandled route: ${c.req.method} ${c.req.path}`);
   console.log(`🔍 Headers:`, Object.fromEntries(c.req.raw.headers.entries()));
-  
+
+  // FIX: Use the ResponseInit object for the second argument
   return c.json({
     error: 'Route not found',
     path: c.req.path,
@@ -556,7 +560,7 @@ app.all('*', (c) => {
       'POST /api/sms/send (protected)'
     ],
     timestamp: new Date().toISOString()
-  }, 404);
+  }, { status: 404 });
 });
 
 export default app;
