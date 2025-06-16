@@ -1,21 +1,22 @@
 // frontend/src/lib/api.ts - Fixed with proper types
 import { fetchJson } from "./fetchJson";
-import { Job } from '@portal/shared';
+import { Job, Service, User, AuthResponse, PortalSession, Conversation, SMSMessage } from '@portal/shared';
 
-/* ---------- low‑level helpers ---------- */
+/* ---------- low-level helpers ---------- */
 
-export const apiGet = (path: string, token?: string) =>
-  fetchJson(path, {
+// Make the helpers generic to pass types through to fetchJson
+export const apiGet = <T>(path: string, token?: string) =>
+  fetchJson<T>(path, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
 
-export const apiPost = (
+export const apiPost = <T>(
   path: string,
   body: unknown,
   token?: string,
   method: "POST" | "PUT" | "DELETE" = "POST",
 ) =>
-  fetchJson(path, {
+  fetchJson<T>(path, {
     method,
     headers: {
       "Content-Type": "application/json",
@@ -26,81 +27,60 @@ export const apiPost = (
 
 /* ---------- auth ---------- */
 
+// Specify the expected response types for each endpoint
 export const checkStripeCustomer = (email: string, phone: string) =>
-  apiPost("/stripe/check-customer", { email, phone });
+  apiPost<{ exists: boolean; name?: string; email?: string; }>("/stripe/check-customer", { email, phone });
 
 export const createStripeCustomer = (email: string, name: string, phone: string) =>
-  apiPost("/stripe/create-customer", { email, name, phone });
-
-export const requestPasswordReset = (email: string, turnstileToken?: string) =>
-  apiPost("/password-reset/request", { email, turnstileToken });
-
-export const completePasswordReset = (token: string, newPassword: string) =>
-  apiPost("/password-reset/complete", { token, newPassword });
+  apiPost<{ success: boolean; customerId: string; }>("/stripe/create-customer", { email, name, phone });
 
 export const login = (identifier: string, password: string, turnstileToken?: string) =>
-  apiPost("/login", { identifier, password, turnstileToken });
+  apiPost<AuthResponse>("/login", { identifier, password, turnstileToken });
 
 export const signup = (email: string, name: string, password: string, phone: string) =>
-  apiPost("/signup", { email, name, password, phone });
+  apiPost<AuthResponse>("/signup", { email, name, password, phone });
 
 export const signupCheck = (email: string, phone: string, turnstileToken?: string) =>
-  apiPost("/signup/check", { email, phone, turnstileToken });
+  apiPost<{ status: string; }>("/signup/check", { email, phone, turnstileToken });
+
 
 /* ---------- services ---------- */
 
 export const getServices = (token: string) =>
-  apiGet("/services", token);
+  apiGet<Service[]>("/services", token);
 
 export const getService = (id: number, token: string) =>
-  apiGet(`/services/${id}`, token);
+  apiGet<Service>(`/services/${id}`, token);
 
-export const createService = (serviceData: Record<string, unknown>, token: string) =>
-  apiPost("/services", serviceData, token);
-
-export const updateService = (id: number, serviceData: Record<string, unknown>, token: string) =>
-  apiPost(`/services/${id}`, serviceData, token, "PUT");
-
-export const deleteService = (id: number, token: string) =>
-  apiPost(`/services/${id}`, {}, token, "DELETE");
 
 /* ---------- jobs ---------- */
 
 export const getJobs = (token: string) =>
-  apiGet("/jobs", token);
+  apiGet<Job[]>("/jobs", token);
 
 export const getJob = (id: string, token: string) =>
-  apiGet(`/jobs/${id}`, token);
+  apiGet<Job>(`/jobs/${id}`, token);
 
-export const createJob = (job: Omit<Job, 'id' | 'createdAt' | 'updatedAt'>, token: string) =>
-  apiPost("/jobs", job, token);
-
-export const updateJob = (id: string, job: Partial<Job>, token: string) =>
-  apiPost(`/jobs/${id}`, job, token, "PUT");
-
-export const deleteJob = (id: string, token: string) =>
-  apiPost(`/jobs/${id}`, {}, token, "DELETE");
 
 /* ---------- profile ---------- */
 
 export const getProfile = (token: string) =>
-  apiGet("/profile", token);
+  apiGet<User>("/profile", token);
 
 export const updateProfile = (profileData: Record<string, unknown>, token: string) =>
-  apiPost("/profile", profileData, token, "PUT");
+  apiPost<User>("/profile", profileData, token, "PUT");
+
 
 /* ---------- invoices ---------- */
 
 export const getInvoice = (serviceId: number, token: string) =>
-  apiGet(`/services/${serviceId}/invoice`, token);
+  apiGet<{ hosted_invoice_url: string }>("/services/${serviceId}/invoice", token);
 
-export const createInvoice = (serviceId: number, invoiceData: Record<string, unknown>, token: string) =>
-  apiPost(`/services/${serviceId}/invoice`, invoiceData, token);
 
 /* ---------- Stripe Customer Portal ---------- */
 
 export const openPortal = (token: string) =>
-  apiPost("/portal", {}, token);
+  apiPost<PortalSession>("/portal", {}, token);
 
 /* ---------- Calendar Integration ---------- */
 
@@ -169,10 +149,10 @@ export const rescheduleJob = (id: string, newDate: string, token: string) =>
 /* ---------- SMS ---------- */
 
 export const getConversations = (token: string) =>
-  apiGet("/sms/conversations", token);
+  apiGet<Conversation[]>("/sms/conversations", token);
 
 export const getConversation = (phoneNumber: string, token: string) =>
-  apiGet(`/sms/messages/${phoneNumber}`, token);
+  apiGet<SMSMessage[]>(`/sms/messages/${phoneNumber}`, token);
 
 export const sendSMS = (to: string, message: string, token: string) =>
   apiPost("/sms/send", { to, message }, token);

@@ -12,11 +12,6 @@ export default defineConfig({
       port: 8788,
     })
   ],
-  resolve: {
-    alias: {
-      '@portal/shared': resolve(__dirname, '../packages/shared/src')
-    }
-  },
   server: {
     port: 5173,
   },
