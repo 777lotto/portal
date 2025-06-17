@@ -4,13 +4,6 @@ import { Link } from "react-router-dom";
 import { apiGet, getServices } from "../lib/api";
 import { Service } from "@portal/shared";
 
-interface Service {
-  id: number;
-  user_id: number;
-  service_date: string;
-  status: string;
-  notes: string;
-}
 
 export default function Services() {
   const [services, setServices] = useState<Service[]>([]);

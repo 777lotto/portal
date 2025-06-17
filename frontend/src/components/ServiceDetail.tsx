@@ -4,12 +4,6 @@ import { useParams } from "react-router-dom";
 import { apiGet, getInvoice, getService } from "../lib/api";
 import { Service } from "@portal/shared";
 
-interface Service {
-  id: number;
-  service_date: string;
-  status: string;
-  notes: string;
-}
 
 export default function ServiceDetail() {
   const { id } = useParams();
