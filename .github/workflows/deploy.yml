@@ -25,7 +25,7 @@ jobs:
         run: pnpm install --frozen-lockfile
         
       - name: Build shared package
-        run: cd packages/shared && pnpm run build
+        run: pnpm --filter @portal/shared build
         
       - name: Type check all packages (allow warnings)
         run: |

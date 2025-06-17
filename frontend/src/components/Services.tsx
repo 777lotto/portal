@@ -1,7 +1,7 @@
 // src/components/Services.tsx
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { apiGet } from "../lib/api";
+import { apiGet, getServices } from "../lib/api";
 
 interface Service {
   id: number;
@@ -19,7 +19,7 @@ export default function Services() {
   useEffect(() => {
     (async () => {
       try {
-        const data = await apiGet("/services", token);
+        const data = await getServices(token);
         setServices(data);
       } catch (err: any) {
         setError(err.message || "Failed to load services");

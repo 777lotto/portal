@@ -1,6 +1,7 @@
 // notification/src/index.ts - Safe mode with graceful credential handling
 import { sendEmail } from './email';
 import { sendSMS, handleSMSWebhook, getSMSConversations, getSMSConversation } from './sms';
+import { generatePasswordResetHtml, generatePasswordResetText } from './templates/passwordReset';
 
 // Base environment interface
 interface BaseEnv {
@@ -454,6 +455,11 @@ function generateEmailHTML(type: string, name: string, data: Record<string, any>
         </body>
         </html>
       `;
+  case 'password_reset':
+    return generatePasswordResetHtml({
+      name: name,
+      resetLink: data.resetLink || '#'
+    });
     default:
       return `
         <html>
@@ -481,6 +487,11 @@ function generateEmailText(type: string, name: string, data: Record<string, any>
       return `Hello ${name},\n\nWelcome to Gutter Portal! We're excited to have you on board.\n\n© ${new Date().getFullYear()} Gutter Portal. All rights reserved.`;
     case 'invoice_created':
       return `Hello ${name},\n\nA new invoice has been created for $${data.amount || '0.00'}.\n\n${data.invoiceUrl ? `View Invoice: ${data.invoiceUrl}\n\n` : ''}© ${new Date().getFullYear()} Gutter Portal. All rights reserved.`;
+    case 'password_reset':
+    return generatePasswordResetText({
+      name: name,
+      resetLink: data.resetLink || '#'
+    });
     default:
       return `Hello ${name},\n\nYou have a new ${type.replace(/_/g, ' ')} notification.\n\n© ${new Date().getFullYear()} Gutter Portal. All rights reserved.`;
   }
@@ -494,6 +505,8 @@ function generateSMSMessage(type: string, name: string, data: Record<string, any
       return `Hello ${name}, your invoice for $${data.amount || '0.00'} is ready. ${data.invoiceUrl ? `Pay here: ${data.invoiceUrl}` : 'Check your email for details.'}`;
     case 'payment_reminder':
       return `Hello ${name}, reminder: your invoice for $${data.amount || '0.00'} is due. ${data.paymentLink ? `Pay now: ${data.paymentLink}` : 'Please check your email.'}`;
+    case 'password_reset_request':
+    return `A password reset link has been sent to your email address. The link will expire in 1 hour.`;
     default:
       return `Hello ${name}, you have a new ${type.replace(/_/g, ' ')} notification from Gutter Portal.`;
   }

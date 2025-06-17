@@ -70,6 +70,9 @@ export const getProfile = (token: string) =>
 export const updateProfile = (profileData: Record<string, unknown>, token: string) =>
   apiPost<User>("/profile", profileData, token, "PUT");
 
+export const requestPasswordReset = (email: string, turnstileToken: string) =>
+  apiPost<{ message: string }>("/request-password-reset", { email, turnstileToken });
+
 
 /* ---------- invoices ---------- */
 

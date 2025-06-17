@@ -3,6 +3,7 @@ import { Calendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { apiGet } from '../lib/api';
+import { getJobs } from '../lib/api';
 import { Job } from '@portal/shared';
 
 // Setup the localizer for Big Calendar
@@ -28,7 +29,7 @@ export default function JobCalendar() {
     async function fetchJobs() {
       try {
         setLoading(true);
-        const jobs = await apiGet('/jobs', token);
+        const jobs = await getJobs(token);
 
         // Convert jobs to calendar events
         const calendarEvents = jobs.map((job: Job) => ({

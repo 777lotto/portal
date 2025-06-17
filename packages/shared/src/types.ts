@@ -257,3 +257,10 @@ export interface DatabaseRecord {
   created_at?: string;
   updated_at?: string;
 }
+
+// conversation
+export interface Conversation {
+  phone_number: string;
+  last_message_at: string;
+  message_count: number;
+}

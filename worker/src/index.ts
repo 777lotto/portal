@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { Env } from '@portal/shared';
 import { requireAuth } from './auth';
-import { handleSignupCheck, handleSignup, handleLogin } from './handlers/auth';
+import { handleSignupCheck, handleSignup, handleLogin, handleRequestPasswordReset } from './handlers/auth';
 import { handleStripeCustomerCheck, handleStripeCustomerCreate, handleStripeWebhook } from './handlers/stripe';
 import { handleGetProfile, handleUpdateProfile } from './handlers/profile';
 import { handleListServices, handleGetService, handleCreateInvoice } from './handlers/services';
@@ -173,6 +173,16 @@ app.post('/api/login', async (c) => {
   } catch (error: any) {
     console.error('❌ Login error:', error);
     return errorResponse(error.message || 'Login failed', 500);
+  }
+});
+
+app.post('/api/request-password-reset', async (c) => {
+  console.log('✅ [MAIN-WORKER] Password reset request endpoint hit');
+  try {
+    return await handleRequestPasswordReset(c.req.raw, c.env);
+  } catch (error: any) {
+    console.error('❌ Password reset error:', error);
+    return errorResponse(error.message || 'Password reset failed', 500);
   }
 });
 

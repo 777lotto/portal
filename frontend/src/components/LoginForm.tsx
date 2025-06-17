@@ -47,9 +47,9 @@ export default function LoginForm({ setToken }: Props) {
     }
 
     try {
-      const token = await login(identifier, password, turnstileToken);
-      localStorage.setItem("token", token);
-      setToken(token);
+      const authResponse = await login(identifier, password, turnstileToken);
+localStorage.setItem("token", authResponse.token);
+setToken(authResponse.token);
       navigate("/dashboard");
     } catch (err: any) {
       setError(err.message || "Login failed");

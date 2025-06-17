@@ -8,7 +8,7 @@ import {
   verifyPassword
 } from "../auth";
 import { getOrCreateCustomer } from "../stripe";
-import { CORS } from "../utils";
+import { CORS, errorResponse } from "../utils"; // Make sure errorResponse is imported
 
 interface UserRecord {
   id: number;
@@ -105,6 +105,73 @@ export async function handleSignupCheck(request: Request, env: Env): Promise<Res
       status: 400,
       headers: CORS,
     });
+  }
+}
+
+// Handle password reset request
+export async function handleRequestPasswordReset(request: Request, env: Env): Promise<Response> {
+  try {
+    console.log('🔑 Processing password reset request...');
+
+    const data = await request.json() as { email?: string; turnstileToken?: string };
+    const email = data.email ? normalizeEmail(data.email) : "";
+    const turnstileToken = data.turnstileToken;
+    const clientIp = request.headers.get('CF-Connecting-IP') || '';
+
+    // Validate turnstile and email
+    if (!email) {
+      return errorResponse("Email address is required", 400);
+    }
+    const isValid = await validateTurnstileToken(turnstileToken || '', clientIp, env);
+    if (!isValid) {
+      return errorResponse("Security check failed. Please try again.", 400);
+    }
+
+    // Find user in the database
+    const user = await env.DB.prepare(
+      `SELECT id, name FROM users WHERE lower(email) = ?`
+    ).bind(email).first<UserRecord>();
+
+    if (user) {
+      // Generate a secure, random token
+      const resetToken = crypto.randomUUID();
+      const expiresAt = new Date(Date.now() + 3600 * 1000); // Token expires in 1 hour
+
+      // Store the token in the database
+      await env.DB.prepare(
+        `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)`
+      ).bind(user.id, resetToken, expiresAt.toISOString()).run();
+
+      // Trigger notification worker to send the email
+      if (env.NOTIFICATION_WORKER) {
+        const resetLink = `https://portal.777.foo/reset-password?token=${resetToken}`;
+
+        await env.NOTIFICATION_WORKER.fetch(
+          new Request('https://portal.777.foo/api/notifications/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer worker-internal-auth' },
+            body: JSON.stringify({
+              type: 'password_reset',
+              userId: user.id,
+              data: {
+                name: user.name,
+                resetLink: resetLink,
+              },
+              channels: ['email']
+            })
+          })
+        );
+      }
+    }
+    // Always return a success message to prevent user enumeration
+    return new Response(JSON.stringify({
+      message: "If an account with that email exists, we have sent password reset instructions."
+    }), { status: 200, headers: CORS });
+
+  } catch (err: any) {
+    console.error('❌ Password reset error:', err);
+    // Do not leak specific errors to the client
+    return errorResponse("An unexpected error occurred. Please try again later.", 500);
   }
 }
 
