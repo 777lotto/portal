@@ -4,10 +4,6 @@ import { sendEmail } from './email';
 import { sendSMS, handleSMSWebhook, getSMSConversations, getSMSConversation } from './sms';
 import { generatePasswordResetHtml, generatePasswordResetText } from './templates/passwordReset';
 
-// Base environment interface
-interface BaseEnv {
-  DB: D1Database;
-}
 
 // Notification-specific environment interface
 interface NotificationEnv extends BaseEnv {
