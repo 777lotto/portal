@@ -1,16 +1,15 @@
+// frontend/vite.config.ts
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
-import { cloudflareDevProxy } from '@cloudflare/vite-plugin'
+// CORRECTED: Import 'cloudflare' instead of 'cloudflareDevProxy'
+import { cloudflare } from '@cloudflare/vite-plugin'
 import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [
-    react(),
-    cloudflareDevProxy({
-      configPath: './wrangler.jsonc',
-      persistState: false,
-      port: 8788,
-    })
+    // CORRECTED: Call the cloudflare() plugin directly
+    cloudflare(),
+    react()
   ],
   server: {
     port: 5173,
@@ -28,7 +27,7 @@ export default defineConfig({
   },
   define: {
     'import.meta.env.VITE_API_URL': JSON.stringify(
-      process.env.NODE_ENV === 'production' 
+      process.env.NODE_ENV === 'production'
         ? 'https://portal.777.foo/api'
         : ''
     ),

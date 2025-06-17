@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
-    "dev": "wrangler dev", 
+    "dev": "wrangler dev --port 8789 --inspector-port 9230",
     "start": "wrangler dev",
     "build": "echo 'Build check passed'",
     "typecheck": "tsc --noEmit --skipLibCheck"
