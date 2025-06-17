@@ -5,6 +5,7 @@
     "lib": ["ES2023"],
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "rootDir": "src",
     "outDir": "dist",
     "composite": true,
     "declaration": true,

@@ -3,14 +3,14 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "deploy": "wrangler deploy",
-    "dev": "wrangler dev --port 8787 --inspector-port 9229",
-    "start": "wrangler dev",
-    "test": "vitest",
-    "cf-typegen": "wrangler types",
-    "build": "tsc --noEmit --skipLibCheck",
-    "typecheck": "tsc --noEmit"
-  },
+  "deploy": "wrangler deploy",
+  "dev": "wrangler dev --port 8787 --inspector-port 9229",
+  "start": "wrangler dev",
+  "test": "vitest",
+  "cf-typegen": "wrangler types",
+  "build": "tsc --build",
+  "typecheck": "tsc --noEmit"
+},
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.30",
     "@cloudflare/workers-types": "^4.20250525.0",
