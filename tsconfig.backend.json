@@ -1,9 +1,0 @@
-{
-  "files": [],
-  "references": [
-    { "path": "./packages/shared" },
-    { "path": "./worker" },
-    { "path": "./notification" },
-    { "path": "./payment" }
-  ]
-}

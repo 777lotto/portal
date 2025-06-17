@@ -25,10 +25,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # This top-level build is crucial. It builds all packages in the correct order.
-      - name: Build all backend workers
-        run: pnpm exec tsc --build tsconfig.backend.json
+      - name: Build Shared Package
+        run: pnpm --filter @portal/shared build
 
-      - name: Build frontend
+      - name: Build & Typecheck Workers
+        run: pnpm --filter "./{worker,payment,notification}" build
+
+      - name: Build Frontend
         run: pnpm --filter frontend build
 
       - name: Type check all packages (allow warnings)
