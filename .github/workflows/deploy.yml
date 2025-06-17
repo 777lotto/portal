@@ -34,14 +34,6 @@ jobs:
       - name: Build Frontend
         run: pnpm --filter frontend build
 
-      - name: Type check all packages (allow warnings)
-        run: |
-          echo "Running type checks (warnings allowed)..."
-          # This is now somewhat redundant if your build scripts include type checking,
-          # but it's good for an explicit check.
-          pnpm --filter './**' typecheck || echo "TypeScript checks completed with warnings"
-        continue-on-error: true
-
       - name: Apply D1 Migrations
         run: |
           echo "Applying D1 migrations..."
