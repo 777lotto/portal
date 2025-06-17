@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiGet, getServices } from "../lib/api";
+import { Service } from "@portal/shared";
 
 interface Service {
   id: number;

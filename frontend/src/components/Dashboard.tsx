@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiGet, openPortal, getJobs } from "../lib/api";
 import { Link, useNavigate } from "react-router-dom";
-import { Job } from "@portal/shared/calendar";
+import { Job } from "@portal/shared";
 
 export default function Dashboard() {
   const [profile, setProfile] = useState<any>(null);

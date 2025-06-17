@@ -1,7 +1,7 @@
 // worker/src/calendar.ts - Fixed imports and types
 import type { Env } from "@portal/shared";
 import { v4 as uuidv4 } from 'uuid';
-import { JobSchema } from "@portal/shared/calendar";
+import { JobSchema } from "@portal/shared";
 
 interface UserRecord {
   id: number;

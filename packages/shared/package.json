@@ -8,18 +8,6 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
-    },
-    "./calendar": {
-      "import": "./dist/calendar.js",
-      "types": "./dist/calendar.d.ts"
-    },
-    "./stripe": {
-      "import": "./dist/stripe.js",
-      "types": "./dist/stripe.d.ts"
-    },
-    "./types": {
-      "import": "./dist/types.js",
-      "types": "./dist/types.d.ts"
     }
   },
   "scripts": {
