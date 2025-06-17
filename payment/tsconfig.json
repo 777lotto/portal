@@ -9,7 +9,6 @@
     "composite": true,
     "declaration": true,
     "noEmit": true,
-    "baseUrl": "."
   },
   "include": [
     "src/**/*"
