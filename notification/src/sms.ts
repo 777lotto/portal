@@ -1,53 +1,13 @@
 // notification/src/sms.ts - Simplified and fixed
+import type { BaseEnv, D1Database, D1PreparedStatement, D1Result, SMSMessage, SMSWebhookRequest, SendSMSResult } from '@portal/shared';
 
-interface NotificationEnv {
+
+interface NotificationEnv extends BaseEnv {
   SMS_FROM_NUMBER: string;
   VOIPMS_USERNAME?: string;
   VOIPMS_PASSWORD?: string;
-  DB: D1Database;
 }
 
-interface D1Database {
-  prepare(query: string): D1PreparedStatement;
-}
-
-interface D1PreparedStatement {
-  bind(...values: any[]): D1PreparedStatement;
-  first<T = unknown>(colName?: string): Promise<T | null>;
-  run<T = unknown>(): Promise<D1Result<T>>;
-  all<T = unknown>(): Promise<D1Result<T>>;
-}
-
-interface D1Result<T = unknown> {
-  results?: T[];
-  success: boolean;
-  error?: string;
-  meta: any;
-}
-
-interface SMSMessage {
-  id: number;
-  user_id: number | string;
-  direction: 'incoming' | 'outgoing';
-  phone_number: string;
-  message: string;
-  message_sid?: string;
-  status: 'pending' | 'delivered' | 'failed';
-  created_at: string;
-}
-
-interface SMSWebhookRequest {
-  from: string;
-  to: string;
-  message: string;
-  id?: string;
-}
-
-interface SendSMSResult {
-  success: boolean;
-  error?: string;
-  messageSid?: string;
-}
 
 // Send SMS using VoIP.ms with better error handling
 export async function sendSMS(

@@ -176,6 +176,12 @@ export interface SMSWebhookRequest {
   id?: string;
 }
 
+export interface SendSMSResult {
+  success: boolean;
+  error?: string;
+  messageSid?: string;
+}
+
 // Notification types
 export interface NotificationRequest {
   type: string;
