@@ -6,7 +6,7 @@
     "deploy": "wrangler deploy",
     "dev": "wrangler dev --port 8789 --inspector-port 9230",
     "start": "wrangler dev",
-    "build": "echo 'Build check passed'",
+    "build": "tsc --noEmit --skipLibCheck",
     "typecheck": "tsc --noEmit --skipLibCheck"
   },
   "dependencies": {
