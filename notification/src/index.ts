@@ -1,5 +1,5 @@
 // notification/src/index.ts - Safe mode with graceful credential handling
-import type { BaseEnv } from '@portal/shared';
+import { type BaseEnv, NotificationRequestSchema, EmailParamsSchema } from '@portal/shared';
 import { sendEmail } from './email';
 import { sendSMS, handleSMSWebhook, getSMSConversations, getSMSConversation } from './sms';
 import { generatePasswordResetHtml, generatePasswordResetText } from './templates/passwordReset';
@@ -85,23 +85,15 @@ async function sendEmailNotification(
   }
 
   try {
-    // Validate email parameters
-    if (!params.to || !params.subject || (!params.html && !params.text)) {
-      throw new Error('Missing required email parameters');
-    }
-    
-    // Validate email address format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(params.to)) {
-      throw new Error('Invalid email address format');
-    }
-    
+    // Validate email parameters with Zod
+    EmailParamsSchema.parse(params);
+
     return await sendEmail(env, params);
   } catch (error: any) {
     console.error('📧 Email notification error:', error);
-    return { 
-      success: false, 
-      error: error.message || 'Email sending failed' 
+    return {
+      success: false,
+      error: error.message || 'Email sending failed'
     };
   }
 }
@@ -202,23 +194,21 @@ export default {
 
       // Send notification endpoint
       if (path === 'send' && request.method === 'POST') {
-        const body = await request.json() as {
-          type: string;
-          userId: number | string;
-          data: Record<string, any>;
-          channels?: string[];
-        };
-        
-        const { type, userId, data, channels = ['email'] } = body;
+        const body = await request.json();
 
-        if (!type || !userId) {
-          return new Response(JSON.stringify({ 
-            error: 'Missing required fields: type and userId' 
+        // Validate with Zod
+        const validationResult = NotificationRequestSchema.safeParse(body);
+        if (!validationResult.success) {
+          return new Response(JSON.stringify({
+            error: 'Invalid request body',
+            details: validationResult.error.flatten()
           }), {
             status: 400,
             headers: { 'Content-Type': 'application/json' },
           });
         }
+
+        const { type, userId, data, channels = ['email'] } = validationResult.data;
 
         // Get user info
         const user = await env.DB.prepare(

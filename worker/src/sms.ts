@@ -1,5 +1,5 @@
 // worker/src/sms.ts
-import { Env, SMSMessage, SMSWebhookRequest } from '@portal/shared';
+import { Env, SMSWebhookRequestSchema } from '@portal/shared';
 
 interface NotificationEnv extends Env {
   SMS_FROM_NUMBER: string;
@@ -78,22 +78,23 @@ export async function handleSMSWebhook(
   try {
     // Parse form data from VoIP.ms webhook
     const formData = await request.formData();
+    const payload = Object.fromEntries(formData.entries());
 
-    const payload: SMSWebhookRequest = {
-      from: formData.get('from') as string,
-      to: formData.get('to') as string,  // Your VoIP.ms DID number
-      message: formData.get('message') as string,
-      id: formData.get('id') as string,
-    };
-
-    if (!payload.from || !payload.message) {
-      return new Response(JSON.stringify({ error: "Missing required parameters" }), {
+    // Validate with Zod
+    const validationResult = SMSWebhookRequestSchema.safeParse(payload);
+    if (!validationResult.success) {
+      return new Response(JSON.stringify({
+        error: 'Invalid webhook payload',
+        details: validationResult.error.flatten()
+      }), {
         status: 400,
         headers: { "Content-Type": "application/json" }
       });
     }
 
-    console.log(`Received SMS from ${payload.from}: ${payload.message}`);
+    const { from, message, to, id } = validationResult.data;
+
+    console.log(`Received SMS from ${from}: ${message}`);
 
     // Find the user associated with this phone number
     const user = await env.DB.prepare(

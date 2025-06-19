@@ -1,5 +1,5 @@
 // payment/src/index.ts - Fixed with proper environment interface
-import type { BaseEnv } from '@portal/shared';
+import { type BaseEnv, SendReminderSchema } from '@portal/shared';
 
 // Payment-specific environment interface
 interface PaymentEnv extends BaseEnv {
@@ -55,16 +55,21 @@ export default {
 
       // Send payment reminder endpoint
       if (path === 'send-reminder' && request.method === 'POST') {
-        const body = await request.json() as { serviceId?: number };
-        const { serviceId } = body;
+        const body = await request.json();
 
-        if (!serviceId) {
-          return new Response(JSON.stringify({ error: 'Service ID is required' }), {
+        // Validate with Zod
+        const validationResult = SendReminderSchema.safeParse(body);
+        if (!validationResult.success) {
+          return new Response(JSON.stringify({
+            error: 'Invalid request body',
+            details: validationResult.error.flatten()
+          }), {
             status: 400,
             headers: { 'Content-Type': 'application/json' },
           });
         }
 
+        const { serviceId } = validationResult.data;
         const result = await sendPaymentReminder(env, serviceId);
 
         return new Response(JSON.stringify(result), {

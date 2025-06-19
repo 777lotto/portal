@@ -34,8 +34,8 @@
     "frontend:build": "pnpm --filter frontend build",
     "frontend:deploy": "pnpm --filter frontend run deploy",
     "dev": "pnpm run shared:build && concurrently \"pnpm run shared:dev\" \"pnpm run worker:dev\" \"pnpm run notification:dev\" \"pnpm run payment:dev\" \"pnpm run frontend:dev\"",
-    "typecheck": "pnpm run shared:build && echo 'Type checking all packages...' && tsc --build --force",
-    "build": "pnpm run shared:build && concurrently \"pnpm run worker:build\" \"pnpm run notification:build\" \"pnpm run payment:build\" && pnpm run frontend:build",
+    "typecheck": "tsc --build",
+    "build": "tsc --build && pnpm --filter frontend build",
     "deploy:workers:ordered": "pnpm run shared:build && pnpm --filter notification run deploy && pnpm --filter payment run deploy && pnpm --filter worker run deploy && pnpm --filter frontend run deploy",
     "migrate": "pnpm --filter worker exec wrangler d1 migrations apply gutter_db --env production",
     "deploy": "pnpm install && pnpm run migrate && pnpm run deploy:workers:ordered"

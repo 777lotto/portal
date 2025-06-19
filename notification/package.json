@@ -6,8 +6,8 @@
   "deploy": "wrangler deploy",
   "dev": "wrangler dev --port 8789 --inspector-port 9230",
   "start": "wrangler dev",
-  "build": "tsc --noEmit",
-  "typecheck": "tsc --noEmit --skipLibCheck"
+  "build": "tsc",
+  "typecheck": "tsc --noEmit"
 },
   "dependencies": {
     "@portal/shared": "workspace:*"

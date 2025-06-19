@@ -1,15 +1,19 @@
+// packages/shared/src/types.ts
+
+import { z } from 'zod';
+
 // Base environment interface - this is the minimal shared structure that all workers extend
 export interface BaseEnv {
   // D1 Database
   DB: D1Database;
-  
+
   // Secrets
   JWT_SECRET: string;
-  
+
   // Stripe (optional - not all workers use Stripe)
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
-  
+
   // Turnstile (optional)
   TURNSTILE_SECRET_KEY?: string;
 }
@@ -19,14 +23,14 @@ export interface Env extends BaseEnv {
   // Stripe is required for main worker
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
-  
+
   // Turnstile is required for main worker
   TURNSTILE_SECRET_KEY: string;
-  
+
   // Service bindings (optional - not all workers have all bindings)
   NOTIFICATION_WORKER?: { fetch: (request: Request) => Promise<Response> };
   PAYMENT_WORKER?: { fetch: (request: Request) => Promise<Response> };
-  
+
   // Environment variables
   ENVIRONMENT?: string;
   API_VERSION?: string;
@@ -69,204 +73,238 @@ export interface D1ExecResult {
 }
 
 // User-related types with proper Stripe integration
-export interface User {
-  id: number | string;
-  email: string;
-  name: string;
-  phone?: string;
-  stripe_customer_id?: string;
-  password_hash?: string;
-  created_at?: string;
-  updated_at?: string;
-}
+export const UserSchema = z.object({
+  id: z.union([z.number(), z.string()]),
+  email: z.string().email(),
+  name: z.string(),
+  phone: z.string().optional(),
+  stripe_customer_id: z.string().optional(),
+  password_hash: z.string().optional(),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
+});
+export type User = z.infer<typeof UserSchema>;
 
 // Service types with Stripe integration
-export interface Service {
-  id: number;
-  user_id: number;
-  service_date: string;
-  status: 'upcoming' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'invoiced' | 'paid';
-  notes?: string;
-  price_cents?: number;
-  stripe_invoice_id?: string;
-  created_at?: string;
-  updated_at?: string;
-}
+export const ServiceSchema = z.object({
+  id: z.number(),
+  user_id: z.number(),
+  service_date: z.string(),
+  status: z.enum(['upcoming', 'confirmed', 'in_progress', 'completed', 'cancelled', 'invoiced', 'paid']),
+  notes: z.string().optional(),
+  price_cents: z.number().optional(),
+  stripe_invoice_id: z.string().optional(),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
+});
+export type Service = z.infer<typeof ServiceSchema>;
 
 // Stripe-specific types for better type safety
-export interface StripeCustomerData {
-  id: string;
-  email?: string | null;
-  name?: string | null;
-  phone?: string | null;
-  created: number;
-  metadata?: Record<string, string>;
-}
+export const StripeCustomerDataSchema = z.object({
+  id: z.string(),
+  email: z.string().email().nullable().optional(),
+  name: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  created: z.number(),
+  metadata: z.record(z.string()).optional(),
+});
+export type StripeCustomerData = z.infer<typeof StripeCustomerDataSchema>;
 
-export interface StripeInvoiceData {
-  id: string;
-  customer: string;
-  amount_due: number;
-  amount_paid: number;
-  currency: string;
-  status: 'draft' | 'open' | 'paid' | 'uncollectible' | 'void';
-  hosted_invoice_url?: string | null;
-  created: number;
-  due_date?: number | null;
-}
+export const StripeInvoiceDataSchema = z.object({
+    id: z.string(),
+    customer: z.string(),
+    amount_due: z.number(),
+    amount_paid: z.number(),
+    currency: z.string(),
+    status: z.enum(['draft', 'open', 'paid', 'uncollectible', 'void']),
+    hosted_invoice_url: z.string().nullable().optional(),
+    created: z.number(),
+    due_date: z.number().nullable().optional(),
+});
+export type StripeInvoiceData = z.infer<typeof StripeInvoiceDataSchema>;
+
 
 // API request/response types
-export interface StripeCustomerCheckRequest {
-  email?: string;
-  phone?: string;
-}
+export const StripeCustomerCheckRequestSchema = z.object({
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+});
+export type StripeCustomerCheckRequest = z.infer<typeof StripeCustomerCheckRequestSchema>;
 
-export interface StripeCustomerCheckResponse {
-  exists: boolean;
-  customerId?: string;
-  email?: string;
-  name?: string;
-  phone?: string;
-}
+export const StripeCustomerCheckResponseSchema = z.object({
+  exists: z.boolean(),
+  customerId: z.string().optional(),
+  email: z.string().optional(),
+  name: z.string().optional(),
+  phone: z.string().optional(),
+});
+export type StripeCustomerCheckResponse = z.infer<typeof StripeCustomerCheckResponseSchema>;
 
-export interface StripeCustomerCreateRequest {
-  email: string;
-  name: string;
-  phone?: string;
-}
+export const StripeCustomerCreateRequestSchema = z.object({
+  email: z.string().email(),
+  name: z.string(),
+  phone: z.string().optional(),
+});
+export type StripeCustomerCreateRequest = z.infer<typeof StripeCustomerCreateRequestSchema>;
 
-export interface StripeCustomerCreateResponse {
-  success: boolean;
-  customerId: string;
-  message: string;
-}
+export const StripeCustomerCreateResponseSchema = z.object({
+    success: z.boolean(),
+    customerId: z.string(),
+    message: z.string(),
+});
+export type StripeCustomerCreateResponse = z.infer<typeof StripeCustomerCreateResponseSchema>;
 
 // Invoice creation types
-export interface InvoiceCreateRequest {
-  amount_cents: number;
-  description: string;
-  due_days?: number;
-}
+export const InvoiceCreateRequestSchema = z.object({
+  amount_cents: z.number(),
+  description: z.string(),
+  due_days: z.number().optional(),
+});
+export type InvoiceCreateRequest = z.infer<typeof InvoiceCreateRequestSchema>;
 
-export interface InvoiceCreateResponse {
-  id: string;
-  status: string;
-  amount_due: number;
-  hosted_invoice_url?: string;
-  due_date: string;
-  service_id: number;
-}
+export const InvoiceCreateResponseSchema = z.object({
+    id: z.string(),
+    status: z.string(),
+    amount_due: z.number(),
+    hosted_invoice_url: z.string().optional(),
+    due_date: z.string(),
+    service_id: z.number(),
+});
+export type InvoiceCreateResponse = z.infer<typeof InvoiceCreateResponseSchema>;
 
 // SMS types
-export interface SMSMessage {
-  id: number;
-  user_id: number | string;
-  direction: 'incoming' | 'outgoing';
-  phone_number: string;
-  message: string;
-  message_sid?: string;
-  status: 'pending' | 'delivered' | 'failed';
-  created_at: string;
-}
+export const SMSMessageSchema = z.object({
+    id: z.number(),
+    user_id: z.union([z.number(), z.string()]),
+    direction: z.enum(['incoming', 'outgoing']),
+    phone_number: z.string(),
+    message: z.string(),
+    message_sid: z.string().optional(),
+    status: z.enum(['pending', 'delivered', 'failed']),
+    created_at: z.string(),
+});
+export type SMSMessage = z.infer<typeof SMSMessageSchema>;
 
-export interface SMSWebhookRequest {
-  from: string;
-  to: string;
-  message: string;
-  id?: string;
-}
+export const SMSWebhookRequestSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  message: z.string(),
+  id: z.string().optional(),
+});
+export type SMSWebhookRequest = z.infer<typeof SMSWebhookRequestSchema>;
 
-export interface SendSMSResult {
-  success: boolean;
-  error?: string;
-  messageSid?: string;
-}
+export const SendSMSResultSchema = z.object({
+  success: z.boolean(),
+  error: z.string().optional(),
+  messageSid: z.string().optional(),
+});
+export type SendSMSResult = z.infer<typeof SendSMSResultSchema>;
+
 
 // Notification types
-export interface NotificationRequest {
-  type: string;
-  userId: number | string;
-  data: Record<string, any>;
-  channels?: string[];
-}
+export const NotificationRequestSchema = z.object({
+  type: z.string(),
+  userId: z.union([z.number(), z.string()]),
+  data: z.record(z.any()),
+  channels: z.array(z.string()).optional(),
+});
+export type NotificationRequest = z.infer<typeof NotificationRequestSchema>;
 
-export interface EmailParams {
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-  from?: string;
-  replyTo?: string;
-}
+export const EmailParamsSchema = z.object({
+  to: z.string().email(),
+  subject: z.string(),
+  html: z.string(),
+  text: z.string(),
+  from: z.string().email().optional(),
+  replyTo: z.string().email().optional(),
+});
+export type EmailParams = z.infer<typeof EmailParamsSchema>;
 
-export interface NotificationRecord {
-  id: number;
-  user_id: number | string;
-  type: string;
-  channels: string;
-  status: 'pending' | 'sent' | 'failed';
-  metadata: string;
-  created_at: string;
-}
+export const NotificationRecordSchema = z.object({
+    id: z.number(),
+    user_id: z.union([z.number(), z.string()]),
+    type: z.string(),
+    channels: z.string(),
+    status: z.enum(['pending', 'sent', 'failed']),
+    metadata: z.string(),
+    created_at: z.string(),
+});
+export type NotificationRecord = z.infer<typeof NotificationRecordSchema>;
 
 // API response types
-export interface ApiResponse<T = any> {
-  data?: T;
-  error?: string;
-  success?: boolean;
-}
+export const ApiResponseSchema = z.object({
+    data: z.any().optional(),
+    error: z.string().optional(),
+    success: z.boolean().optional(),
+});
+export type ApiResponse<T = any> = z.infer<typeof ApiResponseSchema> & { data?: T };
 
-export interface ApiError {
-  message: string;
-  code?: string;
-  status?: number;
-}
+export const ApiErrorSchema = z.object({
+  message: z.string(),
+  code: z.string().optional(),
+  status: z.number().optional(),
+});
+export type ApiError = z.infer<typeof ApiErrorSchema>;
+
 
 // Authentication types
-export interface AuthPayload {
-  email: string;
-  name?: string;
-  phone?: string;
-}
+export const AuthPayloadSchema = z.object({
+  email: z.string().email(),
+  name: z.string().optional(),
+  phone: z.string().optional(),
+});
+export type AuthPayload = z.infer<typeof AuthPayloadSchema>;
 
-export interface LoginRequest {
-  identifier: string; // email or phone
-  password: string;
-  turnstileToken?: string;
-}
+export const LoginRequestSchema = z.object({
+  identifier: z.string(), // email or phone
+  password: z.string(),
+  turnstileToken: z.string().optional(),
+});
+export type LoginRequest = z.infer<typeof LoginRequestSchema>;
 
-export interface SignupRequest {
-  email?: string;
-  phone?: string;
-  name: string;
-  password: string;
-}
+export const SignupRequestSchema = z.object({
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  name: z.string(),
+  password: z.string(),
+});
+export type SignupRequest = z.infer<typeof SignupRequestSchema>;
 
-export interface AuthResponse {
-  token: string;
-  user: {
-    id: number;
-    email?: string;
-    name: string;
-    phone?: string;
-  };
-}
+export const AuthResponseSchema = z.object({
+    token: z.string(),
+    user: z.object({
+        id: z.number(),
+        email: z.string().email().optional(),
+        name: z.string(),
+        phone: z.string().optional(),
+    }),
+});
+export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 
 // Portal/Dashboard types
-export interface PortalSession {
-  url: string;
-}
+export const PortalSessionSchema = z.object({
+    url: z.string(),
+});
+export type PortalSession = z.infer<typeof PortalSessionSchema>;
 
 // Common database record interface
-export interface DatabaseRecord {
-  id: number;
-  created_at?: string;
-  updated_at?: string;
-}
+export const DatabaseRecordSchema = z.object({
+    id: z.number(),
+    created_at: z.string().optional(),
+    updated_at: z.string().optional(),
+});
+export type DatabaseRecord = z.infer<typeof DatabaseRecordSchema>;
 
 // conversation
-export interface Conversation {
-  phone_number: string;
-  last_message_at: string;
-  message_count: number;
-}
+export const ConversationSchema = z.object({
+    phone_number: z.string(),
+    last_message_at: z.string(),
+    message_count: z.number(),
+});
+export type Conversation = z.infer<typeof ConversationSchema>;
+
+// Schema for the payment reminder request
+export const SendReminderSchema = z.object({
+  serviceId: z.number().positive('Service ID must be a positive number'),
+});
+export type SendReminderRequest = z.infer<typeof SendReminderSchema>;

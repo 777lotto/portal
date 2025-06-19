@@ -54,6 +54,7 @@ package-lock.json
 yarn.lock
 
 
-
+# TypeScript build info
+*.tsbuildinfo
 
 
