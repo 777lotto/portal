@@ -93,7 +93,7 @@ export async function handleSMSWebhook(
       });
     }
 
-    const { from, message, to, id } = validationResult.data;
+    const { from, message } = validationResult.data;
 
     console.log(`Received SMS from ${from}: ${message}`);
 
@@ -116,11 +116,11 @@ export async function handleSMSWebhook(
 
     // Process the incoming message
     if (user) {
-      await processIncomingSMS(env, {
-        id: (user as any).id,
-        name: (user as any).name || '',
-        email: (user as any).email || ''
-      }, payload);
+  await processIncomingSMS(env, {
+    id: (user as any).id,
+    name: (user as any).name || '',
+    email: (user as any).email || ''
+  }, validationResult.data);
     } else {
       // Handle unknown sender
       const responseMessage = "Sorry, we couldn't identify your account. Please call our office for assistance.";

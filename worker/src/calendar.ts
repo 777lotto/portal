@@ -3,10 +3,6 @@ import type { Env } from "@portal/shared";
 import { v4 as uuidv4 } from 'uuid';
 import { JobSchema } from "@portal/shared";
 
-interface UserRecord {
-  id: number;
-  stripe_customer_id?: string;
-}
 
 interface JobRecord {
   id: string;

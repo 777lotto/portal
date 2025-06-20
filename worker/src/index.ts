@@ -4,7 +4,7 @@ import { cors } from 'hono/cors';
 import type { Env } from '@portal/shared';
 import { requireAuth } from './auth';
 import { handleSignupCheck, handleSignup, handleLogin, handleRequestPasswordReset } from './handlers/auth';
-import { handleStripeCustomerCheck, handleStripeCustomerCreate, handleStripeWebhook } from './handlers/stripe';
+import { handleStripeCustomerCheck, handleStripeWebhook } from './handlers/stripe';
 import { handleGetProfile, handleUpdateProfile } from './handlers/profile';
 import { handleListServices, handleGetService, handleCreateInvoice } from './handlers/services';
 import { handleGetJobs, handleGetJobById, handleCalendarFeed } from './handlers/jobs';

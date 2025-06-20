@@ -15,7 +15,7 @@ interface UserRecord {
  * Handle GET /api/profile endpoint
  * Returns the user's profile information
  */
-export async function handleGetProfile(request: Request, env: Env, email: string): Promise<Response> {
+export async function handleGetProfile(_request: Request, env: Env, email: string): Promise<Response> {
   try {
     // Fetch the user record (case‑insensitive email)
     const userRecord = await env.DB.prepare(

@@ -163,7 +163,7 @@ export async function handleStripeWebhook(request: Request, env: Env): Promise<R
   }
 }
 
-async function handleInvoicePaymentSucceeded(invoice: any, env: Env, request: Request): Promise<void> {
+async function handleInvoicePaymentSucceeded(invoice: any, env: Env, _request: Request): Promise<void> {
   // Find the service associated with this invoice
   const service = await env.DB.prepare(
     `SELECT s.*, u.email, u.id as user_id FROM services s 
@@ -208,7 +208,7 @@ async function handleInvoicePaymentSucceeded(invoice: any, env: Env, request: Re
   }
 }
 
-async function handleInvoicePaymentFailed(invoice: any, env: Env, request: Request): Promise<void> {
+async function handleInvoicePaymentFailed(invoice: any, env: Env, _request: Request): Promise<void> {
   // Find the service and notify user
   const failedService = await env.DB.prepare(
     `SELECT s.*, u.email, u.id as user_id FROM services s 

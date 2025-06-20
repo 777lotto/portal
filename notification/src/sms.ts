@@ -1,5 +1,5 @@
 // notification/src/sms.ts - Simplified and fixed
-import type { BaseEnv, D1Database, D1PreparedStatement, D1Result, SMSMessage, SMSWebhookRequest, SendSMSResult } from '@portal/shared';
+import type { BaseEnv, SMSMessage, SendSMSResult } from '@portal/shared';
 
 
 interface NotificationEnv extends BaseEnv {
@@ -99,8 +99,8 @@ export async function storeSMSMessage(
 
 // Simple SMS webhook handler (placeholder)
 export async function handleSMSWebhook(
-  request: Request,
-  env: NotificationEnv
+  _request: Request,
+  _env: NotificationEnv
 ): Promise<Response> {
   try {
     console.log('SMS webhook received');

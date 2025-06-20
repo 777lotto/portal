@@ -151,7 +151,7 @@ export async function createJwtToken(
     
     // Validate the created token immediately
     try {
-      const { payload: testPayload } = await jwtVerify(token, getJwtSecretKey(secret));
+      await jwtVerify(token, getJwtSecretKey(secret));
       console.log('✅ JWT created and validated successfully');
     } catch (testError) {
       console.error('❌ Created JWT is invalid:', testError);

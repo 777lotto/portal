@@ -25,7 +25,7 @@ interface ServiceRecord {
  * Handle GET /api/services endpoint
  * Returns all services for a user
  */
-export async function handleListServices(request: Request, env: Env, email: string): Promise<Response> {
+export async function handleListServices(_request: Request, env: Env, email: string): Promise<Response> {
   try {
     // lookup the user's ID
     const userRow = await env.DB.prepare(
@@ -62,7 +62,7 @@ export async function handleListServices(request: Request, env: Env, email: stri
  * Handle GET /api/services/:id endpoint
  * Returns a specific service for a user
  */
-export async function handleGetService(request: Request, env: Env, email: string, id: number): Promise<Response> {
+export async function handleGetService(_request: Request, env: Env, email: string, id: number): Promise<Response> {
   try {
     // Check if the service exists and belongs to the user
     const service = await env.DB.prepare(

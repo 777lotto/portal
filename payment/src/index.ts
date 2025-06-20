@@ -164,34 +164,12 @@ async function sendPaymentReminder(
       };
     }
 
-    const reminderRecord = reminder as {
-      id: number;
-      service_id: number;
-      reminder_count: number;
-      status: string;
-    };
 
     // Format the amount for display
     const amountFormatted = ((serviceRecord.price_cents || 0) / 100).toFixed(2);
 
     // Create payment link
     const paymentLink = `https://portal.777.foo/services/${serviceId}`;
-
-    // Customize message based on reminder count
-    let message: string;
-
-    if (reminderRecord.reminder_count === 0) {
-      // First reminder
-      message = `Hi ${serviceRecord.name}, this is a friendly reminder that your invoice for $${amountFormatted} is due. You can pay online here: ${paymentLink} or reply PAY to get payment assistance.`;
-    }
-    else if (reminderRecord.reminder_count === 1) {
-      // Second reminder
-      message = `Hi ${serviceRecord.name}, your invoice for $${amountFormatted} is now past due. Please pay online at ${paymentLink} or reply PAY for payment options.`;
-    }
-    else {
-      // Final reminder
-      message = `FINAL NOTICE: Your invoice for $${amountFormatted} requires immediate attention. Please pay now at ${paymentLink} to avoid additional fees. Reply PAY for assistance.`;
-    }
 
     // Send the SMS via the notification worker if available
     if (env.NOTIFICATION_WORKER) {
