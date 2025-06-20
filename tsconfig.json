@@ -1,33 +1,15 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "baseUrl": ".",
-    "skipLibCheck": true,
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true,
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "moduleDetection": "force",
-    "target": "ES2022",
-    "lib": ["ES2023"],
-    "module": "ESNext",
-    "types": ["@cloudflare/workers-types"],
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "exactOptionalPropertyTypes": false,
-    "noImplicitReturns": true,
-    "noImplicitOverride": true,
     "noEmit": true
   },
+  "files": [],
+  "include": [],
   "references": [
-    { "path": "./packages/shared/tsconfig.json" },
-    { "path": "./frontend/tsconfig.json" },
-    { "path": "./worker/tsconfig.json" },
-    { "path": "./notification/tsconfig.json" },
-    { "path": "./payment/tsconfig.json" }
+    { "path": "./packages/shared" },
+    { "path": "./frontend" },
+    { "path": "./worker" },
+    { "path": "./notification" },
+    { "path": "./payment" }
   ]
 }

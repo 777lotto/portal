@@ -1,7 +1,7 @@
 // src/components/Services.tsx
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { apiGet, getServices } from "../lib/api";
+import { getServices } from "../lib/api";
 import { Service } from "@portal/shared";
 
 

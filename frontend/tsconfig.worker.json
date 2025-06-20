@@ -1,13 +1,14 @@
 {
-  "extends": "../tsconfig.json",
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2022", "WebWorker"],
+    "lib": ["WebWorker", "ES2022"],
     "types": ["@cloudflare/workers-types"],
+    "composite": false,
     "noEmit": true,
-    "baseUrl": ".",
+    "isolatedModules": false,
     "allowSyntheticDefaultImports": true
   },
   "include": ["src/worker.ts", "src/vite-env.d.ts"],
-  "exclude": ["src/**/*.tsx", "src/**/*.test.ts", "src/main.tsx", "src/App.tsx"],
+  "exclude": ["src/**/*.tsx", "src/main.tsx", "src/App.tsx"],
   "references": [{ "path": "../packages/shared" }]
 }

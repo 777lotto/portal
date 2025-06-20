@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { apiGet } from '../lib/api';
 import { getJobs } from '../lib/api';
 import { Job } from '@portal/shared';
 

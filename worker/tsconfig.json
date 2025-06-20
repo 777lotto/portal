@@ -1,16 +1,12 @@
 {
-  "extends": "../tsconfig.json",
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "dist",
+    "outDir": "./dist",
     "composite": true,
-    "declaration": true,
-    "allowSyntheticDefaultImports": true
+    "emitDeclarationOnly": true,
+    "allowSyntheticDefaultImports": true,
+    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers"]
   },
-  "include": [
-    "src/**/*",
-    "test/**/*"
-  ],
-  "references": [
-    { "path": "../packages/shared" }
-  ]
+  "include": ["src/**/*", "test/**/*"],
+  "references": [{ "path": "../packages/shared" }]
 }

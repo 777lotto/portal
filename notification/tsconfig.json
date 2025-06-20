@@ -1,15 +1,11 @@
 {
-  "extends": "../tsconfig.json",
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
     "composite": true,
-    "noEmit": true,
-    "allowSyntheticDefaultImports": true,
+    "emitDeclarationOnly": true,
+    "allowSyntheticDefaultImports": true
   },
-  "include": [
-    "src/**/*"
-  ],
-  "references": [
-    { "path": "../packages/shared" }
-  ]
+  "include": ["src/**/*"],
+  "references": [{ "path": "../packages/shared" }]
 }

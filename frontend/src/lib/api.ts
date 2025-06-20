@@ -76,7 +76,7 @@ export const requestPasswordReset = (email: string, turnstileToken: string) =>
 
 /* ---------- invoices ---------- */
 
-export const getInvoice = (serviceId: number, token: string) =>
+export const getInvoice = (_serviceId: number, token: string) =>
   apiGet<{ hosted_invoice_url: string }>("/services/${serviceId}/invoice", token);
 
 

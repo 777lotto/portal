@@ -1,5 +1,6 @@
 // worker/src/sms.ts
-import { Env, SMSWebhookRequestSchema } from '@portal/shared';
+import { Env, SMSWebhookRequestSchema, type SMSMessage, type SMSWebhookRequest } from '@portal/shared';
+
 
 interface NotificationEnv extends Env {
   SMS_FROM_NUMBER: string;

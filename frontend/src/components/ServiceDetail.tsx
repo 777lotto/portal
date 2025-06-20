@@ -1,7 +1,7 @@
 // src/components/ServiceDetail.tsx
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { apiGet, getInvoice, getService } from "../lib/api";
+import { getInvoice, getService } from "../lib/api";
 import { Service } from "@portal/shared";
 
 
