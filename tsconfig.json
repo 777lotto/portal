@@ -20,7 +20,8 @@
     "forceConsistentCasingInFileNames": true,
     "exactOptionalPropertyTypes": false,
     "noImplicitReturns": true,
-    "noImplicitOverride": true
+    "noImplicitOverride": true,
+    "noEmit": true
   },
   "references": [
     { "path": "./packages/shared/tsconfig.json" },

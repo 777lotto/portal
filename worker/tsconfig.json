@@ -3,11 +3,12 @@
   "compilerOptions": {
     "outDir": "dist",
     "composite": true,
-    "noEmit": true,
+    "declaration": true,
     "allowSyntheticDefaultImports": true
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "test/**/*"
   ],
   "references": [
     { "path": "../packages/shared" }
