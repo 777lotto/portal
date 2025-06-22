@@ -1,4 +1,15 @@
-steps:
+name: Deploy All Services
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to Cloudflare
+    steps:
       - name: Checkout
         uses: actions/checkout@v4
 
