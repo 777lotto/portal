@@ -1,17 +1,4 @@
-# .github/workflows/deploy.yml
-
-name: Deploy All Services
-
-on:
-  push:
-    branches: [ main, master ]
-  workflow_dispatch:
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    name: Deploy to Cloudflare
-    steps:
+steps:
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -26,65 +13,41 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # --- BUILD PHASE ---
-      # Correctly build all packages in the monorepo using the root build script.
-      # This single command respects the workspace dependencies and builds everything
-      # in the correct order, creating the necessary /dist folders for deployment.
       - name: Build All Packages
-        run: pnpm run build # <-- CHANGED
-
-      # --- DEPLOYMENT PHASE ---
-      # Now that all code is built, we can deploy each service.
+        run: pnpm run build
 
       - name: Apply D1 Migrations
-        run: |
-          echo "Applying D1 migrations..."
-          # The --filter ensures this command runs in the 'worker' package context
-          pnpm --filter worker exec wrangler d1 migrations apply gutter_db --env production
+        run: pnpm run migrate
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Deploy Notification Worker
-        run: |
-          echo "Deploying notification worker..."
-          pnpm --filter notification deploy # <-- NO CHANGE NEEDED, BUT NOW IT WORKS
+        run: pnpm --filter notification run deploy # <-- "run" added
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Deploy Payment Worker
-        run: |
-          echo "Deploying payment worker..."
-          pnpm --filter payment deploy # <-- NO CHANGE NEEDED, BUT NOW IT WORKS
+        run: pnpm --filter payment run deploy # <-- "run" added
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Deploy Main Worker
-        run: |
-          echo "Deploying main worker..."
-          pnpm --filter worker deploy # <-- NO CHANGE NEEDED, BUT NOW IT WORKS
+        run: pnpm --filter worker run deploy # <-- "run" added
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Deploy Frontend
-        run: |
-          echo "Deploying frontend..."
-          # The frontend's package.json deploy script already runs a build,
-          # which is slightly redundant but safe.
-          pnpm --filter frontend deploy
+        run: pnpm --filter frontend run deploy # <-- "run" added
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           VITE_API_URL: "https://portal.777.foo/api"
           VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
           VITE_STRIPE_PK: ${{ secrets.VITE_STRIPE_PK }}
 
-      # --- POST-DEPLOYMENT ---
       - name: Post-deployment health checks
         run: |
           echo "Running post-deployment health checks..."
           sleep 15
-          echo "Checking frontend..."
           curl -f https://portal.777.foo/ || echo "Frontend health check failed"
-          echo "Checking main worker..."
           curl -f https://portal.777.foo/api/ping || echo "Main worker health check failed"
-          echo "Deployment completed!"
         continue-on-error: true

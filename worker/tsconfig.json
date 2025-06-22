@@ -3,7 +3,6 @@
   "compilerOptions": {
     "outDir": "./dist",
     "composite": true,
-    "emitDeclarationOnly": true,
     "allowSyntheticDefaultImports": true,
     "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers"]
   },

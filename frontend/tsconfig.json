@@ -6,7 +6,6 @@
     "jsx": "react-jsx",
     "useDefineForClassFields": true,
     "composite": true,
-    "emitDeclarationOnly": true,
     "allowImportingTsExtensions": false
   },
   "include": ["src"],
