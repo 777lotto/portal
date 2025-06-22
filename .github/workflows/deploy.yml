@@ -25,7 +25,12 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build All Packages
-        run: pnpm run build
+        run: |
+          echo "Building shared package first..."
+          pnpm --filter @portal/shared build
+
+          echo "Building remaining packages..."
+          pnpm --filter "./packages/*" --filter "./worker" --filter "./notification" --filter "./payment" --filter "./frontend" build
 
       - name: Apply D1 Migrations
         run: pnpm run migrate
