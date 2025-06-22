@@ -29,8 +29,8 @@ jobs:
           echo "Building shared package first..."
           pnpm --filter @portal/shared build
 
-          echo "Building remaining packages..."
-          pnpm --filter "./packages/*" --filter "./worker" --filter "./notification" --filter "./payment" --filter "./frontend" build
+          echo "Building the rest of the packages..."
+          pnpm --filter "!@portal/shared" -r build
 
       - name: Apply D1 Migrations
         run: pnpm run migrate
