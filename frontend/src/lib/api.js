@@ -31,7 +31,7 @@ export const getProfile = (token) => apiGet("/profile", token);
 export const updateProfile = (profileData, token) => apiPost("/profile", profileData, token, "PUT");
 export const requestPasswordReset = (email, turnstileToken) => apiPost("/request-password-reset", { email, turnstileToken });
 /* ---------- invoices ---------- */
-export const getInvoice = (serviceId, token) => apiGet("/services/${serviceId}/invoice", token);
+export const getInvoice = (_serviceId, token) => apiGet("/services/${serviceId}/invoice", token);
 /* ---------- Stripe Customer Portal ---------- */
 export const openPortal = (token) => apiPost("/portal", {}, token);
 /* ---------- Calendar Integration ---------- */

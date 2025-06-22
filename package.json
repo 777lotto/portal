@@ -19,13 +19,13 @@
   },
   "packageManager": "pnpm@10.12.1+sha512.f0dda8580f0ee9481c5c79a1d927b9164f2c478e90992ad268bbb2465a736984391d6333d2c327913578b2804af33474ca554ba29c04a8b13060a717675ae3ac",
   "scripts": {
-  "build": "pnpm -r build",
-  "typecheck": "tsc --build --verbose",
+  "build": "tsc --build --verbose",
+  "typecheck": "tsc --build --verbose --noEmit",
   "dev": "./scripts/dev.sh",
   "deploy": "pnpm run build && pnpm run migrate && pnpm run deploy:workers",
   "deploy:workers": "pnpm --filter notification run deploy && pnpm --filter payment run deploy && pnpm --filter worker run deploy && pnpm --filter frontend run deploy",
   "migrate": "pnpm --filter worker exec wrangler d1 migrations apply gutter_db --env production"
-  },
+},
   "devDependencies": {
     "concurrently": "^9.1.2"
   }

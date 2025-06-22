@@ -1,12 +1,20 @@
 // frontend/src/lib/fetchJson.ts - Improved error handling and API communication
 const API_BASE = import.meta.env.VITE_API_URL || '';
 export class ApiError extends Error {
-    status;
-    details;
     constructor(message, status, details) {
         super(message);
-        this.status = status;
-        this.details = details;
+        Object.defineProperty(this, "status", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: status
+        });
+        Object.defineProperty(this, "details", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: details
+        });
         this.name = 'ApiError';
     }
 }
