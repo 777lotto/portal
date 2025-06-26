@@ -1,6 +1,9 @@
-// frontend/src/App.tsx - Updated for Cloudflare integration
+// frontend/src/App.tsx - Updated to include Admin routes
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { jwtDecode } from 'jwt-decode'; // You may need to install this: pnpm add jwt-decode
+
+// --- Page Components ---
 import LoginForm from "./components/LoginForm";
 import SignupForm from "./components/SignupForm";
 import Dashboard from "./components/Dashboard";
@@ -13,155 +16,109 @@ import Navbar from "./components/Navbar";
 import SMSConversations from "./components/SMSConversations";
 import SMSConversation from "./components/SMSConversation";
 
-// Removed bogus global types - not needed with Cloudflare Vite plugin
+// --- NEW: Admin Page Components (you will create these) ---
+import AdminDashboard from "./components/admin/AdminDashboard";
+import AdminUserDetail from "./components/admin/AdminUserDetail";
+
+// --- NEW: Define a type for the decoded user payload ---
+interface UserPayload {
+  id: number;
+  email: string;
+  name: string;
+  role: 'customer' | 'admin';
+  // add other fields from your JWT payload as needed
+}
 
 function App() {
   const [token, setToken] = useState<string | null>(null);
+  // --- NEW: Add state to hold the decoded user information ---
+  const [user, setUser] = useState<UserPayload | null>(null);
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // Initialize the app
     const initializeApp = async () => {
       try {
-        // Get token from localStorage
         const storedToken = localStorage.getItem("token");
         setToken(storedToken);
 
-        // In development, test if the API is accessible
-        if (import.meta.env.DEV) {
+        // --- NEW: If a token exists, decode it to get user role ---
+        if (storedToken) {
           try {
-            const response = await fetch('/api/ping', { 
-              method: 'GET',
-              headers: {
-                'Content-Type': 'application/json'
-              }
-            });
-            
-            if (response.ok) {
-              console.log('✅ API is ready');
-            } else {
-              console.warn('⚠️  API not ready yet, but continuing...');
-            }
+            const decodedUser = jwtDecode<UserPayload>(storedToken);
+            setUser(decodedUser);
           } catch (error) {
-            console.warn('⚠️  Could not reach API during initialization:', error);
+            console.error("Invalid token:", error);
+            // Clear invalid token
+            localStorage.removeItem("token");
+            setToken(null);
+            setUser(null);
           }
         }
 
-        setIsReady(true);
       } catch (error) {
         console.error('App initialization error:', error);
-        setIsReady(true); // Continue anyway
+      } finally {
+        setIsReady(true);
       }
     };
 
     initializeApp();
-  }, []);
+  }, [token]); // Re-run this effect when the token changes
 
-  // Show loading state while initializing
+  // --- NEW: Function to handle setting token and decoding user ---
+  const handleSetToken = (newToken: string | null) => {
+    setToken(newToken);
+    if (newToken) {
+      localStorage.setItem("token", newToken);
+      try {
+        setUser(jwtDecode<UserPayload>(newToken));
+      } catch (error) {
+        console.error("Failed to decode new token:", error);
+        setUser(null);
+      }
+    } else {
+      localStorage.removeItem("token");
+      setUser(null);
+    }
+  };
+
   if (!isReady) {
-    return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh',
-        flexDirection: 'column',
-        gap: '1rem'
-      }}>
-        <div>Loading...</div>
-        {import.meta.env.DEV && (
-          <div style={{ fontSize: '0.8rem', color: '#666' }}>
-            Starting up...
-          </div>
-        )}
-      </div>
-    );
+    return <div>Loading...</div>;
   }
 
   return (
     <>
-      <Navbar token={token} setToken={setToken} />
+      {/* --- MODIFIED: Pass user and the new handler to Navbar --- */}
+      <Navbar user={user} setToken={handleSetToken} />
       <Routes>
-        {/* root redirect */}
+        {/* --- Customer-facing Routes --- */}
+        <Route path="/" element={<Navigate to={token ? "/dashboard" : "/login"} replace />} />
+        <Route path="/login" element={token ? <Navigate to="/dashboard" replace /> : <LoginForm setToken={handleSetToken} />} />
+        <Route path="/signup" element={token ? <Navigate to="/dashboard" replace /> : <SignupForm setToken={handleSetToken} />} />
+
+        <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/login" replace />} />
+        <Route path="/services" element={token ? <Services /> : <Navigate to="/login" replace />} />
+        <Route path="/services/:id" element={token ? <ServiceDetail /> : <Navigate to="/login" replace />} />
+        <Route path="/calendar" element={token ? <JobCalendar /> : <Navigate to="/login" replace />} />
+        <Route path="/jobs/:id" element={token ? <JobDetail /> : <Navigate to="/login" replace />} />
+        <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/login" replace />} />
+        <Route path="/sms" element={token ? <SMSConversations /> : <Navigate to="/login" replace />} />
+        <Route path="/sms/:phoneNumber" element={token ? <SMSConversation /> : <Navigate to="/login" replace />} />
+
+        {/* --- NEW: Admin Routes --- */}
+        {/* These routes will only render if the user is an admin */}
         <Route
-          path="/"
-          element={<Navigate to={token ? "/dashboard" : "/login"} replace />}
+          path="/admin/dashboard"
+          element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/dashboard" replace />}
+        />
+        <Route
+          path="/admin/users/:userId"
+          element={user?.role === 'admin' ? <AdminUserDetail /> : <Navigate to="/dashboard" replace />}
         />
 
-        {/* auth */}
-        <Route
-          path="/login"
-          element={
-            token ? <Navigate to="/dashboard" replace /> : <LoginForm setToken={setToken} />
-          }
-        />
-        <Route
-          path="/signup"
-          element={
-            token ? <Navigate to="/dashboard" replace /> : <SignupForm setToken={setToken} />
-          }
-        />
-
-        {/* protected pages */}
-        <Route
-          path="/dashboard"
-          element={token ? <Dashboard /> : <Navigate to="/login" replace />}
-        />
-
-        {/* services */}
-        <Route
-          path="/services"
-          element={token ? <Services /> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/services/:id"
-          element={token ? <ServiceDetail /> : <Navigate to="/login" replace />}
-        />
-
-        {/* calendar */}
-        <Route
-          path="/calendar"
-          element={token ? <JobCalendar /> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/jobs/:id"
-          element={token ? <JobDetail /> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/calendar-sync"
-          element={token ? <CalendarSync /> : <Navigate to="/login" replace />}
-        />
-        
-        {/* SMS routes */}
-        <Route
-          path="/sms"
-          element={token ? <SMSConversations /> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/sms/:phoneNumber"
-          element={token ? <SMSConversation /> : <Navigate to="/login" replace />}
-        />
-        
-        {/* catch-all */}
+        {/* --- Catch-all redirect --- */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      
-      {/* Development debug info */}
-      {import.meta.env.DEV && (
-        <div style={{
-          position: 'fixed',
-          bottom: '10px',
-          right: '10px',
-          background: 'rgba(0,0,0,0.8)',
-          color: 'white',
-          padding: '8px',
-          fontSize: '10px',
-          borderRadius: '4px',
-          fontFamily: 'monospace'
-        }}>
-          ENV: {import.meta.env.MODE} | API: {import.meta.env.VITE_API_URL || '/api'}
-        </div>
-      )}
     </>
   );
 }

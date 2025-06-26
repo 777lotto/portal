@@ -1,1 +1,2 @@
-export default function Dashboard(): import("react/jsx-runtime").JSX.Element;
+declare function Dashboard(): import("react/jsx-runtime").JSX.Element;
+export default Dashboard;

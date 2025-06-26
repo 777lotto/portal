@@ -1,142 +1,75 @@
-import { useEffect, useState } from "react";
-import { apiGet, openPortal, getJobs } from "../lib/api";
-import { Link, useNavigate } from "react-router-dom";
-import { Job } from "@portal/shared";
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { getProfile, getJobs, getServices } from '../lib/api';
+import type { User, Job, Service } from '@portal/shared';
 
-export default function Dashboard() {
-  const [profile, setProfile] = useState<any>(null);
+function Dashboard() {
+  const [user, setUser] = useState<User | null>(null);
   const [upcomingJobs, setUpcomingJobs] = useState<Job[]>([]);
+  const [recentServices, setRecentServices] = useState<Service[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchData = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const loadDashboard = async () => {
       try {
-        const token = localStorage.getItem("token");
-        if (!token) {
-          navigate("/login");
-          return;
-        }
-
-        // Fetch profile and upcoming jobs in parallel
-        const [profileData, jobsData] = await Promise.all([
-          apiGet("/profile", token),
-          getJobs(token)
+        setIsLoading(true);
+        setError(null);
+        const [profileData, jobsData, servicesData] = await Promise.all([
+          getProfile(token),
+          getJobs(token),
+          getServices(token),
         ]);
-
-        setProfile(profileData);
-
-        // Filter for upcoming jobs and sort by start date
-        const now = new Date();
-        const upcoming = jobsData
-          .filter((job: Job) =>
-            new Date(job.start) > now &&
-            job.status !== 'cancelled'
-          )
-          .sort((a: Job, b: Job) =>
-            new Date(a.start).getTime() - new Date(b.start).getTime()
-          )
-          .slice(0, 3); // Just show the next 3 appointments
-
-        setUpcomingJobs(upcoming);
+        setUser(profileData);
+        setUpcomingJobs(jobsData.filter(j => new Date(j.start) > new Date()).slice(0, 5));
+        setRecentServices(servicesData.slice(0, 5));
       } catch (err: any) {
-        setError(err.message || "Failed to load data");
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
       }
     };
+    loadDashboard();
+  }, []);
 
-    fetchData();
-  }, [navigate]);
-
-  // Handle opening Stripe portal
-  const handlePortal = async () => {
-    try {
-      const token = localStorage.getItem("token")!;
-      const { url } = await openPortal(token);
-      window.open(url, "_blank");
-    } catch (err: any) {
-      setError(err.message || "Failed to open billing portal");
-    }
-  };
+  if (isLoading) return <div className="container mt-4">Loading dashboard...</div>;
+  if (error) return <div className="container mt-4 alert alert-danger">{error}</div>;
 
   return (
-    <div style={{ padding: "2rem" }}>
-      <h1>Welcome to Your Portal</h1>
-
-      {error && (
-        <div style={{ color: "red", marginBottom: "1rem" }}>
-          {error}
-        </div>
-      )}
-
-      {profile ? (
-        <div>
-          <section>
-            <h2>Your Profile</h2>
-            <p>
-              <strong>Name:</strong> {profile.name}
-            </p>
-            <p>
-              <strong>Email:</strong> {profile.email}
-            </p>
-          </section>
-
-          <section style={{ marginTop: "2rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h2>Upcoming Services</h2>
-              <Link to="/calendar" style={{ textDecoration: "none" }}>
-                View Full Calendar
-              </Link>
-            </div>
-
+    <div className="container mt-4">
+      {user && <h1>Welcome, {user.name}!</h1>}
+      <div className="row mt-4">
+        <div className="col-md-6">
+          <h3>Upcoming Jobs</h3>
+          <div className="list-group">
             {upcomingJobs.length > 0 ? (
-              <div>
-                {upcomingJobs.map(job => (
-                  <div
-                    key={job.id}
-                    style={{
-                      padding: "1rem",
-                      marginBottom: "1rem",
-                      border: "1px solid #ddd",
-                      borderRadius: "4px"
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <h3>{job.title}</h3>
-                      <Link to={`/jobs/${job.id}`}>View Details</Link>
-                    </div>
-                    <p>
-                      <strong>Date:</strong>{" "}
-                      {new Date(job.start).toLocaleDateString()} at{" "}
-                      {new Date(job.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                    {job.description && <p>{job.description}</p>}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p>No upcoming appointments scheduled.</p>
-            )}
-          </section>
-
-          <div style={{ marginTop: "2rem", display: "flex", gap: "1rem" }}>
-            <button
-              onClick={handlePortal}
-              style={{ padding: "0.5rem 1rem" }}
-            >
-              Manage Billing
-            </button>
-
-            <button
-              onClick={() => navigate("/calendar-sync")}
-              style={{ padding: "0.5rem 1rem" }}
-            >
-              Sync Calendar
-            </button>
+              upcomingJobs.map(job => (
+                <Link key={job.id} to={`/jobs/${job.id}`} className="list-group-item list-group-item-action">
+                  {job.title} - {new Date(job.start).toLocaleString()}
+                </Link>
+              ))
+            ) : <p>No upcoming jobs.</p>}
           </div>
         </div>
-      ) : (
-        <p>Loading profile...</p>
-      )}
+        <div className="col-md-6">
+          <h3>Recent Services</h3>
+          <div className="list-group">
+            {recentServices.length > 0 ? (
+              recentServices.map(service => (
+                <Link key={service.id} to={`/services/${service.id}`} className="list-group-item list-group-item-action">
+                  Service on {new Date(service.service_date).toLocaleDateString()}
+                </Link>
+              ))
+            ) : <p>No recent services.</p>}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
+
+export default Dashboard;
+

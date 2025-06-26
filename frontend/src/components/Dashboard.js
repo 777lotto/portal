@@ -1,56 +1,43 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import { useEffect, useState } from "react";
-import { apiGet, openPortal, getJobs } from "../lib/api";
-import { Link, useNavigate } from "react-router-dom";
-export default function Dashboard() {
-    const [profile, setProfile] = useState(null);
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { getProfile, getJobs, getServices } from '../lib/api';
+function Dashboard() {
+    const [user, setUser] = useState(null);
     const [upcomingJobs, setUpcomingJobs] = useState([]);
+    const [recentServices, setRecentServices] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
-    const navigate = useNavigate();
     useEffect(() => {
-        const fetchData = async () => {
+        const token = localStorage.getItem("token");
+        if (!token)
+            return;
+        const loadDashboard = async () => {
             try {
-                const token = localStorage.getItem("token");
-                if (!token) {
-                    navigate("/login");
-                    return;
-                }
-                // Fetch profile and upcoming jobs in parallel
-                const [profileData, jobsData] = await Promise.all([
-                    apiGet("/profile", token),
-                    getJobs(token)
+                setIsLoading(true);
+                setError(null);
+                const [profileData, jobsData, servicesData] = await Promise.all([
+                    getProfile(token),
+                    getJobs(token),
+                    getServices(token),
                 ]);
-                setProfile(profileData);
-                // Filter for upcoming jobs and sort by start date
-                const now = new Date();
-                const upcoming = jobsData
-                    .filter((job) => new Date(job.start) > now &&
-                    job.status !== 'cancelled')
-                    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
-                    .slice(0, 3); // Just show the next 3 appointments
-                setUpcomingJobs(upcoming);
+                setUser(profileData);
+                setUpcomingJobs(jobsData.filter(j => new Date(j.start) > new Date()).slice(0, 5));
+                setRecentServices(servicesData.slice(0, 5));
             }
             catch (err) {
-                setError(err.message || "Failed to load data");
+                setError(err.message);
+            }
+            finally {
+                setIsLoading(false);
             }
         };
-        fetchData();
-    }, [navigate]);
-    // Handle opening Stripe portal
-    const handlePortal = async () => {
-        try {
-            const token = localStorage.getItem("token");
-            const { url } = await openPortal(token);
-            window.open(url, "_blank");
-        }
-        catch (err) {
-            setError(err.message || "Failed to open billing portal");
-        }
-    };
-    return (_jsxs("div", { style: { padding: "2rem" }, children: [_jsx("h1", { children: "Welcome to Your Portal" }), error && (_jsx("div", { style: { color: "red", marginBottom: "1rem" }, children: error })), profile ? (_jsxs("div", { children: [_jsxs("section", { children: [_jsx("h2", { children: "Your Profile" }), _jsxs("p", { children: [_jsx("strong", { children: "Name:" }), " ", profile.name] }), _jsxs("p", { children: [_jsx("strong", { children: "Email:" }), " ", profile.email] })] }), _jsxs("section", { style: { marginTop: "2rem" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" }, children: [_jsx("h2", { children: "Upcoming Services" }), _jsx(Link, { to: "/calendar", style: { textDecoration: "none" }, children: "View Full Calendar" })] }), upcomingJobs.length > 0 ? (_jsx("div", { children: upcomingJobs.map(job => (_jsxs("div", { style: {
-                                        padding: "1rem",
-                                        marginBottom: "1rem",
-                                        border: "1px solid #ddd",
-                                        borderRadius: "4px"
-                                    }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between" }, children: [_jsx("h3", { children: job.title }), _jsx(Link, { to: `/jobs/${job.id}`, children: "View Details" })] }), _jsxs("p", { children: [_jsx("strong", { children: "Date:" }), " ", new Date(job.start).toLocaleDateString(), " at", " ", new Date(job.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })] }), job.description && _jsx("p", { children: job.description })] }, job.id))) })) : (_jsx("p", { children: "No upcoming appointments scheduled." }))] }), _jsxs("div", { style: { marginTop: "2rem", display: "flex", gap: "1rem" }, children: [_jsx("button", { onClick: handlePortal, style: { padding: "0.5rem 1rem" }, children: "Manage Billing" }), _jsx("button", { onClick: () => navigate("/calendar-sync"), style: { padding: "0.5rem 1rem" }, children: "Sync Calendar" })] })] })) : (_jsx("p", { children: "Loading profile..." }))] }));
+        loadDashboard();
+    }, []);
+    if (isLoading)
+        return _jsx("div", { className: "container mt-4", children: "Loading dashboard..." });
+    if (error)
+        return _jsx("div", { className: "container mt-4 alert alert-danger", children: error });
+    return (_jsxs("div", { className: "container mt-4", children: [user && _jsxs("h1", { children: ["Welcome, ", user.name, "!"] }), _jsxs("div", { className: "row mt-4", children: [_jsxs("div", { className: "col-md-6", children: [_jsx("h3", { children: "Upcoming Jobs" }), _jsx("div", { className: "list-group", children: upcomingJobs.length > 0 ? (upcomingJobs.map(job => (_jsxs(Link, { to: `/jobs/${job.id}`, className: "list-group-item list-group-item-action", children: [job.title, " - ", new Date(job.start).toLocaleString()] }, job.id)))) : _jsx("p", { children: "No upcoming jobs." }) })] }), _jsxs("div", { className: "col-md-6", children: [_jsx("h3", { children: "Recent Services" }), _jsx("div", { className: "list-group", children: recentServices.length > 0 ? (recentServices.map(service => (_jsxs(Link, { to: `/services/${service.id}`, className: "list-group-item list-group-item-action", children: ["Service on ", new Date(service.service_date).toLocaleDateString()] }, service.id)))) : _jsx("p", { children: "No recent services." }) })] })] })] }));
 }
+export default Dashboard;

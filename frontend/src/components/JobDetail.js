@@ -1,39 +1,59 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import { getJob } from "../lib/api";
-export default function JobDetail() {
+// frontend/src/components/JobDetail.tsx - Updated with try/catch
+import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { apiGet } from '../lib/api';
+function JobDetail() {
     const { id } = useParams();
     const [job, setJob] = useState(null);
+    const [photos, setPhotos] = useState([]);
+    const [notes, setNotes] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const token = localStorage.getItem("token");
     useEffect(() => {
-        async function fetchJob() {
+        const fetchJobDetails = async () => {
+            if (!id)
+                return;
+            const token = localStorage.getItem("token");
+            if (!token)
+                return;
+            // --- NEW: Use a try/catch block to handle API calls ---
             try {
-                if (!id)
-                    throw new Error("Job ID is required");
-                setLoading(true);
-                const jobData = await getJob(id, token);
+                setIsLoading(true);
+                setError(null);
+                // Promise.all will now either resolve with an array of data, or reject if ANY call fails
+                const [jobData, photosData, notesData] = await Promise.all([
+                    apiGet(`/api/jobs/${id}`, token),
+                    apiGet(`/api/jobs/${id}/photos`, token),
+                    apiGet(`/api/jobs/${id}/notes`, token)
+                ]);
+                // If we get here, all calls were successful
                 setJob(jobData);
+                setPhotos(photosData);
+                setNotes(notesData);
             }
             catch (err) {
-                setError(err.message || "Failed to load job details");
+                // Any error from the Promise.all will be caught here
+                console.error("Error fetching job details:", err);
+                setError(err.message || 'An unknown error occurred.');
             }
             finally {
-                setLoading(false);
+                setIsLoading(false);
             }
-        }
-        fetchJob();
-    }, [id, token]);
-    if (loading)
-        return _jsx("div", { style: { padding: "2rem" }, children: "Loading..." });
+        };
+        fetchJobDetails();
+    }, [id]);
+    const formatDate = (dateString) => {
+        return new Date(dateString).toLocaleDateString('en-US', {
+            year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+    };
+    if (isLoading)
+        return _jsx("div", { className: "container mt-4", children: "Loading job details..." });
     if (error)
-        return _jsx("div", { style: { padding: "2rem", color: "red" }, children: error });
+        return _jsxs("div", { className: "container mt-4 alert alert-danger", children: ["Error: ", error] });
     if (!job)
-        return _jsx("div", { style: { padding: "2rem" }, children: "Job not found" });
-    // Format dates for display
-    const startDate = new Date(job.start).toLocaleString();
-    const endDate = new Date(job.end).toLocaleString();
-    return (_jsxs("div", { style: { padding: "2rem" }, children: [_jsx("h1", { children: job.title }), _jsxs("div", { style: { marginTop: "1rem" }, children: [_jsxs("p", { children: [_jsx("strong", { children: "Start:" }), " ", startDate] }), _jsxs("p", { children: [_jsx("strong", { children: "End:" }), " ", endDate] }), _jsxs("p", { children: [_jsx("strong", { children: "Status:" }), " ", job.status] }), job.description && (_jsxs("div", { style: { marginTop: "1rem" }, children: [_jsx("h3", { children: "Description" }), _jsx("p", { children: job.description })] })), job.recurrence !== 'none' && (_jsxs("p", { style: { marginTop: "1rem" }, children: [_jsx("strong", { children: "Recurrence:" }), " ", job.recurrence, job.recurrence === 'custom' && job.rrule && (_jsxs("span", { children: [" (", job.rrule, ")"] }))] })), _jsx("div", { style: { marginTop: "2rem" }, children: _jsx("button", { onClick: () => window.open(`/api/calendar-feed?token=${token}`, '_blank'), style: { padding: "0.5rem 1rem", marginRight: "1rem" }, children: "Add to Calendar" }) })] })] }));
+        return _jsx("div", { className: "container mt-4", children: _jsx("h2", { children: "Job not found" }) });
+    return (_jsx("div", { className: "container mt-4", children: _jsxs("div", { className: "card", children: [_jsx("div", { className: "card-header", children: _jsxs("h2", { children: ["Job Detail: ", job.title] }) }), _jsx("div", { className: "card-body", children: _jsxs("p", { children: [_jsx("strong", { children: "Status:" }), " ", _jsx("span", { className: `badge bg-${job.status === 'completed' ? 'success' : 'secondary'}`, children: job.status })] }) })] }) }));
 }
+export default JobDetail;

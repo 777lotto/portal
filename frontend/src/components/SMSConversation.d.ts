@@ -1,1 +1,2 @@
-export default function SMSConversation(): import("react/jsx-runtime").JSX.Element;
+declare function SMSConversation(): import("react/jsx-runtime").JSX.Element;
+export default SMSConversation;

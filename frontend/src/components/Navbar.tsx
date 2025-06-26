@@ -1,73 +1,92 @@
-import { Link, useNavigate } from "react-router-dom";
+// frontend/src/components/Navbar.tsx - CORRECTED
 
+import { Link, NavLink, useNavigate } from "react-router-dom";
+
+// Define the shape of the decoded user object from the JWT
+interface UserPayload {
+  name: string;
+  role: 'admin' | 'customer';
+}
+
+// Update the Props interface to accept the new `user` object
 interface Props {
   token: string | null;
   setToken: (token: string | null) => void;
+  user: UserPayload | null;
 }
 
-export default function Navbar({ token, setToken }: Props) {
+export default function Navbar({ token, setToken, user }: Props) {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
     setToken(null);
-    navigate("/login");
+    navigate("/login", { replace: true });
   };
 
   return (
-    <nav style={{
-      padding: "1rem",
-      background: "#eee",
-      marginBottom: "2rem",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between"
-    }}>
-      <div>
-        <strong style={{ marginRight: "2rem" }}>777 Solutions Customer Portal</strong>
-
-        {token ? (
-          <>
-            <Link to="/dashboard" style={{ marginRight: "1rem" }}>
-              Dashboard
-            </Link>
-            <Link to="/services" style={{ marginRight: "1rem" }}>
-              Services
-            </Link>
-            <Link to="/calendar" style={{ marginRight: "1rem" }}>
-              Calendar
-            </Link>
-            <Link to="/calendar-sync" style={{ marginRight: "1rem" }}>
-              Sync Calendar
-            </Link>
-            <Link to="/sms" style={{ marginRight: "1rem" }}>
-              Messages
-            </Link>
-          </>
-        ) : (
-          <>
-            <Link to="/login" style={{ marginRight: "1rem" }}>
-              Login
-            </Link>
-            <Link to="/signup">Signup</Link>
-          </>
-        )}
-      </div>
-
-      {token && (
+    <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
+      <div className="container-fluid">
+        <Link className="navbar-brand" to="/">Customer Portal</Link>
         <button
-          onClick={handleLogout}
-          style={{
-            background: "transparent",
-            border: "1px solid #999",
-            padding: "0.3rem 0.8rem",
-            borderRadius: "4px",
-            cursor: "pointer"
-          }}
+          className="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarNav"
+          aria-controls="navbarNav"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
         >
-          Logout
+          <span className="navbar-toggler-icon"></span>
         </button>
-      )}
+        <div className="collapse navbar-collapse" id="navbarNav">
+          <ul className="navbar-nav me-auto mb-2 mb-lg-0">
+            {token && (
+              <>
+                <li className="nav-item">
+                  <NavLink className="nav-link" to="/dashboard">Dashboard</NavLink>
+                </li>
+                <li className="nav-item">
+                  <NavLink className="nav-link" to="/services">Services</NavLink>
+                </li>
+                <li className="nav-item">
+                  <NavLink className="nav-link" to="/calendar">Calendar</NavLink>
+                </li>
+                <li className="nav-item">
+                  <NavLink className="nav-link" to="/sms">Messages</NavLink>
+                </li>
+                {user?.role === 'admin' && (
+                  <li className="nav-item">
+                    <NavLink className="nav-link" to="/admin/dashboard" style={{ color: 'cyan' }}>
+                      Admin
+                    </NavLink>
+                  </li>
+                )}
+              </>
+            )}
+          </ul>
+
+          {token && user ? (
+            <div className="d-flex align-items-center">
+              <span className="navbar-text me-3">
+                Welcome, {user.name}
+              </span>
+              <button onClick={handleLogout} className="btn btn-outline-light">
+                Logout
+              </button>
+            </div>
+          ) : (
+            <ul className="navbar-nav">
+              <li className="nav-item">
+                <NavLink className="nav-link" to="/login">Login</NavLink>
+              </li>
+              <li className="nav-item">
+                <NavLink className="nav-link" to="/signup">Sign Up</NavLink>
+              </li>
+            </ul>
+          )}
+        </div>
+      </div>
     </nav>
   );
 }
+

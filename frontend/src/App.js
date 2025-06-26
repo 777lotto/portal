@@ -1,7 +1,9 @@
 import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
-// frontend/src/App.tsx - Updated for Cloudflare integration
+// frontend/src/App.tsx - Updated to include Admin routes
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { jwtDecode } from 'jwt-decode'; // You may need to install this: pnpm add jwt-decode
+// --- Page Components ---
 import LoginForm from "./components/LoginForm";
 import SignupForm from "./components/SignupForm";
 import Dashboard from "./components/Dashboard";
@@ -13,67 +15,64 @@ import CalendarSync from "./components/CalendarSync";
 import Navbar from "./components/Navbar";
 import SMSConversations from "./components/SMSConversations";
 import SMSConversation from "./components/SMSConversation";
-// Removed bogus global types - not needed with Cloudflare Vite plugin
+// --- NEW: Admin Page Components (you will create these) ---
+import AdminDashboard from "./components/admin/AdminDashboard";
+import AdminUserDetail from "./components/admin/AdminUserDetail";
 function App() {
     const [token, setToken] = useState(null);
+    // --- NEW: Add state to hold the decoded user information ---
+    const [user, setUser] = useState(null);
     const [isReady, setIsReady] = useState(false);
     useEffect(() => {
-        // Initialize the app
         const initializeApp = async () => {
             try {
-                // Get token from localStorage
                 const storedToken = localStorage.getItem("token");
                 setToken(storedToken);
-                // In development, test if the API is accessible
-                if (import.meta.env.DEV) {
+                // --- NEW: If a token exists, decode it to get user role ---
+                if (storedToken) {
                     try {
-                        const response = await fetch('/api/ping', {
-                            method: 'GET',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            }
-                        });
-                        if (response.ok) {
-                            console.log('✅ API is ready');
-                        }
-                        else {
-                            console.warn('⚠️  API not ready yet, but continuing...');
-                        }
+                        const decodedUser = jwtDecode(storedToken);
+                        setUser(decodedUser);
                     }
                     catch (error) {
-                        console.warn('⚠️  Could not reach API during initialization:', error);
+                        console.error("Invalid token:", error);
+                        // Clear invalid token
+                        localStorage.removeItem("token");
+                        setToken(null);
+                        setUser(null);
                     }
                 }
-                setIsReady(true);
             }
             catch (error) {
                 console.error('App initialization error:', error);
-                setIsReady(true); // Continue anyway
+            }
+            finally {
+                setIsReady(true);
             }
         };
         initializeApp();
-    }, []);
-    // Show loading state while initializing
+    }, [token]); // Re-run this effect when the token changes
+    // --- NEW: Function to handle setting token and decoding user ---
+    const handleSetToken = (newToken) => {
+        setToken(newToken);
+        if (newToken) {
+            localStorage.setItem("token", newToken);
+            try {
+                setUser(jwtDecode(newToken));
+            }
+            catch (error) {
+                console.error("Failed to decode new token:", error);
+                setUser(null);
+            }
+        }
+        else {
+            localStorage.removeItem("token");
+            setUser(null);
+        }
+    };
     if (!isReady) {
-        return (_jsxs("div", { style: {
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '100vh',
-                flexDirection: 'column',
-                gap: '1rem'
-            }, children: [_jsx("div", { children: "Loading..." }), import.meta.env.DEV && (_jsx("div", { style: { fontSize: '0.8rem', color: '#666' }, children: "Starting up..." }))] }));
+        return _jsx("div", { children: "Loading..." });
     }
-    return (_jsxs(_Fragment, { children: [_jsx(Navbar, { token: token, setToken: setToken }), _jsxs(Routes, { children: [_jsx(Route, { path: "/", element: _jsx(Navigate, { to: token ? "/dashboard" : "/login", replace: true }) }), _jsx(Route, { path: "/login", element: token ? _jsx(Navigate, { to: "/dashboard", replace: true }) : _jsx(LoginForm, { setToken: setToken }) }), _jsx(Route, { path: "/signup", element: token ? _jsx(Navigate, { to: "/dashboard", replace: true }) : _jsx(SignupForm, { setToken: setToken }) }), _jsx(Route, { path: "/dashboard", element: token ? _jsx(Dashboard, {}) : _jsx(Navigate, { to: "/login", replace: true }) }), _jsx(Route, { path: "/services", element: token ? _jsx(Services, {}) : _jsx(Navigate, { to: "/login", replace: true }) }), _jsx(Route, { path: "/services/:id", element: token ? _jsx(ServiceDetail, {}) : _jsx(Navigate, { to: "/login", replace: true }) }), _jsx(Route, { path: "/calendar", element: token ? _jsx(JobCalendar, {}) : _jsx(Navigate, { to: "/login", replace: true }) }), _jsx(Route, { path: "/jobs/:id", element: token ? _jsx(JobDetail, {}) : _jsx(Navigate, { to: "/login", replace: true }) }), _jsx(Route, { path: "/calendar-sync", element: token ? _jsx(CalendarSync, {}) : _jsx(Navigate, { to: "/login", replace: true }) }), _jsx(Route, { path: "/sms", element: token ? _jsx(SMSConversations, {}) : _jsx(Navigate, { to: "/login", replace: true }) }), _jsx(Route, { path: "/sms/:phoneNumber", element: token ? _jsx(SMSConversation, {}) : _jsx(Navigate, { to: "/login", replace: true }) }), _jsx(Route, { path: "*", element: _jsx(Navigate, { to: "/", replace: true }) })] }), import.meta.env.DEV && (_jsxs("div", { style: {
-                    position: 'fixed',
-                    bottom: '10px',
-                    right: '10px',
-                    background: 'rgba(0,0,0,0.8)',
-                    color: 'white',
-                    padding: '8px',
-                    fontSize: '10px',
-                    borderRadius: '4px',
-                    fontFamily: 'monospace'
-                }, children: ["ENV: ", import.meta.env.MODE, " | API: ", import.meta.env.VITE_API_URL || '/api'] }))] }));
+    return (_jsxs(_Fragment, { children: [_jsx(Navbar, { user: user, setToken: handleSetToken }), _jsxs(Routes, { children: [_jsx(Route, { path: "/", element: _jsx(Navigate, { to: token ? "/dashboard" : "/login", replace: true }) }), _jsx(Route, { path: "/login", element: token ? _jsx(Navigate, { to: "/dashboard", replace: true }) : _jsx(LoginForm, { setToken: handleSetToken }) }), _jsx(Route, { path: "/signup", element: token ? _jsx(Navigate, { to: "/dashboard", replace: true }) : _jsx(SignupForm, { setToken: handleSetToken }) }), _jsx(Route, { path: "/dashboard", element: token ? _jsx(Dashboard, {}) : _jsx(Navigate, { to: "/login", replace: true }) }), _jsx(Route, { path: "/services", element: token ? _jsx(Services, {}) : _jsx(Navigate, { to: "/login", replace: true }) }), _jsx(Route, { path: "/services/:id", element: token ? _jsx(ServiceDetail, {}) : _jsx(Navigate, { to: "/login", replace: true }) }), _jsx(Route, { path: "/calendar", element: token ? _jsx(JobCalendar, {}) : _jsx(Navigate, { to: "/login", replace: true }) }), _jsx(Route, { path: "/jobs/:id", element: token ? _jsx(JobDetail, {}) : _jsx(Navigate, { to: "/login", replace: true }) }), _jsx(Route, { path: "/calendar-sync", element: token ? _jsx(CalendarSync, {}) : _jsx(Navigate, { to: "/login", replace: true }) }), _jsx(Route, { path: "/sms", element: token ? _jsx(SMSConversations, {}) : _jsx(Navigate, { to: "/login", replace: true }) }), _jsx(Route, { path: "/sms/:phoneNumber", element: token ? _jsx(SMSConversation, {}) : _jsx(Navigate, { to: "/login", replace: true }) }), _jsx(Route, { path: "/admin/dashboard", element: user?.role === 'admin' ? _jsx(AdminDashboard, {}) : _jsx(Navigate, { to: "/dashboard", replace: true }) }), _jsx(Route, { path: "/admin/users/:userId", element: user?.role === 'admin' ? _jsx(AdminUserDetail, {}) : _jsx(Navigate, { to: "/dashboard", replace: true }) }), _jsx(Route, { path: "*", element: _jsx(Navigate, { to: "/", replace: true }) })] })] }));
 }
 export default App;

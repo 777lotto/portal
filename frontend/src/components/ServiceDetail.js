@@ -1,30 +1,67 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-// src/components/ServiceDetail.tsx
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import { getInvoice, getService } from "../lib/api";
-export default function ServiceDetail() {
+import { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { apiGet, createInvoice } from '../lib/api';
+function ServiceDetail() {
     const { id } = useParams();
-    const [svc, setSvc] = useState(null);
-    const [invoiceUrl, setInvoiceUrl] = useState(null);
+    const [service, setService] = useState(null);
+    const [photos, setPhotos] = useState([]);
+    const [notes, setNotes] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
-    const token = localStorage.getItem("token");
+    const [invoiceMessage, setInvoiceMessage] = useState(null);
     useEffect(() => {
-        (async () => {
+        if (!id)
+            return;
+        const token = localStorage.getItem("token");
+        if (!token)
+            return;
+        const fetchDetails = async () => {
             try {
-                const data = await getService(Number(id), token);
-                setSvc(data);
-                if (data.status === "invoiced" || data.status === "paid") {
-                    const { hosted_invoice_url } = await getInvoice(Number(id), token);
-                    setInvoiceUrl(hosted_invoice_url);
-                }
+                setIsLoading(true);
+                setError(null);
+                const [serviceData, photosData, notesData] = await Promise.all([
+                    getService(id, token),
+                    apiGet(`/api/services/${id}/photos`, token),
+                    apiGet(`/api/services/${id}/notes`, token)
+                ]);
+                setService(serviceData);
+                setPhotos(photosData);
+                setNotes(notesData);
             }
-            catch (e) {
-                setError(e.message);
+            catch (err) {
+                setError(err.message);
             }
-        })();
-    }, [id, token]);
-    if (!svc)
-        return _jsx("p", { style: { padding: "2rem" }, children: "Loading\u2026" });
-    return (_jsxs("div", { style: { padding: "2rem" }, children: [_jsxs("h1", { children: ["Service #", svc.id] }), error && _jsx("div", { style: { color: "red" }, children: error }), _jsxs("p", { children: [_jsx("strong", { children: "Date:" }), " ", svc.service_date] }), _jsxs("p", { children: [_jsx("strong", { children: "Status:" }), " ", svc.status] }), svc.notes && (_jsxs("p", { children: [_jsx("strong", { children: "Notes:" }), " ", svc.notes] })), svc.status === "invoiced" && invoiceUrl && (_jsx("button", { onClick: () => window.open(invoiceUrl, "_blank"), style: { marginTop: "1rem", padding: "0.5rem 1rem" }, children: "Pay Invoice" })), svc.status === "paid" && (_jsx("p", { style: { marginTop: "1rem", color: "green" }, children: "\u2705 Invoice paid" }))] }));
+            finally {
+                setIsLoading(false);
+            }
+        };
+        fetchDetails();
+    }, [id]);
+    const handleCreateInvoice = async () => {
+        if (!id)
+            return;
+        const token = localStorage.getItem("token");
+        if (!token)
+            return;
+        try {
+            const response = await createInvoice(id, token);
+            if (response.hosted_invoice_url) {
+                setInvoiceMessage(`Invoice created!`);
+                window.open(response.hosted_invoice_url, '_blank');
+            }
+        }
+        catch (err) {
+            setError(err.message);
+        }
+    };
+    const formatDate = (dateString) => new Date(dateString).toLocaleString();
+    if (isLoading)
+        return _jsx("div", { className: "container mt-4", children: "Loading..." });
+    if (error)
+        return _jsx("div", { className: "container mt-4 alert alert-danger", children: error });
+    if (!service)
+        return _jsx("div", { className: "container mt-4", children: _jsx("h2", { children: "Service not found" }) });
+    return (_jsxs("div", { className: "container mt-4", children: [_jsxs("div", { className: "card", children: [_jsx("div", { className: "card-header", children: _jsx("h2", { children: "Service Detail" }) }), _jsxs("div", { className: "card-body", children: [_jsxs("p", { children: [_jsx("strong", { children: "Date:" }), " ", formatDate(service.service_date)] }), _jsxs("p", { children: [_jsx("strong", { children: "Status:" }), " ", service.status] }), service.price_cents && _jsxs("p", { children: [_jsx("strong", { children: "Price:" }), " $", (service.price_cents / 100).toFixed(2)] }), service.notes && _jsxs("p", { children: [_jsx("strong", { children: "Original Notes:" }), " ", service.notes] }), invoiceMessage && _jsx("div", { className: "alert alert-info", children: invoiceMessage }), !service.stripe_invoice_id && (_jsx("button", { onClick: handleCreateInvoice, className: "btn btn-primary", children: "Create Invoice" }))] })] }), _jsxs("div", { className: "card mt-4", children: [_jsx("div", { className: "card-header", children: _jsx("h3", { children: "Photos" }) }), _jsx("div", { className: "card-body row", children: photos.length > 0 ? photos.map(photo => (_jsx("div", { className: "col-md-4 mb-3", children: _jsx("a", { href: photo.url, target: "_blank", rel: "noopener noreferrer", children: _jsx("img", { src: photo.url, alt: "Service", className: "img-fluid rounded" }) }) }, photo.id))) : _jsx("p", { children: "No photos yet." }) })] }), _jsxs("div", { className: "card mt-4", children: [_jsx("div", { className: "card-header", children: _jsx("h3", { children: "Additional Notes" }) }), _jsx("ul", { className: "list-group list-group-flush", children: notes.length > 0 ? notes.map(note => (_jsxs("li", { className: "list-group-item", children: [_jsx("p", { children: note.content }), _jsx("small", { children: formatDate(note.created_at) })] }, note.id))) : _jsx("li", { className: "list-group-item", children: "No additional notes yet." }) })] }), _jsx(Link, { to: "/services", className: "btn btn-secondary mt-4", children: "Back to Services" })] }));
 }
+export default ServiceDetail;

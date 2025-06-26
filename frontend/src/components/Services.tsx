@@ -1,60 +1,57 @@
-// src/components/Services.tsx
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { getServices } from "../lib/api";
-import { Service } from "@portal/shared";
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { getServices } from '../lib/api';
+import type { Service } from '@portal/shared';
 
-
-export default function Services() {
+function Services() {
   const [services, setServices] = useState<Service[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const token = localStorage.getItem("token")!; // protected via App.tsx
 
   useEffect(() => {
-    (async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const fetchServices = async () => {
       try {
+        setIsLoading(true);
+        setError(null);
         const data = await getServices(token);
         setServices(data);
       } catch (err: any) {
-        setError(err.message || "Failed to load services");
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
       }
-    })();
-  }, [token]);
+    };
+
+    fetchServices();
+  }, []);
+
+  if (isLoading) return <div className="container mt-4">Loading services...</div>;
+  if (error) return <div className="container mt-4 alert alert-danger">{error}</div>;
 
   return (
-    <div style={{ padding: "2rem" }}>
-      <h1>Your Services</h1>
-
-      {error && (
-        <div style={{ color: "red", marginBottom: "1rem" }}>{error}</div>
-      )}
-
-      {services.length === 0 ? (
-        <p>No services scheduled yet.</p>
-      ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: "left", padding: "0.5rem" }}>Date</th>
-              <th style={{ textAlign: "left", padding: "0.5rem" }}>Status</th>
-              <th style={{ textAlign: "left", padding: "0.5rem" }}>Notes</th>
-              <th style={{ padding: "0.5rem" }} />
-            </tr>
-          </thead>
-          <tbody>
-            {services.map((s) => (
-              <tr key={s.id} style={{ borderTop: "1px solid #ddd" }}>
-                <td style={{ padding: "0.5rem" }}>{s.service_date}</td>
-                <td style={{ padding: "0.5rem" }}>{s.status}</td>
-                <td style={{ padding: "0.5rem" }}>{s.notes}</td>
-                <td style={{ padding: "0.5rem" }}>
-                  <Link to={`/services/${s.id}`}>View</Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+    <div className="container mt-4">
+      <h2>Your Services</h2>
+      <div className="list-group">
+        {services.length > 0 ? (
+          services.map(service => (
+            <Link key={service.id} to={`/services/${service.id}`} className="list-group-item list-group-item-action">
+              <div className="d-flex w-100 justify-content-between">
+                <h5 className="mb-1">Service on {new Date(service.service_date).toLocaleDateString()}</h5>
+                <small>Status: {service.status}</small>
+              </div>
+              {service.price_cents && <p className="mb-1">${(service.price_cents / 100).toFixed(2)}</p>}
+              <small>{service.notes}</small>
+            </Link>
+          ))
+        ) : (
+          <p>You have no services scheduled.</p>
+        )}
+      </div>
     </div>
   );
 }
+
+export default Services;

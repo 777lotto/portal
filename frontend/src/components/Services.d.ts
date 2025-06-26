@@ -1,1 +1,2 @@
-export default function Services(): import("react/jsx-runtime").JSX.Element;
+declare function Services(): import("react/jsx-runtime").JSX.Element;
+export default Services;
