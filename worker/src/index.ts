@@ -1,31 +1,29 @@
-// worker/src/index.ts - CORRECTED Hono App Definition
-
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import type { Env, User } from '@portal/shared';
+import { errorResponse } from './utils';
 import { requireAuthMiddleware, requireAdminAuthMiddleware } from './auth';
 import { handleSignup, handleLogin, handleRequestPasswordReset } from './handlers/auth';
-import { handleStripeWebhook } from './handlers/stripe';
 import { handleGetProfile, handleUpdateProfile } from './handlers/profile';
+import { handleStripeWebhook } from './handlers/stripe';
 import { handleListServices, handleGetService, handleCreateInvoice, handleGetPhotosForService, handleGetNotesForService } from './handlers/services';
 import { handleGetJobs, handleGetJobById, handleCalendarFeed } from './handlers/jobs';
-import { handlePortalSession, handleSmsProxy } from './handlers/user';
+import { handleGetAllUsers } from './handlers/admin/users';
 import { handleGetPhotosForJob, handleAdminUploadPhoto } from './handlers/photos';
 import { handleGetNotesForJob, handleAdminAddNote } from './handlers/notes';
-import { handleGetAllUsers } from './handlers/admin/users';
-import { errorResponse } from './utils';
+import { handlePortalSession } from './handlers/user';
+import { handleSmsProxy } from './sms';
 
-// --- CONTEXT TYPING ---
-// This is the standard Hono way to define the app's environment.
-// It makes `c.env`, `c.get()`, `c.set()` etc. fully typed in all handlers.
+// Import the single source of truth for types
+import type { Env, User } from '@portal/shared';
+
+// This is the correct way to type your Hono application context.
 export type AppEnv = {
   Bindings: Env;
   Variables: {
-    user: User; // The payload from the JWT
+    user: User; // The user object we'll attach in middleware
   };
 };
 
-// FIX: Initialize Hono with the correct generic type
 const app = new Hono<AppEnv>();
 
 // --- GLOBAL MIDDLEWARE ---
@@ -40,14 +38,14 @@ const adminApi = new Hono<AppEnv>();
 customerApi.use('*', requireAuthMiddleware);
 adminApi.use('*', requireAdminAuthMiddleware);
 
-
 // --- PUBLIC ROUTES ---
-publicApi.post('/signup', (c) => handleSignup(c));
-publicApi.post('/login', (c) => handleLogin(c));
-publicApi.post('/request-password-reset', (c) => handleRequestPasswordReset(c));
-publicApi.post('/stripe/webhook', (c) => handleStripeWebhook(c));
+publicApi.post('/signup', handleSignup);
+publicApi.post('/login', handleLogin);
+publicApi.post('/request-password-reset', handleRequestPasswordReset);
+publicApi.post('/stripe/webhook', handleStripeWebhook);
+publicApi.get('/calendar.ics', handleCalendarFeed); // Public calendar feed
 
-// --- CUSTOMER ROUTES ---
+// --- CUSTOMER ROUTES (Authenticated Users) ---
 customerApi.get('/profile', handleGetProfile);
 customerApi.put('/profile', handleUpdateProfile);
 customerApi.get('/services', handleListServices);
@@ -59,15 +57,13 @@ customerApi.get('/jobs', handleGetJobs);
 customerApi.get('/jobs/:id', handleGetJobById);
 customerApi.get('/jobs/:id/photos', handleGetPhotosForJob);
 customerApi.get('/jobs/:id/notes', handleGetNotesForJob);
-customerApi.get('/calendar-feed', handleCalendarFeed);
 customerApi.post('/portal', handlePortalSession);
-customerApi.get('/sms/conversations', handleSmsProxy);
+customerApi.all('/sms/*', handleSmsProxy); // Proxy SMS requests
 
 // --- ADMIN ROUTES ---
 adminApi.get('/users', handleGetAllUsers);
-adminApi.post('/users/:userId/photos', handleAdminUploadPhoto);
-adminApi.post('/users/:userId/notes', handleAdminAddNote);
-
+adminApi.post('/jobs/:jobId/photos', handleAdminUploadPhoto);
+adminApi.post('/jobs/:jobId/notes', handleAdminAddNote);
 
 // --- ROUTE REGISTRATION ---
 app.route('/api', publicApi);
@@ -77,7 +73,7 @@ app.route('/api/admin', adminApi);
 // --- 404 & ERROR HANDLING ---
 app.notFound((c) => c.json({ error: 'Route not found' }, 404));
 app.onError((err, c) => {
-  console.error('Unhandled Exception:', err);
+  console.error(`Hono Error: ${err}`, c.req.url);
   return errorResponse('An internal server error occurred', 500);
 });
 

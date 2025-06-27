@@ -1,86 +1,81 @@
-// worker/src/handlers/services.ts - CORRECTED
+// worker/src/handlers/services.ts
+// --------------------------------------
+import { Context as ServiceContext } from 'hono';
+import { AppEnv as ServiceAppEnv } from '../index';
+import { errorResponse as serviceErrorResponse, successResponse as serviceSuccessResponse } from '../utils';
+import { createStripeInvoice } from '../stripe';
+import { Service } from '@portal/shared';
 
-import { errorResponse } from '../utils';
-import type { AppContext } from '../index';
-// This function will need to be created in your stripe.ts file
-import { createInvoiceForService } from '../stripe';
-
-export async function handleListServices(c: AppContext): Promise<Response> {
-  const user = c.get('user');
-  const env = c.env;
-  try {
-    const { results } = await env.DB.prepare(
-        "SELECT * FROM services WHERE user_id = ?"
-    ).bind(user.id).all();
-    return c.json(results || []);
-  } catch (e: any) {
-    console.error("Error fetching services:", e);
-    return errorResponse(e.message, 500);
-  }
-}
-
-export async function handleGetService(c: AppContext): Promise<Response> {
-  const user = c.get('user');
-  const env = c.env;
-  const serviceId = c.req.param('id');
-  try {
-    const service = await env.DB.prepare(
-      "SELECT * FROM services WHERE id = ? AND user_id = ?"
-    ).bind(serviceId, user.id).first();
-
-    if (!service) {
-      return errorResponse("Service not found", 404);
+export const handleListServices = async (c: ServiceContext<ServiceAppEnv>) => {
+    const user = c.get('user');
+    try {
+        const { results } = await c.env.DB.prepare(
+            `SELECT * FROM services WHERE user_id = ? ORDER BY service_date DESC`
+        ).bind(user.id).all();
+        return serviceSuccessResponse(results);
+    } catch (e: any) {
+        console.error("Failed to get services:", e);
+        return serviceErrorResponse("Failed to retrieve services", 500);
     }
-    return c.json(service);
-  } catch (e: any) {
-    console.error(`Error fetching service ${serviceId}:`, e);
-    return errorResponse(e.message, 500);
-  }
-}
+};
 
-export async function handleCreateInvoice(c: AppContext): Promise<Response> {
-  const user = c.get('user');
-  const env = c.env;
-  const serviceId = c.req.param('id');
-  try {
-    // This assumes user has a stripe_customer_id
-    if (!user.stripe_customer_id) {
-        return errorResponse("Stripe customer ID not found for user.", 400);
+export const handleGetService = async (c: ServiceContext<ServiceAppEnv>) => {
+    const user = c.get('user');
+    const { id } = c.req.param();
+    try {
+        const service = await c.env.DB.prepare(
+            `SELECT * FROM services WHERE id = ? AND user_id = ?`
+        ).bind(id, user.id).first<Service>();
+
+        if (!service) {
+            return serviceErrorResponse("Service not found", 404);
+        }
+        return serviceSuccessResponse(service);
+    } catch (e: any) {
+        console.error("Failed to get service:", e);
+        return serviceErrorResponse("Failed to retrieve service", 500);
     }
-    const invoiceUrl = await createInvoiceForService(Number(serviceId), user.stripe_customer_id, env);
-    return c.json({ hosted_invoice_url: invoiceUrl });
-  } catch (e: any) {
-    console.error(`Error creating invoice for service ${serviceId}:`, e);
-    return errorResponse(e.message, 500);
-  }
-}
+};
 
-export async function handleGetPhotosForService(c: AppContext): Promise<Response> {
-  const user = c.get('user');
-  const env = c.env;
-  const serviceId = c.req.param('id');
-  try {
-    const { results } = await env.DB.prepare(
-      "SELECT * FROM photos WHERE service_id = ? AND user_id = ?"
-    ).bind(serviceId, user.id).all();
-    return c.json(results || []);
-  } catch (e: any) {
-    console.error(`Error fetching photos for service ${serviceId}:`, e);
-    return errorResponse(e.message, 500);
-  }
-}
+export const handleCreateInvoice = async (c: ServiceContext<ServiceAppEnv>) => {
+    const user = c.get('user');
+    const { id } = c.req.param();
+    try {
+        const service = await c.env.DB.prepare(
+            `SELECT * FROM services WHERE id = ? AND user_id = ?`
+        ).bind(id, user.id).first<Service>();
 
-export async function handleGetNotesForService(c: AppContext): Promise<Response> {
-  const user = c.get('user');
-  const env = c.env;
-  const serviceId = c.req.param('id');
-  try {
-    const { results } = await env.DB.prepare(
-      "SELECT * FROM notes WHERE service_id = ? AND user_id = ?"
-    ).bind(serviceId, user.id).all();
-    return c.json(results || []);
-  } catch (e: any) {
-    console.error(`Error fetching notes for service ${serviceId}:`, e);
-    return errorResponse(e.message, 500);
-  }
-}
+        if (!service) return serviceErrorResponse("Service not found", 404);
+        if (service.stripe_invoice_id) return serviceErrorResponse("Invoice already exists", 409);
+        if (!service.price_cents) return serviceErrorResponse("Service has no price, cannot create invoice", 400);
+
+        const invoice = await createStripeInvoice(c, service);
+
+        await c.env.DB.prepare(
+            `UPDATE services SET stripe_invoice_id = ? WHERE id = ?`
+        ).bind(invoice.id, service.id).run();
+
+        return serviceSuccessResponse({
+            invoiceId: invoice.id,
+            invoiceUrl: invoice.hosted_invoice_url
+        });
+
+    } catch (e: any) {
+        console.error("Invoice creation failed:", e);
+        return serviceErrorResponse("Failed to create invoice", 500);
+    }
+};
+
+export const handleGetPhotosForService = async (c: ServiceContext<ServiceAppEnv>) => {
+    const { id } = c.req.param();
+    // This is a placeholder. You'd need to link photos to services in your schema.
+    console.log(`Fetching photos for service ${id}`);
+    return serviceSuccessResponse([]);
+};
+
+export const handleGetNotesForService = async (c: ServiceContext<ServiceAppEnv>) => {
+    const { id } = c.req.param();
+     // This is a placeholder. You'd need to link notes to services in your schema.
+    console.log(`Fetching notes for service ${id}`);
+    return serviceSuccessResponse([]);
+};

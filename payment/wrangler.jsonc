@@ -3,8 +3,10 @@
   "name": "payment",
   "main": "src/index.ts",
   "account_id": "67d3a6021370e7b666fff2023b2db359",
-  "compatibility_date": "2024-12-01",
-
+  "compatibility_date": "2024-05-28",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "d1_databases": [
     {
       "binding": "DB",
@@ -12,48 +14,24 @@
       "database_id": "3b81ffd2-e748-4750-b98a-7b8b4c058716"
     }
   ],
-
-  "services": [
-    {
-      "binding": "NOTIFICATION_WORKER",
-      "service": "notification"
-    }
-  ],
-
+  "queues": {
+    "producers": [
+      {
+        "queue": "notifications",
+        "binding": "NOTIFICATION_QUEUE"
+      }
+    ]
+  },
   "triggers": {
     "crons": [
       "0 10 * * *"
     ]
   },
-
   "vars": {
-    "ENVIRONMENT": "production"
+    "ENVIRONMENT": "development"
   },
-
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
-
   "env": {
     "production": {
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "gutter_db",
-          "database_id": "3b81ffd2-e748-4750-b98a-7b8b4c058716"
-        }
-      ],
-      "services": [
-        {
-          "binding": "NOTIFICATION_WORKER",
-          "service": "notification"
-        }
-      ],
-      "triggers": {
-        "crons": [
-          "0 10 * * *"
-        ]
-      },
       "vars": {
         "ENVIRONMENT": "production"
       }

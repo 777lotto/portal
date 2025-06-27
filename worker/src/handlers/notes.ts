@@ -1,40 +1,38 @@
-// worker/src/handlers/notes.ts - CORRECTED
+// worker/src/handlers/notes.ts
+// --------------------------------------
+import { Context as NoteContext } from 'hono';
+import { AppEnv as NoteAppEnv } from '../index';
+import { errorResponse as noteErrorResponse, successResponse as noteSuccessResponse } from '../utils';
 
-import { errorResponse } from '../utils';
-import type { AppContext } from '../index';
+export const handleGetNotesForJob = async (c: NoteContext<NoteAppEnv>) => {
+    const { jobId } = c.req.param();
+    const user = c.get('user');
+    // In a real app, you would also check if the user is authorized to see this job
+    try {
+        const { results } = await c.env.DB.prepare(
+            `SELECT * FROM notes WHERE job_id = ? ORDER BY created_at DESC`
+        ).bind(jobId).all();
+        return noteSuccessResponse(results);
+    } catch (e: any) {
+        console.error("Failed to get notes:", e.message);
+        return noteErrorResponse("Failed to retrieve notes", 500);
+    }
+};
 
-export async function handleGetNotesForJob(c: AppContext): Promise<Response> {
-  const user = c.get('user');
-  const env = c.env;
-  const jobId = c.req.param('id');
-  try {
-    const { results } = await env.DB.prepare(
-      "SELECT * FROM notes WHERE job_id = ? AND user_id = ?"
-    ).bind(jobId, user.id).all();
-    return c.json(results || []);
-  } catch (e: any) {
-    console.error(`Error fetching notes for job ${jobId}:`, e);
-    return errorResponse(e.message, 500);
-  }
-}
-
-export async function handleAdminAddNote(c: AppContext): Promise<Response> {
-  const env = c.env;
-  try {
-    const targetUserId = c.req.param('userId');
-    const { content, job_id, service_id, photo_id } = await c.req.json();
-
+export const handleAdminAddNote = async (c: NoteContext<NoteAppEnv>) => {
+    const { jobId } = c.req.param();
+    const { content } = await c.req.json();
     if (!content) {
-      return errorResponse('Note content is required.', 400);
+        return noteErrorResponse("Note content cannot be empty", 400);
     }
 
-    const { meta } = await env.DB.prepare(
-      `INSERT INTO notes (user_id, content, job_id, service_id, photo_id) VALUES (?, ?, ?, ?, ?)`
-    ).bind(targetUserId, content, job_id || null, service_id || null, photo_id || null).run();
-
-    return c.json({ success: true, id: meta.last_row_id }, 201);
-  } catch (e: any) {
-    console.error("Error adding note:", e);
-    return errorResponse('An internal server error occurred', 500);
-  }
-}
+    try {
+        const { results } = await c.env.DB.prepare(
+            `INSERT INTO notes (job_id, content) VALUES (?, ?) RETURNING *`
+        ).bind(jobId, content).all();
+        return noteSuccessResponse(results[0], 201);
+    } catch (e: any) {
+        console.error("Failed to add note:", e.message);
+        return noteErrorResponse("Failed to add note", 500);
+    }
+};

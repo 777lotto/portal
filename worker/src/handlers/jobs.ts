@@ -1,45 +1,57 @@
-// worker/src/handlers/jobs.ts - CORRECTED
+// worker/src/handlers/jobs.ts
+// --------------------------------------
+import { Context as HonoContext } from 'hono';
+import { AppEnv as WorkerAppEnv } from '../index';
+import { errorResponse as workerErrorResponse, successResponse as workerSuccessResponse } from '../utils';
+import { generateIcs } from '../calendar';
 
-import { errorResponse } from '../utils';
-import type { AppContext } from '../index';
-
-export async function handleGetJobs(c: AppContext): Promise<Response> {
-  const user = c.get('user');
-  const env = c.env;
-  try {
-    const { results } = await env.DB.prepare(
-        "SELECT * FROM jobs WHERE customerId = ?"
-    ).bind(user.id).all();
-    return c.json(results || []);
-  } catch (e: any) {
-    console.error("Error fetching jobs:", e);
-    return errorResponse(e.message, 500);
-  }
-}
-
-export async function handleGetJobById(c: AppContext): Promise<Response> {
-  const user = c.get('user');
-  const env = c.env;
-  const jobId = c.req.param('id');
-  try {
-    const job = await env.DB.prepare(
-      "SELECT * FROM jobs WHERE id = ? AND customerId = ?"
-    ).bind(jobId, user.id).first();
-
-    if (!job) {
-      return errorResponse("Job not found", 404);
-    }
-    return c.json(job);
-  } catch (e: any) {
-    console.error(`Error fetching job ${jobId}:`, e);
-    return errorResponse(e.message, 500);
-  }
-}
-
-export async function handleCalendarFeed(c: AppContext): Promise<Response> {
-    // This is a placeholder for a more complex iCal feed generation logic
+export const handleGetJobs = async (c: HonoContext<WorkerAppEnv>) => {
     const user = c.get('user');
-    console.log(`Generating calendar feed for user ${user.id}`);
-    const VCALENDAR_CONTENT = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//My App//EN\nEND:VCALENDAR`;
-    return new Response(VCALENDAR_CONTENT, { headers: { "Content-Type": "text/calendar" } });
-}
+    try {
+        const { results } = await c.env.DB.prepare(
+            `SELECT * FROM jobs WHERE customerId = ? ORDER BY start DESC`
+        ).bind(user.id.toString()).all();
+        return workerSuccessResponse(results);
+    } catch (e: any) {
+        console.error("Failed to get jobs:", e.message);
+        return workerErrorResponse("Failed to retrieve jobs", 500);
+    }
+};
+
+export const handleGetJobById = async (c: HonoContext<WorkerAppEnv>) => {
+    const user = c.get('user');
+    const { id } = c.req.param();
+    try {
+        const job = await c.env.DB.prepare(
+            `SELECT * FROM jobs WHERE id = ? AND customerId = ?`
+        ).bind(id, user.id.toString()).first();
+
+        if (!job) {
+            return workerErrorResponse("Job not found", 404);
+        }
+        return workerSuccessResponse(job);
+    } catch (e: any) {
+        console.error(`Failed to get job ${id}:`, e.message);
+        return workerErrorResponse("Failed to retrieve job", 500);
+    }
+};
+
+export const handleCalendarFeed = async (c: HonoContext<WorkerAppEnv>) => {
+    // This could be enhanced to use a secret token in the URL for security
+    try {
+        const { results: jobs } = await c.env.DB.prepare(
+            `SELECT * FROM jobs WHERE status != 'cancelled' ORDER BY start DESC`
+        ).all();
+
+        const icsContent = generateIcs(jobs as any[]);
+        return new Response(icsContent, {
+            headers: {
+                'Content-Type': 'text/calendar; charset=utf-8',
+                'Content-Disposition': 'attachment; filename="jobs.ics"',
+            }
+        });
+    } catch (e: any) {
+        console.error("Failed to generate calendar feed:", e);
+        return workerErrorResponse("Could not generate calendar feed.", 500);
+    }
+};

@@ -1,87 +1,95 @@
-// worker/src/handlers/auth.ts - CORRECTED
+import { Context } from 'hono';
+import { z } from 'zod';
+import { AppEnv } from '../index';
+import { UserSchema } from '@portal/shared';
+import { createJwtToken, hashPassword, verifyPassword, validateTurnstileToken } from '../auth';
+import { errorResponse, successResponse } from '../utils';
 
-import { createJwtToken, normalizeEmail, hashPassword, validateTurnstileToken, verifyPassword } from '../auth';
-import { getOrCreateCustomer } from '../stripe';
-import { errorResponse } from '../utils';
-import type { AppContext } from '../index';
-import type { User } from '@portal/shared';
+const SignupPayload = UserSchema.pick({ name: true, email: true, phone: true }).extend({
+    password: z.string().min(8),
+    'cf-turnstile-response': z.string(),
+});
 
-export async function handleSignup(c: AppContext): Promise<Response> {
-  const env = c.env;
-  try {
-    const { email, name, password, phone, turnstileToken } = await c.req.json();
+const LoginPayload = z.object({
+    email: z.string().email(),
+    password: z.string(),
+});
 
-    if (!email || !name || !password || !phone) {
-      return errorResponse("Missing required fields", 400);
+export const handleSignup = async (c: Context<AppEnv>) => {
+    const body = await c.req.json();
+    const parsed = SignupPayload.safeParse(body);
+    if (!parsed.success) {
+        return errorResponse("Invalid signup data", 400, parsed.error.flatten());
     }
 
+    const { name, email, password, phone } = parsed.data;
     const ip = c.req.header('CF-Connecting-IP') || '127.0.0.1';
-    if (!await validateTurnstileToken(turnstileToken, ip, env)) {
-      return errorResponse("Invalid security token.", 403);
+    const turnstileSuccess = await validateTurnstileToken(parsed.data['cf-turnstile-response'], ip, c.env);
+    if (!turnstileSuccess) {
+        return errorResponse("Invalid Turnstile token. Please try again.", 403);
     }
 
-    const normalizedEmail = normalizeEmail(email);
-    const passwordHash = await hashPassword(password);
+    try {
+        const hashedPassword = await hashPassword(password);
+        const { results } = await c.env.DB.prepare(
+            `INSERT INTO users (name, email, password, phone, role) VALUES (?, ?, ?, ?, 'customer') RETURNING id, name, email, phone, role`
+        ).bind(name, email.toLowerCase(), hashedPassword, phone).all();
 
-    const existingUser = await env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(normalizedEmail).first();
-    if (existingUser) {
-      return errorResponse("A user with this email already exists", 409);
+        const newUser = results[0] as User;
+        const token = await createJwtToken(newUser, c.env.JWT_SECRET);
+        return successResponse({ token, user: newUser });
+
+    } catch (e: any) {
+        if (e.message?.includes('UNIQUE constraint failed')) {
+            return errorResponse("An account with this email already exists.", 409);
+        }
+        console.error("Signup error:", e);
+        return errorResponse("Failed to create account.", 500);
+    }
+};
+
+export const handleLogin = async (c: Context<AppEnv>) => {
+    const body = await c.req.json();
+    const parsed = LoginPayload.safeParse(body);
+    if (!parsed.success) {
+        return errorResponse("Invalid login data", 400, parsed.error.flatten());
     }
 
-    // NOTE: Make sure getOrCreateCustomer is defined in your stripe.ts
-    const stripeCustomer = await getOrCreateCustomer({ email: normalizedEmail, name, phone }, env);
+    const { email, password } = parsed.data;
 
-    const { results } = await env.DB.prepare(
-      "INSERT INTO users (email, name, password_hash, phone, stripe_customer_id) VALUES (?, ?, ?, ?, ?) RETURNING id, email, name, phone, role"
-    ).bind(normalizedEmail, name, passwordHash, phone, stripeCustomer.id).run();
+    try {
+        const user = await c.env.DB.prepare(
+            `SELECT id, name, email, phone, role, password, stripe_customer_id FROM users WHERE email = ?`
+        ).bind(email.toLowerCase()).first<User & { password?: string }>();
 
-    const userResult = results[0] as User;
-    const token = await createJwtToken(userResult, env.JWT_SECRET);
+        if (!user || !user.password) {
+            return errorResponse("Invalid email or password.", 401);
+        }
 
-    return c.json({ user: userResult, token });
+        const validPassword = await verifyPassword(password, user.password);
+        if (!validPassword) {
+            return errorResponse("Invalid email or password.", 401);
+        }
 
-  } catch (e: any) {
-    return errorResponse(e.message, 500);
-  }
-}
+        delete user.password; // Do not include hash in JWT or response
 
-export async function handleLogin(c: AppContext): Promise<Response> {
-  const env = c.env;
-  try {
-    const { identifier, password, turnstileToken } = await c.req.json();
-
-    const ip = c.req.header('CF-Connecting-IP') || '127.0.0.1';
-    if (!await validateTurnstileToken(turnstileToken, ip, env)) {
-      return errorResponse("Invalid security token.", 403);
+        const token = await createJwtToken(user, c.env.JWT_SECRET);
+        return successResponse({ token, user });
+    } catch (e: any) {
+        console.error("Login error:", e);
+        return errorResponse("Login failed.", 500);
     }
+};
 
-    const user = await env.DB.prepare(
-      "SELECT id, email, name, password_hash, phone, role, stripe_customer_id FROM users WHERE email = ? OR phone = ?"
-    ).bind(identifier, identifier).first<User & { password_hash: string }>();
-
-    if (!user || !user.password_hash) {
-      return errorResponse("Invalid credentials", 401);
-    }
-
-    const isPasswordValid = await verifyPassword(password, user.password_hash);
-    if (!isPasswordValid) {
-      return errorResponse("Invalid credentials", 401);
-    }
-
-    const { password_hash, ...userPayload } = user;
-    const token = await createJwtToken(userPayload, env.JWT_SECRET);
-
-    return c.json({ user: userPayload, token });
-
-  } catch (e: any) {
-    return errorResponse(e.message, 500);
-  }
-}
-
-export async function handleRequestPasswordReset(c: AppContext): Promise<Response> {
-    // In a real app, this would generate and store a reset token and send an email.
+export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
+    // This is a placeholder. A real implementation would:
+    // 1. Validate the email exists.
+    // 2. Generate a unique, short-lived token and store it with the user ID.
+    // 3. Send the token to the notification worker to email a reset link.
     const { email } = await c.req.json();
-    console.log(`Password reset requested for: ${email}`);
-    return c.json({ message: "If an account with this email exists, a password reset link has been sent." });
-}
+    if (!email) return errorResponse("Email is required", 400);
 
+    console.log(`Password reset requested for: ${email}`);
+    // In a real app, you would now trigger the notification worker
+    return successResponse({ message: "If an account with that email exists, a password reset link has been sent." });
+};

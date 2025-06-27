@@ -3,8 +3,10 @@
   "name": "notification",
   "main": "src/index.ts",
   "account_id": "67d3a6021370e7b666fff2023b2db359",
-  "compatibility_date": "2024-12-01",
-
+  "compatibility_date": "2024-05-28",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "d1_databases": [
     {
       "binding": "DB",
@@ -12,31 +14,31 @@
       "database_id": "3b81ffd2-e748-4750-b98a-7b8b4c058716"
     }
   ],
-
+  "queues": {
+    "consumers": [
+      {
+        "queue": "notifications"
+      }
+    ]
+  },
   "vars": {
     "EMAIL_FROM": "no-reply@777.foo",
     "SMS_FROM_NUMBER": "7706977777",
     "AWS_REGION": "us-east-2"
   },
-
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
-
+  "unsafe": {
+    "bindings": [
+      { "name": "AWS_ACCESS_KEY_ID", "type": "secret" },
+      { "name": "AWS_SECRET_ACCESS_KEY", "type": "secret" },
+      { "name": "VOIPMS_USERNAME", "type": "secret" },
+      { "name": "VOIPMS_PASSWORD", "type": "secret" }
+    ]
+  },
   "env": {
     "production": {
       "vars": {
-        "EMAIL_FROM": "no-reply@777.foo",
-        "SMS_FROM_NUMBER": "7706977777",
-        "AWS_REGION": "us-east-2"
-      },
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "gutter_db",
-          "database_id": "3b81ffd2-e748-4750-b98a-7b8b4c058716"
-        }
-      ]
+        "ENVIRONMENT": "production"
+      }
     }
   }
 }

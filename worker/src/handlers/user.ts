@@ -1,29 +1,21 @@
-// worker/src/handlers/user.ts - CORRECTED
+import { Context as UserContext } from 'hono';
+import { AppEnv as UserAppEnv } from '../index';
+import { errorResponse as userErrorResponse, successResponse as userSuccessResponse } from '../utils';
+import { getStripe, createStripePortalSession } from '../stripe';
 
-import { createPortalSession } from '../stripe';
-import { errorResponse } from '../utils';
-import type { AppContext } from '../index';
 
-export async function handlePortalSession(c: AppContext): Promise<Response> {
-  const user = c.get('user');
-  const env = c.env;
-  try {
-    // We need to fetch the latest user data to get the stripe_customer_id
-    const fullUser = await env.DB.prepare("SELECT stripe_customer_id FROM users WHERE id = ?").bind(user.id).first<{stripe_customer_id: string}>();
-
-    if (!fullUser?.stripe_customer_id) {
-        return errorResponse("User does not have a Stripe customer ID.", 400);
+export const handlePortalSession = async (c: UserContext<UserAppEnv>) => {
+    const user = c.get('user');
+    if (!user.stripe_customer_id) {
+        return userErrorResponse("User is not a Stripe customer", 400);
     }
-    const portalUrl = await createPortalSession(fullUser.stripe_customer_id, env);
-    return c.json({ url: portalUrl });
-  } catch (e: any) {
-    console.error("Error creating portal session:", e);
-    return errorResponse(e.message, 500);
-  }
-}
-
-// Placeholder for SMS proxy, as its implementation can be complex
-export async function handleSmsProxy(c: AppContext): Promise<Response> {
-    console.log(`SMS proxy called for path: ${c.req.path}`);
-    return c.json({ message: "SMS proxy endpoint not fully implemented." });
-}
+    try {
+        const stripe = getStripe(c.env);
+        const { PORTAL_URL } = c.env;
+        const portalSession = await createStripePortalSession(stripe, user.stripe_customer_id, PORTAL_URL);
+        return userSuccessResponse({ url: portalSession.url });
+    } catch (e: any) {
+        console.error("Portal session creation failed:", e.message);
+        return userErrorResponse("Could not create customer portal session", 500);
+    }
+};

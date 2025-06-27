@@ -3,8 +3,10 @@
   "compilerOptions": {
     "lib": ["WebWorker", "ES2022"],
     "types": ["@cloudflare/workers-types"],
-    "composite": false,
-    "noEmit": true,
+    "composite": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "outDir": "dist",
     "isolatedModules": false,
     "allowSyntheticDefaultImports": true
   },
