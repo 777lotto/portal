@@ -6,9 +6,10 @@
     "jsx": "react-jsx",
     "useDefineForClassFields": true,
     "composite": true,
-    "allowImportingTsExtensions": false
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist", "src/worker.ts"],
-  "references": [{ "path": "../packages/shared" }]
+  "references": [{ "path": "../packages/shared", "path": "./tsconfig.worker.json" }]
 }
