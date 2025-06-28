@@ -26,18 +26,24 @@
     "SMS_FROM_NUMBER": "7706977777",
     "AWS_REGION": "us-east-2"
   },
-  "unsafe": {
-    "bindings": [
-      { "name": "AWS_ACCESS_KEY_ID", "type": "secret" },
-      { "name": "AWS_SECRET_ACCESS_KEY", "type": "secret" },
-      { "name": "VOIPMS_USERNAME", "type": "secret" },
-      { "name": "VOIPMS_PASSWORD", "type": "secret" }
-    ]
-  },
   "env": {
     "production": {
       "vars": {
         "ENVIRONMENT": "production"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "gutter_db",
+          "database_id": "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+        }
+      ],
+      "queues": {
+        "consumers": [
+          {
+            "queue": "notifications"
+          }
+        ]
       }
     }
   }

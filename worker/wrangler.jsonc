@@ -15,6 +15,12 @@
       "migrations_dir": "./migrations"
     }
   ],
+  "queue_producers": [
+    {
+      "binding": "NOTIFICATION_QUEUE",
+      "queue": "notifications"
+    }
+  ],
   "services": [
     {
       "binding": "NOTIFICATION_SERVICE",
@@ -38,26 +44,39 @@
       { "name": "STRIPE_WEBHOOK_SECRET", "type": "secret" }
     ]
   },
-  "placement": {
-    "mode": "smart"
-  },
-  "observability": {
-    "logs": {
-      "enabled": true
-    }
-  },
-  "dev": {
-    "port": 8787,
-    "local_protocol": "http",
-    "ip": "localhost"
-  },
   "env": {
     "production": {
       "vars": {
         "ENVIRONMENT": "production",
         "API_VERSION": "1.0.0",
         "PORTAL_URL": "https://portal.777.foo/dashboard"
-      }
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "gutter_db",
+          "database_id": "3b81ffd2-e748-4750-b98a-7b8b4c058716",
+          "migrations_dir": "./migrations"
+        }
+      ],
+      "queue_producers": [
+        {
+          "binding": "NOTIFICATION_QUEUE",
+          "queue": "notifications"
+        }
+      ],
+      "services": [
+        {
+          "binding": "NOTIFICATION_SERVICE",
+          "service": "notification",
+          "environment": "production"
+        },
+        {
+          "binding": "PAYMENT_SERVICE",
+          "service": "payment",
+          "environment": "production"
+        }
+      ]
     }
   }
 }
