@@ -1,3 +1,4 @@
+// frontend/src/components/CalendarSync.tsx - CORRECTED
 import { useState, useEffect } from 'react';
 import { getCalendarFeed, syncCalendar } from '../lib/api';
 
@@ -10,20 +11,18 @@ function CalendarSync() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
-      // getCalendarFeed is a simple string constructor, no API call needed here
       setFeedUrl(getCalendarFeed(token));
     }
   }, []);
 
   const handleSync = async (e: React.FormEvent) => {
     e.preventDefault();
-    const token = localStorage.getItem("token");
-    if (!token || !syncUrl) return;
+    if (!syncUrl) return;
 
     try {
         setIsLoading(true);
         setMessage(null);
-        await syncCalendar(syncUrl, token);
+        await syncCalendar(syncUrl);
         setMessage({ type: 'success', text: 'Calendar sync initiated successfully!' });
     } catch(err: any) {
         setMessage({ type: 'danger', text: err.message });
@@ -38,7 +37,7 @@ function CalendarSync() {
       <div className="card">
         <div className="card-body">
           <h5 className="card-title">Your Personal Calendar Feed</h5>
-          <p>Add this URL to your calendar application (Google Calendar, Outlook, etc.) to see your jobs.</p>
+          <p>Add this URL to your calendar application to see your jobs.</p>
           <input type="text" readOnly className="form-control" value={feedUrl} />
           <button className="btn btn-secondary mt-2" onClick={() => navigator.clipboard.writeText(feedUrl)}>
             Copy URL
@@ -73,4 +72,3 @@ function CalendarSync() {
 }
 
 export default CalendarSync;
-

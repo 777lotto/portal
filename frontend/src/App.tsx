@@ -1,7 +1,7 @@
-// frontend/src/App.tsx - Updated to include Admin routes
+// frontend/src/App.tsx - CORRECTED
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { jwtDecode } from 'jwt-decode'; // You may need to install this: pnpm add jwt-decode
+import { jwtDecode } from 'jwt-decode';
 
 // --- Page Components ---
 import LoginForm from "./components/LoginForm";
@@ -31,7 +31,6 @@ interface UserPayload {
 
 function App() {
   const [token, setToken] = useState<string | null>(null);
-  // --- NEW: Add state to hold the decoded user information ---
   const [user, setUser] = useState<UserPayload | null>(null);
   const [isReady, setIsReady] = useState(false);
 
@@ -41,14 +40,12 @@ function App() {
         const storedToken = localStorage.getItem("token");
         setToken(storedToken);
 
-        // --- NEW: If a token exists, decode it to get user role ---
         if (storedToken) {
           try {
             const decodedUser = jwtDecode<UserPayload>(storedToken);
             setUser(decodedUser);
           } catch (error) {
             console.error("Invalid token:", error);
-            // Clear invalid token
             localStorage.removeItem("token");
             setToken(null);
             setUser(null);
@@ -63,9 +60,8 @@ function App() {
     };
 
     initializeApp();
-  }, [token]); // Re-run this effect when the token changes
+  }, []);
 
-  // --- NEW: Function to handle setting token and decoding user ---
   const handleSetToken = (newToken: string | null) => {
     setToken(newToken);
     if (newToken) {
@@ -88,8 +84,7 @@ function App() {
 
   return (
     <>
-      {/* --- MODIFIED: Pass user and the new handler to Navbar --- */}
-      <Navbar user={user} setToken={handleSetToken} />
+      <Navbar token={token} user={user} setToken={handleSetToken} />
       <Routes>
         {/* --- Customer-facing Routes --- */}
         <Route path="/" element={<Navigate to={token ? "/dashboard" : "/login"} replace />} />
@@ -106,7 +101,6 @@ function App() {
         <Route path="/sms/:phoneNumber" element={token ? <SMSConversation /> : <Navigate to="/login" replace />} />
 
         {/* --- NEW: Admin Routes --- */}
-        {/* These routes will only render if the user is an admin */}
         <Route
           path="/admin/dashboard"
           element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/dashboard" replace />}

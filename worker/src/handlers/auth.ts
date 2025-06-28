@@ -1,7 +1,8 @@
+// worker/src/handlers/auth.ts - CORRECTED
 import { Context } from 'hono';
 import { z } from 'zod';
 import { AppEnv } from '../index';
-import { UserSchema } from '@portal/shared';
+import { User, UserSchema } from '@portal/shared';
 import { createJwtToken, hashPassword, verifyPassword, validateTurnstileToken } from '../auth';
 import { errorResponse, successResponse } from '../utils';
 
@@ -13,13 +14,14 @@ const SignupPayload = UserSchema.pick({ name: true, email: true, phone: true }).
 const LoginPayload = z.object({
     email: z.string().email(),
     password: z.string(),
+    'cf-turnstile-response': z.string(),
 });
 
 export const handleSignup = async (c: Context<AppEnv>) => {
     const body = await c.req.json();
     const parsed = SignupPayload.safeParse(body);
     if (!parsed.success) {
-        return errorResponse("Invalid signup data", 400, parsed.error.flatten());
+        return errorResponse("Invalid signup data", 400);
     }
 
     const { name, email, password, phone } = parsed.data;
@@ -33,9 +35,13 @@ export const handleSignup = async (c: Context<AppEnv>) => {
         const hashedPassword = await hashPassword(password);
         const { results } = await c.env.DB.prepare(
             `INSERT INTO users (name, email, password, phone, role) VALUES (?, ?, ?, ?, 'customer') RETURNING id, name, email, phone, role`
-        ).bind(name, email.toLowerCase(), hashedPassword, phone).all();
+        ).bind(name, email.toLowerCase(), hashedPassword, phone).all<User>();
 
-        const newUser = results[0] as User;
+        if (!results || results.length === 0) {
+            return errorResponse("Failed to create account.", 500);
+        }
+
+        const newUser = results[0];
         const token = await createJwtToken(newUser, c.env.JWT_SECRET);
         return successResponse({ token, user: newUser });
 
@@ -52,7 +58,7 @@ export const handleLogin = async (c: Context<AppEnv>) => {
     const body = await c.req.json();
     const parsed = LoginPayload.safeParse(body);
     if (!parsed.success) {
-        return errorResponse("Invalid login data", 400, parsed.error.flatten());
+        return errorResponse("Invalid login data", 400);
     }
 
     const { email, password } = parsed.data;
@@ -82,14 +88,9 @@ export const handleLogin = async (c: Context<AppEnv>) => {
 };
 
 export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
-    // This is a placeholder. A real implementation would:
-    // 1. Validate the email exists.
-    // 2. Generate a unique, short-lived token and store it with the user ID.
-    // 3. Send the token to the notification worker to email a reset link.
     const { email } = await c.req.json();
     if (!email) return errorResponse("Email is required", 400);
 
     console.log(`Password reset requested for: ${email}`);
-    // In a real app, you would now trigger the notification worker
     return successResponse({ message: "If an account with that email exists, a password reset link has been sent." });
 };

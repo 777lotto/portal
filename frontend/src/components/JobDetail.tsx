@@ -1,7 +1,6 @@
-// frontend/src/components/JobDetail.tsx - Updated with try/catch
-
+// frontend/src/components/JobDetail.tsx - CORRECTED
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { apiGet } from '../lib/api';
 import type { Job } from '@portal/shared';
 
@@ -21,36 +20,33 @@ interface Note {
 function JobDetail() {
   const { id } = useParams<{ id: string }>();
   const [job, setJob] = useState<Job | null>(null);
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [notes, setNotes] = useState<Note[]>([]);
+  // const [photos, setPhotos] = useState<Photo[]>([]); // FIX: Commented out unused variable
+  // const [notes, setNotes] = useState<Note[]>([]);   // FIX: Commented out unused variable
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchJobDetails = async () => {
       if (!id) return;
-      const token = localStorage.getItem("token");
-      if (!token) return;
 
-      // --- NEW: Use a try/catch block to handle API calls ---
       try {
         setIsLoading(true);
         setError(null);
 
-        // Promise.all will now either resolve with an array of data, or reject if ANY call fails
         const [jobData, photosData, notesData] = await Promise.all([
-          apiGet<Job>(`/api/jobs/${id}`, token),
-          apiGet<Photo[]>(`/api/jobs/${id}/photos`, token),
-          apiGet<Note[]>(`/api/jobs/${id}/notes`, token)
+          apiGet<Job>(`/jobs/${id}`),
+          apiGet<Photo[]>(`/jobs/${id}/photos`),
+          apiGet<Note[]>(`/jobs/${id}/notes`)
         ]);
 
-        // If we get here, all calls were successful
         setJob(jobData);
-        setPhotos(photosData);
-        setNotes(notesData);
+        // setPhotos(photosData); // FIX: Commented out unused setter
+        // setNotes(notesData);   // FIX: Commented out unused setter
+        // Keep the console logs to see the data you're getting
+        console.log("Fetched Photos:", photosData);
+        console.log("Fetched Notes:", notesData);
 
       } catch (err: any) {
-        // Any error from the Promise.all will be caught here
         console.error("Error fetching job details:", err);
         setError(err.message || 'An unknown error occurred.');
       } finally {
@@ -60,12 +56,6 @@ function JobDetail() {
 
     fetchJobDetails();
   }, [id]);
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
-    });
-  };
 
   if (isLoading) return <div className="container mt-4">Loading job details...</div>;
   if (error) return <div className="container mt-4 alert alert-danger">Error: {error}</div>;
@@ -79,7 +69,6 @@ function JobDetail() {
           <p><strong>Status:</strong> <span className={`badge bg-${job.status === 'completed' ? 'success' : 'secondary'}`}>{job.status}</span></p>
         </div>
       </div>
-      {/*... Other JSX to render photos and notes ...*/}
     </div>
   );
 }

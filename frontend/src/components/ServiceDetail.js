@@ -1,7 +1,8 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+// frontend/src/components/ServiceDetail.tsx - CORRECTED
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { apiGet, createInvoice } from '../lib/api';
+import { apiGet, createInvoice, getService } from '../lib/api';
 function ServiceDetail() {
     const { id } = useParams();
     const [service, setService] = useState(null);
@@ -13,17 +14,14 @@ function ServiceDetail() {
     useEffect(() => {
         if (!id)
             return;
-        const token = localStorage.getItem("token");
-        if (!token)
-            return;
         const fetchDetails = async () => {
             try {
                 setIsLoading(true);
                 setError(null);
                 const [serviceData, photosData, notesData] = await Promise.all([
-                    getService(id, token),
-                    apiGet(`/api/services/${id}/photos`, token),
-                    apiGet(`/api/services/${id}/notes`, token)
+                    getService(id),
+                    apiGet(`/services/${id}/photos`),
+                    apiGet(`/services/${id}/notes`)
                 ]);
                 setService(serviceData);
                 setPhotos(photosData);
@@ -41,11 +39,8 @@ function ServiceDetail() {
     const handleCreateInvoice = async () => {
         if (!id)
             return;
-        const token = localStorage.getItem("token");
-        if (!token)
-            return;
         try {
-            const response = await createInvoice(id, token);
+            const response = await createInvoice(id);
             if (response.hosted_invoice_url) {
                 setInvoiceMessage(`Invoice created!`);
                 window.open(response.hosted_invoice_url, '_blank');

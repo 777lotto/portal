@@ -1,5 +1,4 @@
-// frontend/src/components/LoginForm.tsx - Corrected
-
+// frontend/src/components/LoginForm.tsx - CORRECTED
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { login } from '../lib/api';
@@ -9,7 +8,6 @@ interface Props {
   setToken: (token: string) => void;
 }
 
-// FIX: Get the site key from Vite environment variables
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY;
 
 function LoginForm({ setToken }: Props) {
@@ -30,7 +28,11 @@ function LoginForm({ setToken }: Props) {
     setIsLoading(true);
 
     try {
-      const response = await login(identifier, password, turnstileToken);
+      const response = await login({
+        email: identifier,
+        password,
+        'cf-turnstile-response': turnstileToken
+      });
       if (response.token) {
         setToken(response.token);
         navigate('/dashboard');
@@ -52,9 +54,15 @@ function LoginForm({ setToken }: Props) {
             <div className="card-body">
               <h3 className="card-title text-center">Login</h3>
               <form onSubmit={handleSubmit}>
-                {/* ... form fields ... */}
+                <div className="mb-3">
+                  <label>Email</label>
+                  <input type="email" value={identifier} onChange={e => setIdentifier(e.target.value)} className="form-control" required />
+                </div>
+                <div className="mb-3">
+                  <label>Password</label>
+                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="form-control" required />
+                </div>
                 <div className="mb-3 d-flex justify-content-center">
-                    {/* FIX: Use correct prop name 'onVerify' and pass the sitekey */}
                     <Turnstile sitekey={TURNSTILE_SITE_KEY} onVerify={setTurnstileToken} />
                 </div>
                 {error && <div className="alert alert-danger">{error}</div>}
@@ -76,4 +84,3 @@ function LoginForm({ setToken }: Props) {
 }
 
 export default LoginForm;
-

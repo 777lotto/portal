@@ -1,4 +1,4 @@
-// frontend/src/components/SMSConversations.tsx - Corrected
+// frontend/src/components/SMSConversations.tsx - CORRECTED
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getSmsConversations } from '../lib/api';
@@ -10,14 +10,12 @@ function SMSConversations() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
     const fetchConversations = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await getSmsConversations(token);
+        // FIX: The token is no longer passed directly to API functions.
+        const data = await getSmsConversations();
         setConversations(data);
       } catch (err: any) {
         setError(err.message);
@@ -37,7 +35,6 @@ function SMSConversations() {
       <div className="list-group">
         {conversations.length > 0 ? (
           conversations.map(convo => (
-            // FIX: Use snake_case for all properties
             <Link key={convo.phone_number} to={`/sms/${convo.phone_number}`} className="list-group-item list-group-item-action">
               <div className="d-flex w-100 justify-content-between">
                 <h5 className="mb-1">{convo.phone_number}</h5>

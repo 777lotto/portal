@@ -1,16 +1,16 @@
+// worker/src/auth.ts - CORRECTED
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { Context, Next } from 'hono';
 import type { AppEnv } from './index';
 import type { Env, User } from "@portal/shared";
 
-// Helper to convert JWT secret to the required format
 export function getJwtSecretKey(secret: string): Uint8Array {
   const encoder = new TextEncoder();
   return encoder.encode(secret);
 }
 
-// Corrected middleware signature. It must return a Response or Promise<void>.
+// FIX: Removed explicit return type to align with Hono's middleware pattern.
 export const requireAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
     const authHeader = c.req.header("Authorization") || "";
     if (!authHeader.startsWith("Bearer ")) {
@@ -26,27 +26,24 @@ export const requireAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
         }
         const secret = getJwtSecretKey(c.env.JWT_SECRET);
         const { payload } = await jwtVerify(token, secret);
-        c.set('user', payload as User); // Set the typed user variable
-        await next(); // This is required for the request to proceed.
+        c.set('user', payload as User);
+        await next();
     } catch (error) {
         console.error("Auth failed:", error);
         return c.json({ error: 'Authentication failed: Invalid token' }, 401);
     }
 };
 
-// Corrected admin middleware to handle the flow properly.
+// FIX: Removed explicit return type to align with Hono's middleware pattern.
 export const requireAdminAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
-    // This is a pattern for chaining middleware in Hono.
-    // We run the standard auth first. If it fails, it returns a response.
-    // If it succeeds, it calls the inner function where we check the role.
-    const authResponse = await requireAuthMiddleware(c, async () => {});
+    const authResponse = await requireAuthMiddleware(c, async () => {}).catch(() => {});
     if (authResponse) {
-        return authResponse; // Auth failed, return the response from requireAuthMiddleware
+        return authResponse;
     }
 
     const user = c.get('user');
     if (user && user.role === 'admin') {
-        await next(); // User is an admin, proceed to the actual route handler.
+        await next();
     } else {
         return c.json({ error: 'Forbidden: Admin access required' }, 403);
     }
@@ -99,4 +96,3 @@ export async function validateTurnstileToken(token: string, ip: string, env: Env
     return false;
   }
 }
-

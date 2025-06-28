@@ -1,3 +1,4 @@
+// frontend/src/components/Calendar.tsx - CORRECTED
 import { useState, useEffect } from 'react';
 import { Calendar as BigCalendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
@@ -20,18 +21,11 @@ function JobCalendar() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setError("Not authenticated.");
-      setIsLoading(false);
-      return;
-    }
-
     const fetchJobs = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        const jobs = await getJobs(token);
+        const jobs = await getJobs();
         const calendarEvents = jobs.map(job => ({
           title: job.title,
           start: new Date(job.start),

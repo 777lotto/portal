@@ -1,4 +1,5 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+// frontend/src/components/Dashboard.tsx - CORRECTED
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getProfile, getJobs, getServices } from '../lib/api';
@@ -9,17 +10,14 @@ function Dashboard() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     useEffect(() => {
-        const token = localStorage.getItem("token");
-        if (!token)
-            return;
         const loadDashboard = async () => {
             try {
                 setIsLoading(true);
                 setError(null);
                 const [profileData, jobsData, servicesData] = await Promise.all([
-                    getProfile(token),
-                    getJobs(token),
-                    getServices(token),
+                    getProfile(),
+                    getJobs(),
+                    getServices(),
                 ]);
                 setUser(profileData);
                 setUpcomingJobs(jobsData.filter(j => new Date(j.start) > new Date()).slice(0, 5));

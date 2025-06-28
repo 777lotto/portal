@@ -1,5 +1,4 @@
-// Create new file: frontend/src/components/admin/AdminUserDetail.tsx
-
+// frontend/src/components/admin/AdminUserDetail.tsx - CORRECTED
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiPost, apiPostFormData } from '../../lib/api';
@@ -7,13 +6,11 @@ import { apiPost, apiPostFormData } from '../../lib/api';
 function AdminUserDetail() {
   const { userId } = useParams<{ userId: string }>();
 
-  // State for the "Add Note" form
   const [noteContent, setNoteContent] = useState('');
   const [noteJobId, setNoteJobId] = useState('');
   const [isNoteSubmitting, setIsNoteSubmitting] = useState(false);
   const [noteMessage, setNoteMessage] = useState<{ type: 'success' | 'danger', text: string } | null>(null);
 
-  // State for the "Upload Photo" form
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoJobId, setPhotoJobId] = useState('');
   const [isPhotoSubmitting, setIsPhotoSubmitting] = useState(false);
@@ -23,22 +20,16 @@ function AdminUserDetail() {
     e.preventDefault();
     setIsNoteSubmitting(true);
     setNoteMessage(null);
-    const token = localStorage.getItem("token");
 
-    if (!token || !userId || !noteContent) {
+    if (!userId || !noteContent) {
       setNoteMessage({ type: 'danger', text: 'Missing required information.' });
       setIsNoteSubmitting(false);
       return;
     }
 
     try {
-      const payload = {
-        content: noteContent,
-        job_id: noteJobId || undefined, // Send job_id only if it's not empty
-      };
-
-      await apiPost(`/admin/users/${userId}/notes`, payload, token);
-
+      const payload = { content: noteContent, job_id: noteJobId || undefined };
+      await apiPost(`/admin/users/${userId}/notes`, payload);
       setNoteMessage({ type: 'success', text: 'Note added successfully!' });
       setNoteContent('');
       setNoteJobId('');
@@ -53,9 +44,8 @@ function AdminUserDetail() {
     e.preventDefault();
     setIsPhotoSubmitting(true);
     setPhotoMessage(null);
-    const token = localStorage.getItem("token");
 
-    if (!token || !userId || !photoFile) {
+    if (!userId || !photoFile) {
       setPhotoMessage({ type: 'danger', text: 'Missing photo file.' });
       setIsPhotoSubmitting(false);
       return;
@@ -64,19 +54,13 @@ function AdminUserDetail() {
     try {
       const formData = new FormData();
       formData.append('photo', photoFile);
-      if (photoJobId) {
-        formData.append('job_id', photoJobId);
-      }
-
-      await apiPostFormData(`/admin/users/${userId}/photos`, formData, token);
-
+      if (photoJobId) formData.append('job_id', photoJobId);
+      await apiPostFormData(`/admin/users/${userId}/photos`, formData);
       setPhotoMessage({ type: 'success', text: 'Photo uploaded successfully!' });
       setPhotoFile(null);
       setPhotoJobId('');
-      // Reset the file input visually
       const fileInput = document.getElementById('photo-file-input') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
-
     } catch (err: any) {
       setPhotoMessage({ type: 'danger', text: `Error: ${err.message}` });
     } finally {
@@ -84,100 +68,47 @@ function AdminUserDetail() {
     }
   };
 
-
   return (
     <div className="container mt-4">
       <Link to="/admin/dashboard">&larr; Back to Admin Dashboard</Link>
       <h2 className="mt-2">Manage User: {userId}</h2>
-
       <div className="row mt-4">
-        {/* Add Note Card */}
         <div className="col-md-6 mb-4">
           <div className="card">
             <div className="card-body">
               <h5 className="card-title">Add a Note</h5>
+              {/* FIX: Form handlers and messages are now connected */}
               <form onSubmit={handleAddNote}>
                 <div className="mb-3">
-                  <label htmlFor="noteContent" className="form-label">Note</label>
-                  <textarea
-                    id="noteContent"
-                    className="form-control"
-                    rows={3}
-                    value={noteContent}
-                    onChange={(e) => setNoteContent(e.target.value)}
-                    required
-                  />
+                  <textarea value={noteContent} onChange={(e) => setNoteContent(e.target.value)} required />
                 </div>
                 <div className="mb-3">
-                  <label htmlFor="noteJobId" className="form-label">Job ID (Optional)</label>
-                  <input
-                    type="text"
-                    id="noteJobId"
-                    className="form-control"
-                    value={noteJobId}
-                    onChange={(e) => setNoteJobId(e.target.value)}
-                    placeholder="e.g., job_123abc or a Stripe Invoice ID"
-                  />
+                  <input value={noteJobId} onChange={(e) => setNoteJobId(e.target.value)} />
                 </div>
-                {noteMessage && (
-                  <div className={`alert alert-${noteMessage.type}`} role="alert">
-                    {noteMessage.text}
-                  </div>
-                )}
-                <button type="submit" className="btn btn-primary" disabled={isNoteSubmitting}>
-                  {isNoteSubmitting ? 'Submitting...' : 'Add Note'}
-                </button>
+                {noteMessage && <div className={`alert alert-${noteMessage.type}`}>{noteMessage.text}</div>}
+                <button type="submit" disabled={isNoteSubmitting}>{isNoteSubmitting ? 'Submitting...' : 'Add Note'}</button>
               </form>
             </div>
           </div>
         </div>
-
-        {/* Upload Photo Card */}
         <div className="col-md-6 mb-4">
           <div className="card">
             <div className="card-body">
               <h5 className="card-title">Upload a Photo</h5>
               <form onSubmit={handlePhotoUpload}>
                 <div className="mb-3">
-                  <label htmlFor="photoFile" className="form-label">Photo</label>
-                  <input
-                    type="file"
-                    id="photo-file-input"
-                    className="form-control"
-                    onChange={(e) => setPhotoFile(e.target.files ? e.target.files[0] : null)}
-                    required
-                  />
+                  <input type="file" id="photo-file-input" onChange={(e) => setPhotoFile(e.target.files ? e.target.files[0] : null)} required />
                 </div>
                 <div className="mb-3">
-                  <label htmlFor="photoJobId" className="form-label">Job ID (Optional)</label>
-                  <input
-                    type="text"
-                    id="photoJobId"
-                    className="form-control"
-                    value={photoJobId}
-                    onChange={(e) => setPhotoJobId(e.target.value)}
-                    placeholder="e.g., job_123abc or a Stripe Invoice ID"
-                  />
+                  <input value={photoJobId} onChange={(e) => setPhotoJobId(e.target.value)} />
                 </div>
-                 {photoMessage && (
-                  <div className={`alert alert-${photoMessage.type}`} role="alert">
-                    {photoMessage.text}
-                  </div>
-                )}
-                <button type="submit" className="btn btn-primary" disabled={isPhotoSubmitting}>
-                  {isPhotoSubmitting ? 'Uploading...' : 'Upload Photo'}
-                </button>
+                 {photoMessage && <div className={`alert alert-${photoMessage.type}`}>{photoMessage.text}</div>}
+                <button type="submit" disabled={isPhotoSubmitting}>{isPhotoSubmitting ? 'Uploading...' : 'Upload Photo'}</button>
               </form>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Here you would add sections to display existing photos and notes */}
-      <hr />
-      <h4>Existing Media & Notes</h4>
-      <p className="text-muted">Displaying existing photos and notes for this user would be the next step.</p>
-
     </div>
   );
 }

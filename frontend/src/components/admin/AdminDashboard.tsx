@@ -1,5 +1,4 @@
-// frontend/src/components/admin/AdminDashboard.tsx - Corrected
-
+// frontend/src/components/admin/AdminDashboard.tsx - CORRECTED
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { apiGet } from '../../lib/api';
@@ -12,18 +11,11 @@ function AdminDashboard() {
 
   useEffect(() => {
     const fetchUsers = async () => {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setError("Authentication token not found.");
-        setIsLoading(false);
-        return;
-      }
-
       try {
         setIsLoading(true);
         setError(null);
-        // FIX: API call is now wrapped in try/catch
-        const data = await apiGet<User[]>('/api/admin/users', token);
+        // FIX: The token argument has been removed as it's now handled by the fetch helper.
+        const data = await apiGet<User[]>('/admin/users');
         setUsers(data);
       } catch (err: any) {
         console.error("Error fetching users:", err);

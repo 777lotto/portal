@@ -132,6 +132,7 @@ export interface SendSMSResult {
 export interface Env {
   // Bindings
   DB: D1Database;
+  NOTIFICATION_SERVICE: Fetcher;
 
   // Secrets
   JWT_SECRET: string;

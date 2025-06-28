@@ -1,7 +1,5 @@
-// worker/src/handlers/profile.ts
-// --------------------------------------
+// worker/src/handlers/profile.ts - CORRECTED
 import { Context as ProfileContext } from 'hono';
-import { z as zod } from 'zod';
 import { AppEnv as ProfileAppEnv } from '../index';
 import { errorResponse as profileErrorResponse, successResponse as profileSuccessResponse } from '../utils';
 import { UserSchema } from '@portal/shared';
@@ -10,7 +8,6 @@ const UpdateProfilePayload = UserSchema.pick({ name: true, email: true, phone: t
 
 export const handleGetProfile = async (c: ProfileContext<ProfileAppEnv>) => {
   const user = c.get('user');
-  // Return the user object from the token, which is the single source of truth
   return profileSuccessResponse(user);
 };
 
@@ -20,7 +17,8 @@ export const handleUpdateProfile = async (c: ProfileContext<ProfileAppEnv>) => {
     const parsed = UpdateProfilePayload.safeParse(body);
 
     if (!parsed.success) {
-        return profileErrorResponse("Invalid data", 400, parsed.error.flatten());
+        // FIX: Removed the third argument from the error response.
+        return profileErrorResponse("Invalid data", 400);
     }
 
     const { name, email, phone } = parsed.data;
@@ -28,18 +26,11 @@ export const handleUpdateProfile = async (c: ProfileContext<ProfileAppEnv>) => {
     try {
         await c.env.DB.prepare(
             `UPDATE users SET name = ?, email = ?, phone = ? WHERE id = ?`
-        ).bind(
-            name || user.name,
-            email || user.email,
-            phone !== undefined ? phone : user.phone, // handle null case
-            user.id
-        ).run();
+        ).bind(name || user.name, email || user.email, phone !== undefined ? phone : user.phone, user.id).run();
 
         const updatedUser = { ...user, ...parsed.data };
         return profileSuccessResponse(updatedUser);
-
     } catch (e: any) {
-        console.error("Profile update failed:", e.message);
         return profileErrorResponse("Failed to update profile", 500);
     }
 };

@@ -1,14 +1,12 @@
 // frontend/src/lib/api.ts - CORRECTED
-// All API helper functions are now correctly defined and EXPORTED.
-
 import {
   type Job,
   type Service,
   type User,
-  type AuthResponse, // Now correctly imported
-  type PortalSession,  // Now correctly imported
-  type Conversation,   // Now correctly imported
-  type SMSMessage,     // Now correctly imported
+  type AuthResponse,
+  type PortalSession,
+  type Conversation,
+  type SMSMessage,
   type Photo,
   type Note
 } from "@portal/shared";
@@ -16,52 +14,52 @@ import { fetchJson } from './fetchJson';
 
 // --- API HELPER FUNCTIONS ---
 
-// FIX: 'const' was preventing export. Changed to 'export const'.
-export const apiGet = <T>(path: string, token: string): Promise<T> => {
-  return fetchJson<T>(`/api${path}`, token);
+export const apiGet = <T>(path: string): Promise<T> => {
+  return fetchJson<T>(`/api${path}`);
 };
 
-// FIX: 'const' was preventing export. Changed to 'export const'.
-export const apiPost = <T>(path: string, body: unknown, token: string, method: "POST" | "PUT" = "POST"): Promise<T> => {
-  return fetchJson<T>(`/api${path}`, token, {
+export const apiPost = <T>(path: string, body: unknown, method: "POST" | "PUT" = "POST"): Promise<T> => {
+  return fetchJson<T>(`/api${path}`, {
     method: method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 };
 
-// FIX: Added the missing apiPostFormData function.
-export const apiPostFormData = <T>(path: string, formData: FormData, token: string): Promise<T> => {
-  return fetchJson<T>(`/api${path}`, token, {
+export const apiPostFormData = <T>(path: string, formData: FormData): Promise<T> => {
+  return fetchJson<T>(`/api${path}`, {
     method: 'POST',
-    body: formData, // No Content-Type header needed; browser sets it with boundary.
+    body: formData,
   });
 };
 
 // --- AUTH ---
-export const login = (data: unknown) => apiPost<AuthResponse>('/login', data, '');
-export const signup = (data: unknown) => apiPost<AuthResponse>('/signup', data, '');
+export const login = (data: unknown) => apiPost<AuthResponse>('/login', data);
+export const signup = (data: unknown) => apiPost<AuthResponse>('/signup', data);
 
 // --- USER & PROFILE ---
-export const getProfile = (token: string) => apiGet<User>('/profile', token);
-export const updateProfile = (data: Partial<User>, token: string) => apiPost<User>('/profile', data, token, 'PUT');
-export const createPortalSession = (token: string) => apiPost<PortalSession>('/portal', {}, token);
+export const getProfile = () => apiGet<User>('/profile');
+export const updateProfile = (data: Partial<User>) => apiPost<User>('/profile', data, 'PUT');
+export const createPortalSession = () => apiPost<PortalSession>('/portal', {});
 
 // --- SERVICES ---
-export const getServices = (token: string) => apiGet<Service[]>('/services', token);
-// FIX: Added missing getService function that was being called in ServiceDetail.
-export const getService = (id: string, token: string) => apiGet<Service>(`/services/${id}`, token);
-export const createInvoice = (serviceId: string, token: string) => apiPost<any>(`/services/${serviceId}/invoice`, {}, token);
+export const getServices = () => apiGet<Service[]>('/services');
+export const getService = (id: string) => apiGet<Service>(`/services/${id}`);
+export const createInvoice = (serviceId: string) => apiPost<any>(`/services/${serviceId}/invoice`, {});
 
 // --- JOBS ---
-export const getJobs = (token: string) => apiGet<Job[]>('/jobs', token);
-export const getJob = (id: string, token: string) => apiGet<Job>(`/jobs/${id}`, token);
+export const getJobs = () => apiGet<Job[]>('/jobs');
+export const getJob = (id: string) => apiGet<Job>(`/jobs/${id}`);
 
 // --- PHOTOS & NOTES (can belong to jobs or services) ---
-export const getPhotosForJob = (jobId: string, token: string) => apiGet<Photo[]>(`/jobs/${jobId}/photos`, token);
-export const getNotesForJob = (jobId: string, token: string) => apiGet<Note[]>(`/jobs/${jobId}/notes`, token);
+export const getPhotosForJob = (jobId: string) => apiGet<Photo[]>(`/jobs/${jobId}/photos`);
+export const getNotesForJob = (jobId: string) => apiGet<Note[]>(`/jobs/${jobId}/notes`);
 
 // --- SMS ---
-export const getSmsConversations = (token:string) => apiGet<Conversation[]>('/sms/conversations', token);
-export const getSmsConversation = (phoneNumber: string, token:string) => apiGet<SMSMessage[]>(`/sms/conversation/${phoneNumber}`, token);
+export const getSmsConversations = () => apiGet<Conversation[]>('/sms/conversations');
+export const getSmsConversation = (phoneNumber: string) => apiGet<SMSMessage[]>(`/sms/conversation/${phoneNumber}`);
+export const sendSms = (phoneNumber: string, message: string) => apiPost<SMSMessage>('/sms/send', { to: phoneNumber, message });
 
+// --- CALENDAR ---
+export const getCalendarFeed = (token: string) => `/api/calendar.ics?token=${token}`;
+export const syncCalendar = (url: string) => apiPost('/calendar-sync', { url });

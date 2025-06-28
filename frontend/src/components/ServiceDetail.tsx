@@ -1,19 +1,8 @@
+// frontend/src/components/ServiceDetail.tsx - CORRECTED
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { apiGet, createInvoice } from '../lib/api';
-import type { Service } from '@portal/shared';
-
-// Define types for our new data
-interface Photo {
-  id: string;
-  url: string;
-  created_at: string;
-}
-interface Note {
-  id: number;
-  content: string;
-  created_at: string;
-}
+import { apiGet, createInvoice, getService } from '../lib/api';
+import type { Service, Photo, Note } from '@portal/shared';
 
 function ServiceDetail() {
   const { id } = useParams<{ id: string }>();
@@ -26,17 +15,15 @@ function ServiceDetail() {
 
   useEffect(() => {
     if (!id) return;
-    const token = localStorage.getItem("token");
-    if (!token) return;
 
     const fetchDetails = async () => {
       try {
         setIsLoading(true);
         setError(null);
         const [serviceData, photosData, notesData] = await Promise.all([
-          getService(id, token),
-          apiGet<Photo[]>(`/api/services/${id}/photos`, token),
-          apiGet<Note[]>(`/api/services/${id}/notes`, token)
+          getService(id),
+          apiGet<Photo[]>(`/services/${id}/photos`),
+          apiGet<Note[]>(`/services/${id}/notes`)
         ]);
         setService(serviceData);
         setPhotos(photosData);
@@ -53,11 +40,9 @@ function ServiceDetail() {
 
   const handleCreateInvoice = async () => {
     if (!id) return;
-    const token = localStorage.getItem("token");
-    if (!token) return;
 
     try {
-      const response = await createInvoice(id, token);
+      const response = await createInvoice(id);
       if (response.hosted_invoice_url) {
         setInvoiceMessage(`Invoice created!`);
         window.open(response.hosted_invoice_url, '_blank');
@@ -119,4 +104,3 @@ function ServiceDetail() {
 }
 
 export default ServiceDetail;
-

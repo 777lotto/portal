@@ -1,4 +1,5 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+// frontend/src/components/Services.tsx - CORRECTED
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getServices } from '../lib/api';
@@ -7,14 +8,12 @@ function Services() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     useEffect(() => {
-        const token = localStorage.getItem("token");
-        if (!token)
-            return;
         const fetchServices = async () => {
             try {
                 setIsLoading(true);
                 setError(null);
-                const data = await getServices(token);
+                // FIX: The token is no longer passed directly to API functions.
+                const data = await getServices();
                 setServices(data);
             }
             catch (err) {

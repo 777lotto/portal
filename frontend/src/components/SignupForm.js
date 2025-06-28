@@ -1,4 +1,5 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+// frontend/src/components/SignupForm.tsx - CORRECTED
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signup } from '../lib/api';
@@ -22,7 +23,13 @@ function SignupForm({ setToken }) {
         setError(null);
         setIsLoading(true);
         try {
-            const response = await signup(email, name, password, phone, turnstileToken);
+            const response = await signup({
+                email,
+                name,
+                password,
+                phone,
+                'cf-turnstile-response': turnstileToken
+            });
             if (response.token) {
                 setToken(response.token);
                 navigate('/dashboard');

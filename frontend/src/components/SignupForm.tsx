@@ -1,3 +1,4 @@
+// frontend/src/components/SignupForm.tsx - CORRECTED
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signup } from '../lib/api';
@@ -29,7 +30,13 @@ function SignupForm({ setToken }: Props) {
     setIsLoading(true);
 
     try {
-      const response = await signup(email, name, password, phone, turnstileToken);
+      const response = await signup({
+        email,
+        name,
+        password,
+        phone,
+        'cf-turnstile-response': turnstileToken
+      });
       if (response.token) {
         setToken(response.token);
         navigate('/dashboard');
@@ -89,4 +96,3 @@ function SignupForm({ setToken }: Props) {
 }
 
 export default SignupForm;
-

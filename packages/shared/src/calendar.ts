@@ -1,20 +1,6 @@
+// packages/shared/src/calendar.ts - CORRECTED
 import { z } from 'zod';
-// FIX: Import Job and JobSchema from the central types file to resolve ambiguity.
-import type { User, Job } from './types';
-import { JobSchema } from './types';
-
-// REMOVED: The local Job and JobSchema definitions were conflicting with the ones in types.ts.
-/*
-export const JobSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  date: z.string(),
-  client_id: z.string(),
-  service_id: z.string(),
-});
-
-export type Job = z.infer<typeof JobSchema>;
-*/
+import type { User } from './types';
 
 export const AppointmentSchema = z.object({
   id: z.string(),
@@ -47,4 +33,3 @@ export const GoogleEventSchema = z.object({
 export type GoogleEvent = z.infer<typeof GoogleEventSchema>;
 export type Booking = z.infer<typeof BookingSchema>;
 export type Appointment = z.infer<typeof AppointmentSchema>;
-

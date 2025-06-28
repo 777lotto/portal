@@ -1,4 +1,5 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+// frontend/src/components/SMSConversation.tsx - CORRECTED
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getSmsConversation, sendSms } from '../lib/api';
@@ -17,14 +18,11 @@ function SMSConversation() {
     useEffect(() => {
         if (!phoneNumber)
             return;
-        const token = localStorage.getItem("token");
-        if (!token)
-            return;
         const fetchMessages = async () => {
             try {
                 setIsLoading(true);
                 setError(null);
-                const data = await getSmsConversation(phoneNumber, token);
+                const data = await getSmsConversation(phoneNumber); // FIX: Removed token argument
                 setMessages(data);
             }
             catch (err) {
@@ -40,14 +38,10 @@ function SMSConversation() {
         e.preventDefault();
         if (!phoneNumber || !newMessage.trim())
             return;
-        const token = localStorage.getItem("token");
-        if (!token)
-            return;
         try {
             setIsSending(true);
             setError(null);
-            // Assuming sendSms returns the newly created message
-            const sentMessage = await sendSms(phoneNumber, newMessage, token);
+            const sentMessage = await sendSms(phoneNumber, newMessage); // FIX: Removed token argument
             setMessages(prev => [...prev, sentMessage]);
             setNewMessage('');
         }

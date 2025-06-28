@@ -1,27 +1,22 @@
+// notification/src/index.ts - CORRECTED
 import {
   type Env,
-  type D1Database,
   NotificationRequestSchema,
-  UserSchema
 } from '@portal/shared';
 import { sendEmailNotification, generateEmailHTML, generateEmailText } from './email';
-import { sendSMSNotification, handleSMSWebhook, getSMSConversations, getSMSConversation, generateSMSMessage } from './sms';
+import { sendSMSNotification, handleSMSWebhook, generateSMSMessage } from './sms';
 
-// Define the specific environment for this worker.
-interface NotificationEnv extends Env {
-    // Queues and other bindings can be added here if needed.
-}
+interface NotificationEnv extends Env {}
 
 export default {
-  async fetch(request: Request, env: NotificationEnv, ctx: ExecutionContext): Promise<Response> {
-    const db = env.DB as D1Database;
+  async fetch(request: Request, env: NotificationEnv): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
 
     try {
-        // Simple router
         if (path.startsWith('/api/sms/webhook')) {
-            return handleSMSWebhook(request, env);
+            // FIX: Removed the 'env' argument as handleSMSWebhook no longer accepts it.
+            return handleSMSWebhook(request);
         }
 
         if (path.startsWith('/api/notifications/send')) {
@@ -50,7 +45,7 @@ async function handleSendNotification(request: Request, env: NotificationEnv): P
     }
 
     const { type, userId, data, channels = ['email'] } = validation.data;
-    const db = env.DB as D1Database;
+    const db = env.DB;
 
     const user = await db.prepare(
         'SELECT id, email, name, phone FROM users WHERE id = ?'
@@ -62,7 +57,6 @@ async function handleSendNotification(request: Request, env: NotificationEnv): P
 
     const results: Record<string, { success: boolean; error?: string }> = {};
 
-    // Send email if requested and user has an email
     if (channels.includes('email') && user.email) {
         const subject = `Gutter Portal: ${type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`;
         const html = generateEmailHTML(type, user.name, data);
@@ -70,15 +64,11 @@ async function handleSendNotification(request: Request, env: NotificationEnv): P
         results.email = await sendEmailNotification(env, { to: user.email, subject, html, text });
     }
 
-    // Send SMS if requested and user has a phone number
     if (channels.includes('sms') && user.phone) {
         const message = generateSMSMessage(type, data);
         const smsResult = await sendSMSNotification(env, user.phone, message);
         results.sms = { success: smsResult.success, error: smsResult.error };
     }
 
-    // You could log the notification attempt to the database here
-
     return new Response(JSON.stringify({ success: true, results }), { headers: { 'Content-Type': 'application/json' }});
 }
-
