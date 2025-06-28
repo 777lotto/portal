@@ -28,6 +28,7 @@ export const handleAdminUploadPhoto = async (c: PhotoContext<PhotoAppEnv>) => {
     const file = fileValue;
 
     console.log(`Received file "${file.name}" (${file.size} bytes) for job ${jobId}`);
+    // In a real application, you would upload this to a service like Cloudflare R2.
     const imageUrl = `https://example.com/images/${jobId}/${file.name}`;
 
     try {

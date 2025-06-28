@@ -1,4 +1,5 @@
-// worker/src/auth.ts - CORRECTED
+// worker/src/auth.ts
+
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { Context, Next } from 'hono';
@@ -10,7 +11,7 @@ export function getJwtSecretKey(secret: string): Uint8Array {
   return encoder.encode(secret);
 }
 
-// FIX: Removed explicit return type to align with Hono's middleware pattern.
+// FIX: Removed explicit return type and ensured all paths return a Response or call next().
 export const requireAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
     const authHeader = c.req.header("Authorization") || "";
     if (!authHeader.startsWith("Bearer ")) {
@@ -34,21 +35,27 @@ export const requireAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
     }
 };
 
-// FIX: Removed explicit return type to align with Hono's middleware pattern.
+// FIX: Refactored to correctly chain auth middleware and handle responses.
 export const requireAdminAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
+    // First, run the standard authentication middleware.
+    // We await it inside a new promise chain to capture the response if it fails.
     const authResponse = await requireAuthMiddleware(c, async () => {}).catch(() => {});
     if (authResponse) {
+        // If requireAuthMiddleware returned a response (i.e., failed), forward that response.
         return authResponse;
     }
 
     const user = c.get('user');
     if (user && user.role === 'admin') {
+        // If user is admin, proceed to the actual route handler.
         await next();
     } else {
+        // Otherwise, return a forbidden error.
         return c.json({ error: 'Forbidden: Admin access required' }, 403);
     }
 };
 
+// ... (rest of the functions in the file remain the same)
 export async function createJwtToken(user: User, secret: string, expiresIn: string = "7d"): Promise<string> {
     const jwt = new SignJWT({ ...user })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
