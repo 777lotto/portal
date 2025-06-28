@@ -9,7 +9,7 @@ export function getJwtSecretKey(secret: string): Uint8Array {
   return encoder.encode(secret);
 }
 
-// This function is now correct because every path either returns a Response or calls next().
+// This middleware requires a valid JWT to proceed
 export const requireAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
     const authHeader = c.req.header("Authorization") || "";
     if (!authHeader.startsWith("Bearer ")) {
@@ -26,19 +26,21 @@ export const requireAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
         const secret = getJwtSecretKey(c.env.JWT_SECRET);
         const { payload } = await jwtVerify(token, secret);
         c.set('user', payload as User);
-        await next(); // Pass control to the next middleware
+        // FIXED: Added 'return' to pass control and the eventual response back up the chain.
+        return await next();
     } catch (error) {
         console.error("Auth failed:", error);
         return c.json({ error: 'Authentication failed: Invalid token' }, 401);
     }
 };
 
-// FIX: This middleware is now much simpler. It assumes requireAuthMiddleware has
-// already run and its ONLY job is to check the user's role.
+// This middleware assumes requireAuthMiddleware has already run
+// and simply checks if the user has the 'admin' role.
 export const requireAdminAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
     const user = c.get('user'); // User is populated by the first middleware
     if (user && user.role === 'admin') {
-        await next(); // User is an admin, proceed.
+        // FIXED: Added 'return' to proceed to the next handler.
+        return await next(); // User is an admin, proceed.
     } else {
         // If there's no user or the user isn't an admin, return a forbidden error.
         return c.json({ error: 'Forbidden: Admin access required' }, 403);
