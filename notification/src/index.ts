@@ -1,4 +1,5 @@
-// notification/src/index.ts - CORRECTED
+// notification/src/index.ts
+
 import {
   type Env,
   NotificationRequestSchema,
@@ -7,30 +8,6 @@ import { sendEmailNotification, generateEmailHTML, generateEmailText } from './e
 import { sendSMSNotification, handleSMSWebhook, generateSMSMessage } from './sms';
 
 interface NotificationEnv extends Env {}
-
-export default {
-  async fetch(request: Request, env: NotificationEnv): Promise<Response> {
-    const url = new URL(request.url);
-    const path = url.pathname;
-
-    try {
-        if (path.startsWith('/api/sms/webhook')) {
-            // FIX: Removed the 'env' argument as handleSMSWebhook no longer accepts it.
-            return handleSMSWebhook(request);
-        }
-
-        if (path.startsWith('/api/notifications/send')) {
-            return handleSendNotification(request, env);
-        }
-
-        return new Response("Not Found", { status: 404 });
-
-    } catch (e: any) {
-        console.error("Notification worker error:", e);
-        return new Response("Internal Server Error", { status: 500 });
-    }
-  },
-};
 
 async function handleSendNotification(request: Request, env: NotificationEnv): Promise<Response> {
     if (request.method !== 'POST') {
@@ -72,3 +49,40 @@ async function handleSendNotification(request: Request, env: NotificationEnv): P
 
     return new Response(JSON.stringify({ success: true, results }), { headers: { 'Content-Type': 'application/json' }});
 }
+
+export default {
+  async fetch(request: Request, env: NotificationEnv): Promise<Response> {
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    try {
+      if (path.startsWith('/api/sms/webhook')) {
+        return handleSMSWebhook(request);
+      }
+
+      if (path.startsWith('/api/notifications/send')) {
+        return handleSendNotification(request, env);
+      }
+
+      return new Response("Not Found", { status: 404 });
+
+    } catch (e: any) {
+      console.error("Notification worker error:", e);
+      return new Response("Internal Server Error", { status: 500 });
+    }
+  },
+
+  async queue(
+    batch: MessageBatch<any>
+    // env parameter removed since it was unused
+  ): Promise<void> {
+    for (const message of batch.messages) {
+      console.log(`Received message in notification queue: ${message.id}`);
+      //
+      // In a real application, you would add logic here to process the message.
+      // For example, you could send an email or SMS notification.
+      //
+      message.ack();
+    }
+  },
+};
