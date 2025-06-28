@@ -1,5 +1,3 @@
-// worker/src/auth.ts
-
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { Context, Next } from 'hono';
@@ -11,7 +9,7 @@ export function getJwtSecretKey(secret: string): Uint8Array {
   return encoder.encode(secret);
 }
 
-// FIX: Removed explicit return type and ensured all paths return a Response or call next().
+// This function is now correct because every path either returns a Response or calls next().
 export const requireAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
     const authHeader = c.req.header("Authorization") || "";
     if (!authHeader.startsWith("Bearer ")) {
@@ -28,34 +26,28 @@ export const requireAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
         const secret = getJwtSecretKey(c.env.JWT_SECRET);
         const { payload } = await jwtVerify(token, secret);
         c.set('user', payload as User);
-        await next();
+        await next(); // Pass control to the next middleware
     } catch (error) {
         console.error("Auth failed:", error);
         return c.json({ error: 'Authentication failed: Invalid token' }, 401);
     }
 };
 
-// FIX: Refactored to correctly chain auth middleware and handle responses.
+// FIX: This middleware is now much simpler. It assumes requireAuthMiddleware has
+// already run and its ONLY job is to check the user's role.
 export const requireAdminAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
-    // First, run the standard authentication middleware.
-    // We await it inside a new promise chain to capture the response if it fails.
-    const authResponse = await requireAuthMiddleware(c, async () => {}).catch(() => {});
-    if (authResponse) {
-        // If requireAuthMiddleware returned a response (i.e., failed), forward that response.
-        return authResponse;
-    }
-
-    const user = c.get('user');
+    const user = c.get('user'); // User is populated by the first middleware
     if (user && user.role === 'admin') {
-        // If user is admin, proceed to the actual route handler.
-        await next();
+        await next(); // User is an admin, proceed.
     } else {
-        // Otherwise, return a forbidden error.
+        // If there's no user or the user isn't an admin, return a forbidden error.
         return c.json({ error: 'Forbidden: Admin access required' }, 403);
     }
 };
 
-// ... (rest of the functions in the file remain the same)
+
+// --- The rest of the file remains the same ---
+
 export async function createJwtToken(user: User, secret: string, expiresIn: string = "7d"): Promise<string> {
     const jwt = new SignJWT({ ...user })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })

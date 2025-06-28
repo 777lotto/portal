@@ -36,7 +36,13 @@ const adminApi = new Hono<AppEnv>();
 
 // --- MIDDLEWARE FOR PROTECTED ROUTES ---
 customerApi.use('*', requireAuthMiddleware);
-adminApi.use('*', requireAdminAuthMiddleware);
+
+// =================== FIX: This is the critical change ===================
+// Apply BOTH middleware functions to the admin routes in sequence.
+adminApi.use('*', requireAuthMiddleware);      // 1. First, require a valid login.
+adminApi.use('*', requireAdminAuthMiddleware); // 2. Then, require that the user is an admin.
+// =======================================================================
+
 
 // --- PUBLIC ROUTES ---
 publicApi.post('/signup', handleSignup);

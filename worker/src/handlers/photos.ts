@@ -1,4 +1,4 @@
-// worker/src/handlers/photos.ts - CORRECTED
+// worker/src/handlers/photos.ts
 import { Context as PhotoContext } from 'hono';
 import { AppEnv as PhotoAppEnv } from '../index';
 import { errorResponse as photoErrorResponse, successResponse as photoSuccessResponse } from '../utils';
@@ -21,11 +21,11 @@ export const handleAdminUploadPhoto = async (c: PhotoContext<PhotoAppEnv>) => {
     const formData = await c.req.formData();
     const fileValue = formData.get('file');
 
-    // FIX: Check if the value is a File object before proceeding.
-    if (!(fileValue instanceof File)) {
+    // FIX: Replaced `instanceof` with a type check that satisfies TypeScript's strict mode.
+    if (typeof fileValue === 'string' || !fileValue) {
         return photoErrorResponse("No file provided or invalid file type", 400);
     }
-    const file = fileValue;
+    const file: File = fileValue;
 
     console.log(`Received file "${file.name}" (${file.size} bytes) for job ${jobId}`);
     // In a real application, you would upload this to a service like Cloudflare R2.
