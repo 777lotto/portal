@@ -28,14 +28,14 @@ export default defineConfig({
   define: {
     'import.meta.env.VITE_API_URL': JSON.stringify(
       process.env.NODE_ENV === 'production'
-        ? 'https://portal.777.foo/api'
+        ? 'https://portal.777.foo'
         : ''
     ),
     'import.meta.env.VITE_TURNSTILE_SITE_KEY': JSON.stringify(
       process.env.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAABcgNHsEZnTPqdEV'
     ),
     'import.meta.env.VITE_STRIPE_PK': JSON.stringify(
-      process.env.VITE_STRIPE_PK || 'pk_test_placeholder'
+      process.env.VITE_STRIPE_PK || 'pk_live_51MBf4rHNec9XrT0Fy63H12UL5Vxkcw5GNVmyuXS8b3DdYbBAQVVtd1wpshGBgwZtz8NkCHz7ZhExYDDt0fn9RTGd009jbyk3Gj'
     ),
   }
 })
