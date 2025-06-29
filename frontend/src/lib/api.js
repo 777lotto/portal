@@ -19,6 +19,7 @@ export const apiPostFormData = (path, formData) => {
 // --- AUTH ---
 export const login = (data) => apiPost('/login', data);
 export const signup = (data) => apiPost('/signup', data);
+export const logout = () => apiPost('/logout', {});
 // --- USER & PROFILE ---
 export const getProfile = () => apiGet('/profile');
 export const updateProfile = (data) => apiPost('/profile', data, 'PUT');

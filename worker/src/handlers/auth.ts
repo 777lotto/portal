@@ -5,6 +5,7 @@ import { AppEnv } from '../index';
 import { User, UserSchema } from '@portal/shared';
 import { createJwtToken, hashPassword, verifyPassword, validateTurnstileToken } from '../auth';
 import { errorResponse, successResponse } from '../utils';
+import { deleteCookie } from 'hono/cookie';
 
 const SignupPayload = UserSchema.pick({ name: true, email: true, phone: true }).extend({
     password: z.string().min(8),
@@ -93,4 +94,15 @@ export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
 
     console.log(`Password reset requested for: ${email}`);
     return successResponse({ message: "If an account with that email exists, a password reset link has been sent." });
+};
+
+export const handleLogout = async (c: Context<AppEnv>) => {
+  // Clear the 'session' cookie. Ensure the path and domain match
+  // how it was set during login if applicable.
+  deleteCookie(c, 'session', {
+    path: '/',
+    // secure: true, // Recommended for production
+    // httpOnly: true, // Recommended for production
+  });
+  return successResponse({ message: "Logged out successfully" });
 };

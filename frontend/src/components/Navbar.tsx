@@ -1,6 +1,7 @@
 // frontend/src/components/Navbar.tsx - CORRECTED
 
 import { Link, NavLink, useNavigate } from "react-router-dom";
+import { logout } from "../lib/api";
 
 // Define the shape of the decoded user object from the JWT
 interface UserPayload {
@@ -18,9 +19,19 @@ interface Props {
 export default function Navbar({ token, setToken, user }: Props) {
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    setToken(null);
-    navigate("/login", { replace: true });
+  const handleLogout = async () => {
+    try {
+      // Call the new API endpoint to clear the server-side session
+      await logout();
+    } catch (error) {
+      // Log the error but proceed with frontend cleanup regardless
+      console.error("Server logout failed:", error);
+    } finally {
+      // Clear the token from the frontend state and local storage
+      setToken(null);
+      // Redirect to the login page
+      navigate("/login", { replace: true });
+    }
   };
 
   return (

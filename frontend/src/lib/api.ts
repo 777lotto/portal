@@ -36,6 +36,7 @@ export const apiPostFormData = <T>(path: string, formData: FormData): Promise<T>
 // --- AUTH ---
 export const login = (data: unknown) => apiPost<AuthResponse>('/login', data);
 export const signup = (data: unknown) => apiPost<AuthResponse>('/signup', data);
+export const logout = () => apiPost('/logout', {});
 
 // --- USER & PROFILE ---
 export const getProfile = () => apiGet<User>('/profile');

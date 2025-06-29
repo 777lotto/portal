@@ -24,6 +24,7 @@ export declare const signup: (data: unknown) => Promise<{
         stripe_customer_id?: string | null | undefined;
     };
 }>;
+export declare const logout: () => Promise<unknown>;
 export declare const getProfile: () => Promise<{
     id: number;
     email: string;
