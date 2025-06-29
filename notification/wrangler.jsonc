@@ -26,6 +26,10 @@
     "SMS_FROM_NUMBER": "7706977777",
     "AWS_REGION": "us-east-2"
   },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
   "env": {
     "production": {
       "vars": {

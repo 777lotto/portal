@@ -99,9 +99,20 @@ app.route('/api', api);
 
 
 // --- 6. FRONTEND SERVING LOGIC ---
-app.use('/*', serveStatic({ root: './', manifest }));
-app.get('*', serveStatic({ path: './index.html', manifest }));
 
+// 1. Serve any static assets from the root directory first.
+// The `serveStatic` middleware is smart enough to continue to the next handler if a file is not found.
+app.get('/*', serveStatic({
+    root: './',
+    manifest,
+}));
+
+// 2. SPA Fallback. This is the catch-all that serves your React app.
+// It will only be reached if the request did not match a static file in the middleware above.
+app.get('*', serveStatic({
+    path: './index.html',
+    manifest,
+}));
 
 // --- 7. EXPORT ---
 export default app;
