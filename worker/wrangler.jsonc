@@ -27,12 +27,6 @@
       "migrations_dir": "./migrations"
     }
   ],
-  "queue_producers": [
-    {
-      "binding": "NOTIFICATION_QUEUE",
-      "queue": "notifications"
-    }
-  ],
   "services": [
     {
       "binding": "NOTIFICATION_SERVICE",

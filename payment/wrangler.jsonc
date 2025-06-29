@@ -14,14 +14,6 @@
       "database_id": "3b81ffd2-e748-4750-b98a-7b8b4c058716"
     }
   ],
-  "queues": {
-    "producers": [
-      {
-        "queue": "notifications",
-        "binding": "NOTIFICATION_QUEUE"
-      }
-    ]
-  },
   "triggers": {
     "crons": [
       "0 10 * * *"
