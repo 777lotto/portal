@@ -35,6 +35,11 @@
     "ip": "localhost"
   },
 
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+},
+
   "env": {
     "production": {
       "routes": [

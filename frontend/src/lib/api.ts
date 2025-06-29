@@ -15,11 +15,11 @@ import { fetchJson } from './fetchJson';
 // --- API HELPER FUNCTIONS ---
 
 export const apiGet = <T>(path: string): Promise<T> => {
-  return fetchJson<T>(`/api${path}`);
+  return fetchJson<T>(path);
 };
 
 export const apiPost = <T>(path: string, body: unknown, method: "POST" | "PUT" = "POST"): Promise<T> => {
-  return fetchJson<T>(`/api${path}`, {
+  return fetchJson<T>(path, {
     method: method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -27,7 +27,7 @@ export const apiPost = <T>(path: string, body: unknown, method: "POST" | "PUT" =
 };
 
 export const apiPostFormData = <T>(path: string, formData: FormData): Promise<T> => {
-  return fetchJson<T>(`/api${path}`, {
+  return fetchJson<T>(path, {
     method: 'POST',
     body: formData,
   });

@@ -36,6 +36,10 @@
     "API_VERSION": "1.0.0",
     "PORTAL_URL": "http://localhost:5173/dashboard"
   },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
   "env": {
     "production": {
       "vars": {

@@ -1,17 +1,17 @@
 import { fetchJson } from './fetchJson';
 // --- API HELPER FUNCTIONS ---
 export const apiGet = (path) => {
-    return fetchJson(`/api${path}`);
+    return fetchJson(path);
 };
 export const apiPost = (path, body, method = "POST") => {
-    return fetchJson(`/api${path}`, {
+    return fetchJson(path, {
         method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
     });
 };
 export const apiPostFormData = (path, formData) => {
-    return fetchJson(`/api${path}`, {
+    return fetchJson(path, {
         method: 'POST',
         body: formData,
     });

@@ -34,7 +34,7 @@ export const handleSignup = async (c: Context<AppEnv>) => {
     try {
         const hashedPassword = await hashPassword(password);
         const { results } = await c.env.DB.prepare(
-            `INSERT INTO users (name, email, password, phone, role) VALUES (?, ?, ?, ?, 'customer') RETURNING id, name, email, phone, role`
+            `INSERT INTO users (name, email, password_hash, phone, role) VALUES (?, ?, ?, ?, 'customer') RETURNING id, name, email, phone, role`
         ).bind(name, email.toLowerCase(), hashedPassword, phone).all<User>();
 
         if (!results || results.length === 0) {
@@ -65,7 +65,7 @@ export const handleLogin = async (c: Context<AppEnv>) => {
 
     try {
         const user = await c.env.DB.prepare(
-            `SELECT id, name, email, phone, role, password, stripe_customer_id FROM users WHERE email = ?`
+            `SELECT id, name, email, phone, role, password_hash, stripe_customer_id FROM users WHERE email = ?`
         ).bind(email.toLowerCase()).first<User & { password?: string }>();
 
         if (!user || !user.password) {
