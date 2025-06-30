@@ -7,7 +7,6 @@
   "include": [],
   "references": [
     { "path": "./packages/shared" },
-    { "path": "./frontend" },
     { "path": "./worker" },
     { "path": "./notification" },
     { "path": "./payment" }

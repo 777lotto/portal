@@ -4,20 +4,20 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { jwtDecode } from 'jwt-decode';
 // --- Page Components ---
-import LoginForm from "./components/LoginForm";
-import SignupForm from "./components/SignupForm";
-import Dashboard from "./components/Dashboard";
-import Services from "./components/Services";
-import ServiceDetail from "./components/ServiceDetail";
-import JobCalendar from "./components/Calendar";
-import JobDetail from "./components/JobDetail";
-import CalendarSync from "./components/CalendarSync";
-import Navbar from "./components/Navbar";
-import SMSConversations from "./components/SMSConversations";
-import SMSConversation from "./components/SMSConversation";
+import LoginForm from "./components/LoginForm.js";
+import SignupForm from "./components/SignupForm.js";
+import Dashboard from "./components/Dashboard.js";
+import Services from "./components/Services.js";
+import ServiceDetail from "./components/ServiceDetail.js";
+import JobCalendar from "./components/Calendar.js";
+import JobDetail from "./components/JobDetail.js";
+import CalendarSync from "./components/CalendarSync.js";
+import Navbar from "./components/Navbar.js";
+import SMSConversations from "./components/SMSConversations.js";
+import SMSConversation from "./components/SMSConversation.js";
 // --- NEW: Admin Page Components (you will create these) ---
-import AdminDashboard from "./components/admin/AdminDashboard";
-import AdminUserDetail from "./components/admin/AdminUserDetail";
+import AdminDashboard from "./components/admin/AdminDashboard.js";
+import AdminUserDetail from "./components/admin/AdminUserDetail.js";
 function App() {
     const [token, setToken] = useState(null);
     const [user, setUser] = useState(null);

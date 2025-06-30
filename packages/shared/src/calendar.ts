@@ -2,6 +2,7 @@
 import { z } from 'zod';
 import type { User } from './types.js';
 
+
 export const AppointmentSchema = z.object({
   id: z.string(),
   start_time: z.string(),

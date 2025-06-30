@@ -20,7 +20,7 @@ function Dashboard() {
                     getServices(),
                 ]);
                 setUser(profileData);
-                setUpcomingJobs(jobsData.filter(j => new Date(j.start) > new Date()).slice(0, 5));
+                setUpcomingJobs(jobsData.filter((j) => new Date(j.start) > new Date()).slice(0, 5));
                 setRecentServices(servicesData.slice(0, 5));
             }
             catch (err) {

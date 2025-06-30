@@ -6,8 +6,11 @@ import {
 } from '@portal/shared';
 import { sendEmailNotification, generateEmailHTML, generateEmailText } from './email.js';
 import { sendSMSNotification, handleSMSWebhook, generateSMSMessage } from './sms.js';
+import type { D1Database } from '@cloudflare/workers-types';
 
-interface NotificationEnv extends Env {}
+interface NotificationEnv extends Env {
+  DB: D1Database;
+}
 
 async function handleSendNotification(request: Request, env: NotificationEnv): Promise<Response> {
     if (request.method !== 'POST') {
@@ -35,7 +38,7 @@ async function handleSendNotification(request: Request, env: NotificationEnv): P
     const results: Record<string, { success: boolean; error?: string }> = {};
 
     if (channels.includes('email') && user.email) {
-        const subject = `Gutter Portal: ${type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`;
+        const subject = `Gutter Portal: ${type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}`;
         const html = generateEmailHTML(type, user.name, data);
         const text = generateEmailText(type, user.name, data);
         results.email = await sendEmailNotification(env, { to: user.email, subject, html, text });

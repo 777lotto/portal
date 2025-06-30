@@ -3,7 +3,7 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signup } from '../lib/api.js';
-import Turnstile from './Turnstile';
+import Turnstile from './Turnstile.js';
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY;
 function SignupForm({ setToken }) {
     const [email, setEmail] = useState('');

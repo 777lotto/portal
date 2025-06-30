@@ -1,8 +1,6 @@
 // packages/shared/src/types.ts - THE SINGLE SOURCE OF TRUTH
-// All type definitions have been consolidated, corrected, and are now exported from here.
-
+import type { D1Database, Fetcher } from '@cloudflare/workers-types';
 import { z } from 'zod';
-
 /* ========================================================================
    DATABASE & CORE MODELS
    ======================================================================== */
@@ -30,7 +28,6 @@ export const ServiceSchema = z.object({
 });
 export type Service = z.infer<typeof ServiceSchema>;
 
-// **MAJOR FIX**: Redefined the Job type to match what the frontend expects.
 // This resolves the majority of the frontend errors.
 export const JobSchema = z.object({
   id: z.string(),
@@ -70,20 +67,20 @@ export type Note = z.infer<typeof NoteSchema>;
    API, AUTH & NOTIFICATION TYPES
    ======================================================================== */
 
-// FIX: Exporting AuthResponse for the API client.
+// Exporting AuthResponse for the API client.
 export const AuthResponseSchema = z.object({
     token: z.string(),
     user: UserSchema,
 });
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 
-// FIX: Exporting PortalSession for the Stripe portal redirect.
+// Exporting PortalSession for the Stripe portal redirect.
 export const PortalSessionSchema = z.object({
     url: z.string().url(),
 });
 export type PortalSession = z.infer<typeof PortalSessionSchema>;
 
-// FIX: Exporting SMSMessage for the SMS components.
+// Exporting SMSMessage for the SMS components.
 export const SMSMessageSchema = z.object({
     id: z.number().optional(),
     direction: z.enum(['incoming', 'outgoing']),
@@ -94,7 +91,7 @@ export const SMSMessageSchema = z.object({
 });
 export type SMSMessage = z.infer<typeof SMSMessageSchema>;
 
-// FIX: Exporting Conversation for the SMS conversations list.
+// Exporting Conversation for the SMS conversations list.
 export const ConversationSchema = z.object({
     phone_number: z.string(),
     last_message_at: z.string(),
@@ -128,7 +125,7 @@ export interface SendSMSResult {
    ENVIRONMENT & CLOUDFLARE TYPES
    ======================================================================== */
 
-// FIX: Consolidating and exporting all worker environment variables and types.
+// Consolidating and exporting all worker environment variables and types.
 export interface Env {
   // Bindings
   DB: D1Database;
@@ -154,24 +151,4 @@ export interface Env {
   SMS_FROM_NUMBER?: string;
   VOIPMS_USERNAME?: string;
   VOIPMS_PASSWORD?: string;
-}
-
-// BaseEnv alias for clarity in workers that extend it.
-export type BaseEnv = Env;
-
-// D1 Types for use in workers.
-export interface D1Database {
-  prepare(query: string): D1PreparedStatement;
-}
-export interface D1PreparedStatement {
-  bind(...values: any[]): D1PreparedStatement;
-  first<T = unknown>(): Promise<T | null>;
-  run(): Promise<D1Result>;
-  all<T = unknown>(): Promise<D1Result<T[]>>;
-}
-export interface D1Result<T = unknown> {
-  results?: T;
-  success: boolean;
-  error?: string;
-  meta: any;
 }

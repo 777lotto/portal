@@ -1,8 +1,8 @@
-// payment/src/index.ts - CORRECTED
+// payment/src/index.ts
 import { Hono } from 'hono';
 import { z } from 'zod';
 import type { D1Database, MessageBatch } from '@cloudflare/workers-types';
-import type { Env, Job, User } from '@portal/shared'; // FIX: Removed unused 'Service' import
+import type { Env, Job, User } from '@portal/shared';
 
 const PaymentQueueMessageSchema = z.object({
   jobId: z.string(),

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signup } from '../lib/api.js';
-import Turnstile from './Turnstile';
+import Turnstile from './Turnstile.js';
 
 interface Props {
   setToken: (token: string) => void;

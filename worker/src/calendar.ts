@@ -25,7 +25,7 @@ export async function getCustomerJobs(env: Env, customerId: string): Promise<Job
     `SELECT * FROM jobs WHERE customerId = ? ORDER BY start DESC`
   ).bind(customerId).all();
 
-  return (results || []) as JobRecord[];
+  return (results || []) as unknown as JobRecord[];
 }
 
 // Get a specific job by ID

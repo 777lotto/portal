@@ -1,4 +1,4 @@
-import { fetchJson } from './fetchJson';
+import { fetchJson } from './fetchJson.js';
 // --- API HELPER FUNCTIONS ---
 export const apiGet = (path) => {
     return fetchJson(path);

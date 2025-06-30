@@ -10,7 +10,7 @@ import {
   type Photo,
   type Note
 } from "@portal/shared";
-import { fetchJson } from './fetchJson';
+import { fetchJson } from './fetchJson.js';
 
 // --- API HELPER FUNCTIONS ---
 
