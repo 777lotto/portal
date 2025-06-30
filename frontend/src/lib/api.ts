@@ -34,33 +34,33 @@ export const apiPostFormData = <T>(path: string, formData: FormData): Promise<T>
 };
 
 // --- AUTH ---
-export const login = (data: unknown) => apiPost<AuthResponse>('/login', data);
-export const signup = (data: unknown) => apiPost<AuthResponse>('/signup', data);
-export const logout = () => apiPost('/logout', {});
+export const login = (data: unknown) => apiPost<AuthResponse>('/api/login', data);
+export const signup = (data: unknown) => apiPost<AuthResponse>('/api/signup', data);
+export const logout = () => apiPost('/api/logout', {});
 
 // --- USER & PROFILE ---
-export const getProfile = () => apiGet<User>('/profile');
-export const updateProfile = (data: Partial<User>) => apiPost<User>('/profile', data, 'PUT');
-export const createPortalSession = () => apiPost<PortalSession>('/portal', {});
+export const getProfile = () => apiGet<User>('/api/profile');
+export const updateProfile = (data: Partial<User>) => apiPost<User>('/api/profile', data, 'PUT');
+export const createPortalSession = () => apiPost<PortalSession>('/api/portal', {});
 
 // --- SERVICES ---
-export const getServices = () => apiGet<Service[]>('/services');
-export const getService = (id: string) => apiGet<Service>(`/services/${id}`);
-export const createInvoice = (serviceId: string) => apiPost<any>(`/services/${serviceId}/invoice`, {});
+export const getServices = () => apiGet<Service[]>('/api/services');
+export const getService = (id: string) => apiGet<Service>(`/api/services/${id}`);
+export const createInvoice = (serviceId: string) => apiPost<any>(`/api/services/${serviceId}/invoice`, {});
 
 // --- JOBS ---
-export const getJobs = () => apiGet<Job[]>('/jobs');
-export const getJob = (id: string) => apiGet<Job>(`/jobs/${id}`);
+export const getJobs = () => apiGet<Job[]>('/api/jobs');
+export const getJob = (id: string) => apiGet<Job>(`/api/jobs/${id}`);
 
 // --- PHOTOS & NOTES (can belong to jobs or services) ---
-export const getPhotosForJob = (jobId: string) => apiGet<Photo[]>(`/jobs/${jobId}/photos`);
-export const getNotesForJob = (jobId: string) => apiGet<Note[]>(`/jobs/${jobId}/notes`);
+export const getPhotosForJob = (jobId: string) => apiGet<Photo[]>(`/api/jobs/${jobId}/photos`);
+export const getNotesForJob = (jobId: string) => apiGet<Note[]>(`/api/jobs/${jobId}/notes`);
 
 // --- SMS ---
-export const getSmsConversations = () => apiGet<Conversation[]>('/sms/conversations');
-export const getSmsConversation = (phoneNumber: string) => apiGet<SMSMessage[]>(`/sms/conversation/${phoneNumber}`);
-export const sendSms = (phoneNumber: string, message: string) => apiPost<SMSMessage>('/sms/send', { to: phoneNumber, message });
+export const getSmsConversations = () => apiGet<Conversation[]>('/api/sms/conversations');
+export const getSmsConversation = (phoneNumber: string) => apiGet<SMSMessage[]>(`/api/sms/conversation/${phoneNumber}`);
+export const sendSms = (phoneNumber: string, message: string) => apiPost<SMSMessage>('/api/sms/send', { to: phoneNumber, message });
 
 // --- CALENDAR ---
 export const getCalendarFeed = (token: string) => `/api/calendar.ics?token=${token}`;
-export const syncCalendar = (url: string) => apiPost('/calendar-sync', { url });
+export const syncCalendar = (url: string) => apiPost('/api/calendar-sync', { url });
