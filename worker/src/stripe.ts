@@ -1,7 +1,7 @@
 // worker/src/stripe.ts - CORRECTED
 import Stripe from 'stripe';
 import { Context } from 'hono';
-import { AppEnv } from './index';
+import { AppEnv } from './index.js';
 import { Env, User, Service } from '@portal/shared';
 
 export function getStripe(env: Env): Stripe {

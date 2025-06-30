@@ -12,18 +12,18 @@ import { serveStatic } from 'hono/cloudflare-workers';
 import manifest from '__STATIC_CONTENT_MANIFEST';
 
 // Import handlers and utilities
-import { errorResponse } from './utils';
-import { requireAuthMiddleware, requireAdminAuthMiddleware } from './auth';
-import { handleSignup, handleLogin, handleRequestPasswordReset, handleLogout } from './handlers/auth';
-import { handleGetProfile, handleUpdateProfile } from './handlers/profile';
-import { handleStripeWebhook } from './handlers/stripe';
-import { handleListServices, handleGetService, handleCreateInvoice, handleGetPhotosForService, handleGetNotesForService } from './handlers/services';
-import { handleGetJobs, handleGetJobById, handleCalendarFeed } from './handlers/jobs';
-import { handleGetAllUsers } from './handlers/admin/users';
-import { handleGetPhotosForJob, handleAdminUploadPhoto } from './handlers/photos';
-import { handleGetNotesForJob, handleAdminAddNote } from './handlers/notes';
-import { handlePortalSession } from './handlers/user';
-import { handleSmsProxy } from './sms';
+import { errorResponse } from './utils.js';
+import { requireAuthMiddleware, requireAdminAuthMiddleware } from './auth.js';
+import { handleSignup, handleLogin, handleRequestPasswordReset, handleLogout } from './handlers/auth.js';
+import { handleGetProfile, handleUpdateProfile } from './handlers/profile.js';
+import { handleStripeWebhook } from './handlers/stripe.js';
+import { handleListServices, handleGetService, handleCreateInvoice, handleGetPhotosForService, handleGetNotesForService } from './handlers/services.js';
+import { handleGetJobs, handleGetJobById, handleCalendarFeed } from './handlers/jobs.js';
+import { handleGetAllUsers } from './handlers/admin/users.js';
+import { handleGetPhotosForJob, handleAdminUploadPhoto } from './handlers/photos.js';
+import { handleGetNotesForJob, handleAdminAddNote } from './handlers/notes.js';
+import { handlePortalSession } from './handlers/user.js';
+import { handleSmsProxy } from './sms.js';
 
 // Import shared types
 import type { Env, User } from '@portal/shared';

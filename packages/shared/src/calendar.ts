@@ -1,6 +1,6 @@
 // packages/shared/src/calendar.ts - CORRECTED
 import { z } from 'zod';
-import type { User } from './types';
+import type { User } from './types.js';
 
 export const AppointmentSchema = z.object({
   id: z.string(),

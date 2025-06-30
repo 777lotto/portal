@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Calendar as BigCalendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { getJobs } from '../lib/api';
+import { getJobs } from '../lib/api.js';
 import type { Job } from '@portal/shared';
 
 const localizer = momentLocalizer(moment);

@@ -1,7 +1,7 @@
 // worker/src/handlers/profile.ts - CORRECTED
 import { Context as ProfileContext } from 'hono';
-import { AppEnv as ProfileAppEnv } from '../index';
-import { errorResponse as profileErrorResponse, successResponse as profileSuccessResponse } from '../utils';
+import { AppEnv as ProfileAppEnv } from '../index.js';
+import { errorResponse as profileErrorResponse, successResponse as profileSuccessResponse } from '../utils.js';
 import { UserSchema } from '@portal/shared';
 
 const UpdateProfilePayload = UserSchema.pick({ name: true, email: true, phone: true }).partial();

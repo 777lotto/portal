@@ -1,8 +1,8 @@
 // frontend/src/components/LoginForm.tsx - CORRECTED
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { login } from '../lib/api';
-import Turnstile from './Turnstile';
+import { login } from '../lib/api.js';
+import Turnstile from './Turnstile.js';
 
 interface Props {
   setToken: (token: string) => void;

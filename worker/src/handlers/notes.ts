@@ -1,7 +1,7 @@
 // worker/src/handlers/notes.ts - CORRECTED
 import { Context as NoteContext } from 'hono';
-import { AppEnv as NoteAppEnv } from '../index';
-import { errorResponse as noteErrorResponse, successResponse as noteSuccessResponse } from '../utils';
+import { AppEnv as NoteAppEnv } from '../index.js';
+import { errorResponse as noteErrorResponse, successResponse as noteSuccessResponse } from '../utils.js';
 
 export const handleGetNotesForJob = async (c: NoteContext<NoteAppEnv>) => {
     const { jobId } = c.req.param();

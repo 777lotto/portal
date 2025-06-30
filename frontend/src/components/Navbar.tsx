@@ -1,7 +1,7 @@
 // frontend/src/components/Navbar.tsx - CORRECTED
 
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { logout } from "../lib/api";
+import { logout } from "../lib/api.js";
 
 // Define the shape of the decoded user object from the JWT
 interface UserPayload {

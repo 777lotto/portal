@@ -1,7 +1,7 @@
 // frontend/src/components/admin/AdminUserDetail.tsx - CORRECTED
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { apiPost, apiPostFormData } from '../../lib/api';
+import { apiPost, apiPostFormData } from '../../lib/api.js';
 
 function AdminUserDetail() {
   const { userId } = useParams<{ userId: string }>();

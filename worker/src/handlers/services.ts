@@ -1,9 +1,9 @@
 // worker/src/handlers/services.ts
 // --------------------------------------
 import { Context as ServiceContext } from 'hono';
-import { AppEnv as ServiceAppEnv } from '../index';
-import { errorResponse as serviceErrorResponse, successResponse as serviceSuccessResponse } from '../utils';
-import { createStripeInvoice } from '../stripe';
+import { AppEnv as ServiceAppEnv } from '../index.js';
+import { errorResponse as serviceErrorResponse, successResponse as serviceSuccessResponse } from '../utils.js';
+import { createStripeInvoice } from '../stripe.js';
 import { Service } from '@portal/shared';
 
 export const handleListServices = async (c: ServiceContext<ServiceAppEnv>) => {

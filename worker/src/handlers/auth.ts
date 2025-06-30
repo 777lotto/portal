@@ -1,10 +1,10 @@
 // worker/src/handlers/auth.ts - CORRECTED
 import { Context } from 'hono';
 import { z } from 'zod';
-import { AppEnv } from '../index';
+import { AppEnv } from '../index.js';
 import { User, UserSchema } from '@portal/shared';
-import { createJwtToken, hashPassword, verifyPassword, validateTurnstileToken } from '../auth';
-import { errorResponse, successResponse } from '../utils';
+import { createJwtToken, hashPassword, verifyPassword, validateTurnstileToken } from '../auth.js';
+import { errorResponse, successResponse } from '../utils.js';
 import { deleteCookie } from 'hono/cookie';
 
 const SignupPayload = UserSchema.pick({ name: true, email: true, phone: true }).extend({

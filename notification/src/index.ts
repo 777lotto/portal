@@ -4,8 +4,8 @@ import {
   type Env,
   NotificationRequestSchema,
 } from '@portal/shared';
-import { sendEmailNotification, generateEmailHTML, generateEmailText } from './email';
-import { sendSMSNotification, handleSMSWebhook, generateSMSMessage } from './sms';
+import { sendEmailNotification, generateEmailHTML, generateEmailText } from './email.js';
+import { sendSMSNotification, handleSMSWebhook, generateSMSMessage } from './sms.js';
 
 interface NotificationEnv extends Env {}
 

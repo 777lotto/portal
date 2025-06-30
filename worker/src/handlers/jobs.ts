@@ -1,7 +1,7 @@
 // worker/src/handlers/jobs.ts - CORRECTED
 import { Context as HonoContext } from 'hono';
-import { AppEnv as WorkerAppEnv } from '../index';
-import { errorResponse as workerErrorResponse, successResponse as workerSuccessResponse } from '../utils';
+import { AppEnv as WorkerAppEnv } from '../index.js';
+import { errorResponse as workerErrorResponse, successResponse as workerSuccessResponse } from '../utils.js';
 import type { Job } from '@portal/shared';
 
 // (handleGetJobs and handleGetJobById remain the same)

@@ -1,7 +1,7 @@
 // frontend/src/components/Dashboard.tsx - CORRECTED
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getProfile, getJobs, getServices } from '../lib/api';
+import { getProfile, getJobs, getServices } from '../lib/api.js';
 import type { User, Job, Service } from '@portal/shared';
 
 function Dashboard() {

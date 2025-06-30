@@ -1,7 +1,7 @@
 // worker/src/handlers/admin/users.ts - CORRECTED
-import { errorResponse } from '../../utils';
+import { errorResponse } from '../../utils.js';
 import { Context } from 'hono';
-import type { AppEnv } from '../../index';
+import type { AppEnv } from '../../index.js';
 import type { User } from '@portal/shared'; // FIX: Import User type
 
 export async function handleGetAllUsers(c: Context<AppEnv>): Promise<Response> {

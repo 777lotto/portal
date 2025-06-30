@@ -1,5 +1,5 @@
 import { Context } from 'hono';
-import { AppEnv } from './index';
+import { AppEnv } from './index.js';
 
 export const handleSmsProxy = async (c: Context<AppEnv>) => {
     // 1. Get the sub-path the user is trying to access (e.g., /conversations, /conversation/123)

@@ -1,8 +1,8 @@
 // worker/src/handlers/stripe.ts
 // --------------------------------------
 import { Context as StripeContext } from 'hono';
-import { AppEnv as StripeAppEnv } from '../index';
-import { getStripe } from '../stripe';
+import { AppEnv as StripeAppEnv } from '../index.js';
+import { getStripe } from '../stripe.js';
 import Stripe from 'stripe';
 
 export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {

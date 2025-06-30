@@ -1,7 +1,7 @@
 // frontend/src/components/admin/AdminDashboard.tsx - CORRECTED
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { apiGet } from '../../lib/api';
+import { apiGet } from '../../lib/api.js';
 import type { User } from '@portal/shared';
 
 function AdminDashboard() {

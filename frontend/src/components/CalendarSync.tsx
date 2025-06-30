@@ -1,6 +1,6 @@
 // frontend/src/components/CalendarSync.tsx - CORRECTED
 import { useState, useEffect } from 'react';
-import { getCalendarFeed, syncCalendar } from '../lib/api';
+import { getCalendarFeed, syncCalendar } from '../lib/api.js';
 
 function CalendarSync() {
   const [feedUrl, setFeedUrl] = useState('');

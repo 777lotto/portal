@@ -1,7 +1,7 @@
 // frontend/src/components/JobDetail.tsx - CORRECTED
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { apiGet } from '../lib/api';
+import { apiGet } from '../lib/api.js';
 import type { Job } from '@portal/shared';
 
 // Define types for our new data

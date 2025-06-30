@@ -1,7 +1,7 @@
 // frontend/src/components/Services.tsx - CORRECTED
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getServices } from '../lib/api';
+import { getServices } from '../lib/api.js';
 import type { Service } from '@portal/shared';
 
 function Services() {

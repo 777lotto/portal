@@ -1,7 +1,7 @@
 // frontend/src/components/ServiceDetail.tsx - CORRECTED
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { apiGet, createInvoice, getService } from '../lib/api';
+import { apiGet, createInvoice, getService } from '../lib/api.js';
 import type { Service, Photo, Note } from '@portal/shared';
 
 function ServiceDetail() {

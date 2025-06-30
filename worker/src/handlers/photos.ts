@@ -1,7 +1,7 @@
 // worker/src/handlers/photos.ts
 import { Context as PhotoContext } from 'hono';
-import { AppEnv as PhotoAppEnv } from '../index';
-import { errorResponse as photoErrorResponse, successResponse as photoSuccessResponse } from '../utils';
+import { AppEnv as PhotoAppEnv } from '../index.js';
+import { errorResponse as photoErrorResponse, successResponse as photoSuccessResponse } from '../utils.js';
 
 export const handleGetPhotosForJob = async (c: PhotoContext<PhotoAppEnv>) => {
     const { jobId } = c.req.param();
