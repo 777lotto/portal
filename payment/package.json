@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-  "deploy": "wrangler deploy",
+  "deploy": "wrangler deploy --env production",
+  "deploy:dev": "wrangler deploy",
   "dev": "wrangler dev --port 8790 --inspector-port 9231",
   "start": "wrangler dev",
   "build": "tsc",

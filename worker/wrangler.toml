@@ -1,0 +1,78 @@
+# Top-level configuration
+name = "worker"
+main = "src/index.ts"
+account_id = "67d3a6021370e7b666fff2023b2db359"
+compatibility_date = "2024-06-20"
+compatibility_flags = [ "nodejs_compat_v2" ]
+
+# Serve the frontend application from the /frontend/dist directory
+[site]
+bucket = "../frontend/dist"
+
+# Development-time variables
+[vars]
+ENVIRONMENT = "development"
+API_VERSION = "1.0.0"
+PORTAL_URL = "http://localhost:5173/dashboard"
+
+# D1 Database binding for all environments
+[[d1_databases]]
+binding = "DB"
+database_name = "gutter_db"
+database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+migrations_dir = "./migrations"
+
+# Service bindings for all environments
+[[services]]
+binding = "NOTIFICATION_SERVICE"
+service = "notification"
+
+[[services]]
+binding = "PAYMENT_SERVICE"
+service = "payment"
+
+# Observability configuration
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+
+# ===============================================================
+#      PRODUCTION-SPECIFIC CONFIGURATION
+# ===============================================================
+[env.production]
+# Route for production
+routes = [
+  { pattern = "portal.777.foo/*", zone_name = "777.foo" }
+]
+
+# Production variables
+[env.production.vars]
+ENVIRONMENT = "production"
+API_VERSION = "1.0.0"
+PORTAL_URL = "https://portal.777.foo/dashboard"
+
+# ▼▼▼ ADD THIS SECTION ▼▼▼
+# Production D1 binding
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "gutter_db"
+database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+migrations_dir = "./migrations"
+# ▲▲▲ ADD THIS SECTION ▲▲▲
+
+# Production service bindings
+[[env.production.services]]
+binding = "NOTIFICATION_SERVICE"
+service = "notification"
+environment = "production"
+
+[[env.production.services]]
+binding = "PAYMENT_SERVICE"
+service = "payment"
+environment = "production"
+
+# Production queue binding
+[[env.production.queue_producers]]
+binding = "NOTIFICATION_QUEUE"
+queue = "notifications"

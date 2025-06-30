@@ -23,7 +23,9 @@
     "build": "tsc --build && pnpm --filter frontend build",
     "typecheck": "tsc --build --verbose --noEmit",
     "deploy": "pnpm run build && pnpm run migrate && pnpm run deploy:workers",
+    "deploy:dev": "pnpm run build && pnpm run deploy:workers:dev",
     "deploy:workers": "pnpm --filter notification run deploy && pnpm --filter payment run deploy && pnpm --filter worker run deploy",
+    "deploy:workers:dev": "pnpm --filter \"./**\" --parallel exec pnpm run deploy:dev",
     "migrate": "pnpm --filter worker exec wrangler d1 migrations apply gutter_db --env production"
   },
   "devDependencies": {
