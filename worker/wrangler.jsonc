@@ -7,15 +7,9 @@
   "compatibility_flags": [
     "nodejs_compat_v2"
   ],
-
-  // ===================================================================
-  // ▼▼▼ ADD THIS ROUTES CONFIGURATION ▼▼▼
-  // Assigns this worker to handle all traffic for your domain.
   "routes": [
     { "pattern": "portal.777.foo/*", "zone_name": "777.foo" }
   ],
-  // ===================================================================
-
   "site": {
     "bucket": "../frontend/dist"
   },
@@ -48,12 +42,9 @@
   },
   "env": {
     "production": {
-      // ===============================================================
-      // ▼▼▼ ALSO ADD THE ROUTES CONFIGURATION HERE FOR PRODUCTION ▼▼▼
       "routes": [
         { "pattern": "portal.777.foo/*", "zone_name": "777.foo" }
       ],
-      // ===============================================================
       "site": {
         "bucket": "../frontend/dist"
       },
