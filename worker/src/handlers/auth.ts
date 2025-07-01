@@ -73,21 +73,21 @@ export const handleLogin = async (c: Context<AppEnv>) => {
     try {
         const user = await c.env.DB.prepare(
             `SELECT id, name, email, phone, role, password_hash, stripe_customer_id FROM users WHERE email = ?`
-        ).bind(email.toLowerCase()).first<User & { password?: string }>();
+        ).bind(email.toLowerCase()).first<User & { password_hash?: string }>();
 
-        if (!user || !user.password) {
+        if (!user || !user.password_hash) {
             return errorResponse("Invalid email or password.", 401);
         }
 
-        const validPassword = await verifyPassword(password, user.password);
+        const validPassword = await verifyPassword(password, user.password_hash);
         if (!validPassword) {
             return errorResponse("Invalid email or password.", 401);
         }
 
-        delete user.password; // Do not include hash in JWT or response
+        delete user.password_hash; // Do not include hash in JWT or response
 
-        const token = await createJwtToken(user, c.env.JWT_SECRET);
-        return successResponse({ token, user });
+        const token = await createJwtToken(user as User, c.env.JWT_SECRET);
+        return successResponse({ token, user: user as User });
     } catch (e: any) {
         console.error("Login error:", e);
         return errorResponse("Login failed.", 500);
