@@ -16,25 +16,17 @@ binding = "DB"
 database_name = "gutter_db"
 database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
 
-# Queue consumer for all environments
-[[queues.consumers]]
-queue = "notifications"
-
-# Development-specific variables
-[vars]
-EMAIL_FROM = "no-reply@777.foo"
-SMS_FROM_NUMBER = "7706977777"
-AWS_REGION = "us-east-2"
-
-
 # ===============================================================
 #      PRODUCTION-SPECIFIC CONFIGURATION
 # ===============================================================
 [env.production]
 
-# Production-specific variables (inherits from top-level)
+# Production-specific variables
 [env.production.vars]
 ENVIRONMENT = "production"
+EMAIL_FROM = "no-reply@777.foo"
+SMS_FROM_NUMBER = "7706977777"
+AWS_REGION = "us-east-2"
 
 # Production-specific D1 binding
 [[env.production.d1_databases]]

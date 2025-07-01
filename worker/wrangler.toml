@@ -9,32 +9,36 @@ compatibility_flags = [ "nodejs_compat_v2" ]
 [site]
 bucket = "../frontend/dist"
 
-# Development-time variables
-[vars]
+# Observability configuration (applies to all environments)
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+# ===============================================================
+#      DEVELOPMENT-SPECIFIC CONFIGURATION
+# ===============================================================
+[env.development]
+# Development variables
+[env.development.vars]
 ENVIRONMENT = "development"
 API_VERSION = "1.0.0"
 PORTAL_URL = "http://localhost:5173/dashboard"
 
-# D1 Database binding for all environments
-[[d1_databases]]
+# Development D1 binding
+[[env.development.d1_databases]]
 binding = "DB"
 database_name = "gutter_db"
 database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
 migrations_dir = "./migrations"
 
-# Service bindings for all environments
-[[services]]
+# Development service bindings (will point to the dev version of the services)
+[[env.development.services]]
 binding = "NOTIFICATION_SERVICE"
 service = "notification"
 
-[[services]]
+[[env.development.services]]
 binding = "PAYMENT_SERVICE"
 service = "payment"
-
-# Observability configuration
-[observability]
-enabled = true
-head_sampling_rate = 1
 
 
 # ===============================================================
@@ -52,14 +56,12 @@ ENVIRONMENT = "production"
 API_VERSION = "1.0.0"
 PORTAL_URL = "https://portal.777.foo/dashboard"
 
-# ▼▼▼ ADD THIS SECTION ▼▼▼
 # Production D1 binding
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "gutter_db"
 database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
 migrations_dir = "./migrations"
-# ▲▲▲ ADD THIS SECTION ▲▲▲
 
 # Production service bindings
 [[env.production.services]]

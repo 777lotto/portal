@@ -5,20 +5,10 @@ account_id = "67d3a6021370e7b666fff2023b2db359"
 compatibility_date = "2024-05-28"
 compatibility_flags = [ "nodejs_compat_v2" ]
 
-# Cron Trigger for all environments
-[triggers]
-crons = [ "0 10 * * *" ]
-
 # Observability settings for all environments
 [observability]
 enabled = true
 head_sampling_rate = 1
-
-# D1 Database binding for all environments
-[[d1_databases]]
-binding = "DB"
-database_name = "gutter_db"
-database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
 
 # Development-specific variables
 [vars]
@@ -33,7 +23,7 @@ ENVIRONMENT = "development"
 [env.production.vars]
 ENVIRONMENT = "production"
 
-# Production-specific D1 binding (overrides top-level if different)
+# Production-specific D1 binding
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "gutter_db"
