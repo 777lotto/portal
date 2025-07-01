@@ -110,6 +110,7 @@ export async function fetchJson<T = unknown>(
       // For all other errors, including a 401 from the login page,
       // throw the actual error message from the API.
       throw new ApiError(errorMessage, res.status, errorDetails);
+    }
 
     // Parse response based on content type
     const responseContentType = res.headers.get("content-type") || "";
