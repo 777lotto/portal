@@ -90,24 +90,26 @@ export async function fetchJson<T = unknown>(
       
       // Handle specific status codes
       if (res.status === 401) {
-        console.log('🚪 401 Unauthorized - clearing token and redirecting to login');
-        localStorage.removeItem("token");
-        
-        // Only redirect if we're not already on the login page
-        if (!window.location.pathname.includes('/login')) {
-          // Store the current path to redirect back after login
-          const returnPath = window.location.pathname + window.location.search;
-          if (returnPath && returnPath !== '/') {
-            sessionStorage.setItem('returnPath', returnPath);
+        // A 401 from any page OTHER than login means the session is expired.
+        if (!url.endsWith('/api/login')) {
+          console.log('🚪 401 Unauthorized - clearing token and redirecting to login');
+          localStorage.removeItem("token");
+
+          if (!window.location.pathname.includes('/login')) {
+            const returnPath = window.location.pathname + window.location.search;
+            if (returnPath && returnPath !== '/') {
+              sessionStorage.setItem('returnPath', returnPath);
+            }
+            window.location.href = "/login";
           }
-          window.location.href = "/login";
+
+          throw new ApiError("Session expired. Please log in again.", 401);
         }
-        
-        throw new ApiError("Session expired. Please log in again.", 401);
       }
-      
+
+      // For all other errors, including a 401 from the login page,
+      // throw the actual error message from the API.
       throw new ApiError(errorMessage, res.status, errorDetails);
-    }
 
     // Parse response based on content type
     const responseContentType = res.headers.get("content-type") || "";

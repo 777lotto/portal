@@ -1,6 +1,12 @@
+// notification/src/email.ts - UPDATED
 import { Env, EmailParamsSchema } from '@portal/shared';
+import { generateHtml as generateWelcomeHtml, generateText as generateWelcomeText } from './templates/welcome.js';
+import { generatePasswordResetHtml, generatePasswordResetText } from './templates/passwordReset.js';
+import { generateInvoiceCreatedHtml, generateInvoiceCreatedText } from './templates/invoice.js';
+import { generateReminderHtml as generateServiceReminderHtml, generateReminderText as generateServiceReminderText } from './templates/appointment.js';
 
-// AWS Signature v4 helpers
+
+// AWS Signature v4 helpers (no changes here)
 async function sha256(message: string): Promise<ArrayBuffer> {
   const data = new TextEncoder().encode(message);
   return crypto.subtle.digest('SHA-256', data);
@@ -22,7 +28,7 @@ async function getSignatureKey(key: string, dateStamp: string, regionName: strin
     return hmacSha256(kService, 'aws4_request');
 }
 
-// Main function to send an email with Amazon SES
+// Main function to send an email with Amazon SES (no changes here)
 export async function sendEmailNotification(
   env: Env,
   params: { to: string; subject: string; html: string; text: string }
@@ -69,12 +75,12 @@ export async function sendEmailNotification(
     const signedHeaders = 'host;x-amz-date';
 
     const canonicalRequest = [
-        'POST', // Method
-        '/v2/email/outbound-emails', // Canonical URI
-        '', // Canonical Query String
-        canonicalHeaders, // Canonical Headers
-        signedHeaders, // Signed Headers
-        payloadHash, // Hashed Payload
+        'POST',
+        '/v2/email/outbound-emails',
+        '',
+        canonicalHeaders,
+        signedHeaders,
+        payloadHash,
     ].join('\n');
 
     const algorithm = 'AWS4-HMAC-SHA256';
@@ -119,29 +125,59 @@ export async function sendEmailNotification(
 }
 
 
-// Helper functions to generate email content based on type (unchanged)
+// --- Template Generation ---
+
+// UPDATED: This function now selects the correct template based on the notification type.
 export function generateEmailHTML(type: string, name: string, data: Record<string, any>): string {
-    // A simple template engine. You can use a library like Handlebars for more complex emails.
     switch(type) {
         case 'welcome':
-            return `<h1>Welcome, ${name}!</h1><p>Thanks for joining Gutter Portal.</p>`;
+            return generateWelcomeHtml({ name });
         case 'password_reset':
-            return `<p>Hi ${name},</p><p>Someone requested a password reset. If this was you, please use this link: <a href="${data.resetLink}">Reset Password</a>. This link is valid for 1 hour.</p>`;
+            return generatePasswordResetHtml({ name, resetLink: data.resetLink });
         case 'invoice_created':
-            return `<p>Hi ${name},</p><p>A new invoice for $${(data.amount / 100).toFixed(2)} has been created. You can view it here: <a href="${data.invoiceUrl}">View Invoice</a></p>`;
+            return generateInvoiceCreatedHtml({
+                name,
+                invoiceId: data.invoiceId,
+                amount: (data.amount / 100).toFixed(2),
+                dueDate: new Date(data.dueDate).toLocaleDateString(),
+                invoiceUrl: data.invoiceUrl,
+            });
+        case 'service_reminder':
+            const serviceDate = new Date(data.serviceDate);
+            return generateServiceReminderHtml({
+                name,
+                serviceType: data.serviceType,
+                date: serviceDate.toLocaleDateString(),
+                time: serviceDate.toLocaleTimeString(),
+            });
         default:
             return `<p>Hello ${name},</p><p>You have a new notification.</p>`;
     }
 }
 
+// UPDATED: This function now selects the correct text template.
 export function generateEmailText(type: string, name: string, data: Record<string, any>): string {
     switch(type) {
         case 'welcome':
-            return `Welcome, ${name}!\n\nThanks for joining Gutter Portal.`;
+            return generateWelcomeText({ name });
         case 'password_reset':
-            return `Hi ${name},\n\nSomeone requested a password reset. If this was you, please use this link: ${data.resetLink}. This link is valid for 1 hour.`;
+            return generatePasswordResetText({ name, resetLink: data.resetLink });
         case 'invoice_created':
-            return `Hi ${name},\n\nA new invoice for $${(data.amount / 100).toFixed(2)} has been created. You can view it here: ${data.invoiceUrl}`;
+            return generateInvoiceCreatedText({
+                name,
+                invoiceId: data.invoiceId,
+                amount: (data.amount / 100).toFixed(2),
+                dueDate: new Date(data.dueDate).toLocaleDateString(),
+                invoiceUrl: data.invoiceUrl,
+            });
+        case 'service_reminder':
+            const serviceDate = new Date(data.serviceDate);
+            return generateServiceReminderText({
+                name,
+                serviceType: data.serviceType,
+                date: serviceDate.toLocaleDateString(),
+                time: serviceDate.toLocaleTimeString(),
+            });
         default:
             return `Hello ${name},\n\nYou have a new notification.`;
     }
