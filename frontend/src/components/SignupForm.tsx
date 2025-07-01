@@ -8,7 +8,7 @@ interface Props {
   setToken: (token: string) => void;
 }
 
-const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+const TURNSTILE_SITE_KEY = String(import.meta.env.VITE_TURNSTILE_SITE_KEY || '');
 
 function SignupForm({ setToken }: Props) {
   const [email, setEmail] = useState('');
@@ -19,6 +19,8 @@ function SignupForm({ setToken }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
+  console.log('Turnstile Site Key Type:', typeof TURNSTILE_SITE_KEY, 'Value:', TURNSTILE_SITE_KEY);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -8,7 +8,7 @@ interface Props {
   setToken: (token: string) => void;
 }
 
-const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+const TURNSTILE_SITE_KEY = String(import.meta.env.VITE_TURNSTILE_SITE_KEY || '');
 
 function LoginForm({ setToken }: Props) {
   const [identifier, setIdentifier] = useState('');

@@ -62,6 +62,12 @@ export const handleLogin = async (c: Context<AppEnv>) => {
         return errorResponse("Invalid login data", 400);
     }
 
+    const ip = c.req.header('CF-Connecting-IP') || '127.0.0.1';
+    const turnstileSuccess = await validateTurnstileToken(parsed.data['cf-turnstile-response'], ip, c.env);
+    if (!turnstileSuccess) {
+        return errorResponse("Invalid Turnstile token. Please try again.", 403);
+    }
+
     const { email, password } = parsed.data;
 
     try {
