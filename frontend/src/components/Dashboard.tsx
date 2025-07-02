@@ -1,4 +1,4 @@
-// frontend/src/components/Dashboard.tsx - CORRECTED
+// frontend/src/components/Dashboard.tsx
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getProfile, getJobs, getServices } from '../lib/api.js';
@@ -33,35 +33,39 @@ function Dashboard() {
     loadDashboard();
   }, []);
 
-  if (isLoading) return <div className="container mt-4">Loading dashboard...</div>;
-  if (error) return <div className="container mt-4 alert alert-danger">{error}</div>;
+  if (isLoading) return <div className="text-center p-8">Loading dashboard...</div>;
+  if (error) return <div className="rounded-md bg-event-red/10 p-4 text-sm text-event-red">{error}</div>;
 
   return (
-    <div className="container mt-4">
-      {user && <h1>Welcome, {user.name}!</h1>}
-      <div className="row mt-4">
-        <div className="col-md-6">
-          <h3>Upcoming Jobs</h3>
-          <div className="list-group">
+    <div className="mx-auto max-w-7xl">
+      <header>
+        {user && <h1 className="text-3xl font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark mb-6">Welcome, {user.name}!</h1>}
+      </header>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Upcoming Jobs Card */}
+        <div className="bg-primary-light dark:bg-tertiary-dark shadow-sm rounded-lg p-6 border border-border-light dark:border-border-dark">
+          <h3 className="text-xl font-semibold mb-4 text-text-primary-light dark:text-text-primary-dark">Upcoming Jobs</h3>
+          <div className="space-y-3">
             {upcomingJobs.length > 0 ? (
               upcomingJobs.map(job => (
-                <Link key={job.id} to={`/jobs/${job.id}`} className="list-group-item list-group-item-action">
+                <Link key={job.id} to={`/jobs/${job.id}`} className="block p-3 rounded-md transition text-text-secondary-light dark:text-text-secondary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark">
                   {job.title} - {new Date(job.start).toLocaleString()}
                 </Link>
               ))
-            ) : <p>No upcoming jobs.</p>}
+            ) : <p className="text-text-secondary-light dark:text-text-secondary-dark">No upcoming jobs.</p>}
           </div>
         </div>
-        <div className="col-md-6">
-          <h3>Recent Services</h3>
-          <div className="list-group">
+        {/* Recent Services Card */}
+        <div className="bg-primary-light dark:bg-tertiary-dark shadow-sm rounded-lg p-6 border border-border-light dark:border-border-dark">
+          <h3 className="text-xl font-semibold mb-4 text-text-primary-light dark:text-text-primary-dark">Recent Services</h3>
+          <div className="space-y-3">
             {recentServices.length > 0 ? (
               recentServices.map(service => (
-                <Link key={service.id} to={`/services/${service.id}`} className="list-group-item list-group-item-action">
+                <Link key={service.id} to={`/services/${service.id}`} className="block p-3 rounded-md transition text-text-secondary-light dark:text-text-secondary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark">
                   Service on {new Date(service.service_date).toLocaleDateString()}
                 </Link>
               ))
-            ) : <p>No recent services.</p>}
+            ) : <p className="text-text-secondary-light dark:text-text-secondary-dark">No recent services.</p>}
           </div>
         </div>
       </div>

@@ -34,67 +34,48 @@ export default function Navbar({ token, setToken, user }: Props) {
     }
   };
 
-  return (
-    <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
-      <div className="container-fluid">
-        <Link className="navbar-brand" to="/">Customer Portal</Link>
-        <button
-          className="navbar-toggler"
-          type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#navbarNav"
-          aria-controls="navbarNav"
-          aria-expanded="false"
-          aria-label="Toggle navigation"
-        >
-          <span className="navbar-toggler-icon"></span>
-        </button>
-        <div className="collapse navbar-collapse" id="navbarNav">
-          <ul className="navbar-nav me-auto mb-2 mb-lg-0">
-            {token && (
-              <>
-                <li className="nav-item">
-                  <NavLink className="nav-link" to="/dashboard">Dashboard</NavLink>
-                </li>
-                <li className="nav-item">
-                  <NavLink className="nav-link" to="/services">Services</NavLink>
-                </li>
-                <li className="nav-item">
-                  <NavLink className="nav-link" to="/calendar">Calendar</NavLink>
-                </li>
-                <li className="nav-item">
-                  <NavLink className="nav-link" to="/sms">Messages</NavLink>
-                </li>
-                {user?.role === 'admin' && (
-                  <li className="nav-item">
-                    <NavLink className="nav-link" to="/admin/dashboard" style={{ color: 'cyan' }}>
-                      Admin
-                    </NavLink>
-                  </li>
-                )}
-              </>
-            )}
-          </ul>
+  const linkStyle = "px-3 py-2 rounded-md text-sm font-medium text-text-primary-dark/70 dark:text-text-primary-dark/60 hover:bg-tertiary-dark hover:text-white";
+  const activeLinkStyle = "px-3 py-2 rounded-md text-sm font-medium text-white bg-tertiary-dark";
 
-          {token && user ? (
-            <div className="d-flex align-items-center">
-              <span className="navbar-text me-3">
-                Welcome, {user.name}
-              </span>
-              <button onClick={handleLogout} className="btn btn-outline-light">
-                Logout
-              </button>
+  return (
+    <nav className="bg-secondary-dark dark:bg-primary-dark shadow-md">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between">
+          <div className="flex items-center">
+            <Link to="/" className="text-white font-bold text-lg">Customer Portal</Link>
+            <div className="hidden md:block">
+              <div className="ml-10 flex items-baseline space-x-4">
+                {token && (
+                  <>
+                    <NavLink to="/dashboard" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Dashboard</NavLink>
+                    <NavLink to="/services" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Services</NavLink>
+                    <NavLink to="/calendar" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Calendar</NavLink>
+                    <NavLink to="/sms" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Messages</NavLink>
+                    {user?.role === 'admin' && (
+                       <NavLink to="/admin/dashboard" className={({isActive}) => isActive ? activeLinkStyle + ' text-cyan-400' : linkStyle + ' text-cyan-400'}>Admin</NavLink>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
-          ) : (
-            <ul className="navbar-nav">
-              <li className="nav-item">
-                <NavLink className="nav-link" to="/login">Login</NavLink>
-              </li>
-              <li className="nav-item">
-                <NavLink className="nav-link" to="/signup">Sign Up</NavLink>
-              </li>
-            </ul>
-          )}
+          </div>
+          <div className="hidden md:block">
+            <div className="ml-4 flex items-center md:ml-6">
+              {token && user ? (
+                <>
+                  <span className="text-text-secondary-dark dark:text-text-primary-dark/80 mr-3">Welcome, {user.name}</span>
+                  <button onClick={handleLogout} className="rounded-md bg-gray-800 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700">
+                    Logout
+                  </button>
+                </>
+              ) : (
+                 <div className="flex items-baseline space-x-4">
+                    <NavLink to="/login" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Login</NavLink>
+                    <NavLink to="/signup" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Sign Up</NavLink>
+                 </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </nav>

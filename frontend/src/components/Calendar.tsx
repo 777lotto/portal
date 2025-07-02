@@ -15,6 +15,19 @@ interface CalendarEvent {
   resource: Job;
 }
 
+// Helper to determine event color based on status
+const getEventColor = (status: string) => {
+  switch (status.toLowerCase()) {
+    case 'completed':
+      return '#198754'; // Green
+    case 'upcoming':
+    case 'confirmed':
+      return '#0d6efd'; // Blue
+    default:
+      return '#dc3545'; // Red for other statuses like 'cancelled'
+  }
+};
+
 function JobCalendar() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,6 +58,16 @@ function JobCalendar() {
 
   if (isLoading) return <div className="container mt-4">Loading calendar...</div>;
   if (error) return <div className="container mt-4 alert alert-danger">{error}</div>;
+
+  const eventPropGetter = useCallback(
+    (event: CalendarEvent) => ({
+      style: {
+        backgroundColor: getEventColor(event.resource.status),
+        borderColor: getEventColor(event.resource.status),
+      },
+    }),
+    []
+  );
 
   return (
     <div className="container mt-4" style={{ height: '80vh' }}>

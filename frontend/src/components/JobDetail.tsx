@@ -57,17 +57,27 @@ function JobDetail() {
     fetchJobDetails();
   }, [id]);
 
-  if (isLoading) return <div className="container mt-4">Loading job details...</div>;
-  if (error) return <div className="container mt-4 alert alert-danger">Error: {error}</div>;
-  if (!job) return <div className="container mt-4"><h2>Job not found</h2></div>;
+  if (isLoading) return <div className="text-center p-8">Loading job details...</div>;
+  if (error) return <div className="rounded-md bg-event-red/10 p-4 text-sm text-event-red">{error}</div>;
+  if (!job) return <div className="text-center p-8"><h2>Job not found</h2></div>;
 
   return (
-    <div className="container mt-4">
-      <div className="card">
-        <div className="card-header"><h2>Job Detail: {job.title}</h2></div>
-        <div className="card-body">
-          <p><strong>Status:</strong> <span className={`badge bg-${job.status === 'completed' ? 'success' : 'secondary'}`}>{job.status}</span></p>
-        </div>
+    <div className="bg-primary-light dark:bg-tertiary-dark shadow-sm rounded-lg border border-border-light dark:border-border-dark">
+      <div className="px-4 py-5 sm:px-6">
+        <h2 className="text-2xl font-bold leading-6">Job Detail: {job.title}</h2>
+      </div>
+      <div className="border-t border-border-light dark:border-border-dark px-4 py-5 sm:p-0">
+         <dl className="sm:divide-y sm:divide-gray-200 dark:sm:divide-gray-700">
+            <div className="py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:py-5 sm:px-6">
+               <dt className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Status</dt>
+               <dd className="mt-1 text-sm sm:col-span-2 sm:mt-0">
+                <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${statusStyle}`}>
+                  {job.status}
+                </span>
+               </dd>
+            </div>
+            {/* Add other job details here in a similar dl/dt/dd format */}
+         </dl>
       </div>
     </div>
   );

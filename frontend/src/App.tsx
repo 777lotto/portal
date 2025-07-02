@@ -35,6 +35,13 @@ function App() {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
+    const useDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if (useDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+
     const initializeApp = async () => {
       try {
         const storedToken = localStorage.getItem("token");
@@ -79,41 +86,43 @@ function App() {
   };
 
   if (!isReady) {
-    return <div>Loading...</div>;
+    return <div className="p-8 text-center">Loading...</div>;
   }
 
   return (
-    <>
+    <div className="min-h-screen bg-primary-light dark:bg-secondary-dark">
       <Navbar token={token} user={user} setToken={handleSetToken} />
-      <Routes>
-        {/* --- Customer-facing Routes --- */}
-        <Route path="/" element={<Navigate to={token ? "/dashboard" : "/login"} replace />} />
-        <Route path="/login" element={token ? <Navigate to="/dashboard" replace /> : <LoginForm setToken={handleSetToken} />} />
-        <Route path="/signup" element={token ? <Navigate to="/dashboard" replace /> : <SignupForm setToken={handleSetToken} />} />
+      <main className="p-4 sm:p-6 lg:p-8">
+        <Routes>
+          {/* --- Customer-facing Routes --- */}
+          <Route path="/" element={<Navigate to={token ? "/dashboard" : "/login"} replace />} />
+          <Route path="/login" element={token ? <Navigate to="/dashboard" replace /> : <LoginForm setToken={handleSetToken} />} />
+          <Route path="/signup" element={token ? <Navigate to="/dashboard" replace /> : <SignupForm setToken={handleSetToken} />} />
 
-        <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/login" replace />} />
-        <Route path="/services" element={token ? <Services /> : <Navigate to="/login" replace />} />
-        <Route path="/services/:id" element={token ? <ServiceDetail /> : <Navigate to="/login" replace />} />
-        <Route path="/calendar" element={token ? <JobCalendar /> : <Navigate to="/login" replace />} />
-        <Route path="/jobs/:id" element={token ? <JobDetail /> : <Navigate to="/login" replace />} />
-        <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/login" replace />} />
-        <Route path="/sms" element={token ? <SMSConversations /> : <Navigate to="/login" replace />} />
-        <Route path="/sms/:phoneNumber" element={token ? <SMSConversation /> : <Navigate to="/login" replace />} />
+          <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/login" replace />} />
+          <Route path="/services" element={token ? <Services /> : <Navigate to="/login" replace />} />
+          <Route path="/services/:id" element={token ? <ServiceDetail /> : <Navigate to="/login" replace />} />
+          <Route path="/calendar" element={token ? <JobCalendar /> : <Navigate to="/login" replace />} />
+          <Route path="/jobs/:id" element={token ? <JobDetail /> : <Navigate to="/login" replace />} />
+          <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/login" replace />} />
+          <Route path="/sms" element={token ? <SMSConversations /> : <Navigate to="/login" replace />} />
+          <Route path="/sms/:phoneNumber" element={token ? <SMSConversation /> : <Navigate to="/login" replace />} />
 
-        {/* --- NEW: Admin Routes --- */}
-        <Route
-          path="/admin/dashboard"
-          element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/dashboard" replace />}
-        />
-        <Route
-          path="/admin/users/:userId"
-          element={user?.role === 'admin' ? <AdminUserDetail /> : <Navigate to="/dashboard" replace />}
-        />
+          {/* --- NEW: Admin Routes --- */}
+          <Route
+            path="/admin/dashboard"
+            element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/dashboard" replace />}
+          />
+          <Route
+            path="/admin/users/:userId"
+            element={user?.role === 'admin' ? <AdminUserDetail /> : <Navigate to="/dashboard" replace />}
+          />
 
-        {/* --- Catch-all redirect --- */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </>
+          {/* --- Catch-all redirect --- */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+    </div>
   );
 }
 

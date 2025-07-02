@@ -1,3 +1,58 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+body {
+  @apply bg-primary-light text-text-primary-light dark:bg-secondary-dark dark:text-text-primary-dark transition-colors duration-300;
+}
+
+:root {
+  /* Light Theme (Default) */
+  --font-color: #212529;
+  --bg-color: #ffffff;
+  --card-bg-color: #f8f9fa;
+  --card-border-color: #dee2e6;
+  --primary-color: #0d6efd; /* Blue for primary actions */
+  --secondary-color: #6c757d; /* Grey for secondary actions */
+  --success-color: #198754; /* Green for success */
+  --danger-color: #dc3545;  /* Red for danger/errors */
+  --info-color: #0dcaf0;    /* Cyan for info */
+  --link-color: #0d6efd;
+  --input-bg-color: #fff;
+  --input-border-color: #ced4da;
+  --navbar-bg-color: #343a40;
+  --navbar-font-color: rgba(255, 255, 255, 0.85);
+  --navbar-link-hover-color: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --font-color: #dee2e6;
+    --bg-color: #212529;
+    --card-bg-color: #343a40;
+    --card-border-color: #495057;
+    --link-color: #3b9dff;
+    --input-bg-color: #495057;
+    --input-border-color: #6c757d;
+    --navbar-bg-color: #1a1d20;
+  }
+}
+
+/* Base Styles */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-color);
+  color: var(--font-color);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+}
