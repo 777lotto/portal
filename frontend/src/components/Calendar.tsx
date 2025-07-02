@@ -7,7 +7,9 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { getJobs } from '../lib/api.js';
 import type { Job } from '@portal/shared';
 
-const localizer = momentLocalizer(moment);
+// FIX: Handle potential CJS/ESM module interop issues with the moment library in Vite.
+// This ensures that the correct function object is passed to the localizer.
+const localizer = momentLocalizer((moment as any).default || moment);
 
 interface CalendarEvent {
   title: string;
