@@ -25,12 +25,19 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
             case 'invoice.paid':
                 const invoice = event.data.object as Stripe.Invoice;
                 console.log(`Invoice ${invoice.id} was paid successfully.`);
-                // Here you would update the service status in your DB
+
+                // Update the service status in your DB
                 await c.env.DB.prepare(
                     `UPDATE services SET status = 'paid' WHERE stripe_invoice_id = ?`
                 ).bind(invoice.id).run();
+
+                // NEW: Also update the corresponding job's status to 'completed'
+                await c.env.DB.prepare(
+                    `UPDATE jobs SET status = 'completed' WHERE stripe_invoice_id = ?`
+                ).bind(invoice.id).run();
+
                 break;
-            // ... handle other event types
+
             default:
                 console.log(`Unhandled event type ${event.type}`);
         }

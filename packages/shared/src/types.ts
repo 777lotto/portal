@@ -28,6 +28,17 @@ export const ServiceSchema = z.object({
 });
 export type Service = z.infer<typeof ServiceSchema>;
 
+// Define the new, stricter set of statuses for a Job
+export const JobStatusEnum = z.enum([
+  'upcoming',
+  'confirmed',
+  'completed',
+  'payment_pending',
+  'past_due',
+  'cancelled'
+]);
+export type JobStatus = z.infer<typeof JobStatusEnum>;
+
 // This resolves the majority of the frontend errors.
 export const JobSchema = z.object({
   id: z.string(),
@@ -36,13 +47,15 @@ export const JobSchema = z.object({
   description: z.string().optional().nullable(),
   start: z.string(), // ISO date string
   end: z.string(),   // ISO date string
-  status: z.string(),
-  // Added optional fields seen in worker/src/calendar.ts
+  status: JobStatusEnum, // Use the new enum
   recurrence: z.string().optional().nullable(),
   rrule: z.string().optional().nullable(),
   crewId: z.string().optional().nullable(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
+  // Add new fields to link jobs to invoices for our cron job
+  stripe_invoice_id: z.string().optional().nullable(),
+  invoice_created_at: z.string().optional().nullable(),
 });
 export type Job = z.infer<typeof JobSchema>;
 

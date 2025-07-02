@@ -1,9 +1,10 @@
-// notification/src/email.ts - UPDATED
+// notification/src/email.ts - CORRECTED
 import { Env, EmailParamsSchema } from '@portal/shared';
 import { generateHtml as generateWelcomeHtml, generateText as generateWelcomeText } from './templates/welcome.js';
 import { generatePasswordResetHtml, generatePasswordResetText } from './templates/passwordReset.js';
-import { generateInvoiceCreatedHtml, generateInvoiceCreatedText } from './templates/invoice.js';
+import { generateInvoiceCreatedHtml, generateInvoiceCreatedText, generateInvoicePaidHtml, generateInvoicePaidText } from './templates/invoice.js';
 import { generateReminderHtml as generateServiceReminderHtml, generateReminderText as generateServiceReminderText } from './templates/appointment.js';
+import { generatePastDueHtml, generatePastDueText } from './templates/pastDue.js';
 
 
 // AWS Signature v4 helpers (no changes here)
@@ -142,6 +143,20 @@ export function generateEmailHTML(type: string, name: string, data: Record<strin
                 dueDate: new Date(data.dueDate).toLocaleDateString(),
                 invoiceUrl: data.invoiceUrl,
             });
+        case 'invoice_paid':
+            return generateInvoicePaidHtml({
+                name,
+                invoiceId: data.invoiceId,
+                amount: (data.amount / 100).toFixed(2),
+                dueDate: new Date(data.dueDate).toLocaleDateString(),
+                invoiceUrl: data.invoiceUrl,
+            });
+        case 'invoice_past_due':
+            return generatePastDueHtml({
+                name,
+                invoiceId: data.invoiceId,
+                invoiceUrl: data.invoiceUrl,
+            });
         case 'service_reminder':
             const serviceDate = new Date(data.serviceDate);
             return generateServiceReminderHtml({
@@ -170,6 +185,20 @@ export function generateEmailText(type: string, name: string, data: Record<strin
                 dueDate: new Date(data.dueDate).toLocaleDateString(),
                 invoiceUrl: data.invoiceUrl,
             });
+        case 'invoice_paid':
+            return generateInvoicePaidText({
+                name,
+                invoiceId: data.invoiceId,
+                amount: (data.amount / 100).toFixed(2),
+                dueDate: new Date(data.dueDate).toLocaleDateString(),
+                invoiceUrl: data.invoiceUrl,
+            });
+        case 'invoice_past_due':
+            return generatePastDueText({
+                name,
+                invoiceId: data.invoiceId,
+                invoiceUrl: data.invoiceUrl,
+            });
         case 'service_reminder':
             const serviceDate = new Date(data.serviceDate);
             return generateServiceReminderText({
@@ -182,3 +211,4 @@ export function generateEmailText(type: string, name: string, data: Record<strin
             return `Hello ${name},\n\nYou have a new notification.`;
     }
 }
+

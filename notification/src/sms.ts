@@ -1,4 +1,4 @@
-// notification/src/sms.ts - UPDATED
+// notification/src/sms.ts - CORRECTED
 import {
   type Env,
   type SendSMSResult,
@@ -7,6 +7,7 @@ import {
   type User,
 } from '@portal/shared';
 import { z } from 'zod';
+import type { D1Database } from '@cloudflare/workers-types';
 
 // --- Type Definitions & Schemas ---
 
@@ -210,6 +211,8 @@ export function generateSMSMessage(type: string, data: Record<string, any>): str
             return `Gutter Portal: Your invoice for $${(data.amount / 100).toFixed(2)} is ready. Check your email to view and pay.`;
         case 'invoice_reminder':
             return `Gutter Portal Reminder: Your invoice is due soon. Please check your email to pay.`;
+        case 'invoice_past_due':
+            return `Gutter Portal Reminder: Your invoice #${data.invoiceId} is past due. Please check your email to pay now and avoid service interruptions.`;
         case 'service_reminder':
             const serviceDate = new Date(data.serviceDate).toLocaleDateString();
             return `Gutter Portal Reminder: You have a service appointment for "${data.serviceType}" scheduled for tomorrow, ${serviceDate}.`;

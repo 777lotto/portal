@@ -1,4 +1,4 @@
-// worker/src/handlers/auth.ts - CORRECTED
+// 777lotto/portal/portal-bet/worker/src/handlers/auth.ts
 import { Context } from 'hono';
 import { z } from 'zod';
 import { AppEnv } from '../index.js';
@@ -26,6 +26,8 @@ export const handleSignup = async (c: Context<AppEnv>) => {
     }
 
     const { name, email, password, phone } = parsed.data;
+    const lowercasedEmail = email.toLowerCase();
+
     const ip = c.req.header('CF-Connecting-IP') || '127.0.0.1';
     const turnstileSuccess = await validateTurnstileToken(parsed.data['cf-turnstile-response'], ip, c.env);
     if (!turnstileSuccess) {
@@ -33,25 +35,51 @@ export const handleSignup = async (c: Context<AppEnv>) => {
     }
 
     try {
-        const hashedPassword = await hashPassword(password);
-        const { results } = await c.env.DB.prepare(
-            `INSERT INTO users (name, email, password_hash, phone, role) VALUES (?, ?, ?, ?, 'customer') RETURNING id, name, email, phone, role`
-        ).bind(name, email.toLowerCase(), hashedPassword, phone).all<User>();
+        const existingUser = await c.env.DB.prepare(
+            `SELECT id, password_hash FROM users WHERE email = ?`
+        ).bind(lowercasedEmail).first<{id: number, password_hash: string | null}>();
 
-        if (!results || results.length === 0) {
-            return errorResponse("Failed to create account.", 500);
+        if (existingUser && existingUser.password_hash) {
+            // User exists and has a password. They should log in.
+            return errorResponse("An account with this email already exists. Please log in or use password reset.", 409);
         }
 
-        const newUser = results[0];
-        const token = await createJwtToken(newUser, c.env.JWT_SECRET);
-        return successResponse({ token, user: newUser });
+        const hashedPassword = await hashPassword(password);
+        let userForToken: User;
+
+        if (existingUser) {
+            // User exists but has no password. Update their record to set one.
+            const { results } = await c.env.DB.prepare(
+                `UPDATE users SET password_hash = ?, name = ?, phone = ? WHERE id = ? RETURNING id, name, email, phone, role`
+            ).bind(hashedPassword, name, phone, existingUser.id).all<User>();
+
+            if (!results || results.length === 0) {
+                return errorResponse("Failed to update your account. Please contact support.", 500);
+            }
+            userForToken = results[0];
+        } else {
+            // User does not exist, create a new one.
+            const { results } = await c.env.DB.prepare(
+                `INSERT INTO users (name, email, password_hash, phone, role) VALUES (?, ?, ?, ?, 'customer') RETURNING id, name, email, phone, role`
+            ).bind(name, lowercasedEmail, hashedPassword, phone).all<User>();
+
+            if (!results || results.length === 0) {
+                return errorResponse("Failed to create account.", 500);
+            }
+            userForToken = results[0];
+        }
+
+        const token = await createJwtToken(userForToken, c.env.JWT_SECRET);
+        return successResponse({ token, user: userForToken });
 
     } catch (e: any) {
+        // This will catch unexpected DB errors, but not the unique constraint anymore.
         if (e.message?.includes('UNIQUE constraint failed')) {
-            return errorResponse("An account with this email already exists.", 409);
+            // This is a race condition fallback, in case a user is created between the SELECT and INSERT.
+             return errorResponse("An account with this email already exists.", 409);
         }
         console.error("Signup error:", e);
-        return errorResponse("Failed to create account.", 500);
+        return errorResponse("An unexpected error occurred during signup.", 500);
     }
 };
 

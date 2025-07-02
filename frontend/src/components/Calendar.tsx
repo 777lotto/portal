@@ -1,5 +1,6 @@
 // frontend/src/components/Calendar.tsx - CORRECTED
-import { useState, useEffect } from 'react';
+
+import { useState, useEffect, useCallback } from 'react';
 import { Calendar as BigCalendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -15,16 +16,23 @@ interface CalendarEvent {
   resource: Job;
 }
 
-// Helper to determine event color based on status
+// Helper to determine event color based on the new status list
 const getEventColor = (status: string) => {
   switch (status.toLowerCase()) {
-    case 'completed':
-      return '#198754'; // Green
     case 'upcoming':
+      return '#ffc107'; // Yellow
     case 'confirmed':
       return '#0d6efd'; // Blue
+    case 'completed': // This now means "completed and paid"
+      return '#198754'; // Green
+    case 'payment_pending': // New status for "job complete, payment incomplete"
+      return '#fd7e14'; // Orange
+    case 'past_due': // New status for "past due payment"
+      return '#dc3545'; // Red
+    case 'cancelled':
+      return '#6c757d'; // Grey
     default:
-      return '#dc3545'; // Red for other statuses like 'cancelled'
+      return '#6c757d'; // Default to grey
   }
 };
 
@@ -75,6 +83,7 @@ function JobCalendar() {
       <BigCalendar
         localizer={localizer}
         events={events}
+        eventPropGetter={eventPropGetter}
         startAccessor="start"
         endAccessor="end"
         style={{ height: '100%' }}
