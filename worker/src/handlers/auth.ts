@@ -6,6 +6,9 @@ import { User, UserSchema } from '@portal/shared';
 import { createJwtToken, hashPassword, verifyPassword, validateTurnstileToken } from '../auth.js';
 import { errorResponse, successResponse } from '../utils.js';
 import { deleteCookie } from 'hono/cookie';
+// --- NEW: Import Stripe functions ---
+import { getStripe, createStripeCustomer } from '../stripe.js';
+
 
 const SignupPayload = UserSchema.pick({ name: true, email: true, phone: true }).extend({
     password: z.string().min(8),
@@ -41,7 +44,7 @@ export const handleSignup = async (c: Context<AppEnv>) => {
 
         if (existingUser && existingUser.password_hash) {
             // User exists and has a password. They should log in.
-            return errorResponse("An account with this email already exists. Please log in or use password reset.", 409);
+            return errorResponse("An account with this email already exists. Please log in or use a password reset.", 409);
         }
 
         const hashedPassword = await hashPassword(password);
@@ -50,7 +53,7 @@ export const handleSignup = async (c: Context<AppEnv>) => {
         if (existingUser) {
             // User exists but has no password. Update their record to set one.
             const { results } = await c.env.DB.prepare(
-                `UPDATE users SET password_hash = ?, name = ?, phone = ? WHERE id = ? RETURNING id, name, email, phone, role`
+                `UPDATE users SET password_hash = ?, name = ?, phone = ? WHERE id = ? RETURNING id, name, email, phone, role, stripe_customer_id`
             ).bind(hashedPassword, name, phone, existingUser.id).all<User>();
 
             if (!results || results.length === 0) {
@@ -69,13 +72,23 @@ export const handleSignup = async (c: Context<AppEnv>) => {
             userForToken = results[0];
         }
 
+        // --- NEW: Create a Stripe customer and link it to the user ---
+        if (!userForToken.stripe_customer_id) {
+            const stripe = getStripe(c.env);
+            const customer = await createStripeCustomer(stripe, userForToken);
+            await c.env.DB.prepare(
+                `UPDATE users SET stripe_customer_id = ? WHERE id = ?`
+            ).bind(customer.id, userForToken.id).run();
+            userForToken.stripe_customer_id = customer.id;
+            console.log(`Created Stripe customer ${customer.id} for user ${userForToken.id}`);
+        }
+        // --- END NEW ---
+
         const token = await createJwtToken(userForToken, c.env.JWT_SECRET);
         return successResponse({ token, user: userForToken });
 
     } catch (e: any) {
-        // This will catch unexpected DB errors, but not the unique constraint anymore.
         if (e.message?.includes('UNIQUE constraint failed')) {
-            // This is a race condition fallback, in case a user is created between the SELECT and INSERT.
              return errorResponse("An account with this email already exists.", 409);
         }
         console.error("Signup error:", e);
@@ -131,12 +144,8 @@ export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
 };
 
 export const handleLogout = async (c: Context<AppEnv>) => {
-  // Clear the 'session' cookie. Ensure the path and domain match
-  // how it was set during login if applicable.
   deleteCookie(c, 'session', {
     path: '/',
-    // secure: true, // Recommended for production
-    // httpOnly: true, // Recommended for production
   });
   return successResponse({ message: "Logged out successfully" });
 };

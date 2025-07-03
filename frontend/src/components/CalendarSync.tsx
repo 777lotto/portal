@@ -9,11 +9,27 @@ function CalendarSync() {
   const [message, setMessage] = useState<{type: 'success' | 'danger', text: string} | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      setFeedUrl(getCalendarFeed(token));
-    }
-  }, []);
+    // REFACTORED: Fetch the calendar feed URL from the secure endpoint
+    const fetchFeed = async () => {
+        try {
+            const icsContent = await getCalendarFeed();
+            // Create a downloadable blob URL from the iCal content
+            const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+            setFeedUrl(URL.createObjectURL(blob));
+        } catch (err: any) {
+            setMessage({ type: 'danger', text: `Could not fetch calendar feed: ${err.message}` });
+        }
+    };
+
+    fetchFeed();
+
+    // Clean up the object URL when the component unmounts
+    return () => {
+        if (feedUrl) {
+            URL.revokeObjectURL(feedUrl);
+        }
+    };
+  }, []); // The feedUrl dependency is removed to prevent re-fetching
 
   const handleSync = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,10 +54,15 @@ function CalendarSync() {
         <div className="card-body">
           <h5 className="card-title">Your Personal Calendar Feed</h5>
           <p>Add this URL to your calendar application to see your jobs.</p>
-          <input type="text" readOnly className="form-control" value={feedUrl} />
-          <button className="btn btn-secondary mt-2" onClick={() => navigator.clipboard.writeText(feedUrl)}>
-            Copy URL
-          </button>
+          {/* REFACTORED: Now uses an anchor tag for direct download */}
+          <input type="text" readOnly className="form-control" value={feedUrl} disabled={!feedUrl} />
+          <a
+            href={feedUrl}
+            download="my-jobs.ics"
+            className={`btn btn-primary mt-2 ${!feedUrl ? 'disabled' : ''}`}
+          >
+            Download Feed
+          </a>
         </div>
       </div>
 

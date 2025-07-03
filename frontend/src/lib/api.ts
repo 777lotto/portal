@@ -62,5 +62,6 @@ export const getSmsConversation = (phoneNumber: string) => apiGet<SMSMessage[]>(
 export const sendSms = (phoneNumber: string, message: string) => apiPost<SMSMessage>('/api/sms/send', { to: phoneNumber, message });
 
 // --- CALENDAR ---
-export const getCalendarFeed = (token: string) => `/api/calendar.ics?token=${token}`;
+// REFACTORED: Now fetches the feed securely via an API call
+export const getCalendarFeed = () => apiGet<string>('/api/calendar.ics');
 export const syncCalendar = (url: string) => apiPost('/api/calendar-sync', { url });

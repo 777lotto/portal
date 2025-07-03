@@ -6,7 +6,7 @@ import { Env, User, Service } from '@portal/shared';
 
 export function getStripe(env: Env): Stripe {
   return new Stripe(env.STRIPE_SECRET_KEY, {
-    // FIX: Use the specific apiVersion the installed type definitions expect.
+    // FIX: Use the latest stable apiVersion
     apiVersion: '2025-05-28.basil',
     httpClient: Stripe.createFetchHttpClient(),
   });
@@ -17,9 +17,11 @@ export async function createStripeCustomer(stripe: Stripe, user: User): Promise<
 
   const existingCustomers = await stripe.customers.list({ email: email, limit: 1 });
   if (existingCustomers.data.length > 0) {
+    console.log(`Found existing Stripe customer for email: ${email}`);
     return existingCustomers.data[0];
   }
 
+  console.log(`Creating new Stripe customer for email: ${email}`);
   return stripe.customers.create({
       email: email,
       name: name,
@@ -45,8 +47,6 @@ export async function createStripeInvoice(c: Context<AppEnv>, service: Service):
         throw new Error("Service does not have a price.");
     }
 
-    // FIX: Bypass incorrect type definition for price_data using 'as any'.
-    // The structure is correct according to Stripe's API documentation.
     await stripe.invoiceItems.create({
       customer: user.stripe_customer_id,
       price_data: {
@@ -55,7 +55,7 @@ export async function createStripeInvoice(c: Context<AppEnv>, service: Service):
           name: service.notes || 'General Service',
         },
         unit_amount: service.price_cents,
-      } as any, // This assertion bypasses the incorrect type check.
+      } as any,
       quantity: 1,
     });
 
