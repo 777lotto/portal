@@ -31,11 +31,5 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-
-    // Defines global constants to be replaced at build time.
-    define: {
-      'import.meta.env.VITE_TURNSTILE_SITE_KEY': JSON.stringify(env.VITE_TURNSTILE_SITE_KEY),
-      'import.meta.env.VITE_STRIPE_PK': JSON.stringify(env.VITE_STRIPE_PK),
-    },
   };
 });

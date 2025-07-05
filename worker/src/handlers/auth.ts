@@ -52,6 +52,18 @@ export const handleSignup = async (c: Context<AppEnv>) => {
 
         if (existingUser) {
             // User exists but has no password. Update their record to set one.
+            // Proactively check if the provided phone number is already used by ANOTHER user.
+            if (phone) {
+                const phoneUser = await c.env.DB.prepare(
+                    `SELECT id FROM users WHERE phone = ?`
+                ).bind(phone).first<{id: number}>();
+
+                // If a user with this phone exists, and it's not the user we are currently updating...
+                if (phoneUser && phoneUser.id !== existingUser.id) {
+                    return errorResponse("This phone number is already in use by another account.", 409);
+                }
+            }
+
             const { results } = await c.env.DB.prepare(
                 `UPDATE users SET password_hash = ?, name = ?, phone = ? WHERE id = ? RETURNING id, name, email, phone, role, stripe_customer_id`
             ).bind(hashedPassword, name, phone, existingUser.id).all<User>();

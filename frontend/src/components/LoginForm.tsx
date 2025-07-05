@@ -1,4 +1,4 @@
-// frontend/src/components/LoginForm.tsx - CORRECTED
+// frontend/src/components/LoginForm.tsx - MODIFIED
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { login } from '../lib/api.js';
@@ -8,9 +8,16 @@ interface Props {
   setToken: (token: string) => void;
 }
 
-const TURNSTILE_SITE_KEY = String(import.meta.env.VITE_TURNSTILE_SITE_KEY || '');
+const getTurnstileSiteKey = () => {
+  const key = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+  if (typeof key === 'string' && key) {
+    return key;
+  }
+  throw new Error('VITE_TURNSTILE_SITE_KEY is not set or is not a string. Please check your .env file.');
+};
 
 function LoginForm({ setToken }: Props) {
+  const TURNSTILE_SITE_KEY = getTurnstileSiteKey();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
@@ -55,12 +62,12 @@ function LoginForm({ setToken }: Props) {
               <h3 className="card-title text-center">Login</h3>
               <form onSubmit={handleSubmit}>
                 <div className="mb-3">
-                  <label>Email</label>
-                  <input type="email" value={identifier} onChange={e => setIdentifier(e.target.value)} className="form-control" required />
+                  <label htmlFor="email">Email</label>
+                  <input type="email" id="email" name="email" autoComplete="email" value={identifier} onChange={e => setIdentifier(e.target.value)} className="form-control" required />
                 </div>
                 <div className="mb-3">
-                  <label>Password</label>
-                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="form-control" required />
+                  <label htmlFor="password">Password</label>
+                  <input type="password" id="password" name="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} className="form-control" required />
                 </div>
                 <div className="mb-3 d-flex justify-content-center">
                     <Turnstile sitekey={TURNSTILE_SITE_KEY} onVerify={setTurnstileToken} />

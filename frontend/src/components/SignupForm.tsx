@@ -1,4 +1,4 @@
-// frontend/src/components/SignupForm.tsx - CORRECTED
+// frontend/src/components/SignupForm.tsx - MODIFIED
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signup } from '../lib/api.js';
@@ -8,9 +8,17 @@ interface Props {
   setToken: (token: string) => void;
 }
 
-const TURNSTILE_SITE_KEY = String(import.meta.env.VITE_TURNSTILE_SITE_KEY || '');
+const getTurnstileSiteKey = () => {
+  const key = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+  if (typeof key === 'string' && key) {
+    return key;
+  }
+  throw new Error('VITE_TURNSTILE_SITE_KEY is not set or is not a string. Please check your .env file.');
+};
+
 
 function SignupForm({ setToken }: Props) {
+  const TURNSTILE_SITE_KEY = getTurnstileSiteKey();
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
@@ -19,8 +27,6 @@ function SignupForm({ setToken }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-
-  console.log('Turnstile Site Key Type:', typeof TURNSTILE_SITE_KEY, 'Value:', TURNSTILE_SITE_KEY);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,20 +67,20 @@ function SignupForm({ setToken }: Props) {
               <h3 className="card-title text-center">Sign Up</h3>
               <form onSubmit={handleSubmit}>
                 <div className="mb-3">
-                  <label>Name</label>
-                  <input type="text" value={name} onChange={e => setName(e.target.value)} className="form-control" required />
+                  <label htmlFor="name">Name</label>
+                  <input type="text" id="name" name="name" autoComplete="name" value={name} onChange={e => setName(e.target.value)} className="form-control" required />
                 </div>
                  <div className="mb-3">
-                  <label>Email</label>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="form-control" required />
+                  <label htmlFor="email">Email</label>
+                  <input type="email" id="email" name="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} className="form-control" required />
                 </div>
                  <div className="mb-3">
-                  <label>Phone</label>
-                  <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="form-control" required />
+                  <label htmlFor="phone">Phone</label>
+                  <input type="tel" id="phone" name="phone" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} className="form-control" required />
                 </div>
                  <div className="mb-3">
-                  <label>Password</label>
-                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="form-control" required />
+                  <label htmlFor="password">Password</label>
+                  <input type="password" id="password" name="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} className="form-control" required />
                 </div>
                  <div className="mb-3 d-flex justify-content-center">
                     <Turnstile sitekey={TURNSTILE_SITE_KEY} onVerify={setTurnstileToken} />

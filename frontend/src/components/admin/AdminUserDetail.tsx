@@ -77,16 +77,17 @@ function AdminUserDetail() {
           <div className="card">
             <div className="card-body">
               <h5 className="card-title">Add a Note</h5>
-              {/* FIX: Form handlers and messages are now connected */}
               <form onSubmit={handleAddNote}>
                 <div className="mb-3">
-                  <textarea value={noteContent} onChange={(e) => setNoteContent(e.target.value)} required />
+                  <label htmlFor="noteContent" className="form-label">Note Content</label>
+                  <textarea id="noteContent" name="noteContent" className="form-control" value={noteContent} onChange={(e) => setNoteContent(e.target.value)} required />
                 </div>
                 <div className="mb-3">
-                  <input value={noteJobId} onChange={(e) => setNoteJobId(e.target.value)} />
+                   <label htmlFor="noteJobId" className="form-label">Associated Job ID (Optional)</label>
+                  <input id="noteJobId" name="noteJobId" className="form-control" value={noteJobId} onChange={(e) => setNoteJobId(e.target.value)} />
                 </div>
                 {noteMessage && <div className={`alert alert-${noteMessage.type}`}>{noteMessage.text}</div>}
-                <button type="submit" disabled={isNoteSubmitting}>{isNoteSubmitting ? 'Submitting...' : 'Add Note'}</button>
+                <button type="submit" className="btn btn-secondary" disabled={isNoteSubmitting}>{isNoteSubmitting ? 'Submitting...' : 'Add Note'}</button>
               </form>
             </div>
           </div>
@@ -97,13 +98,15 @@ function AdminUserDetail() {
               <h5 className="card-title">Upload a Photo</h5>
               <form onSubmit={handlePhotoUpload}>
                 <div className="mb-3">
-                  <input type="file" id="photo-file-input" onChange={(e) => setPhotoFile(e.target.files ? e.target.files[0] : null)} required />
+                   <label htmlFor="photo-file-input" className="form-label">Photo</label>
+                  <input type="file" id="photo-file-input" name="photo" className="form-control" onChange={(e) => setPhotoFile(e.target.files ? e.target.files[0] : null)} required />
                 </div>
                 <div className="mb-3">
-                  <input value={photoJobId} onChange={(e) => setPhotoJobId(e.target.value)} />
+                  <label htmlFor="photoJobId" className="form-label">Associated Job ID (Optional)</label>
+                  <input id="photoJobId" name="photoJobId" className="form-control" value={photoJobId} onChange={(e) => setPhotoJobId(e.target.value)} />
                 </div>
                  {photoMessage && <div className={`alert alert-${photoMessage.type}`}>{photoMessage.text}</div>}
-                <button type="submit" disabled={isPhotoSubmitting}>{isPhotoSubmitting ? 'Uploading...' : 'Upload Photo'}</button>
+                <button type="submit" className="btn btn-secondary" disabled={isPhotoSubmitting}>{isPhotoSubmitting ? 'Uploading...' : 'Upload Photo'}</button>
               </form>
             </div>
           </div>
