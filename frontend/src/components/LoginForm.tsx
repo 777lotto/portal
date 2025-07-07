@@ -1,40 +1,51 @@
-// frontend/src/components/LoginForm.tsx - MODIFIED
-import { useState } from 'react';
+// frontend/src/components/LoginForm.tsx - CORRECTED
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { login } from '../lib/api.js';
-import Turnstile from './Turnstile.js';
+
+// Add a type definition for our new global function
+declare global {
+  interface Window {
+    onTurnstileSuccess?: (token: string) => void;
+  }
+}
 
 interface Props {
   setToken: (token: string) => void;
 }
 
-const getTurnstileSiteKey = () => {
-  const key = import.meta.env.VITE_TURNSTILE_SITE_KEY;
-  if (typeof key === 'string' && key) {
-    return key;
-  }
-  throw new Error('VITE_TURNSTILE_SITE_KEY is not set or is not a string. Please check your .env file.');
-};
-
 function LoginForm({ setToken }: Props) {
-  const TURNSTILE_SITE_KEY = getTurnstileSiteKey();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState(''); // Re-add state for the token
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
+  // This effect will create the callback function that our Zaraz script calls
+  useEffect(() => {
+    window.onTurnstileSuccess = (token: string) => {
+      setTurnstileToken(token);
+    };
+
+    // Cleanup the function when the component unmounts
+    return () => {
+      delete window.onTurnstileSuccess;
+    };
+  }, []); // Empty array ensures this only runs once
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Re-add the check for the token
     if (!turnstileToken) {
-      setError("Please complete the security check.");
+      setError("Please wait for the security check to complete.");
       return;
     }
     setError(null);
     setIsLoading(true);
 
     try {
+      // Re-add the cf-turnstile-response to the payload
       const response = await login({
         email: identifier,
         password,
@@ -69,11 +80,11 @@ function LoginForm({ setToken }: Props) {
                   <label htmlFor="password">Password</label>
                   <input type="password" id="password" name="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} className="form-control" required />
                 </div>
-                <div className="mb-3 d-flex justify-content-center">
-                    <Turnstile sitekey={TURNSTILE_SITE_KEY} onVerify={setTurnstileToken} />
-                </div>
+                {/* This container will be populated by the Zaraz script */}
+                <div className="mb-3 d-flex justify-content-center" id="turnstile-container"></div>
                 {error && <div className="alert alert-danger">{error}</div>}
                 <div className="d-grid">
+                  {/* Re-add the turnstile token check to the disabled property */}
                   <button type="submit" className="btn btn-primary" disabled={isLoading || !turnstileToken}>
                     {isLoading ? 'Logging in...' : 'Login'}
                   </button>
