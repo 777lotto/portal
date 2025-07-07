@@ -1,15 +1,25 @@
-// frontend/src/components/Calendar.tsx - CORRECTED
+// frontend/src/components/Calendar.tsx
 
-import { useState, useEffect, useCallback } from 'react';
-import { Calendar as BigCalendar, momentLocalizer } from 'react-big-calendar';
-import moment from 'moment';
+import { useMemo, useCallback } from 'react';
+import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar';
+import { format, parse, startOfWeek, getDay } from 'date-fns';
+import enUS from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { getJobs } from '../lib/api.js';
+import useSWR from 'swr';
+import { apiGet } from '../lib/api';
 import type { Job } from '@portal/shared';
 
-// FIX: Handle potential CJS/ESM module interop issues with the moment library in Vite.
-// This ensures that the correct function object is passed to the localizer.
-const localizer = momentLocalizer((moment as any).default || moment);
+// 1. Configure the modern date-fns localizer
+const locales = {
+  'en-US': enUS,
+};
+const localizer = dateFnsLocalizer({
+  format,
+  parse,
+  startOfWeek,
+  getDay,
+  locales,
+});
 
 interface CalendarEvent {
   title: string;
@@ -18,70 +28,54 @@ interface CalendarEvent {
   resource: Job;
 }
 
-// Helper to determine event color based on the new status list
+// Helper to determine event color based on the status
 const getEventColor = (status: string) => {
   switch (status.toLowerCase()) {
-    case 'upcoming':
-      return '#ffc107'; // Yellow
-    case 'confirmed':
-      return '#0d6efd'; // Blue
-    case 'completed': // This now means "completed and paid"
-      return '#198754'; // Green
-    case 'payment_pending': // New status for "job complete, payment incomplete"
-      return '#fd7e14'; // Orange
-    case 'past_due': // New status for "past due payment"
-      return '#dc3545'; // Red
-    case 'cancelled':
-      return '#6c757d'; // Grey
-    default:
-      return '#6c757d'; // Default to grey
+    case 'upcoming': return '#ffc107'; // Yellow
+    case 'confirmed': return '#0d6efd'; // Blue
+    case 'completed': return '#198754'; // Green
+    case 'payment_pending': return '#fd7e14'; // Orange
+    case 'past_due': return '#dc3545'; // Red
+    case 'cancelled': return '#6c757d'; // Grey
+    default: return '#6c757d'; // Default to grey
   }
 };
 
 function JobCalendar() {
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // 2. Fetch data using the SWR hook for automatic caching and revalidation.
+  const { data: jobs, error, isLoading } = useSWR<Job[]>('/api/jobs', apiGet);
 
-  useEffect(() => {
-    const fetchJobs = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const jobs = await getJobs();
-        const calendarEvents = jobs.map(job => ({
-          title: job.title,
-          start: new Date(job.start),
-          end: new Date(job.end),
-          resource: job
-        }));
-        setEvents(calendarEvents);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // useMemo ensures the events array is only recalculated when the jobs data changes.
+  const events = useMemo(() => {
+    if (!jobs) return [];
+    return jobs.map(job => ({
+      title: job.title,
+      start: new Date(job.start),
+      end: new Date(job.end),
+      resource: job,
+    }));
+  }, [jobs]);
 
-    fetchJobs();
-  }, []);
-
-  if (isLoading) return <div className="container mt-4">Loading calendar...</div>;
-  if (error) return <div className="container mt-4 alert alert-danger">{error}</div>;
-
+  // useCallback memoizes the eventPropGetter function for performance.
   const eventPropGetter = useCallback(
     (event: CalendarEvent) => ({
       style: {
         backgroundColor: getEventColor(event.resource.status),
         borderColor: getEventColor(event.resource.status),
+        color: 'white',
+        borderRadius: '5px',
+        opacity: 0.8
       },
     }),
     []
   );
 
+  // Render loading and error states handled by SWR
+  if (isLoading) return <div className="text-center p-8">Loading calendar...</div>;
+  if (error) return <div className="rounded-md bg-red-100 p-4 text-sm text-red-700">{error.message}</div>;
+
   return (
-    <div className="container mt-4" style={{ height: '80vh' }}>
-      <h2>Job Calendar</h2>
+    <div className="bg-white dark:bg-tertiary-dark p-4 rounded-lg shadow" style={{ height: '85vh' }}>
       <BigCalendar
         localizer={localizer}
         events={events}
@@ -95,3 +89,4 @@ function JobCalendar() {
 }
 
 export default JobCalendar;
+
