@@ -11,8 +11,9 @@ export const UserSchema = z.object({
   email: z.string().email(),
   name: z.string(),
   phone: z.string().nullable(),
-  role: z.enum(['customer', 'admin']), // Corrected roles
+  role: z.enum(['customer', 'admin', 'guest']), // Add Guest roles
   stripe_customer_id: z.string().optional().nullable(),
+  address: z.string().optional().nullable(), // ADD address field
 });
 export type User = z.infer<typeof UserSchema>;
 
@@ -35,7 +36,8 @@ export const JobStatusEnum = z.enum([
   'completed',
   'payment_pending',
   'past_due',
-  'cancelled'
+  'cancelled',
+  'pending_confirmation' // ADD 'pending_confirmation' status
 ]);
 export type JobStatus = z.infer<typeof JobStatusEnum>;
 
@@ -58,6 +60,20 @@ export const JobSchema = z.object({
   invoice_created_at: z.string().optional().nullable(),
 });
 export type Job = z.infer<typeof JobSchema>;
+
+// ADD NEW SCHEMA for public booking requests
+export const PublicBookingRequestSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  phone: z.string().min(10),
+  address: z.string().min(5),
+  date: z.string(), // The selected date
+  services: z.array(z.object({
+    name: z.string(),
+    duration: z.number(), // in hours
+  })).min(1),
+});
+export type PublicBookingRequest = z.infer<typeof PublicBookingRequestSchema>;
 
 // Defines a photo, associated with a job or service.
 export const PhotoSchema = z.object({

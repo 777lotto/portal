@@ -20,6 +20,7 @@ import { handleGetPhotosForJob, handleAdminUploadPhoto } from './handlers/photos
 import { handleGetNotesForJob, handleAdminAddNote } from './handlers/notes.js';
 import { handlePortalSession } from './handlers/user.js';
 import { handleSmsProxy } from './sms.js';
+import { handleGetAvailability, handleCreateBooking } from './handlers/public.js';
 import type { Env, User } from '@portal/shared';
 
 export type AppEnv = {
@@ -49,6 +50,8 @@ publicApi.post('/signup', handleSignup);
 publicApi.post('/login', handleLogin);
 publicApi.post('/request-password-reset', handleRequestPasswordReset);
 publicApi.post('/stripe/webhook', handleStripeWebhook);
+publicApi.get('/public/availability', handleGetAvailability);
+publicApi.post('/public/booking', handleCreateBooking);
 
 /* --- Customer API Routes (Authenticated) --- */
 customerApi.get('/profile', handleGetProfile);
@@ -59,6 +62,7 @@ customerApi.post('/services/:id/invoice', handleCreateInvoice);
 customerApi.get('/services/:id/photos', handleGetPhotosForService);
 customerApi.get('/services/:id/notes', handleGetNotesForService);
 customerApi.get('/jobs', handleGetJobs);
+
 // --- NEW: Route to create a job ---
 customerApi.post('/jobs', handleCreateJob);
 customerApi.get('/jobs/:id', handleGetJobById);

@@ -6,7 +6,7 @@ import { format, parse, startOfWeek, getDay } from 'date-fns';
 import enUS from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import useSWR from 'swr';
-import { apiGet } from '../lib/api';
+import { apiGet, getPublicAvailability } from '../lib/api';
 import type { Job } from '@portal/shared';
 
 // 1. Configure the modern date-fns localizer
@@ -42,8 +42,9 @@ const getEventColor = (status: string) => {
 };
 
 function JobCalendar() {
-  // 2. Fetch data using the SWR hook for automatic caching and revalidation.
-  const { data: jobs, error, isLoading } = useSWR<Job[]>('/api/jobs', apiGet);
+  // Fetch both jobs and public availability
+  const { data: jobs, error: jobsError, isLoading: jobsLoading } = useSWR<Job[]>('/api/jobs', apiGet);
+  const { data: availability, error: availabilityError, isLoading: availabilityLoading } = useSWR('/api/public/availability', getPublicAvailability);
 
   // useMemo ensures the events array is only recalculated when the jobs data changes.
   const events = useMemo(() => {
@@ -70,9 +71,27 @@ function JobCalendar() {
     []
   );
 
-  // Render loading and error states handled by SWR
-  if (isLoading) return <div className="text-center p-8">Loading calendar...</div>;
-  if (error) return <div className="rounded-md bg-red-100 p-4 text-sm text-red-700">{error.message}</div>;
+  // NEW: Memoize the set of unavailable days
+  const unavailableDaysSet = useMemo(() => {
+    return new Set(availability?.unavailableDays || []);
+  }, [availability]);
+
+  // NEW: Add dayPropGetter to style the background of calendar days
+  const dayPropGetter = useCallback((date: Date) => {
+    const day = format(date, 'yyyy-MM-dd');
+    if (unavailableDaysSet.has(day)) {
+      return {
+        style: {
+          backgroundColor: 'rgba(52, 58, 64, 0.1)', // Light grey for unavailable
+        },
+      };
+    }
+    return {};
+  }, [unavailableDaysSet]);
+
+  // Update loading and error states
+  if (jobsLoading || availabilityLoading) return <div className="text-center p-8">Loading calendar...</div>;
+  if (jobsError || availabilityError) return <div className="rounded-md bg-red-100 p-4 text-sm text-red-700">{jobsError?.message || availabilityError?.message}</div>;
 
   return (
     <div className="bg-white dark:bg-tertiary-dark p-4 rounded-lg shadow" style={{ height: '85vh' }}>
@@ -80,6 +99,7 @@ function JobCalendar() {
         localizer={localizer}
         events={events}
         eventPropGetter={eventPropGetter}
+        dayPropGetter={dayPropGetter}
         startAccessor="start"
         endAccessor="end"
         style={{ height: '100%' }}

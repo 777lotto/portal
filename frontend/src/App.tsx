@@ -15,6 +15,7 @@ import CalendarSync from "./components/CalendarSync.js";
 import Navbar from "./components/Navbar.js";
 import SMSConversations from "./components/SMSConversations.js";
 import SMSConversation from "./components/SMSConversation.js";
+import PublicBookingPage from "./components/PublicBookingPage.js";
 
 // --- NEW: Admin Page Components (you will create these) ---
 import AdminDashboard from "./components/admin/AdminDashboard.js";
@@ -94,6 +95,12 @@ function App() {
       <Navbar token={token} user={user} setToken={handleSetToken} />
       <main className="p-4 sm:p-6 lg:p-8">
         <Routes>
+          {/* --- Public Routes --- */}
+          <Route path="/booking" element={<PublicBookingPage />} /> {/* ADD THIS ROUTE */}
+          <Route path="/" element={<Navigate to={token ? "/dashboard" : "/login"} replace />} />
+          <Route path="/login" element={token ? <Navigate to="/dashboard" replace /> : <LoginForm setToken={handleSetToken} />} />
+          <Route path="/signup" element={token ? <Navigate to="/dashboard" replace /> : <SignupForm setToken={handleSetToken} />} />
+
           {/* --- Customer-facing Routes --- */}
           <Route path="/" element={<Navigate to={token ? "/dashboard" : "/login"} replace />} />
           <Route path="/login" element={token ? <Navigate to="/dashboard" replace /> : <LoginForm setToken={handleSetToken} />} />

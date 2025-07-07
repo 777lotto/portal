@@ -33,6 +33,10 @@ export const apiPostFormData = <T>(path: string, formData: FormData): Promise<T>
   });
 };
 
+// --- PUBLIC API (No Auth Required) ---
+export const getPublicAvailability = () => apiGet<{ unavailableDays: string[] }>('/api/public/availability');
+export const createPublicBooking = (data: unknown) => apiPost('/api/public/booking', data);
+
 // --- AUTH ---
 export const login = (data: unknown) => apiPost<AuthResponse>('/api/login', data);
 export const signup = (data: unknown) => apiPost<AuthResponse>('/api/signup', data);
