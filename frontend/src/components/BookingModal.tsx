@@ -2,6 +2,14 @@ import { useState } from 'react';
 import { createPublicBooking } from '../lib/api';
 import { format } from 'date-fns';
 
+// Add the global window type definition for the Turnstile callback
+// This should match the working implementation in your other forms.
+declare global {
+  interface Window {
+    onTurnstileSuccess?: (token: string) => void;
+  }
+}
+
 interface ServiceOption {
   id: string;
   name: string;
@@ -28,9 +36,23 @@ interface Props {
 function BookingModal({ isOpen, onClose, selectedDate }: Props) {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', address: '' });
   const [selectedServices, setSelectedServices] = useState<ServiceOption[]>([]);
+  const [turnstileToken, setTurnstileToken] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // This hook creates the callback function that your Zaraz script calls
+  useEffect(() => {
+    if (isOpen) {
+      window.onTurnstileSuccess = (token: string) => {
+        setTurnstileToken(token);
+      };
+    }
+    // Cleanup the function when the component unmounts or the modal closes
+    return () => {
+      delete window.onTurnstileSuccess;
+    };
+  }, [isOpen]); // Re-run the effect if the modal is opened
 
   const handleServiceChange = (service: ServiceOption) => {
     setSelectedServices(prev =>
@@ -50,6 +72,11 @@ function BookingModal({ isOpen, onClose, selectedDate }: Props) {
       setError('Please select at least one service.');
       return;
     }
+    // Check for the turnstile token before allowing submission
+    if (!turnstileToken) {
+      setError("Please wait for the security check to complete.");
+      return;
+    }
     setError('');
     setSuccess('');
     setIsSubmitting(true);
@@ -59,11 +86,13 @@ function BookingModal({ isOpen, onClose, selectedDate }: Props) {
         ...formData,
         date: format(selectedDate, 'yyyy-MM-dd'),
         services: selectedServices.map(({name, duration}) => ({name, duration})),
+        'cf-turnstile-response': turnstileToken,
       });
       setSuccess('Your booking request has been sent! We will contact you shortly to confirm.');
       setTimeout(() => {
         onClose();
         setSuccess('');
+        setTurnstileToken('');
       }, 3000);
     } catch (err: any) {
       setError(err.message || 'An unknown error occurred.');
@@ -103,9 +132,13 @@ function BookingModal({ isOpen, onClose, selectedDate }: Props) {
             <input name="address" placeholder="Service Address" onChange={handleChange} className="form-control md:col-span-2" required />
           </div>
 
+          {/* This container will be populated by your Zaraz script */}
+          <div className="mb-3 d-flex justify-content-center" id="turnstile-container"></div>
+
           <div className="flex justify-end space-x-4">
             <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+            {/* The button is disabled until the turnstile token is received */}
+            <button type="submit" className="btn btn-primary" disabled={isSubmitting || !turnstileToken}>
               {isSubmitting ? 'Submitting...' : 'Request Booking'}
             </button>
           </div>

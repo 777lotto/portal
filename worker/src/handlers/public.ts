@@ -3,6 +3,7 @@ import { AppEnv } from '../index.js';
 import { PublicBookingRequestSchema } from '@portal/shared';
 import { errorResponse, successResponse } from '../utils.js';
 import { createJob } from '../calendar.js';
+import { validateTurnstileToken } from '../auth.js';
 
 const WORKING_HOURS_PER_DAY = 8;
 
@@ -48,6 +49,13 @@ export const handleCreateBooking = async (c: Context<AppEnv>) => {
 
   if (!parsed.success) {
     return errorResponse("Invalid booking data", 400, parsed.error.flatten());
+  }
+
+  // ADDED: Turnstile validation
+  const ip = c.req.header('CF-Connecting-IP') || '127.0.0.1';
+  const turnstileSuccess = await validateTurnstileToken(parsed.data['cf-turnstile-response'], ip, c.env);
+  if (!turnstileSuccess) {
+      return errorResponse("Invalid security token. Please try again.", 403);
   }
 
   const { name, email, phone, address, date, services } = parsed.data;
