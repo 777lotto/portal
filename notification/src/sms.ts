@@ -202,11 +202,13 @@ export async function sendSMSNotification(env: Env, to: string, message: string)
     }
 }
 
-// UPDATED: Added a case for service reminders
+// UPDATED: Added a case for password resets and other templates
 export function generateSMSMessage(type: string, data: Record<string, any>): string {
     switch(type) {
         case 'welcome':
-            return `Welcome to Gutter Portal! We're glad to have you.`;
+            return `Welcome to Gutter Portal! We're glad to have you. Manage your services at ${data.portalUrl || 'https://portal.777.foo'}`;
+        case 'password_reset':
+            return `Gutter Portal: Use the following link to reset your password. It will expire in 1 hour. ${data.resetLink}`;
         case 'invoice_created':
             return `Gutter Portal: Your invoice for $${(data.amount / 100).toFixed(2)} is ready. Check your email to view and pay.`;
         case 'invoice_reminder':

@@ -29,7 +29,7 @@ export const handleAdminUploadPhoto = async (c: PhotoContext<PhotoAppEnv>) => {
 
     console.log(`Received file "${file.name}" (${file.size} bytes) for job ${jobId}`);
     // In a real application, you would upload this to a service like Cloudflare R2.
-    const imageUrl = `https://example.com/images/${jobId}/${file.name}`;
+    const imageUrl = `https://portal.777.foo/images/${jobId}/${file.name}`;
 
     try {
         const { results } = await c.env.DB.prepare(
