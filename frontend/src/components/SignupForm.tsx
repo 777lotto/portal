@@ -26,19 +26,28 @@ function SignupForm({ setToken }: Props) {
 
   // This effect will create the callback function that our Zaraz script calls
   useEffect(() => {
-    window.onTurnstileSuccess = (token: string) => {
-      setTurnstileToken(token);
-    };
+  // Define the success callback for this component instance
+  window.onTurnstileSuccess = (token: string) => {
+    setTurnstileToken(token);
+  };
 
-    // Cleanup the function when the component unmounts
-    return () => {
-      delete window.onTurnstileSuccess;
-      const container = document.getElementById('turnstile-container');
-      if (container) {
-        container.innerHTML = '';
-      }
-    };
-  }, []); // Empty array ensures this only runs once
+  // When this component mounts, explicitly call the global render function
+  // that we defined in our Zaraz script.
+  if (window.renderCfTurnstile) {
+    window.renderCfTurnstile();
+  }
+
+  // When the component unmounts (e.g., navigating away), clean up.
+  return () => {
+    delete window.onTurnstileSuccess;
+    const container = document.getElementById('turnstile-container');
+    if (container) {
+      // Clear the widget from the DOM and reset its rendered state
+      container.innerHTML = '';
+      delete container.dataset.rendered;
+    }
+  };
+}, []); // Empty array ensures this only runs once
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
