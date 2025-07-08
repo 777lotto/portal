@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { createPublicBooking } from '../lib/api';
+import { ApiError } from '../lib/fetchJson';
 import { format } from 'date-fns';
 
 // Add the global window type definition for the Turnstile callback
@@ -37,7 +39,7 @@ function BookingModal({ isOpen, onClose, selectedDate }: Props) {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', address: '' });
   const [selectedServices, setSelectedServices] = useState<ServiceOption[]>([]);
   const [turnstileToken, setTurnstileToken] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState<React.ReactNode>('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -95,7 +97,21 @@ function BookingModal({ isOpen, onClose, selectedDate }: Props) {
         setTurnstileToken('');
       }, 3000);
     } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.');
+      // MODIFIED: Intelligent error handling
+      if (err instanceof ApiError && err.details?.code) {
+        if (err.details.code === 'LOGIN_REQUIRED') {
+          setError(
+            <span>
+              An account already exists. Please <Link to="/login" className="text-primary font-bold">log in</Link> to book.
+            </span>
+          );
+        } else {
+          // For PASSWORD_SET_REQUIRED or other coded errors
+          setError(err.message);
+        }
+      } else {
+        setError(err.message || 'An unknown error occurred.');
+      }
     } finally {
       setIsSubmitting(false);
     }

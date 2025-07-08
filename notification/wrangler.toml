@@ -24,9 +24,8 @@ database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
 # Production-specific variables
 [env.production.vars]
 ENVIRONMENT = "production"
-EMAIL_FROM = "no-reply@mail.777.foo"
+EMAIL_FROM = "notifications@no-reply.777.foo"
 SMS_FROM_NUMBER = "7077769777"
-AWS_REGION = "us-east-2"
 
 # Production-specific D1 binding
 [[env.production.d1_databases]]

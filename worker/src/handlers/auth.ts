@@ -1,6 +1,7 @@
 // 777lotto/portal/portal-bet/worker/src/handlers/auth.ts
 import { Context } from 'hono';
 import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
 import { AppEnv } from '../index.js';
 import { User, UserSchema } from '@portal/shared';
 import { createJwtToken, hashPassword, verifyPassword, validateTurnstileToken } from '../auth.js';
@@ -96,6 +97,20 @@ export const handleSignup = async (c: Context<AppEnv>) => {
         }
         // --- END NEW ---
 
+        // ADDED: Enqueue a welcome notification
+        try {
+            await c.env.NOTIFICATION_QUEUE.send({
+              type: 'welcome',
+              userId: userForToken.id,
+              data: { name: userForToken.name }, // Pass any data the template might need
+              channels: ['email', 'sms'] // You can choose which channels to use
+            });
+            console.log(`Enqueued 'welcome' notification for user ${userForToken.id}`);
+        } catch (queueError: any) {
+            console.error(`Failed to enqueue welcome notification for user ${userForToken.id}:`, queueError);
+            // Non-fatal error, so we don't block the user from signing up
+        }
+
         const token = await createJwtToken(userForToken, c.env.JWT_SECRET);
         return successResponse({ token, user: userForToken });
 
@@ -151,8 +166,51 @@ export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
     const { email } = await c.req.json();
     if (!email) return errorResponse("Email is required", 400);
 
-    console.log(`Password reset requested for: ${email}`);
-    return successResponse({ message: "If an account with that email exists, a password reset link has been sent." });
+    const lowercasedEmail = email.toLowerCase();
+
+    try {
+        const user = await c.env.DB.prepare(
+            `SELECT id, name FROM users WHERE email = ?`
+        ).bind(lowercasedEmail).first<{id: number, name: string}>();
+
+        if (user) {
+            // User found, proceed with token generation and email
+            const token = uuidv4();
+            const expires = new Date();
+            expires.setHours(expires.getHours() + 1); // Token expires in 1 hour
+
+            await c.env.DB.prepare(
+                `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)`
+            ).bind(user.id, token, expires.toISOString()).run();
+
+            // Construct the reset link for the frontend
+            const portalBaseUrl = c.env.PORTAL_URL.replace('/dashboard', '');
+            const resetLink = `${portalBaseUrl}/set-password?token=${token}`;
+
+            // Enqueue the notification
+            await c.env.NOTIFICATION_QUEUE.send({
+                type: 'password_reset',
+                userId: user.id,
+                data: {
+                    name: user.name,
+                    resetLink: resetLink
+                },
+                channels: ['email']
+            });
+             console.log(`Enqueued 'password_reset' notification for user ${user.id}`);
+        } else {
+             console.log(`Password reset requested for non-existent user: ${lowercasedEmail}`);
+        }
+
+        // Always return a generic success message to prevent user enumeration attacks
+        return successResponse({ message: "If an account with that email exists, a password reset link has been sent." });
+
+    } catch (e: any) {
+        console.error("Password reset request failed:", e);
+        // Don't expose internal errors, but log them.
+        // Still return a generic message.
+        return successResponse({ message: "If an account with that email exists, a password reset link has been sent." });
+    }
 };
 
 export const handleLogout = async (c: Context<AppEnv>) => {

@@ -52,7 +52,7 @@ async function handleSendNotification(request: Request, env: NotificationEnv): P
         const subject = `Gutter Portal: ${type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}`;
         const html = generateEmailHTML(type, user.name, data);
         const text = generateEmailText(type, user.name, data);
-        results.email = await sendEmailNotification(env, { to: user.email, subject, html, text });
+        results.email = await sendEmailNotification(env, { to: user.email, toName: user.name, subject, html, text });
     }
 
     if (channels.includes('sms') && user.phone) {
@@ -137,7 +137,7 @@ export default {
           const subject = `Gutter Portal Reminder: ${type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}`;
           const html = generateEmailHTML(type, user.name, data);
           const text = generateEmailText(type, user.name, data);
-          notificationPromises.push(sendEmailNotification(env, { to: user.email, subject, html, text }));
+          notificationPromises.push(sendEmailNotification(env, { to: user.email, toName: user.name, subject, html, text }));
         }
 
         // Send SMS if channel is selected and user has a phone number

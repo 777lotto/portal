@@ -1,4 +1,5 @@
-// notification/src/email.ts - CORRECTED
+// notification/src/email.ts - UPDATED for ZeptoMail
+
 import { Env, EmailParamsSchema } from '@portal/shared';
 import { generateHtml as generateWelcomeHtml, generateText as generateWelcomeText } from './templates/welcome.js';
 import { generatePasswordResetHtml, generatePasswordResetText } from './templates/passwordReset.js';
@@ -7,32 +8,10 @@ import { generateReminderHtml as generateServiceReminderHtml, generateReminderTe
 import { generatePastDueHtml, generatePastDueText } from './templates/pastDue.js';
 
 
-// AWS Signature v4 helpers (no changes here)
-async function sha256(message: string): Promise<ArrayBuffer> {
-  const data = new TextEncoder().encode(message);
-  return crypto.subtle.digest('SHA-256', data);
-}
-
-function toHex(buffer: ArrayBuffer): string {
-  return [...new Uint8Array(buffer)].map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function hmacSha256(key: ArrayBuffer, data: string): Promise<ArrayBuffer> {
-  const cryptoKey = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  return crypto.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode(data));
-}
-
-async function getSignatureKey(key: string, dateStamp: string, regionName: string, serviceName: string): Promise<ArrayBuffer> {
-    const kDate = await hmacSha256(new TextEncoder().encode('AWS4' + key), dateStamp);
-    const kRegion = await hmacSha256(kDate, regionName);
-    const kService = await hmacSha256(kRegion, serviceName);
-    return hmacSha256(kService, 'aws4_request');
-}
-
-// Main function to send an email with Amazon SES (no changes here)
+// Main function to send an email with ZeptoMail
 export async function sendEmailNotification(
   env: Env,
-  params: { to: string; subject: string; html: string; text: string }
+  params: { to: string; toName: string; subject: string; html: string; text: string }
 ): Promise<{ success: boolean; error?: string }> {
     const validation = EmailParamsSchema.safeParse(params);
     if (!validation.success) {
@@ -41,94 +20,62 @@ export async function sendEmailNotification(
         return { success: false, error };
     }
 
-    const { AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, EMAIL_FROM } = env;
+    const { ZEPTOMAIL_TOKEN, EMAIL_FROM } = env;
 
-    if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY || !AWS_REGION || !EMAIL_FROM) {
-        console.warn("Email service not configured. Missing AWS SES credentials or EMAIL_FROM.");
+    if (!ZEPTOMAIL_TOKEN || !EMAIL_FROM) {
+        console.warn("Email service not configured. Missing ZEPTOMAIL_TOKEN or EMAIL_FROM.");
         return { success: false, error: "Email service not configured." };
     }
 
-    const service = 'ses';
-    const host = `email.${AWS_REGION}.amazonaws.com`;
-    const endpoint = `https://${host}/v2/email/outbound-emails`;
-
-    const now = new Date();
-    const amzDate = now.toISOString().replace(/[:\-]|\.\d{3}/g, '');
-    const dateStamp = amzDate.substring(0, 8);
+    const endpoint = 'https://api.zeptomail.com/v1.1/email';
 
     const payload = {
-        Content: {
-            Simple: {
-                Body: {
-                    Html: { Data: params.html, Charset: 'UTF-8' },
-                    Text: { Data: params.text, Charset: 'UTF-8' },
-                },
-                Subject: { Data: params.subject, Charset: 'UTF-8' },
-            },
+        from: {
+            address: EMAIL_FROM,
+            name: '777 Solutions LLC' // You can customize this name
         },
-        Destination: { ToAddresses: [params.to] },
-        FromEmailAddress: EMAIL_FROM,
+        to: [
+            {
+                email_address: {
+                    address: params.to,
+                    name: params.toName
+                }
+            }
+        ],
+        subject: params.subject,
+        htmlbody: params.html,
+        textbody: params.text,
     };
-    const payloadStr = JSON.stringify(payload);
-    const payloadHash = toHex(await sha256(payloadStr));
-
-    const canonicalHeaders = `host:${host}\nx-amz-date:${amzDate}\n`;
-    const signedHeaders = 'host;x-amz-date';
-
-    const canonicalRequest = [
-        'POST',
-        '/v2/email/outbound-emails',
-        '',
-        canonicalHeaders,
-        signedHeaders,
-        payloadHash,
-    ].join('\n');
-
-    const algorithm = 'AWS4-HMAC-SHA256';
-    const credentialScope = `${dateStamp}/${AWS_REGION}/${service}/aws4_request`;
-
-    const stringToSign = [
-        algorithm,
-        amzDate,
-        credentialScope,
-        toHex(await sha256(canonicalRequest)),
-    ].join('\n');
-
-    const signingKey = await getSignatureKey(AWS_SECRET_ACCESS_KEY, dateStamp, AWS_REGION, service);
-    const signature = toHex(await hmacSha256(signingKey, stringToSign));
-
-    const authorizationHeader = `${algorithm} Credential=${AWS_ACCESS_KEY_ID}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
     try {
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
+                'Accept': 'application/json',
                 'Content-Type': 'application/json',
-                'X-Amz-Date': amzDate,
-                'Authorization': authorizationHeader,
+                'Authorization': ZEPTOMAIL_TOKEN, // The token format from docs
             },
-            body: payloadStr,
+            body: JSON.stringify(payload),
         });
 
         if (!response.ok) {
-            const errorBody = await response.text();
-            throw new Error(`SES API Error: ${response.status} ${response.statusText} - ${errorBody}`);
+            const errorBody = await response.json();
+            throw new Error(`ZeptoMail API Error: ${response.status} - ${JSON.stringify(errorBody)}`);
         }
 
-        const result = await response.json() as { MessageId: string };
-        console.log(`Email sent to ${params.to} via SES. Message ID: ${result.MessageId}`);
+        const result = await response.json();
+        console.log(`Email sent to ${params.to} via ZeptoMail. Result:`, result);
         return { success: true };
 
     } catch (error: any) {
-        console.error('Email sending failed via SES:', error);
+        console.error('Email sending failed via ZeptoMail:', error);
         return { success: false, error: error.message };
     }
 }
 
 
-// --- Template Generation ---
+// --- Template Generation (No changes needed here) ---
 
-// UPDATED: This function now selects the correct template based on the notification type.
 export function generateEmailHTML(type: string, name: string, data: Record<string, any>): string {
     switch(type) {
         case 'welcome':
@@ -170,7 +117,6 @@ export function generateEmailHTML(type: string, name: string, data: Record<strin
     }
 }
 
-// UPDATED: This function now selects the correct text template.
 export function generateEmailText(type: string, name: string, data: Record<string, any>): string {
     switch(type) {
         case 'welcome':
@@ -211,4 +157,3 @@ export function generateEmailText(type: string, name: string, data: Record<strin
             return `Hello ${name},\n\nYou have a new notification.`;
     }
 }
-

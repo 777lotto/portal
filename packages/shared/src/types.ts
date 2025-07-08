@@ -139,6 +139,7 @@ export const NotificationRequestSchema = z.object({
 
 export const EmailParamsSchema = z.object({
   to: z.string().email(),
+  toName: z.string(),
   subject: z.string(),
   html: z.string(),
   text: z.string()
@@ -160,6 +161,7 @@ export interface Env {
   // Bindings
   DB: D1Database;
   NOTIFICATION_SERVICE: Fetcher;
+  NOTIFICATION_QUEUE: Queue;
 
   // Secrets
   JWT_SECRET: string;
@@ -168,6 +170,7 @@ export interface Env {
   TURNSTILE_SECRET_KEY: string;
   CF_IMAGES_ACCOUNT_HASH: string;
   CF_IMAGES_API_TOKEN: string;
+  ZEPTOMAIL_TOKEN: string;
 
   // Variables
   PORTAL_URL: string;
@@ -175,9 +178,6 @@ export interface Env {
 
   // Notification Worker Specific (can be optional in other workers)
   EMAIL_FROM?: string;
-  AWS_ACCESS_KEY_ID?: string;
-  AWS_SECRET_ACCESS_KEY?: string;
-  AWS_REGION?: string;
   SMS_FROM_NUMBER?: string;
   VOIPMS_USERNAME?: string;
   VOIPMS_PASSWORD?: string;
