@@ -22,11 +22,17 @@ const LoginPayload = z.object({
     'cf-turnstile-response': z.string(),
 });
 
+const RequestPasswordResetPayload = z.object({
+    identifier: z.string(), // Can be email or phone
+    channel: z.enum(['email', 'sms']),
+});
+
+
 export const handleSignup = async (c: Context<AppEnv>) => {
     const body = await c.req.json();
     const parsed = SignupPayload.safeParse(body);
     if (!parsed.success) {
-        return errorResponse("Invalid signup data", 400);
+        return errorResponse("Invalid signup data", 400, parsed.error.flatten());
     }
 
     const { name, email, password, phone } = parsed.data;
@@ -40,50 +46,52 @@ export const handleSignup = async (c: Context<AppEnv>) => {
 
     try {
         const existingUser = await c.env.DB.prepare(
-            `SELECT id, password_hash FROM users WHERE email = ?`
-        ).bind(lowercasedEmail).first<{id: number, password_hash: string | null}>();
-
-        if (existingUser && existingUser.password_hash) {
-            // User exists and has a password. They should log in.
-            return errorResponse("An account with this email already exists. Please log in or use a password reset.", 409);
-        }
-
-        const hashedPassword = await hashPassword(password);
-        let userForToken: User;
+            `SELECT id, name, password_hash FROM users WHERE email = ? OR phone = ?`
+        ).bind(lowercasedEmail, phone).first<User & { password_hash?: string }>();
 
         if (existingUser) {
-            // User exists but has no password. Update their record to set one.
-            // Proactively check if the provided phone number is already used by ANOTHER user.
-            if (phone) {
-                const phoneUser = await c.env.DB.prepare(
-                    `SELECT id FROM users WHERE phone = ?`
-                ).bind(phone).first<{id: number}>();
-
-                // If a user with this phone exists, and it's not the user we are currently updating...
-                if (phoneUser && phoneUser.id !== existingUser.id) {
-                    return errorResponse("This phone number is already in use by another account.", 409);
-                }
+            // Case 1: User exists and has a password. They should log in.
+            if (existingUser.password_hash) {
+                return errorResponse("An account with this email or phone number already exists. Please log in.", 409);
             }
 
-            const { results } = await c.env.DB.prepare(
-                `UPDATE users SET password_hash = ?, name = ?, phone = ? WHERE id = ? RETURNING id, name, email, phone, role, stripe_customer_id`
-            ).bind(hashedPassword, name, phone, existingUser.id).all<User>();
+            // Case 2: User exists but is a guest (no password). Send a link to set one.
+            const token = uuidv4();
+            const expires = new Date();
+            expires.setHours(expires.getHours() + 1); // Token expires in 1 hour
 
-            if (!results || results.length === 0) {
-                return errorResponse("Failed to update your account. Please contact support.", 500);
-            }
-            userForToken = results[0];
-        } else {
-            // User does not exist, create a new one.
-            const { results } = await c.env.DB.prepare(
-                `INSERT INTO users (name, email, password_hash, phone, role) VALUES (?, ?, ?, ?, 'customer') RETURNING id, name, email, phone, role`
-            ).bind(name, lowercasedEmail, hashedPassword, phone).all<User>();
+            await c.env.DB.prepare(
+                `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)`
+            ).bind(existingUser.id, token, expires.toISOString()).run();
 
-            if (!results || results.length === 0) {
-                return errorResponse("Failed to create account.", 500);
-            }
-            userForToken = results[0];
+            const portalBaseUrl = c.env.PORTAL_URL.replace('/dashboard', '');
+            const resetLink = `${portalBaseUrl}/set-password?token=${token}`;
+            const channel = existingUser.email === lowercasedEmail ? 'email' : 'sms';
+
+            await c.env.NOTIFICATION_QUEUE.send({
+                type: 'password_reset',
+                userId: existingUser.id,
+                data: { name: existingUser.name, resetLink: resetLink },
+                channels: [channel]
+            });
+
+            const message = `You already have an account. We've sent a link to your ${channel} to set your password.`;
+            return errorResponse(message, 409, { code: "PASSWORD_SET_REQUIRED" });
         }
+
+
+        // Case 3: No user exists. Create a new one.
+        const hashedPassword = await hashPassword(password);
+        const { results } = await c.env.DB.prepare(
+            `INSERT INTO users (name, email, password_hash, phone, role) VALUES (?, ?, ?, ?, 'customer') RETURNING id, name, email, phone, role, stripe_customer_id`
+        ).bind(name, lowercasedEmail, hashedPassword, phone).all<User>();
+
+
+        if (!results || results.length === 0) {
+            return errorResponse("Failed to create account.", 500);
+        }
+        let userForToken = results[0];
+
 
         // --- NEW: Create a Stripe customer and link it to the user ---
         if (!userForToken.stripe_customer_id) {
@@ -116,7 +124,7 @@ export const handleSignup = async (c: Context<AppEnv>) => {
 
     } catch (e: any) {
         if (e.message?.includes('UNIQUE constraint failed')) {
-             return errorResponse("An account with this email already exists.", 409);
+             return errorResponse("An account with this email or phone number already exists.", 409);
         }
         console.error("Signup error:", e);
         return errorResponse("An unexpected error occurred during signup.", 500);
@@ -163,55 +171,58 @@ export const handleLogin = async (c: Context<AppEnv>) => {
 };
 
 export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
-    const { email } = await c.req.json();
-    if (!email) return errorResponse("Email is required", 400);
+    const body = await c.req.json();
+    const parsed = RequestPasswordResetPayload.safeParse(body);
 
-    const lowercasedEmail = email.toLowerCase();
+    if (!parsed.success) {
+        return errorResponse("Invalid request data", 400, parsed.error.flatten());
+    }
+
+    const { identifier, channel } = parsed.data;
 
     try {
         const user = await c.env.DB.prepare(
-            `SELECT id, name FROM users WHERE email = ?`
-        ).bind(lowercasedEmail).first<{id: number, name: string}>();
+            `SELECT id, name, email, phone FROM users WHERE email = ? OR phone = ?`
+        ).bind(identifier, identifier).first<User>();
 
         if (user) {
-            // User found, proceed with token generation and email
-            const token = uuidv4();
-            const expires = new Date();
-            expires.setHours(expires.getHours() + 1); // Token expires in 1 hour
+            // Check if the requested channel is valid for the user
+            if ((channel === 'email' && !user.email) || (channel === 'sms' && !user.phone)) {
+                // Log this attempt but return a generic message
+                console.warn(`Password reset for user ${user.id} requested for unavailable channel ${channel}`);
+            } else {
+                const token = uuidv4();
+                const expires = new Date();
+                expires.setHours(expires.getHours() + 1); // Token expires in 1 hour
 
-            await c.env.DB.prepare(
-                `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)`
-            ).bind(user.id, token, expires.toISOString()).run();
+                await c.env.DB.prepare(
+                    `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)`
+                ).bind(user.id, token, expires.toISOString()).run();
 
-            // Construct the reset link for the frontend
-            const portalBaseUrl = c.env.PORTAL_URL.replace('/dashboard', '');
-            const resetLink = `${portalBaseUrl}/set-password?token=${token}`;
+                const portalBaseUrl = c.env.PORTAL_URL.replace('/dashboard', '');
+                const resetLink = `${portalBaseUrl}/set-password?token=${token}`;
 
-            // Enqueue the notification
-            await c.env.NOTIFICATION_QUEUE.send({
-                type: 'password_reset',
-                userId: user.id,
-                data: {
-                    name: user.name,
-                    resetLink: resetLink
-                },
-                channels: ['email']
-            });
-             console.log(`Enqueued 'password_reset' notification for user ${user.id}`);
+                await c.env.NOTIFICATION_QUEUE.send({
+                    type: 'password_reset',
+                    userId: user.id,
+                    data: { name: user.name, resetLink: resetLink },
+                    channels: [channel]
+                });
+                console.log(`Enqueued 'password_reset' notification for user ${user.id} via ${channel}`);
+            }
         } else {
-             console.log(`Password reset requested for non-existent user: ${lowercasedEmail}`);
+            console.log(`Password reset requested for non-existent user: ${identifier}`);
         }
 
         // Always return a generic success message to prevent user enumeration attacks
-        return successResponse({ message: "If an account with that email exists, a password reset link has been sent." });
+        return successResponse({ message: "If an account with that identifier exists, a password reset link has been sent to the selected channel." });
 
     } catch (e: any) {
         console.error("Password reset request failed:", e);
-        // Don't expose internal errors, but log them.
-        // Still return a generic message.
-        return successResponse({ message: "If an account with that email exists, a password reset link has been sent." });
+        return successResponse({ message: "If an account with that identifier exists, a password reset link has been sent to the selected channel." });
     }
 };
+
 
 export const handleLogout = async (c: Context<AppEnv>) => {
   deleteCookie(c, 'session', {

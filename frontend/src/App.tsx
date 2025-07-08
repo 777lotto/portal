@@ -6,6 +6,7 @@ import { jwtDecode } from 'jwt-decode';
 // --- Page Components ---
 import LoginForm from "./components/LoginForm.js";
 import SignupForm from "./components/SignupForm.js";
+import ForgotPasswordForm from "./components/ForgotPasswordForm.js";
 import Dashboard from "./components/Dashboard.js";
 import Services from "./components/Services.js";
 import ServiceDetail from "./components/ServiceDetail.js";
@@ -96,7 +97,8 @@ function App() {
       <main className="p-4 sm:p-6 lg:p-8">
         <Routes>
           {/* --- Public Routes --- */}
-          <Route path="/booking" element={<PublicBookingPage />} /> {/* ADD THIS ROUTE */}
+          <Route path="/booking" element={<PublicBookingPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordForm />} />
           <Route path="/" element={<Navigate to={token ? "/dashboard" : "/login"} replace />} />
           <Route path="/login" element={token ? <Navigate to="/dashboard" replace /> : <LoginForm setToken={handleSetToken} />} />
           <Route path="/signup" element={token ? <Navigate to="/dashboard" replace /> : <SignupForm setToken={handleSetToken} />} />
@@ -115,7 +117,7 @@ function App() {
           <Route path="/sms" element={token ? <SMSConversations /> : <Navigate to="/login" replace />} />
           <Route path="/sms/:phoneNumber" element={token ? <SMSConversation /> : <Navigate to="/login" replace />} />
 
-          {/* --- NEW: Admin Routes --- */}
+          {/* --- Admin Routes --- */}
           <Route
             path="/admin/dashboard"
             element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/dashboard" replace />}

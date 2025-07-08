@@ -31,6 +31,10 @@ function LoginForm({ setToken }: Props) {
     // Cleanup the function when the component unmounts
     return () => {
       delete window.onTurnstileSuccess;
+      const container = document.getElementById('turnstile-container');
+      if (container) {
+        container.innerHTML = '';
+      }
     };
   }, []); // Empty array ensures this only runs once
 
@@ -89,7 +93,8 @@ function LoginForm({ setToken }: Props) {
                     {isLoading ? 'Logging in...' : 'Login'}
                   </button>
                 </div>
-                <div className="text-center mt-3">
+                <div className="text-center mt-3 d-flex justify-content-between">
+                  <p><Link to="/forgot-password">Forgot Password?</Link></p>
                   <p>Don't have an account? <Link to="/signup">Sign up</Link></p>
                 </div>
               </form>

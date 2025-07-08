@@ -33,6 +33,10 @@ function SignupForm({ setToken }: Props) {
     // Cleanup the function when the component unmounts
     return () => {
       delete window.onTurnstileSuccess;
+      const container = document.getElementById('turnstile-container');
+      if (container) {
+        container.innerHTML = '';
+      }
     };
   }, []); // Empty array ensures this only runs once
 
