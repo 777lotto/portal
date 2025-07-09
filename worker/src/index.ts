@@ -9,7 +9,7 @@ import manifest from '__STATIC_CONTENT_MANIFEST';
 
 import { errorResponse } from './utils.js';
 import { requireAuthMiddleware, requireAdminAuthMiddleware } from './auth.js';
-import { handleSignup, handleLogin, handleRequestPasswordReset, handleLogout } from './handlers/auth.js';
+import { handleSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleGetUserFromResetToken, handleCheckUser } from './handlers/auth.js';
 import { handleGetProfile, handleUpdateProfile } from './handlers/profile.js';
 import { handleStripeWebhook } from './handlers/stripe.js';
 import { handleListServices, handleGetService, handleCreateInvoice, handleGetPhotosForService, handleGetNotesForService } from './handlers/services.js';
@@ -48,7 +48,10 @@ adminApi.use('*', requireAuthMiddleware, requireAdminAuthMiddleware);
 /* --- Public API Routes --- */
 publicApi.post('/signup', handleSignup);
 publicApi.post('/login', handleLogin);
+publicApi.post('/check-user', handleCheckUser);
 publicApi.post('/request-password-reset', handleRequestPasswordReset);
+publicApi.post('/set-password', handleSetPassword);
+publicApi.get('/user-from-reset-token', handleGetUserFromResetToken);
 publicApi.post('/stripe/webhook', handleStripeWebhook);
 publicApi.get('/public/availability', handleGetAvailability);
 publicApi.post('/public/booking', handleCreateBooking);

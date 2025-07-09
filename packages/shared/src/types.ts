@@ -11,9 +11,10 @@ export const UserSchema = z.object({
   email: z.string().email(),
   name: z.string(),
   phone: z.string().nullable(),
-  role: z.enum(['customer', 'admin', 'guest']), // Add Guest roles
+  role: z.enum(['customer', 'admin', 'guest']),
   stripe_customer_id: z.string().optional().nullable(),
-  address: z.string().optional().nullable(), // ADD address field
+  address: z.string().optional().nullable(),
+  company_name: z.string().optional().nullable(),
 });
 export type User = z.infer<typeof UserSchema>;
 
@@ -21,7 +22,7 @@ export type User = z.infer<typeof UserSchema>;
 export const ServiceSchema = z.object({
   id: z.number(),
   user_id: z.number(),
-  service_date: z.string(), // ISO date string
+  service_date: z.string(),
   status: z.string(),
   notes: z.string().optional().nullable(),
   price_cents: z.number().optional().nullable(),
@@ -37,7 +38,7 @@ export const JobStatusEnum = z.enum([
   'payment_pending',
   'past_due',
   'cancelled',
-  'pending_confirmation' // ADD 'pending_confirmation' status
+  'pending_confirmation'
 ]);
 export type JobStatus = z.infer<typeof JobStatusEnum>;
 
@@ -55,7 +56,6 @@ export const JobSchema = z.object({
   crewId: z.string().optional().nullable(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
-  // Add new fields to link jobs to invoices for our cron job
   stripe_invoice_id: z.string().optional().nullable(),
   invoice_created_at: z.string().optional().nullable(),
 });
@@ -67,10 +67,10 @@ export const PublicBookingRequestSchema = z.object({
   email: z.string().email(),
   phone: z.string().min(10),
   address: z.string().min(5),
-  date: z.string(), // The selected date
+  date: z.string(),
   services: z.array(z.object({
     name: z.string(),
-    duration: z.number(), // in hours
+    duration: z.number(),
   })).min(1),
   'cf-turnstile-response': z.string(),
 });
@@ -80,7 +80,7 @@ export type PublicBookingRequest = z.infer<typeof PublicBookingRequestSchema>;
 export const PhotoSchema = z.object({
     id: z.string(),
     url: z.string().url(),
-    created_at: z.string(), // ISO date string
+    created_at: z.string(),
     job_id: z.string().optional().nullable(),
     service_id: z.number().optional().nullable(),
     invoice_id: z.string().optional().nullable(),
@@ -95,7 +95,7 @@ export const NoteSchema = z.object({
 });
 export type Note = z.infer<typeof NoteSchema>;
 
-// NEW: A photo with its notes included
+// A photo with its notes included
 export const PhotoWithNotesSchema = PhotoSchema.extend({
   notes: z.array(NoteSchema),
 });

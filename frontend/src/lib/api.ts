@@ -37,6 +37,10 @@ export const apiPostFormData = <T>(path: string, formData: FormData): Promise<T>
 // --- PUBLIC API (No Auth Required) ---
 export const getPublicAvailability = () => apiGet<{ unavailableDays: string[] }>('/api/public/availability');
 export const createPublicBooking = (data: unknown) => apiPost('/api/public/booking', data);
+export const getUserFromResetToken = (token: string) => apiGet<{name: string, email: string, phone: string | null}>(`/api/user-from-reset-token?token=${token}`);
+export const setPassword = (data: unknown) => apiPost<AuthResponse>('/api/set-password', data);
+export const checkUser = (identifier: string) => apiPost<{ status: string }>('/api/check-user', { identifier });
+export const requestPasswordReset = (identifier: string, channel: 'email' | 'sms') => apiPost('/api/request-password-reset', { identifier, channel });
 
 // --- AUTH ---
 export const login = (data: unknown) => apiPost<AuthResponse>('/api/login', data);
