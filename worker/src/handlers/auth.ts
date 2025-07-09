@@ -46,8 +46,8 @@ export const handleSignup = async (c: Context<AppEnv>) => {
 
     try {
         const existingUser = await c.env.DB.prepare(
-            `SELECT id, name, password_hash FROM users WHERE email = ? OR phone = ?`
-        ).bind(lowercasedEmail, phone).first<User & { password_hash?: string }>();
+            `SELECT id, name, email, phone, password_hash FROM users WHERE email = ? OR phone = ?`
+            ).bind(lowercasedEmail, phone).first<User & { password_hash?: string }>();
 
         if (existingUser) {
             // Case 1: User exists and has a password. They should log in.

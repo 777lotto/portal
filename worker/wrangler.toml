@@ -75,6 +75,6 @@ service = "payment"
 environment = "production"
 
 # Production queue binding
-[[env.production.queue_producers]]
-binding = "NOTIFICATION_QUEUE"
+[[env.production.queues.producers]]
 queue = "notifications"
+binding = "NOTIFICATION_QUEUE"
