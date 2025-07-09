@@ -50,7 +50,8 @@ export default function Navbar({ token, setToken, user }: Props) {
                     <NavLink to="/dashboard" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Dashboard</NavLink>
                     <NavLink to="/services" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Services</NavLink>
                     <NavLink to="/calendar" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Calendar</NavLink>
-                    <NavLink to="/sms" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Messages</NavLink>
+                    <NavLink to="/photos" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Photos</NavLink>
+                    {/* The "Messages" NavLink has been removed */}
                     {user?.role === 'admin' && (
                        <NavLink to="/admin/dashboard" className={({isActive}) => isActive ? activeLinkStyle + ' text-cyan-400' : linkStyle + ' text-cyan-400'}>Admin</NavLink>
                     )}
@@ -81,4 +82,3 @@ export default function Navbar({ token, setToken, user }: Props) {
     </nav>
   );
 }
-

@@ -14,9 +14,8 @@ import JobCalendar from "./components/Calendar.js";
 import JobDetail from "./components/JobDetail.js";
 import CalendarSync from "./components/CalendarSync.js";
 import Navbar from "./components/Navbar.js";
-import SMSConversations from "./components/SMSConversations.js";
-import SMSConversation from "./components/SMSConversation.js";
 import PublicBookingPage from "./components/PublicBookingPage.js";
+import Photos from "./components/Photos.js";
 
 // --- NEW: Admin Page Components (you will create these) ---
 import AdminDashboard from "./components/admin/AdminDashboard.js";
@@ -104,18 +103,15 @@ function App() {
           <Route path="/signup" element={token ? <Navigate to="/dashboard" replace /> : <SignupForm setToken={handleSetToken} />} />
 
           {/* --- Customer-facing Routes --- */}
-          <Route path="/" element={<Navigate to={token ? "/dashboard" : "/login"} replace />} />
-          <Route path="/login" element={token ? <Navigate to="/dashboard" replace /> : <LoginForm setToken={handleSetToken} />} />
-          <Route path="/signup" element={token ? <Navigate to="/dashboard" replace /> : <SignupForm setToken={handleSetToken} />} />
-
           <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/login" replace />} />
           <Route path="/services" element={token ? <Services /> : <Navigate to="/login" replace />} />
           <Route path="/services/:id" element={token ? <ServiceDetail /> : <Navigate to="/login" replace />} />
           <Route path="/calendar" element={token ? <JobCalendar /> : <Navigate to="/login" replace />} />
+          <Route path="/photos" element={token ? <Photos /> : <Navigate to="/login" replace />} />
           <Route path="/jobs/:id" element={token ? <JobDetail /> : <Navigate to="/login" replace />} />
           <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/login" replace />} />
-          <Route path="/sms" element={token ? <SMSConversations /> : <Navigate to="/login" replace />} />
-          <Route path="/sms/:phoneNumber" element={token ? <SMSConversation /> : <Navigate to="/login" replace />} />
+
+          {/* SMS Routes have been removed */}
 
           {/* --- Admin Routes --- */}
           <Route

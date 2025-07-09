@@ -81,6 +81,9 @@ export const PhotoSchema = z.object({
     id: z.string(),
     url: z.string().url(),
     created_at: z.string(), // ISO date string
+    job_id: z.string().optional().nullable(),
+    service_id: z.number().optional().nullable(),
+    invoice_id: z.string().optional().nullable(),
 });
 export type Photo = z.infer<typeof PhotoSchema>;
 
@@ -91,6 +94,12 @@ export const NoteSchema = z.object({
     created_at: z.string(), // ISO date string
 });
 export type Note = z.infer<typeof NoteSchema>;
+
+// NEW: A photo with its notes included
+export const PhotoWithNotesSchema = PhotoSchema.extend({
+  notes: z.array(NoteSchema),
+});
+export type PhotoWithNotes = z.infer<typeof PhotoWithNotesSchema>;
 
 
 /* ========================================================================

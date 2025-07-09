@@ -8,7 +8,8 @@ import {
   type Conversation,
   type SMSMessage,
   type Photo,
-  type Note
+  type Note,
+  type PhotoWithNotes
 } from "@portal/shared";
 import { fetchJson } from './fetchJson.js';
 
@@ -57,6 +58,10 @@ export const getJobs = () => apiGet<Job[]>('/api/jobs');
 export const getJob = (id: string) => apiGet<Job>(`/api/jobs/${id}`);
 
 // --- PHOTOS & NOTES (can belong to jobs or services) ---
+export const getPhotos = (filters: { [key: string]: string } = {}) => {
+  const query = new URLSearchParams(filters).toString();
+  return apiGet<PhotoWithNotes[]>(`/api/photos?${query}`);
+};
 export const getPhotosForJob = (jobId: string) => apiGet<Photo[]>(`/api/jobs/${jobId}/photos`);
 export const getNotesForJob = (jobId: string) => apiGet<Note[]>(`/api/jobs/${jobId}/notes`);
 
