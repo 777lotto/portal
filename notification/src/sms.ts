@@ -208,7 +208,7 @@ export function generateSMSMessage(type: string, data: Record<string, any>): str
         case 'welcome':
             return `Welcome to Gutter Portal! We're glad to have you. Manage your services at ${data.portalUrl || 'https://portal.777.foo'}`;
         case 'password_reset':
-            return `Gutter Portal: Use the following link to reset your password. It will expire in 1 hour. ${data.resetLink}`;
+            return `Your 777 Portal verification code is: ${data.resetCode}. It will expire in 10 minutes.`;
         case 'invoice_created':
             return `Gutter Portal: Your invoice for $${(data.amount / 100).toFixed(2)} is ready. Check your email to view and pay.`;
         case 'invoice_reminder':

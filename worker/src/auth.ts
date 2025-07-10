@@ -97,3 +97,30 @@ export async function validateTurnstileToken(token: string, ip: string, env: Env
     return false;
   }
 }
+
+// CORRECTED: Middleware to check for the special password-set token
+export const requirePasswordSetTokenMiddleware = async (c: Context<AppEnv>, next: Next) => {
+    const authHeader = c.req.header("Authorization") || "";
+    if (!authHeader.startsWith("Bearer ")) {
+        return c.json({ error: "Missing or invalid authorization header" }, 401);
+    }
+    const token = authHeader.substring(7);
+
+    try {
+        const secret = getJwtSecretKey(c.env.JWT_SECRET);
+        const { payload } = await jwtVerify(token, secret);
+
+        if (payload.purpose !== 'password-set' || !payload.sub) {
+             return c.json({ error: 'Forbidden: Invalid token type' }, 403);
+        }
+
+        // FIX: Cast the partial object to User to satisfy the type checker.
+        c.set('user', { id: Number(payload.sub) } as User);
+
+        // FIX: Return the result of the next middleware
+        return await next();
+
+    } catch (error) {
+        return c.json({ error: 'Authentication failed: Invalid token' }, 401);
+    }
+};

@@ -1,13 +1,13 @@
 // 777lotto/portal/portal-bet/worker/src/handlers/auth.ts
 import { Context } from 'hono';
 import { z } from 'zod';
-import { v4 as uuidv4 } from 'uuid';
 import { AppEnv } from '../index.js';
 import { User, UserSchema } from '@portal/shared';
-import { createJwtToken, hashPassword, verifyPassword, validateTurnstileToken } from '../auth.js';
+import { createJwtToken, hashPassword, verifyPassword, validateTurnstileToken, getJwtSecretKey } from '../auth.js';
 import { errorResponse, successResponse } from '../utils.js';
 import { deleteCookie } from 'hono/cookie';
 import { getStripe, createStripeCustomer } from '../stripe.js';
+import { SignJWT } from "jose";
 
 // --- Zod Schemas for Payloads ---
 
@@ -31,8 +31,12 @@ const RequestPasswordResetPayload = z.object({
     channel: z.enum(['email', 'sms']),
 });
 
+const VerifyCodePayload = z.object({
+    identifier: z.string(),
+    code: z.string().min(6).max(6)
+});
+
 const SetPasswordPayload = z.object({
-    token: z.string(),
     password: z.string().min(8),
 });
 
@@ -42,6 +46,53 @@ const GetUserFromTokenPayload = z.object({
 
 
 // --- Route Handlers ---
+
+export const handleVerifyResetCode = async (c: Context<AppEnv>) => {
+    const body = await c.req.json();
+    const parsed = VerifyCodePayload.safeParse(body);
+    if (!parsed.success) {
+        return errorResponse("Invalid data provided.", 400, parsed.error.flatten());
+    }
+    const { identifier, code } = parsed.data;
+
+    try {
+        const user = await c.env.DB.prepare(
+            `SELECT id FROM users WHERE email = ? OR phone = ?`
+        ).bind(identifier.toLowerCase(), identifier).first<User>();
+
+        if (!user) {
+            return errorResponse("Invalid code.", 400);
+        }
+
+        const tokenRecord = await c.env.DB.prepare(
+            `SELECT user_id, expires_at FROM password_reset_tokens WHERE token = ? AND user_id = ?`
+        ).bind(code, user.id).first<{ user_id: number; expires_at: string }>();
+
+        if (!tokenRecord || new Date(tokenRecord.expires_at) < new Date()) {
+            if (tokenRecord) {
+                await c.env.DB.prepare(`DELETE FROM password_reset_tokens WHERE token = ?`).bind(code).run();
+            }
+            return errorResponse("This code is invalid or has expired.", 400);
+        }
+
+        // The code is valid, delete it so it can't be reused
+        await c.env.DB.prepare(`DELETE FROM password_reset_tokens WHERE token = ?`).bind(code).run();
+
+        // Create a new special-purpose, short-lived JWT that authorizes a password change
+        const passwordSetToken = await new SignJWT({ purpose: 'password-set' })
+          .setProtectedHeader({ alg: "HS256" })
+          .setSubject(user.id.toString())
+          .setIssuedAt()
+          .setExpirationTime('10m') // This token is only valid for 10 minutes
+          .sign(getJwtSecretKey(c.env.JWT_SECRET));
+
+        return successResponse({ passwordSetToken });
+
+    } catch (e: any) {
+        console.error("Verify code error:", e);
+        return errorResponse("An unexpected error occurred.", 500);
+    }
+};
 
 export const handleCheckUser = async (c: Context<AppEnv>) => {
     const body = await c.req.json();
@@ -191,30 +242,30 @@ export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
             if ((channel === 'email' && !user.email) || (channel === 'sms' && !user.phone)) {
                  console.warn(`Password reset for user ${user.id} requested for unavailable channel ${channel}`);
             } else {
-                const token = uuidv4();
+                // MODIFIED: Generate a 6-digit code instead of a UUID
+                const token = Math.floor(100000 + Math.random() * 900000).toString();
                 const expires = new Date();
-                expires.setHours(expires.getHours() + 1);
+                expires.setMinutes(expires.getMinutes() + 10); // Code expires in 10 minutes
 
                 await c.env.DB.prepare(
                     `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)`
                 ).bind(user.id, token, expires.toISOString()).run();
 
-                const portalBaseUrl = c.env.PORTAL_URL.replace('/dashboard', '');
-                const resetLink = `${portalBaseUrl}/set-password?token=${token}`;
-
+                // MODIFIED: Send the code, not a link
                 await c.env.NOTIFICATION_QUEUE.send({
                     type: 'password_reset',
                     userId: user.id,
-                    data: { name: user.name, resetLink: resetLink },
+                    data: { name: user.name, resetCode: token }, // Pass 'resetCode'
                     channels: [channel]
                 });
             }
         }
-        return successResponse({ message: "If an account with that identifier exists, a password reset link has been sent." });
+        // MODIFIED: The message is more generic now
+        return successResponse({ message: `If an account with that ${channel} exists, a verification code has been sent.` });
 
     } catch (e: any) {
         console.error("Password reset request failed:", e);
-        return successResponse({ message: "If an account with that identifier exists, a password reset link has been sent." });
+        return successResponse({ message: "If an account exists, a verification code has been sent." });
     }
 };
 
@@ -224,30 +275,21 @@ export const handleSetPassword = async (c: Context<AppEnv>) => {
     if (!parsed.success) {
         return errorResponse("Invalid data provided.", 400, parsed.error.flatten());
     }
-    const { token, password } = parsed.data;
+    const { password } = parsed.data;
+
+    // The user object is now on the context from our new middleware
+    const userToUpdate = c.get('user');
 
     try {
-        const tokenRecord = await c.env.DB.prepare(
-            `SELECT user_id, expires_at FROM password_reset_tokens WHERE token = ?`
-        ).bind(token).first<{ user_id: number; expires_at: string }>();
-
-        if (!tokenRecord || new Date(tokenRecord.expires_at) < new Date()) {
-            if (tokenRecord) {
-                await c.env.DB.prepare(`DELETE FROM password_reset_tokens WHERE token = ?`).bind(token).run();
-            }
-            return errorResponse("This link is invalid or has expired. Please request a new one.", 400);
-        }
-
         const hashedPassword = await hashPassword(password);
         await c.env.DB.prepare(
             `UPDATE users SET password_hash = ? WHERE id = ?`
-        ).bind(hashedPassword, tokenRecord.user_id).run();
+        ).bind(hashedPassword, userToUpdate.id).run();
 
-        await c.env.DB.prepare(`DELETE FROM password_reset_tokens WHERE token = ?`).bind(token).run();
-
+        // Fetch the full user object to create a new session token
         const user = await c.env.DB.prepare(
             `SELECT id, name, email, phone, role, stripe_customer_id, company_name FROM users WHERE id = ?`
-        ).bind(tokenRecord.user_id).first<User>();
+        ).bind(userToUpdate.id).first<User>();
 
         if (!user) return errorResponse("Could not find user after password update.", 500);
 

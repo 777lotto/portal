@@ -81,7 +81,7 @@ export function generateEmailHTML(type: string, name: string, data: Record<strin
         case 'welcome':
             return generateWelcomeHtml({ name });
         case 'password_reset':
-            return generatePasswordResetHtml({ name, resetLink: data.resetLink });
+            return generatePasswordResetHtml({ name, resetCode: data.resetCode });
         case 'invoice_created':
             return generateInvoiceCreatedHtml({
                 name,
@@ -122,7 +122,7 @@ export function generateEmailText(type: string, name: string, data: Record<strin
         case 'welcome':
             return generateWelcomeText({ name });
         case 'password_reset':
-            return generatePasswordResetText({ name, resetLink: data.resetLink });
+            return generatePasswordResetText({ name, resetCode: data.resetCode });
         case 'invoice_created':
             return generateInvoiceCreatedText({
                 name,

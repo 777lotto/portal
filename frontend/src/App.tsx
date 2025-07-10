@@ -7,6 +7,7 @@ import { jwtDecode } from 'jwt-decode';
 import LoginForm from "./components/LoginForm.js";
 import SignupForm from "./components/SignupForm.js";
 import ForgotPasswordForm from "./components/ForgotPasswordForm.js";
+import VerifyCodeForm from "./components/VerifyCodeForm.js";
 import SetPasswordForm from "./components/SetPasswordForm.js";
 import Dashboard from "./components/Dashboard.js";
 import Services from "./components/Services.js";
@@ -100,6 +101,7 @@ function App() {
           <Route path="/booking" element={<PublicBookingPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordForm />} />
           <Route path="/set-password" element={<SetPasswordForm setToken={handleSetToken} />} />
+          <Route path="/verify-code" element={<VerifyCodeForm />} />
           <Route path="/" element={<Navigate to={token ? "/dashboard" : "/login"} replace />} />
           <Route path="/login" element={token ? <Navigate to="/dashboard" replace /> : <LoginForm setToken={handleSetToken} />} />
           <Route path="/signup" element={token ? <Navigate to="/dashboard" replace /> : <SignupForm setToken={handleSetToken} />} />

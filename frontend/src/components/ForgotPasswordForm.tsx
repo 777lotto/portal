@@ -1,6 +1,6 @@
 // frontend/src/components/ForgotPasswordForm.tsx
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { apiPost } from '../lib/api';
 
 function ForgotPasswordForm() {
@@ -9,6 +9,7 @@ function ForgotPasswordForm() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,7 +19,9 @@ function ForgotPasswordForm() {
 
     try {
       const response = await apiPost<{ message: string }>('/api/request-password-reset', { identifier, channel });
-      setMessage(response.message);
+      // MODIFIED: On success, navigate to the verify code form instead of just showing a message.
+      // Pass the identifier so the next form knows who is verifying.
+      navigate('/verify-code', { state: { identifier } });
     } catch (err: any) {
       setError(err.message);
     } finally {
