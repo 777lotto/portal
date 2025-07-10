@@ -1,3 +1,5 @@
+// frontend/src/components/SignupForm.tsx
+
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signup, checkUser, requestPasswordReset } from '../lib/api.js';
@@ -28,6 +30,8 @@ function SignupForm({ setToken }: Props) {
     confirmPassword: '',
   });
 
+  // MODIFIED: Add state for existing user's contact details
+  const [existingContact, setExistingContact] = useState<{ email?: string; phone?: string }>({});
   const [turnstileToken, setTurnstileToken] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -61,11 +65,15 @@ function SignupForm({ setToken }: Props) {
         const isEmail = formData.identifier.includes('@');
         setFormData(prev => ({ ...prev, email: isEmail ? prev.identifier : '', phone: !isEmail ? prev.identifier : '' }));
         setStep('DETAILS');
-      } else if (response.status === 'EXISTING_NO_PASSWORD') {
-        setStep('EXISTING_PROMPT');
-      } else { // EXISTING_WITH_PASSWORD
-        setError('An account with this email or phone already exists.');
-        setMessage('Please log in instead.');
+      } else { // EXISTING_WITH_PASSWORD or EXISTING_NO_PASSWORD
+        // MODIFIED: Store the returned contact info
+        setExistingContact({ email: response.email, phone: response.phone });
+        if (response.status === 'EXISTING_NO_PASSWORD') {
+            setStep('EXISTING_PROMPT');
+        } else { // EXISTING_WITH_PASSWORD
+            setError('An account with this email or phone already exists.');
+            setMessage('Please log in instead.');
+        }
       }
     } catch (err: any) {
       setError(err.message || 'An error occurred.');
@@ -88,6 +96,7 @@ function SignupForm({ setToken }: Props) {
       }
   }
 
+  // ... handleSubmit function remains the same ...
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
@@ -124,8 +133,10 @@ function SignupForm({ setToken }: Props) {
     }
   };
 
+
   const renderStep = () => {
       switch(step) {
+          // ... case 'IDENTIFY', 'DETAILS', 'PASSWORD' remain the same ...
           case 'IDENTIFY':
               return (
                 <form onSubmit={handleIdentify}>
@@ -185,9 +196,18 @@ function SignupForm({ setToken }: Props) {
                     <p className="text-center text-muted mb-4">It looks like you already have a guest account with us. To continue, please set a password.</p>
                     {message && <div className="alert alert-success">{message}</div>}
                     {error && <div className="alert alert-danger">{error}</div>}
+                    {/* MODIFIED: Conditionally render buttons based on available contact info */}
                     <div className="d-grid gap-2">
-                         <button onClick={() => handleRequestReset('email')} className="btn btn-info" disabled={isLoading || !formData.identifier.includes('@')}>{isLoading ? 'Sending...' : 'Send Link to Email'}</button>
-                         <button onClick={() => handleRequestReset('sms')} className="btn btn-info" disabled={isLoading || formData.identifier.includes('@')}>{isLoading ? 'Sending...' : 'Send Link via Text'}</button>
+                        {existingContact.email && (
+                         <button onClick={() => handleRequestReset('email')} className="btn btn-info" disabled={isLoading}>
+                             {isLoading ? 'Sending...' : 'Send Link to Email'}
+                         </button>
+                        )}
+                        {existingContact.phone && (
+                         <button onClick={() => handleRequestReset('sms')} className="btn btn-info" disabled={isLoading}>
+                             {isLoading ? 'Sending...' : 'Send Link via Text'}
+                         </button>
+                        )}
                     </div>
                 </div>
             )

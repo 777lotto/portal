@@ -1,3 +1,4 @@
+// frontend/src/components/SetPasswordForm.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getUserFromResetToken, setPassword } from '../lib/api';
@@ -59,7 +60,7 @@ function SetPasswordForm({ setToken }: Props) {
     setIsLoading(true);
 
     try {
-      const response = await setPassword({ token, password, name });
+      const response = await setPassword({ token, password });
       setToken(response.token);
       navigate('/dashboard', { replace: true });
     } catch (err: any) {
@@ -85,10 +86,12 @@ function SetPasswordForm({ setToken }: Props) {
             <div className="card-body">
               <h3 className="card-title text-center">Set Your Password</h3>
               <p className="text-center text-muted mb-4">Complete your account setup by creating a password.</p>
+              {/* Added this note for clarity */}
+              <p className="text-center text-muted mb-4 small">Your name, email, and phone can be changed later in your account settings.</p>
               <form onSubmit={handleSubmit}>
                 <div className="mb-3">
                   <label htmlFor="name">Name</label>
-                  <input type="text" id="name" value={name} onChange={e => setName(e.target.value)} className="form-control" required />
+                  <input type="text" id="name" value={name} className="form-control" disabled />
                 </div>
                  <div className="mb-3">
                   <label htmlFor="email">Email (Cannot be changed here)</label>
@@ -100,7 +103,7 @@ function SetPasswordForm({ setToken }: Props) {
                 </div>
                 <div className="mb-3">
                   <label htmlFor="password">New Password</label>
-                  <input type="password" id="password" value={password} onChange={e => setPassword(e.target.value)} className="form-control" required />
+                  <input type="password" id="password" value={password} onChange={e => setPassword(e.target.value)} className="form-control" required minLength={8} />
                 </div>
                  <div className="mb-3">
                   <label htmlFor="confirmPassword">Confirm New Password</label>

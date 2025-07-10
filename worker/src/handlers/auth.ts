@@ -34,7 +34,6 @@ const RequestPasswordResetPayload = z.object({
 const SetPasswordPayload = z.object({
     token: z.string(),
     password: z.string().min(8),
-    name: z.string().min(1),
 });
 
 const GetUserFromTokenPayload = z.object({
@@ -55,16 +54,20 @@ export const handleCheckUser = async (c: Context<AppEnv>) => {
 
     try {
         const user = await c.env.DB.prepare(
-            `SELECT password_hash FROM users WHERE email = ? OR phone = ?`
-        ).bind(lowercasedIdentifier, identifier).first<{ password_hash?: string }>();
+            `SELECT email, phone, password_hash FROM users WHERE email = ? OR phone = ?`
+        ).bind(lowercasedIdentifier, identifier).first<{ email?: string; phone?: string; password_hash?: string }>();
 
         if (!user) {
             return successResponse({ status: 'NEW' });
         }
-        if (user.password_hash) {
-            return successResponse({ status: 'EXISTING_WITH_PASSWORD' });
-        }
-        return successResponse({ status: 'EXISTING_NO_PASSWORD' });
+        const responsePayload: { status: string; email?: string; phone?: string } = {
+            status: user.password_hash ? 'EXISTING_WITH_PASSWORD' : 'EXISTING_NO_PASSWORD',
+            email: user.email,
+            phone: user.phone,
+        };
+
+        return successResponse(responsePayload);
+
     } catch (e: any) {
         console.error("Check user error:", e);
         return errorResponse("An unexpected error occurred.", 500);
@@ -221,7 +224,7 @@ export const handleSetPassword = async (c: Context<AppEnv>) => {
     if (!parsed.success) {
         return errorResponse("Invalid data provided.", 400, parsed.error.flatten());
     }
-    const { token, password, name } = parsed.data;
+    const { token, password } = parsed.data;
 
     try {
         const tokenRecord = await c.env.DB.prepare(
@@ -237,8 +240,8 @@ export const handleSetPassword = async (c: Context<AppEnv>) => {
 
         const hashedPassword = await hashPassword(password);
         await c.env.DB.prepare(
-            `UPDATE users SET password_hash = ?, name = ? WHERE id = ?`
-        ).bind(hashedPassword, name, tokenRecord.user_id).run();
+            `UPDATE users SET password_hash = ? WHERE id = ?`
+        ).bind(hashedPassword, tokenRecord.user_id).run();
 
         await c.env.DB.prepare(`DELETE FROM password_reset_tokens WHERE token = ?`).bind(token).run();
 
