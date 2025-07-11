@@ -13,7 +13,7 @@ import { handleSignup, handleLogin, handleRequestPasswordReset, handleLogout, ha
 import { handleGetProfile, handleUpdateProfile } from './handlers/profile.js';
 import { handleStripeWebhook } from './handlers/stripe.js';
 import { handleListServices, handleGetService, handleCreateInvoice, handleGetPhotosForService, handleGetNotesForService } from './handlers/services.js';
-import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob } from './handlers/jobs.js';
+import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob, handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate } from './handlers/jobs.js';
 import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser } from './handlers/admin/users.js';
 import { handleGetUserPhotos, handleGetPhotosForJob, handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleGetNotesForJob, handleAdminAddNoteForUser } from './handlers/notes.js';
@@ -81,6 +81,9 @@ adminApi.get('/users/:userId/jobs', handleAdminGetJobsForUser);
 adminApi.get('/users/:userId/photos', handleAdminGetPhotosForUser);
 adminApi.post('/users/:userId/photos', handleAdminUploadPhotoForUser);
 adminApi.post('/users/:userId/notes', handleAdminAddNoteForUser);
+adminApi.get('/blocked-dates', handleGetBlockedDates);
+adminApi.post('/blocked-dates', handleAddBlockedDate);
+adminApi.delete('/blocked-dates/:date', handleRemoveBlockedDate);
 
 api.route('/', publicApi);
 api.route('/', customerApi);

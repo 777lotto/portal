@@ -101,6 +101,15 @@ export const PhotoWithNotesSchema = PhotoSchema.extend({
 });
 export type PhotoWithNotes = z.infer<typeof PhotoWithNotesSchema>;
 
+// ADD NEW SCHEMA for blocked dates
+ export const BlockedDateSchema = z.object({
+   date: z.string(), // YYYY-MM-DD
+   reason: z.string().optional().nullable(),
+   created_at: z.string().optional(),
+   user_id: z.number().optional(),
+ });
+ export type BlockedDate = z.infer<typeof BlockedDateSchema>;
+
 
 /* ========================================================================
    API, AUTH & NOTIFICATION TYPES

@@ -1,13 +1,15 @@
 // frontend/src/components/Calendar.tsx
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
 import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import enUS from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import useSWR from 'swr';
-import { apiGet, getPublicAvailability } from '../lib/api';
-import type { Job } from '@portal/shared';
+import { apiGet, getPublicAvailability, getBlockedDates } from '../lib/api';
+import type { Job, BlockedDate } from '@portal/shared';
+import AdminBlockDayModal from './AdminBlockDayModal';
+import { jwtDecode } from 'jwt-decode';
 
 // 1. Configure the modern date-fns localizer
 const locales = {
@@ -25,7 +27,7 @@ interface CalendarEvent {
   title: string;
   start: Date;
   end: Date;
-  resource: Job;
+  resource: Job | { type: 'blocked'; reason?: string | null };
 }
 
 // Helper to determine event color based on the status
@@ -41,33 +43,100 @@ const getEventColor = (status: string) => {
   }
 };
 
+// ADDED: UserPayload interface
+interface UserPayload {
+  role: 'customer' | 'admin';
+}
+
 function JobCalendar() {
-  // Fetch both jobs and public availability
+  const [user, setUser] = useState<UserPayload | null>(null);
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    date: Date | null;
+    isBlocked: boolean;
+    reason?: string | null;
+  }>({ isOpen: false, date: null, isBlocked: false });
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      try {
+        const decodedUser = jwtDecode<UserPayload>(token);
+        setUser(decodedUser);
+      } catch (e) {
+        console.error("Invalid token:", e);
+      }
+    }
+  }, []);
+
+
+  // Fetch jobs and public availability
   const { data: jobs, error: jobsError, isLoading: jobsLoading } = useSWR<Job[]>('/api/jobs', apiGet);
   const { data: availability, error: availabilityError, isLoading: availabilityLoading } = useSWR('/api/public/availability', getPublicAvailability);
+  // NEW: Fetch blocked dates if the user is an admin
+  const { data: blockedDates, isLoading: blockedDatesLoading, mutate: mutateBlockedDates } = useSWR(
+    user?.role === 'admin' ? '/api/admin/blocked-dates' : null,
+    apiGet<BlockedDate[]>
+  );
 
-  // useMemo ensures the events array is only recalculated when the jobs data changes.
+
+  // useMemo to create a set of admin-blocked date strings for quick lookups
+  const adminBlockedDaysSet = useMemo(() => {
+    return new Set(blockedDates?.map(d => d.date) || []);
+  }, [blockedDates]);
+
+  // useMemo for events needs to be updated to include blocked dates as all-day events for admins
   const events = useMemo(() => {
-    if (!jobs) return [];
-    return jobs.map(job => ({
+    const jobEvents = (jobs || []).map(job => ({
       title: job.title,
       start: new Date(job.start),
       end: new Date(job.end),
       resource: job,
     }));
-  }, [jobs]);
+
+    // For admins, create visible all-day events for blocked dates
+    if (user?.role === 'admin') {
+      const blockedEvents = (blockedDates || []).map(blocked => ({
+        title: `BLOCKED: ${blocked.reason || 'No reason'}`,
+        start: new Date(blocked.date + 'T00:00:00'), // Make it an all-day event
+        end: new Date(blocked.date + 'T23:59:59'),
+        allDay: true,
+        resource: { type: 'blocked', reason: blocked.reason },
+      }));
+      return [...jobEvents, ...blockedEvents];
+    }
+
+    return jobEvents;
+  }, [jobs, blockedDates, user]);
 
   // useCallback memoizes the eventPropGetter function for performance.
   const eventPropGetter = useCallback(
-    (event: CalendarEvent) => ({
-      style: {
-        backgroundColor: getEventColor(event.resource.status),
-        borderColor: getEventColor(event.resource.status),
-        color: 'white',
-        borderRadius: '5px',
-        opacity: 0.8
-      },
-    }),
+    (event: CalendarEvent) => {
+      // Custom style for admin-blocked events
+      if (typeof event.resource !== 'string' && 'type' in event.resource && event.resource.type === 'blocked') {
+        return {
+          style: {
+            backgroundColor: '#6c757d', // Grey for blocked
+            borderColor: '#6c757d',
+            color: 'white',
+            borderRadius: '5px',
+          },
+        };
+      }
+      // Existing job styling
+      if (typeof event.resource !== 'string' && 'status' in event.resource) {
+        return {
+          style: {
+            backgroundColor: getEventColor(event.resource.status),
+            borderColor: getEventColor(event.resource.status),
+            color: 'white',
+            borderRadius: '5px',
+            opacity: 0.8
+          },
+        };
+      }
+      return {};
+    },
     []
   );
 
@@ -79,30 +148,76 @@ function JobCalendar() {
   // UPDATED: Add dayPropGetter to apply CSS classes for styling
   const dayPropGetter = useCallback((date: Date) => {
     const day = format(date, 'yyyy-MM-dd');
-    if (bookedDaysSet.has(day)) {
-      return { className: 'darker-day' };
+    const props: { className?: string, style?: React.CSSProperties } = {};
+
+    if (adminBlockedDaysSet.has(day)) {
+        // New class for admin-blocked days
+        props.className = 'admin-blocked-day';
+    } else if (bookedDaysSet.has(day)) {
+        props.className = 'darker-day';
+    } else {
+        props.className = 'lighter-day';
     }
-    return { className: 'lighter-day' };
-  }, [bookedDaysSet]);
+
+    // Add pointer cursor for admins on all days to indicate clickability
+    if(user?.role === 'admin') {
+        props.style = { cursor: 'pointer' };
+    }
+
+    return props;
+  }, [bookedDaysSet, adminBlockedDaysSet, user]);
+
+
+  // NEW: Handler for when a calendar slot is clicked
+  const handleSelectSlot = useCallback((slotInfo: { start: Date }) => {
+    if (user?.role === 'admin') {
+      const dateStr = format(slotInfo.start, 'yyyy-MM-dd');
+      const existingBlock = blockedDates?.find(d => d.date === dateStr);
+      setModalState({
+        isOpen: true,
+        date: slotInfo.start,
+        isBlocked: !!existingBlock,
+        reason: existingBlock?.reason,
+      });
+    }
+    // Non-admins can't do anything by clicking an empty slot
+  }, [user, blockedDates]);
+
 
   // Update loading and error states
-  if (jobsLoading || availabilityLoading) return <div className="text-center p-8">Loading calendar...</div>;
+  if (jobsLoading || availabilityLoading || blockedDatesLoading) return <div className="text-center p-8">Loading calendar...</div>;
   if (jobsError || availabilityError) return <div className="rounded-md bg-red-100 p-4 text-sm text-red-700">{jobsError?.message || availabilityError?.message}</div>;
 
   return (
-    <div className="bg-white dark:bg-tertiary-dark p-4 rounded-lg shadow" style={{ height: '85vh' }}>
-      <BigCalendar
-        localizer={localizer}
-        events={events}
-        eventPropGetter={eventPropGetter}
-        dayPropGetter={dayPropGetter} // Apply the new dayPropGetter
-        startAccessor="start"
-        endAccessor="end"
-        style={{ height: '100%' }}
-      />
-    </div>
+    <>
+      {modalState.isOpen && modalState.date && (
+        <AdminBlockDayModal
+          isOpen={modalState.isOpen}
+          onClose={() => setModalState({ isOpen: false, date: null, isBlocked: false })}
+          selectedDate={modalState.date}
+          isBlocked={modalState.isBlocked}
+          reason={modalState.reason}
+          onUpdate={() => {
+            // Re-fetch the data to update the UI
+            mutateBlockedDates();
+          }}
+        />
+      )}
+      <div className="bg-white dark:bg-tertiary-dark p-4 rounded-lg shadow" style={{ height: '85vh' }}>
+        <BigCalendar
+          localizer={localizer}
+          events={events}
+          eventPropGetter={eventPropGetter}
+          dayPropGetter={dayPropGetter}
+          startAccessor="start"
+          endAccessor="end"
+          style={{ height: '100%' }}
+          selectable={user?.role === 'admin'} // Make calendar selectable only for admins
+          onSelectSlot={handleSelectSlot}
+        />
+      </div>
+    </>
   );
 }
 
 export default JobCalendar;
-

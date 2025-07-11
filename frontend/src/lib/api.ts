@@ -10,7 +10,8 @@ import {
   type SMSMessage,
   type Photo,
   type Note,
-  type PhotoWithNotes
+  type PhotoWithNotes,
+  type BlockedDate
 } from "@portal/shared";
 import { fetchJson } from './fetchJson.js';
 
@@ -82,6 +83,11 @@ export const createInvoice = (serviceId: string) => apiPost<any>(`/api/services/
 // --- JOBS ---
 export const getJobs = () => apiGet<Job[]>('/api/jobs');
 export const getJob = (id: string) => apiGet<Job>(`/api/jobs/${id}`);
+
+// --- ADMIN API ---
+export const getBlockedDates = () => apiGet<BlockedDate[]>('/api/admin/blocked-dates');
+export const addBlockedDate = (date: string, reason?: string) => apiPost('/api/admin/blocked-dates', { date, reason });
+export const removeBlockedDate = (date: string) => fetchJson(`/api/admin/blocked-dates/${date}`, { method: 'DELETE' });
 
 // --- PHOTOS & NOTES (can belong to jobs or services) ---
 export const getPhotos = (filters: { [key: string]: string } = {}) => {

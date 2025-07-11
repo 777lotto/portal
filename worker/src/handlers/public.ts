@@ -11,16 +11,27 @@ import { validateTurnstileToken } from '../auth.js';
 export const handleGetAvailability = async (c: Context<AppEnv>) => {
   try {
     // We only need the start date and can remove the status filter to include all non-cancelled jobs
-    const { results } = await c.env.DB.prepare(
+    const { results: jobResults } = await c.env.DB.prepare(
       `SELECT start FROM jobs WHERE status != 'cancelled'`
     ).all<{ start: string }>();
+
+    // NEW: Also fetch manually blocked dates
+    const { results: blockedDateResults } = await c.env.DB.prepare(
+      `SELECT date FROM blocked_dates`
+    ).all<{ date: string }>();
+
 
     // Use a Set for efficiency to get unique day strings
     const bookedDays = new Set<string>();
 
-    results?.forEach(job => {
+    jobResults?.forEach((job: { start: string }) => {
       const day = new Date(job.start).toISOString().split('T')[0];
       bookedDays.add(day);
+    });
+
+    // NEW: Add manually blocked dates to the set
+    blockedDateResults?.forEach(blocked => {
+        bookedDays.add(blocked.date);
     });
 
     // Return the array of unique booked days
