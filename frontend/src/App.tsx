@@ -1,15 +1,11 @@
-// frontend/src/App.tsx - CORRECTED
-// frontend/src/App.tsx - CORRECTED
+// frontend/src/App.tsx - MODIFIED
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { jwtDecode } from 'jwt-decode';
 
 // --- Page Components ---
-import LoginForm from "./components/LoginForm.js";
-import SignupForm from "./components/SignupForm.js";
-import ForgotPasswordForm from "./components/ForgotPasswordForm.js";
-import VerifyCodeForm from "./components/VerifyCodeForm.js";
-import SetPasswordForm from "./components/SetPasswordForm.js";
+// REMOVED: LoginForm, SignupForm, ForgotPasswordForm, VerifyCodeForm, SetPasswordForm
+import AuthForm from "./components/AuthForm.js"; // ADDED
 import Dashboard from "./components/Dashboard.js";
 import Services from "./components/Services.js";
 import ServiceDetail from "./components/ServiceDetail.js";
@@ -100,23 +96,20 @@ function App() {
         <Routes>
           {/* --- Public Routes --- */}
           <Route path="/booking" element={<PublicBookingPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordForm />} />
-          <Route path="/set-password" element={<SetPasswordForm setToken={handleSetToken} />} />
-          <Route path="/verify-code" element={<VerifyCodeForm />} />
-          <Route path="/" element={<Navigate to={token ? "/dashboard" : "/login"} replace />} />
-          <Route path="/login" element={token ? <Navigate to="/dashboard" replace /> : <LoginForm setToken={handleSetToken} />} />
-          <Route path="/signup" element={token ? <Navigate to="/dashboard" replace /> : <SignupForm setToken={handleSetToken} />} />
+          {/* MODIFIED: Unified auth route */}
+          <Route path="/auth" element={token ? <Navigate to="/dashboard" replace /> : <AuthForm setToken={handleSetToken} />} />
+          <Route path="/" element={<Navigate to={token ? "/dashboard" : "/auth"} replace />} />
+          {/* REMOVED: Old auth routes */}
 
           {/* --- Customer-facing Routes --- */}
-          <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/login" replace />} />
-          <Route path="/services" element={token ? <Services /> : <Navigate to="/login" replace />} />
-          <Route path="/services/:id" element={token ? <ServiceDetail /> : <Navigate to="/login" replace />} />
-          <Route path="/calendar" element={token ? <JobCalendar /> : <Navigate to="/login" replace />} />
-          <Route path="/photos" element={token ? <Photos /> : <Navigate to="/login" replace />} />
-          <Route path="/jobs/:id" element={token ? <JobDetail /> : <Navigate to="/login" replace />} />
-          <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/login" replace />} />
+          <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/auth" replace />} />
+          <Route path="/services" element={token ? <Services /> : <Navigate to="/auth" replace />} />
+          <Route path="/services/:id" element={token ? <ServiceDetail /> : <Navigate to="/auth" replace />} />
+          <Route path="/calendar" element={token ? <JobCalendar /> : <Navigate to="/auth" replace />} />
+          <Route path="/photos" element={token ? <Photos /> : <Navigate to="/auth" replace />} />
+          <Route path="/jobs/:id" element={token ? <JobDetail /> : <Navigate to="/auth" replace />} />
+          <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/auth" replace />} />
 
-          {/* SMS Routes have been removed */}
 
           {/* --- Admin Routes --- */}
           <Route

@@ -1,15 +1,12 @@
-// frontend/src/components/Navbar.tsx - CORRECTED
-
+// frontend/src/components/Navbar.tsx - MODIFIED
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../lib/api.js";
 
-// Define the shape of the decoded user object from the JWT
 interface UserPayload {
   name: string;
   role: 'admin' | 'customer';
 }
 
-// Update the Props interface to accept the new `user` object
 interface Props {
   token: string | null;
   setToken: (token: string | null) => void;
@@ -21,16 +18,13 @@ export default function Navbar({ token, setToken, user }: Props) {
 
   const handleLogout = async () => {
     try {
-      // Call the new API endpoint to clear the server-side session
       await logout();
     } catch (error) {
-      // Log the error but proceed with frontend cleanup regardless
       console.error("Server logout failed:", error);
     } finally {
-      // Clear the token from the frontend state and local storage
       setToken(null);
-      // Redirect to the login page
-      navigate("/login", { replace: true });
+      // MODIFIED: Navigate to the new auth route on logout
+      navigate("/auth", { replace: true });
     }
   };
 
@@ -51,7 +45,6 @@ export default function Navbar({ token, setToken, user }: Props) {
                     <NavLink to="/services" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Services</NavLink>
                     <NavLink to="/calendar" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Calendar</NavLink>
                     <NavLink to="/photos" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Photos</NavLink>
-                    {/* The "Messages" NavLink has been removed */}
                     {user?.role === 'admin' && (
                        <NavLink to="/admin/dashboard" className={({isActive}) => isActive ? activeLinkStyle + ' text-cyan-400' : linkStyle + ' text-cyan-400'}>Admin</NavLink>
                     )}
@@ -71,8 +64,8 @@ export default function Navbar({ token, setToken, user }: Props) {
                 </>
               ) : (
                  <div className="flex items-baseline space-x-4">
-                    <NavLink to="/login" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Login</NavLink>
-                    <NavLink to="/signup" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Sign Up</NavLink>
+                    {/* MODIFIED: Link to the new auth page */}
+                    <NavLink to="/auth" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Sign In / Sign Up</NavLink>
                  </div>
               )}
             </div>
