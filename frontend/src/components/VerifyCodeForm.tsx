@@ -1,4 +1,5 @@
 // File: 777lotto/portal/portal-bet/frontend/src/components/VerifyCodeForm.tsx
+// File: 777lotto/portal/portal-bet/frontend/src/components/VerifyCodeForm.tsx
 
 import { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';

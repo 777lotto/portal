@@ -1,4 +1,5 @@
 // frontend/src/lib/api.ts - CORRECTED
+// frontend/src/lib/api.ts - CORRECTED
 import {
   type Job,
   type Service,

@@ -1,4 +1,5 @@
 // frontend/src/App.tsx - CORRECTED
+// frontend/src/App.tsx - CORRECTED
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { jwtDecode } from 'jwt-decode';

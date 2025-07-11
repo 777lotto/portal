@@ -1,4 +1,5 @@
 // frontend/src/components/SetPasswordForm.tsx
+// frontend/src/components/SetPasswordForm.tsx
 
 import { useState } from 'react';
 // MODIFIED: Remove useSearchParams, add useLocation
