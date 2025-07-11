@@ -14,7 +14,7 @@ import { handleGetProfile, handleUpdateProfile } from './handlers/profile.js';
 import { handleStripeWebhook } from './handlers/stripe.js';
 import { handleListServices, handleGetService, handleCreateInvoice, handleGetPhotosForService, handleGetNotesForService } from './handlers/services.js';
 import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob } from './handlers/jobs.js';
-import { handleGetAllUsers, handleAdminGetJobsForUser } from './handlers/admin/users.js';
+import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser } from './handlers/admin/users.js';
 import { handleGetUserPhotos, handleGetPhotosForJob, handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleGetNotesForJob, handleAdminAddNoteForUser } from './handlers/notes.js';
 import { handlePortalSession } from './handlers/user.js';
@@ -78,6 +78,7 @@ customerApi.get('/photos', handleGetUserPhotos); // Added this line to fix the c
 /* --- Admin API Routes (Admin-Only) --- */
 adminApi.get('/users', handleGetAllUsers);
 adminApi.get('/users/:userId/jobs', handleAdminGetJobsForUser);
+adminApi.get('/users/:userId/photos', handleAdminGetPhotosForUser);
 adminApi.post('/users/:userId/photos', handleAdminUploadPhotoForUser);
 adminApi.post('/users/:userId/notes', handleAdminAddNoteForUser);
 

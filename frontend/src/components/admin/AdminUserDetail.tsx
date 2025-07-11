@@ -3,41 +3,46 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { apiGet, apiPost, apiPostFormData } from '../../lib/api.js';
-import type { Job } from '@portal/shared';
+import type { Job, Photo } from '@portal/shared';
 
 function AdminUserDetail() {
   const { userId } = useParams<{ userId: string }>();
 
-  // Jobs state
+  // State
   const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
-
-  // Note state
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [isLoadingPhotos, setIsLoadingPhotos] = useState(true);
   const [noteContent, setNoteContent] = useState('');
   const [noteJobId, setNoteJobId] = useState('');
+  const [notePhotoId, setNotePhotoId] = useState('');
   const [isNoteSubmitting, setIsNoteSubmitting] = useState(false);
   const [noteMessage, setNoteMessage] = useState<{ type: 'success' | 'danger', text: string } | null>(null);
-
-  // Photo state
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoJobId, setPhotoJobId] = useState('');
   const [isPhotoSubmitting, setIsPhotoSubmitting] = useState(false);
   const [photoMessage, setPhotoMessage] = useState<{ type: 'success' | 'danger', text: string } | null>(null);
 
   useEffect(() => {
-    const fetchJobsForUser = async () => {
+    const fetchDataForUser = async () => {
       if (!userId) return;
+      setIsLoadingJobs(true);
+      setIsLoadingPhotos(true);
       try {
-        setIsLoadingJobs(true);
-        const userJobs = await apiGet<Job[]>(`/api/admin/users/${userId}/jobs`);
+        const [userJobs, userPhotos] = await Promise.all([
+          apiGet<Job[]>(`/api/admin/users/${userId}/jobs`),
+          apiGet<Photo[]>(`/api/admin/users/${userId}/photos`)
+        ]);
         setJobs(userJobs);
+        setPhotos(userPhotos);
       } catch (err: any) {
-        console.error("Failed to fetch jobs for user", err);
+        console.error("Failed to fetch jobs or photos for user", err);
       } finally {
         setIsLoadingJobs(false);
+        setIsLoadingPhotos(false);
       }
     };
-    fetchJobsForUser();
+    fetchDataForUser();
   }, [userId]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -52,11 +57,16 @@ function AdminUserDetail() {
     if (!userId || !noteContent) return;
 
     try {
-      const payload = { content: noteContent, job_id: noteJobId || undefined };
+      const payload = {
+        content: noteContent,
+        job_id: noteJobId || undefined,
+        photo_id: notePhotoId || undefined,
+      };
       await apiPost(`/api/admin/users/${userId}/notes`, payload);
       setNoteMessage({ type: 'success', text: 'Note added successfully!' });
       setNoteContent('');
       setNoteJobId('');
+      setNotePhotoId('');
     } catch (err: any) {
       setNoteMessage({ type: 'danger', text: `Error: ${err.message}` });
     } finally {
@@ -115,6 +125,17 @@ function AdminUserDetail() {
                   <select id="noteJobId" name="noteJobId" className="form-control" value={noteJobId} onChange={(e) => setNoteJobId(e.target.value)} disabled={isLoadingJobs}>
                     <option value="">None</option>
                     {jobs.map(job => (<option key={job.id} value={job.id}>{job.title} - {new Date(job.start).toLocaleDateString()}</option>))}
+                  </select>
+                </div>
+                <div className="mb-3">
+                  <label htmlFor="notePhotoId" className="form-label">Associated Photo (Optional)</label>
+                  <select id="notePhotoId" name="notePhotoId" className="form-control" value={notePhotoId} onChange={(e) => setNotePhotoId(e.target.value)} disabled={isLoadingPhotos}>
+                    <option value="">None</option>
+                    {photos.map(photo => (
+                        <option key={photo.id} value={photo.id}>
+                            Photo from {new Date(photo.created_at).toLocaleString()}
+                        </option>
+                    ))}
                   </select>
                 </div>
                 {noteMessage && <div className={`alert alert-${noteMessage.type}`}>{noteMessage.text}</div>}

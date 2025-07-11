@@ -19,7 +19,7 @@ export const handleGetNotesForJob = async (c: NoteContext<NoteAppEnv>) => {
 
 export const handleAdminAddNoteForUser = async (c: NoteContext<NoteAppEnv>) => {
     const { userId } = c.req.param();
-    const { content, job_id } = await c.req.json();
+    const { content, job_id, photo_id } = await c.req.json();
 
     if (!content) {
         return noteErrorResponse("Note content cannot be empty", 400);
@@ -27,8 +27,8 @@ export const handleAdminAddNoteForUser = async (c: NoteContext<NoteAppEnv>) => {
 
     try {
         const { results } = await c.env.DB.prepare(
-            `INSERT INTO notes (user_id, content, job_id) VALUES (?, ?, ?) RETURNING *`
-        ).bind(parseInt(userId, 10), content, job_id || null).all();
+            `INSERT INTO notes (user_id, content, job_id, photo_id) VALUES (?, ?, ?, ?) RETURNING *`
+        ).bind(parseInt(userId, 10), content, job_id || null, photo_id || null).all();
 
         if (!results || results.length === 0) {
             return noteErrorResponse("Failed to add note after insert", 500);
