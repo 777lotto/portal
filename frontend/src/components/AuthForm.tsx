@@ -94,9 +94,12 @@ function AuthForm({ setToken }: Props) {
         setFlowContext('LOGIN');
         setStep('LOGIN_PASSWORD');
       } else if (response.status === 'EXISTING_NO_PASSWORD') {
-        setFlowContext('LOGIN');
+        // This user needs to set a password for the first time.
+        // We'll treat it like a password reset, which correctly
+        // guides the user to the password creation step.
+        setFlowContext('PASSWORD_RESET');
         setStep('CHOOSE_VERIFY_METHOD');
-      } else {
+      } else { // 'NEW'
         setFlowContext('SIGNUP');
         const isEmail = formData.identifier.includes('@');
         setFormData(prev => ({
