@@ -10,6 +10,7 @@ import { apiGet, getPublicAvailability, getBlockedDates } from '../lib/api';
 import type { Job, BlockedDate } from '@portal/shared';
 import AdminBlockDayModal from './AdminBlockDayModal';
 import { jwtDecode } from 'jwt-decode';
+import { Link } from 'react-router-dom'; // Added this import
 
 // 1. Configure the modern date-fns localizer
 const locales = {
@@ -215,6 +216,19 @@ function JobCalendar() {
           selectable={user?.role === 'admin'} // Make calendar selectable only for admins
           onSelectSlot={handleSelectSlot}
         />
+      </div>
+
+      {/* ADD THIS SECTION */}
+      <div className="text-center mt-6">
+        <Link
+          to="/calendar-sync"
+          className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-event-blue hover:bg-event-blue/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-event-blue"
+        >
+          Sync Your Calendar
+        </Link>
+        <p className="mt-2 text-sm text-text-secondary-light dark:text-text-secondary-dark">
+          Click here to get a unique URL to subscribe to your jobs in an external calendar app.
+        </p>
       </div>
     </>
   );
