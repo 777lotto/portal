@@ -1,6 +1,9 @@
-// frontend/src/components/Navbar.tsx - MODIFIED
+// frontend/src/components/Navbar.tsx - UPDATED
+
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../lib/api.js";
+// 1. Import your SVG from the assets directory
+import companyLogo from '../assets/777-solutions.svg';
 
 interface UserPayload {
   name: string;
@@ -23,7 +26,6 @@ export default function Navbar({ token, setToken, user }: Props) {
       console.error("Server logout failed:", error);
     } finally {
       setToken(null);
-      // MODIFIED: Navigate to the new auth route on logout
       navigate("/auth", { replace: true });
     }
   };
@@ -36,7 +38,18 @@ export default function Navbar({ token, setToken, user }: Props) {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
-            <Link to="/" className="text-white font-bold text-lg">Customer Portal</Link>
+            {/*
+              2. The <Link> component now wraps both the logo and the text.
+                 - It points directly to "/dashboard".
+                 - `flex items-center space-x-3` aligns the logo and text horizontally.
+            */}
+            <Link to="/dashboard" className="flex items-center space-x-3 text-white font-bold text-lg">
+              {/* 3. The imported SVG is used in an <img> tag.
+                  - `h-8 w-8` controls the display size (32x32 pixels).
+              */}
+              <img src={companyLogo} className="h-8 w-8" alt="777 Solutions Logo" />
+              <span>Customer Portal</span>
+            </Link>
             <div className="hidden md:block">
               <div className="ml-10 flex items-baseline space-x-4">
                 {token && (
@@ -64,7 +77,6 @@ export default function Navbar({ token, setToken, user }: Props) {
                 </>
               ) : (
                  <div className="flex items-baseline space-x-4">
-                    {/* MODIFIED: Link to the new auth page */}
                     <NavLink to="/auth" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Sign In / Sign Up</NavLink>
                  </div>
               )}

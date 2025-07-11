@@ -1,6 +1,6 @@
-// frontend/src/components/AuthForm.tsx - CORRECTED
+// frontend/src/components/AuthForm.tsx - UPDATED
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { checkUser, login, requestPasswordReset, verifyResetCode, setPassword, signup, loginWithToken } from '../lib/api';
 import { ApiError } from '../lib/fetchJson';
 
@@ -94,7 +94,7 @@ function AuthForm({ setToken }: Props) {
         setFlowContext('LOGIN');
         setStep('LOGIN_PASSWORD');
       } else if (response.status === 'EXISTING_NO_PASSWORD') {
-        setFlowContext('LOGIN'); // FIX: Use LOGIN context to correctly use contactInfo state
+        setFlowContext('LOGIN');
         setStep('CHOOSE_VERIFY_METHOD');
       } else {
         setFlowContext('SIGNUP');
@@ -195,7 +195,6 @@ function AuthForm({ setToken }: Props) {
     }
   };
 
-  // --- COMPLETE `handleSetPassword` FUNCTION ---
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
@@ -237,34 +236,40 @@ function AuthForm({ setToken }: Props) {
 
 
   const renderIdentify = () => (
-    <form onSubmit={handleIdentify}>
-      <h3 className="card-title text-center">Sign In or Sign Up</h3>
-      <p className="text-center text-muted mb-4">Enter your email or phone number to begin.</p>
-      <div className="mb-3">
-        <label htmlFor="identifier">Email or Phone Number</label>
-        <input type="text" id="identifier" name="identifier" value={formData.identifier} onChange={handleChange} className="form-control" required autoFocus />
+    <form onSubmit={handleIdentify} className="space-y-6">
+      <div className="text-center">
+        <h3 className="card-title">Sign In or Sign Up</h3>
+        <p className="mt-2 text-sm text-text-secondary-light dark:text-text-secondary-dark">Enter your email or phone number to begin.</p>
       </div>
-      <div className="d-grid">
-        <button type="submit" className="btn btn-primary" disabled={isLoading}>{isLoading ? 'Continuing...' : 'Continue'}</button>
+      <div>
+        <label htmlFor="identifier" className="block text-sm font-medium text-text-primary-light dark:text-text-primary-dark">Email or Phone Number</label>
+        <div className="mt-1">
+            <input type="text" id="identifier" name="identifier" value={formData.identifier} onChange={handleChange} className="form-control" required autoFocus />
+        </div>
+      </div>
+      <div>
+        <button type="submit" className="w-full btn btn-primary" disabled={isLoading}>{isLoading ? 'Continuing...' : 'Continue'}</button>
       </div>
     </form>
   );
 
   const renderLoginPassword = () => (
-    <form onSubmit={handleLogin}>
-        <h3 className="card-title text-center">Welcome Back!</h3>
-        <p className="text-center text-muted mb-4">Enter your password to sign in.</p>
-        <div className="mb-3">
+    <form onSubmit={handleLogin} className="space-y-6">
+        <div className="text-center">
+            <h3 className="card-title">Welcome Back!</h3>
+            <p className="mt-2 text-sm text-text-secondary-light dark:text-text-secondary-dark">Enter your password to sign in.</p>
+        </div>
+        <div>
             <label htmlFor="password">Password</label>
             <input type="password" id="password" name="password" value={formData.password} onChange={handleChange} className="form-control" required autoComplete="current-password" autoFocus/>
         </div>
-        <div className="mb-3 d-flex justify-content-center" id="turnstile-container"></div>
-        <div className="d-grid">
-            <button type="submit" className="btn btn-primary" disabled={isLoading || !turnstileToken}>
+        <div className="flex justify-center" id="turnstile-container"></div>
+        <div>
+            <button type="submit" className="w-full btn btn-primary" disabled={isLoading || !turnstileToken}>
                 {isLoading ? 'Signing In...' : 'Sign In'}
             </button>
         </div>
-        <div className="text-center mt-3 d-flex justify-content-between">
+        <div className="text-sm text-center flex justify-between">
             <button type="button" className="btn btn-link" onClick={() => {
                 clearMessages();
                 setFlowContext('PASSWORD_RESET');
@@ -284,20 +289,22 @@ function AuthForm({ setToken }: Props) {
   );
 
   const renderSignupDetails = () => (
-      <form onSubmit={handleDetailsSubmit}>
-          <h3 className="card-title text-center">Complete Your Profile</h3>
-          <p className="text-center text-muted mb-4">Just a few more details to create your account.</p>
-          <div className="mb-3">
-              <label htmlFor="name">Full Name</label>
-              <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} className="form-control" autoFocus/>
-          </div>
-          <div className="mb-3">
-              <label htmlFor="company_name">Company or Community Name</label>
-              <input type="text" id="company_name" name="company_name" value={formData.company_name} onChange={handleChange} className="form-control" />
-              <div className="form-text">Please provide at least a name or a company name.</div>
-          </div>
-          <div className="d-grid">
-              <button type="submit" className="btn btn-primary" disabled={isLoading || (!formData.name && !formData.company_name)}>
+      <form onSubmit={handleDetailsSubmit} className="space-y-6">
+           <div className="text-center">
+                <h3 className="card-title">Complete Your Profile</h3>
+                <p className="mt-2 text-sm text-text-secondary-light dark:text-text-secondary-dark">Just a few more details to create your account.</p>
+            </div>
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium">Full Name</label>
+              <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} className="form-control mt-1" autoFocus/>
+            </div>
+            <div>
+              <label htmlFor="company_name" className="block text-sm font-medium">Company or Community Name</label>
+              <input type="text" id="company_name" name="company_name" value={formData.company_name} onChange={handleChange} className="form-control mt-1" />
+              <p className="mt-2 text-xs text-text-secondary-light dark:text-text-secondary-dark">Please provide at least a name or a company name.</p>
+            </div>
+          <div>
+              <button type="submit" className="w-full btn btn-primary" disabled={isLoading || (!formData.name && !formData.company_name)}>
                   Continue
               </button>
           </div>
@@ -309,17 +316,19 @@ function AuthForm({ setToken }: Props) {
         ? { email: formData.email, phone: formData.phone }
         : contactInfo;
     return (
-        <div>
-            <h3 className="card-title text-center">Verify Your Identity</h3>
-            <p className="text-center text-muted mb-4">How would you like to receive your one-time code?</p>
-            <div className="d-grid gap-2">
+        <div className="space-y-4">
+            <div className="text-center">
+                <h3 className="card-title">Verify Your Identity</h3>
+                <p className="mt-2 text-sm text-text-secondary-light dark:text-text-secondary-dark">How would you like to receive your one-time code?</p>
+            </div>
+            <div className="flex flex-col space-y-3">
                 {methods.email && (
-                    <button onClick={() => handleRequestCode('email')} className="btn btn-info" disabled={isLoading}>
+                    <button onClick={() => handleRequestCode('email')} className="w-full btn btn-info" disabled={isLoading}>
                         {isLoading ? 'Sending...' : `Email code to ${methods.email}`}
                     </button>
                 )}
                 {methods.phone && (
-                    <button onClick={() => handleRequestCode('sms')} className="btn btn-info" disabled={isLoading}>
+                    <button onClick={() => handleRequestCode('sms')} className="w-full btn btn-info" disabled={isLoading}>
                         {isLoading ? 'Sending...' : `Text code to ${methods.phone}`}
                     </button>
                 )}
@@ -329,34 +338,38 @@ function AuthForm({ setToken }: Props) {
   };
 
   const renderVerifyCode = () => (
-      <form onSubmit={handleVerifyCode}>
-          <h3 className="card-title text-center">Enter Verification Code</h3>
-          {message && <div className="alert alert-info">{message}</div>}
-          <div className="mb-3">
+      <form onSubmit={handleVerifyCode} className="space-y-6">
+           <div className="text-center">
+                <h3 className="card-title">Enter Verification Code</h3>
+                {message && <div className="alert alert-info mt-4">{message}</div>}
+           </div>
+          <div>
               <label htmlFor="code">6-Digit Code</label>
-              <input type="text" id="code" name="code" value={formData.code} onChange={handleChange} className="form-control" required minLength={6} maxLength={6} autoFocus/>
+              <input type="text" id="code" name="code" value={formData.code} onChange={handleChange} className="form-control mt-1" required minLength={6} maxLength={6} autoFocus/>
           </div>
-          <div className="d-grid">
-              <button type="submit" className="btn btn-primary" disabled={isLoading}>{isLoading ? 'Verifying...' : 'Verify and Continue'}</button>
+          <div>
+              <button type="submit" className="w-full btn btn-primary" disabled={isLoading}>{isLoading ? 'Verifying...' : 'Verify and Continue'}</button>
           </div>
       </form>
   );
 
   const renderSetPassword = () => (
-    <form onSubmit={handleSetPassword}>
-        <h3 className="card-title text-center">Create a Secure Password</h3>
-        <p className="text-center text-muted mb-4">This will be used to access your account.</p>
-         <div className="mb-3">
+    <form onSubmit={handleSetPassword} className="space-y-6">
+        <div className="text-center">
+            <h3 className="card-title">Create a Secure Password</h3>
+            <p className="mt-2 text-sm text-text-secondary-light dark:text-text-secondary-dark">This will be used to access your account.</p>
+        </div>
+         <div>
              <label htmlFor="password">Password (min. 8 characters)</label>
-             <input type="password" id="password" name="password" value={formData.password} onChange={handleChange} className="form-control" required minLength={8} autoComplete="new-password" autoFocus/>
+             <input type="password" id="password" name="password" value={formData.password} onChange={handleChange} className="form-control mt-1" required minLength={8} autoComplete="new-password" autoFocus/>
          </div>
-         <div className="mb-3">
+         <div>
              <label htmlFor="confirmPassword">Confirm Password</label>
-             <input type="password" id="confirmPassword" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} className="form-control" required autoComplete="new-password"/>
+             <input type="password" id="confirmPassword" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} className="form-control mt-1" required autoComplete="new-password"/>
          </div>
-         <div className="mb-3 d-flex justify-content-center" id="turnstile-container"></div>
-         <div className="d-grid">
-             <button type="submit" className="btn btn-primary" disabled={isLoading || !turnstileToken}>
+         <div className="flex justify-center" id="turnstile-container"></div>
+         <div>
+             <button type="submit" className="w-full btn btn-primary" disabled={isLoading || !turnstileToken}>
                 {isLoading ? 'Saving...' : 'Complete and Sign In'}
             </button>
          </div>
@@ -376,24 +389,22 @@ function AuthForm({ setToken }: Props) {
   };
 
   return (
-    <div className="container mt-5">
-      <div className="row justify-content-center">
-        <div className="col-md-6">
-          <div className="card">
-            <div className="card-body">
-                {error && <div className="alert alert-danger" role="alert">{error}</div>}
-                {renderStep()}
-                {step !== 'IDENTIFY' && (
-                    <div className="text-center mt-3">
-                        <button className="btn btn-link" onClick={() => { clearMessages(); setStep('IDENTIFY'); }}>
-                            Start Over
-                        </button>
-                    </div>
-                )}
+    <div className="min-h-full flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+             <div className="card">
+                <div className="card-body">
+                    {error && <div className="alert alert-danger" role="alert">{error}</div>}
+                    {renderStep()}
+                     {step !== 'IDENTIFY' && (
+                        <div className="text-center mt-4">
+                            <button className="btn btn-link" onClick={() => { clearMessages(); setStep('IDENTIFY'); }}>
+                                Start Over
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
-          </div>
         </div>
-      </div>
     </div>
   );
 }
