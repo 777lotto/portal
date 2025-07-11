@@ -13,13 +13,15 @@ import { handleSignup, handleLogin, handleRequestPasswordReset, handleLogout, ha
 import { handleGetProfile, handleUpdateProfile } from './handlers/profile.js';
 import { handleStripeWebhook } from './handlers/stripe.js';
 import { handleListServices, handleGetService, handleCreateInvoice, handleGetPhotosForService, handleGetNotesForService } from './handlers/services.js';
-import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob, handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate } from './handlers/jobs.js';
+// MODIFIED: Import new handlers
+import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob, handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl } from './handlers/jobs.js';
 import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser } from './handlers/admin/users.js';
 import { handleGetUserPhotos, handleGetPhotosForJob, handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleGetNotesForJob, handleAdminAddNoteForUser } from './handlers/notes.js';
 import { handlePortalSession } from './handlers/user.js';
 import { handleSmsProxy } from './sms.js';
-import { handleGetAvailability, handleCreateBooking } from './handlers/public.js';
+// MODIFIED: Import new public handler
+import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed } from './handlers/public.js';
 import type { Env, User } from '@portal/shared';
 
 export type AppEnv = {
@@ -55,6 +57,7 @@ publicApi.post('/set-password', requirePasswordSetTokenMiddleware, handleSetPass
 publicApi.post('/stripe/webhook', handleStripeWebhook);
 publicApi.get('/public/availability', handleGetAvailability);
 publicApi.post('/public/booking', handleCreateBooking);
+publicApi.get('/public/calendar/feed/:token', handlePublicCalendarFeed); // NEW ROUTE
 
 /* --- Customer API Routes (Authenticated) --- */
 customerApi.get('/profile', handleGetProfile);
@@ -74,6 +77,9 @@ customerApi.all('/sms/*', handleSmsProxy);
 customerApi.post('/logout', handleLogout);
 customerApi.get('/calendar.ics', handleCalendarFeed);
 customerApi.get('/photos', handleGetUserPhotos); // Added this line to fix the crash
+customerApi.get('/calendar/secret-url', handleGetSecretCalendarUrl); // NEW ROUTE
+customerApi.post('/calendar/regenerate-url', handleRegenerateSecretCalendarUrl); // NEW ROUTE
+
 
 /* --- Admin API Routes (Admin-Only) --- */
 adminApi.get('/users', handleGetAllUsers);

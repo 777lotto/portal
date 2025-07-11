@@ -4,8 +4,43 @@ import { v4 as uuidv4 } from 'uuid';
 import { AppEnv } from '../index.js';
 import { PublicBookingRequestSchema, User } from '@portal/shared';
 import { errorResponse, successResponse } from '../utils.js';
-import { createJob } from '../calendar.js';
+import { createJob, generateCalendarFeed } from '../calendar.js'; // MODIFIED: import generateCalendarFeed
 import { validateTurnstileToken } from '../auth.js';
+
+
+// NEW: Handler for public iCal feed
+export const handlePublicCalendarFeed = async (c: Context<AppEnv>) => {
+    const { token } = c.req.param();
+    const cleanToken = token.endsWith('.ics') ? token.slice(0, -4) : token;
+
+    if (!cleanToken) {
+        return errorResponse("Invalid token.", 400);
+    }
+
+    try {
+        // Find the user associated with this token
+        const tokenRecord = await c.env.DB.prepare(
+            `SELECT user_id FROM calendar_tokens WHERE token = ?`
+        ).bind(cleanToken).first<{ user_id: number }>();
+
+        if (!tokenRecord) {
+            return errorResponse("Calendar feed not found.", 404);
+        }
+
+        const icalContent = await generateCalendarFeed(c.env, tokenRecord.user_id.toString());
+        return new Response(icalContent, {
+            headers: {
+                'Content-Type': 'text/calendar; charset=utf-8',
+                'Content-Disposition': `attachment; filename="jobs-user-${tokenRecord.user_id}.ics"`,
+            }
+        });
+
+    } catch (e: any) {
+        console.error("Failed to generate public calendar feed:", e);
+        return errorResponse("Could not generate calendar feed.", 500);
+    }
+}
+
 
 // Handler to get day availability
 export const handleGetAvailability = async (c: Context<AppEnv>) => {

@@ -1,5 +1,4 @@
-// frontend/src/lib/api.ts - CORRECTED
-// frontend/src/lib/api.ts - CORRECTED
+// frontend/src/lib/api.ts
 import {
   type Job,
   type Service,
@@ -103,6 +102,8 @@ export const getSmsConversation = (phoneNumber: string) => apiGet<SMSMessage[]>(
 export const sendSms = (phoneNumber: string, message: string) => apiPost<SMSMessage>('/api/sms/send', { to: phoneNumber, message });
 
 // --- CALENDAR ---
-// REFACTORED: Now fetches the feed securely via an API call
-export const getCalendarFeed = () => apiGet<string>('/api/calendar.ics');
+export const downloadCalendarFeed = () => apiGet<string>('/api/calendar.ics');
+// MODIFIED: Renamed old function and added new ones
+export const getSecretCalendarUrl = () => apiGet<{url: string}>('/api/calendar/secret-url');
+export const regenerateSecretCalendarUrl = () => apiPost<{url: string}>('/api/calendar/regenerate-url', {});
 export const syncCalendar = (url: string) => apiPost('/api/calendar-sync', { url });

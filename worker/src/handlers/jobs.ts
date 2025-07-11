@@ -1,6 +1,7 @@
 // worker/src/handlers/jobs.ts - CORRECTED
 import { Context as HonoContext } from 'hono';
 import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid'; // MODIFIED: Import uuid
 import { AppEnv as WorkerAppEnv } from '../index.js';
 import { errorResponse as workerErrorResponse, successResponse as workerSuccessResponse } from '../utils.js';
 import { generateCalendarFeed, createJob } from '../calendar.js';
@@ -10,6 +11,60 @@ const BlockDatePayload = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
   reason: z.string().optional().nullable(),
 });
+
+// --- NEW: Calendar URL Handlers ---
+
+export const handleGetSecretCalendarUrl = async (c: HonoContext<WorkerAppEnv>) => {
+    const user = c.get('user');
+    const portalBaseUrl = c.env.PORTAL_URL.replace('/dashboard', '');
+
+    try {
+        let tokenRecord = await c.env.DB.prepare(
+            `SELECT token FROM calendar_tokens WHERE user_id = ?`
+        ).bind(user.id).first<{ token: string }>();
+
+        if (!tokenRecord) {
+            const newToken = uuidv4();
+            await c.env.DB.prepare(
+                `INSERT INTO calendar_tokens (token, user_id) VALUES (?, ?)`
+            ).bind(newToken, user.id).run();
+            tokenRecord = { token: newToken };
+        }
+
+        const url = `${portalBaseUrl}/api/public/calendar/feed/${tokenRecord.token}.ics`;
+        return workerSuccessResponse({ url });
+
+    } catch (e: any) {
+        console.error(`Failed to get or create calendar token for user ${user.id}:`, e);
+        return workerErrorResponse("Could not retrieve calendar URL.", 500);
+    }
+};
+
+export const handleRegenerateSecretCalendarUrl = async (c: HonoContext<WorkerAppEnv>) => {
+    const user = c.get('user');
+    const portalBaseUrl = c.env.PORTAL_URL.replace('/dashboard', '');
+
+    try {
+        // Delete old token
+        await c.env.DB.prepare(
+            `DELETE FROM calendar_tokens WHERE user_id = ?`
+        ).bind(user.id).run();
+
+        // Create new token
+        const newToken = uuidv4();
+        await c.env.DB.prepare(
+            `INSERT INTO calendar_tokens (token, user_id) VALUES (?, ?)`
+        ).bind(newToken, user.id).run();
+
+        const url = `${portalBaseUrl}/api/public/calendar/feed/${newToken}.ics`;
+        return workerSuccessResponse({ url });
+
+    } catch (e: any) {
+         console.error(`Failed to regenerate calendar token for user ${user.id}:`, e);
+        return workerErrorResponse("Could not regenerate calendar URL.", 500);
+    }
+};
+
 
 export const handleCreateJob = async (c: HonoContext<WorkerAppEnv>) => {
     const user = c.get('user');
