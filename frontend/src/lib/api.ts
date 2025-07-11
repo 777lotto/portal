@@ -36,7 +36,7 @@ export const apiPostFormData = <T>(path: string, formData: FormData): Promise<T>
 };
 
 // --- PUBLIC API (No Auth Required) ---
-export const getPublicAvailability = () => apiGet<{ unavailableDays: string[] }>('/api/public/availability');
+export const getPublicAvailability = () => apiGet<{ bookedDays: string[] }>('/api/public/availability');
 export const createPublicBooking = (data: unknown) => apiPost('/api/public/booking', data);
 export const checkUser = (identifier: string) => apiPost<{ status: string }>('/api/check-user', { identifier });
 export const requestPasswordReset = (identifier: string, channel: 'email' | 'sms') => apiPost('/api/request-password-reset', { identifier, channel });

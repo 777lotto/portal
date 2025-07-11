@@ -71,23 +71,19 @@ function JobCalendar() {
     []
   );
 
-  // NEW: Memoize the set of unavailable days
-  const unavailableDaysSet = useMemo(() => {
-    return new Set(availability?.unavailableDays || []);
+  // UPDATED: Memoize the set of booked days from the new data structure
+  const bookedDaysSet = useMemo(() => {
+    return new Set(availability?.bookedDays || []);
   }, [availability]);
 
-  // NEW: Add dayPropGetter to style the background of calendar days
+  // UPDATED: Add dayPropGetter to apply CSS classes for styling
   const dayPropGetter = useCallback((date: Date) => {
     const day = format(date, 'yyyy-MM-dd');
-    if (unavailableDaysSet.has(day)) {
-      return {
-        style: {
-          backgroundColor: 'rgba(52, 58, 64, 0.1)', // Light grey for unavailable
-        },
-      };
+    if (bookedDaysSet.has(day)) {
+      return { className: 'darker-day' };
     }
-    return {};
-  }, [unavailableDaysSet]);
+    return { className: 'lighter-day' };
+  }, [bookedDaysSet]);
 
   // Update loading and error states
   if (jobsLoading || availabilityLoading) return <div className="text-center p-8">Loading calendar...</div>;
@@ -99,7 +95,7 @@ function JobCalendar() {
         localizer={localizer}
         events={events}
         eventPropGetter={eventPropGetter}
-        dayPropGetter={dayPropGetter}
+        dayPropGetter={dayPropGetter} // Apply the new dayPropGetter
         startAccessor="start"
         endAccessor="end"
         style={{ height: '100%' }}

@@ -1,3 +1,4 @@
+// worker/src/handlers/public.ts
 import { Context } from 'hono';
 import { v4 as uuidv4 } from 'uuid';
 import { AppEnv } from '../index.js';
@@ -6,37 +7,24 @@ import { errorResponse, successResponse } from '../utils.js';
 import { createJob } from '../calendar.js';
 import { validateTurnstileToken } from '../auth.js';
 
-const WORKING_HOURS_PER_DAY = 8;
-
 // Handler to get day availability
 export const handleGetAvailability = async (c: Context<AppEnv>) => {
   try {
+    // We only need the start date and can remove the status filter to include all non-cancelled jobs
     const { results } = await c.env.DB.prepare(
-      `SELECT start, end, title FROM jobs WHERE status NOT IN ('cancelled', 'pending_confirmation')`
-    ).all<{ start: string, end: string, title: string }>();
+      `SELECT start FROM jobs WHERE status != 'cancelled'`
+    ).all<{ start: string }>();
 
-    const bookedHours: { [key: string]: number } = {};
+    // Use a Set for efficiency to get unique day strings
+    const bookedDays = new Set<string>();
 
     results?.forEach(job => {
-      const startDate = new Date(job.start);
-      const day = startDate.toISOString().split('T')[0];
-
-      let duration = 0;
-      if (job.title.includes('Full Day')) {
-        duration = WORKING_HOURS_PER_DAY;
-      } else {
-        const endDate = new Date(job.end);
-        duration = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
-      }
-
-      bookedHours[day] = (bookedHours[day] || 0) + duration;
+      const day = new Date(job.start).toISOString().split('T')[0];
+      bookedDays.add(day);
     });
 
-    const unavailableDays = Object.keys(bookedHours).filter(
-      day => bookedHours[day] >= WORKING_HOURS_PER_DAY
-    );
-
-    return successResponse({ unavailableDays });
+    // Return the array of unique booked days
+    return successResponse({ bookedDays: Array.from(bookedDays) });
   } catch (e: any) {
     console.error("Failed to get availability:", e);
     return errorResponse("Failed to retrieve availability", 500);

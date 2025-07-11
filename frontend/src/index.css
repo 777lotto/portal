@@ -30,6 +30,14 @@ body {
       @apply p-0 bg-transparent border-transparent shadow-none text-event-blue hover:underline disabled:no-underline disabled:text-gray-400;
   }
 
+@layer base {
+  .rbc-day-bg.lighter-day {
+      @apply bg-primary-light dark:bg-primary-dark;
+  }
+  .rbc-day-bg.darker-day {
+      @apply bg-secondary-light dark:bg-secondary-dark;
+  }
+}
   /* Cards */
   .card {
     @apply bg-primary-light dark:bg-tertiary-dark shadow-lg rounded-lg border border-border-light dark:border-border-dark;

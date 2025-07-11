@@ -16,27 +16,25 @@ interface Props {
 function BookingCalendar({ onSelectSlot }: Props) {
   const { data, error, isLoading } = useSWR('/api/public/availability', getPublicAvailability);
 
-  const unavailableDaysSet = useMemo(() => {
-    return new Set(data?.unavailableDays || []);
+  // UPDATED: Memoize the set of booked days from the new data structure
+  const bookedDaysSet = useMemo(() => {
+    return new Set(data?.bookedDays || []);
   }, [data]);
 
+  // UPDATED: Add dayPropGetter to apply styles and disable booked days
   const dayPropGetter = useCallback((date: Date) => {
     const day = format(date, 'yyyy-MM-dd');
-    if (unavailableDaysSet.has(day)) {
+    if (bookedDaysSet.has(day)) {
       return {
+        className: 'darker-day',
         style: {
-          backgroundColor: '#343a40', // Dark background for unavailable days
           pointerEvents: 'none',
           cursor: 'not-allowed',
         },
       };
     }
-    return {
-      style: {
-        backgroundColor: 'white', // White for available
-      }
-    };
-  }, [unavailableDaysSet]);
+    return { className: 'lighter-day' };
+  }, [bookedDaysSet]);
 
   if (isLoading) return <div>Loading availability...</div>;
   if (error) return <div className="alert alert-danger">Could not load calendar.</div>;
@@ -49,7 +47,7 @@ function BookingCalendar({ onSelectSlot }: Props) {
         startAccessor="start"
         endAccessor="end"
         style={{ height: '100%' }}
-        views={[Views.MONTH]}
+        views={[Views.MONTH, Views.WEEK]} // User wanted month and week view
         selectable
         onSelectSlot={onSelectSlot}
         dayPropGetter={dayPropGetter}
@@ -63,7 +61,10 @@ function BookingCalendar({ onSelectSlot }: Props) {
                             <button type="button" onClick={() => toolbar.onNavigate('NEXT')}>Next</button>
                         </span>
                         <span className="rbc-toolbar-label">{toolbar.label}</span>
-                        <span className="rbc-btn-group"></span>
+                        <span className="rbc-btn-group">
+                           <button type="button" className={toolbar.view === 'month' ? 'rbc-active' : ''} onClick={() => toolbar.onView('month')}>Month</button>
+                           <button type="button" className={toolbar.view === 'week' ? 'rbc-active' : ''} onClick={() => toolbar.onView('week')}>Week</button>
+                        </span>
                     </div>
                 );
             }
