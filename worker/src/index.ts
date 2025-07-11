@@ -83,7 +83,7 @@ adminApi.post('/users/:userId/notes', handleAdminAddNoteForUser);
 
 api.route('/', publicApi);
 api.route('/', customerApi);
-api.route('/', adminApi);
+api.route('/admin', adminApi);
 
 app.route('/api', api);
 
