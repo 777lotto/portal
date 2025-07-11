@@ -2,7 +2,17 @@
 import { Context as PhotoContext } from 'hono';
 import { AppEnv as PhotoAppEnv } from '../index.js';
 import { errorResponse as photoErrorResponse, successResponse as photoSuccessResponse } from '../utils.js';
-import type { Note } from '@portal/shared';
+import type { Note, Photo } from '@portal/shared';
+
+// Define the type for the Cloudflare Images API response
+interface CloudflareImageResponse {
+    success: boolean;
+    errors: { code: number; message: string }[];
+    result?: {
+        id: string;
+        variants: string[];
+    };
+}
 
 export const handleGetUserPhotos = async (c: PhotoContext<PhotoAppEnv>) => {
     const user = c.get('user');
@@ -45,10 +55,8 @@ export const handleGetUserPhotos = async (c: PhotoContext<PhotoAppEnv>) => {
 
         const { results } = await c.env.DB.prepare(query).bind(...queryParams).all();
 
-        // The 'notes' column will be a JSON string, so we need to parse it.
         const photos = results.map((photo: any) => ({
             ...photo,
-            // FIX: Add an explicit type for the 'n' parameter to resolve the TS7006 error.
             notes: photo.notes ? JSON.parse(photo.notes).filter((n: Note) => n.id !== null) : [],
         }));
 
@@ -60,13 +68,12 @@ export const handleGetUserPhotos = async (c: PhotoContext<PhotoAppEnv>) => {
     }
 };
 
-
 export const handleGetPhotosForJob = async (c: PhotoContext<PhotoAppEnv>) => {
     const { jobId } = c.req.param();
     try {
         const { results } = await c.env.DB.prepare(
             `SELECT * FROM photos WHERE job_id = ? ORDER BY created_at DESC`
-        ).bind(jobId).all();
+        ).bind(jobId).all<Photo>();
         return photoSuccessResponse(results);
     } catch (e: any) {
         console.error("Failed to get photos:", e.message);
@@ -74,31 +81,72 @@ export const handleGetPhotosForJob = async (c: PhotoContext<PhotoAppEnv>) => {
     }
 };
 
-export const handleAdminUploadPhoto = async (c: PhotoContext<PhotoAppEnv>) => {
-    const { jobId } = c.req.param();
+export const handleAdminUploadPhotoForUser = async (c: PhotoContext<PhotoAppEnv>) => {
+    const { userId } = c.req.param();
     const formData = await c.req.formData();
-    const fileValue = formData.get('file');
+    const fileValue = formData.get('photo');
+    const jobId = formData.get('job_id') as string | null;
+
+    if (!userId) {
+        return photoErrorResponse("User ID is required.", 400);
+    }
 
     if (typeof fileValue === 'string' || !fileValue) {
-        return photoErrorResponse("No file provided or invalid file type", 400);
+        return photoErrorResponse("No file provided or invalid file type.", 400);
     }
     const file: File = fileValue;
 
-    console.log(`Received file "${file.name}" (${file.size} bytes) for job ${jobId}`);
-    // In a real application, you would upload this to a service like Cloudflare R2.
-    const imageUrl = `https://portal.777.foo/images/${jobId}/${file.name}`;
+    if (!c.env.CF_IMAGES_API_TOKEN || !c.env.CF_IMAGES_ACCOUNT_HASH) {
+        console.error("Cloudflare Images credentials are not configured.");
+        return photoErrorResponse("Image upload service is not configured.", 500);
+    }
+
+    const cfUploadData = new FormData();
+    cfUploadData.append('file', file);
+    cfUploadData.append('requireSignedURLs', 'false');
+    cfUploadData.append('metadata', JSON.stringify({ userId, jobId }));
+
 
     try {
-        const { results } = await c.env.DB.prepare(
-            `INSERT INTO photos (job_id, url) VALUES (?, ?) RETURNING *`
-        ).bind(jobId, imageUrl).all();
+        const cfResponse = await fetch(`https://api.cloudflare.com/client/v4/accounts/${c.env.CF_IMAGES_ACCOUNT_HASH}/images/v1`, {
+            method: 'POST',
+            body: cfUploadData,
+            headers: {
+                'Authorization': `Bearer ${c.env.CF_IMAGES_API_TOKEN}`,
+            },
+        });
 
-        if (!results || results.length === 0) {
-            return photoErrorResponse("Failed to save photo record after upload", 500);
+        const cfResult = await cfResponse.json() as CloudflareImageResponse;
+
+        if (!cfResponse.ok || !cfResult.success) {
+            const errorMessage = cfResult.errors[0]?.message || `Cloudflare API Error: ${cfResponse.status}`;
+            console.error("Cloudflare Images API Error:", cfResult.errors);
+            throw new Error(errorMessage);
         }
-        return photoSuccessResponse(results[0], 201);
+
+        if(!cfResult.result) {
+            throw new Error('Cloudflare API Error: Successful response did not contain result object.');
+        }
+
+        const newPhotoData = {
+            id: cfResult.result.id,
+            url: cfResult.result.variants[0],
+            user_id: parseInt(userId, 10),
+            job_id: jobId || null,
+        };
+
+        const { results: dbResults } = await c.env.DB.prepare(
+            `INSERT INTO photos (id, url, user_id, job_id) VALUES (?, ?, ?, ?) RETURNING *`
+        ).bind(newPhotoData.id, newPhotoData.url, newPhotoData.user_id, newPhotoData.job_id).all<Photo>();
+
+        if (!dbResults || dbResults.length === 0) {
+            console.error(`Failed to save photo record for Cloudflare image ${newPhotoData.id}`);
+            return photoErrorResponse("Failed to save photo record after successful upload.", 500);
+        }
+
+        return photoSuccessResponse(dbResults[0], 201);
     } catch (e: any) {
-        console.error("Failed to save photo record:", e.message);
-        return photoErrorResponse("Failed to save photo record", 500);
+        console.error("Failed to upload photo:", e);
+        return photoErrorResponse(e.message || "Failed to upload photo", 500);
     }
 };

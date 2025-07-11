@@ -9,15 +9,14 @@ import manifest from '__STATIC_CONTENT_MANIFEST';
 
 import { errorResponse } from './utils.js';
 import { requireAuthMiddleware, requireAdminAuthMiddleware, requirePasswordSetTokenMiddleware } from './auth.js';
-// MODIFIED: Import handleLoginWithToken
 import { handleSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './handlers/auth.js';
 import { handleGetProfile, handleUpdateProfile } from './handlers/profile.js';
 import { handleStripeWebhook } from './handlers/stripe.js';
 import { handleListServices, handleGetService, handleCreateInvoice, handleGetPhotosForService, handleGetNotesForService } from './handlers/services.js';
 import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob } from './handlers/jobs.js';
-import { handleGetAllUsers } from './handlers/admin/users.js';
-import { handleGetPhotosForJob, handleAdminUploadPhoto } from './handlers/photos.js';
-import { handleGetNotesForJob, handleAdminAddNote } from './handlers/notes.js';
+import { handleGetAllUsers, handleAdminGetJobsForUser } from './handlers/admin/users.js';
+import { handleGetUserPhotos, handleGetPhotosForJob, handleAdminUploadPhotoForUser } from './handlers/photos.js';
+import { handleGetNotesForJob, handleAdminAddNoteForUser } from './handlers/notes.js';
 import { handlePortalSession } from './handlers/user.js';
 import { handleSmsProxy } from './sms.js';
 import { handleGetAvailability, handleCreateBooking } from './handlers/public.js';
@@ -51,7 +50,6 @@ publicApi.post('/login', handleLogin);
 publicApi.post('/check-user', handleCheckUser);
 publicApi.post('/request-password-reset', handleRequestPasswordReset);
 publicApi.post('/verify-reset-code', handleVerifyResetCode);
-// MODIFIED: Added the new route for token-based login
 publicApi.post('/login-with-token', requirePasswordSetTokenMiddleware, handleLoginWithToken);
 publicApi.post('/set-password', requirePasswordSetTokenMiddleware, handleSetPassword);
 publicApi.post('/stripe/webhook', handleStripeWebhook);
@@ -75,11 +73,13 @@ customerApi.post('/portal', handlePortalSession);
 customerApi.all('/sms/*', handleSmsProxy);
 customerApi.post('/logout', handleLogout);
 customerApi.get('/calendar.ics', handleCalendarFeed);
+customerApi.get('/photos', handleGetUserPhotos); // Added this line to fix the crash
 
 /* --- Admin API Routes (Admin-Only) --- */
 adminApi.get('/users', handleGetAllUsers);
-adminApi.post('/jobs/:jobId/photos', handleAdminUploadPhoto);
-adminApi.post('/jobs/:jobId/notes', handleAdminAddNote);
+adminApi.get('/users/:userId/jobs', handleAdminGetJobsForUser);
+adminApi.post('/users/:userId/photos', handleAdminUploadPhotoForUser);
+adminApi.post('/users/:userId/notes', handleAdminAddNoteForUser);
 
 api.route('/', publicApi);
 api.route('/', customerApi);
