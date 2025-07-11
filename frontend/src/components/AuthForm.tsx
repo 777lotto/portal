@@ -1,4 +1,4 @@
-// frontend/src/components/AuthForm.tsx
+// frontend/src/components/AuthForm.tsx - CORRECTED
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { checkUser, login, requestPasswordReset, verifyResetCode, setPassword, signup, loginWithToken } from '../lib/api';
@@ -94,7 +94,7 @@ function AuthForm({ setToken }: Props) {
         setFlowContext('LOGIN');
         setStep('LOGIN_PASSWORD');
       } else if (response.status === 'EXISTING_NO_PASSWORD') {
-        setFlowContext('SIGNUP');
+        setFlowContext('LOGIN'); // FIX: Use LOGIN context to correctly use contactInfo state
         setStep('CHOOSE_VERIFY_METHOD');
       } else {
         setFlowContext('SIGNUP');
