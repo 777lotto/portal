@@ -176,6 +176,14 @@ export async function sendSMSNotification(env: Env, to: string, message: string)
         return { success: false, error: "SMS service not configured." };
     }
 
+    const cleanedTo = to.replace(/\D/g, '').slice(-10);
+
+    if (cleanedTo.length !== 10) {
+        const errorMsg = `Invalid phone number format after cleaning: ${to}`;
+        console.error(errorMsg);
+        return { success: false, error: errorMsg };
+    }
+
     const endpoint = 'https://voip.ms/api/v1/rest.php';
     const params = new URLSearchParams({
         api_username: env.VOIPMS_USERNAME,

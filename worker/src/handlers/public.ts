@@ -95,12 +95,13 @@ export const handleCreateBooking = async (c: Context<AppEnv>) => {
 
   const { name, email, phone, address, date, services } = parsed.data;
   const lowercasedEmail = email.toLowerCase();
+  const cleanedPhone = phone.replace(/\D/g, '').slice(-10);
 
   try {
     // 1. Check for an existing user by email OR phone
     const existingUser = await c.env.DB.prepare(
       `SELECT id, name, password_hash FROM users WHERE email = ? OR phone = ?`
-    ).bind(lowercasedEmail, phone).first<User & { password_hash?: string }>();
+    ).bind(lowercasedEmail, cleanedPhone).first<User & { password_hash?: string }>();
 
     if (existingUser) {
         // Case 1: User exists and has a password. Prompt them to log in.
@@ -141,7 +142,7 @@ export const handleCreateBooking = async (c: Context<AppEnv>) => {
     // Case 3: No user exists. Create a new guest user and proceed with booking.
     const { results } = await c.env.DB.prepare(
         `INSERT INTO users (name, email, phone, address, role) VALUES (?, ?, ?, ?, 'guest') RETURNING id`
-      ).bind(name, lowercasedEmail, phone, address).all<{ id: number }>();
+      ).bind(name, lowercasedEmail, cleanedPhone, address).all<{ id: number }>();
 
     if (!results || results.length === 0) {
       return errorResponse('Failed to create guest user', 500);

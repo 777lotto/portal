@@ -1,8 +1,8 @@
-// frontend/src/components/AuthForm.tsx - UPDATED
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { checkUser, login, requestPasswordReset, verifyResetCode, setPassword, signup, loginWithToken } from '../lib/api';
 import { ApiError } from '../lib/fetchJson';
+import StyledDigitInput from './StyledDigitInput';
 
 // Declare the global Turnstile type
 declare global {
@@ -87,25 +87,27 @@ function AuthForm({ setToken }: Props) {
     setIsLoading(true);
 
     try {
-      const response = await checkUser(formData.identifier);
+      const isEmail = formData.identifier.includes('@');
+      const finalIdentifier = isEmail ? formData.identifier : formData.identifier.replace(/\D/g, '').slice(-10);
+
+      const response = await checkUser(finalIdentifier);
       setContactInfo({ email: response.email, phone: response.phone });
 
       if (response.status === 'EXISTING_WITH_PASSWORD') {
         setFlowContext('LOGIN');
+        setFormData(prev => ({ ...prev, identifier: finalIdentifier }));
         setStep('LOGIN_PASSWORD');
       } else if (response.status === 'EXISTING_NO_PASSWORD') {
-        // This user needs to set a password for the first time.
-        // We'll treat it like a password reset, which correctly
-        // guides the user to the password creation step.
         setFlowContext('PASSWORD_RESET');
+        setFormData(prev => ({ ...prev, identifier: finalIdentifier }));
         setStep('CHOOSE_VERIFY_METHOD');
       } else { // 'NEW'
         setFlowContext('SIGNUP');
-        const isEmail = formData.identifier.includes('@');
         setFormData(prev => ({
             ...prev,
-            email: isEmail ? prev.identifier : '',
-            phone: !isEmail ? prev.identifier : ''
+            identifier: finalIdentifier,
+            email: isEmail ? finalIdentifier : '',
+            phone: !isEmail ? finalIdentifier : ''
         }));
         setStep('SIGNUP_DETAILS');
       }
@@ -237,7 +239,6 @@ function AuthForm({ setToken }: Props) {
     }
   };
 
-
   const renderIdentify = () => (
     <form onSubmit={handleIdentify} className="space-y-6">
       <div className="text-center">
@@ -307,6 +308,21 @@ function AuthForm({ setToken }: Props) {
               <p className="mt-2 text-xs text-text-secondary-light dark:text-text-secondary-dark">Please provide at least a name or a company name.</p>
             </div>
           <div>
+            <StyledDigitInput
+                id="phone"
+                label="Phone Number"
+                value={formData.phone}
+                onChange={(value) => setFormData(prev => ({...prev, phone: value}))}
+                digitCount={10}
+                format="phone"
+                autoComplete="tel"
+            />
+          </div>
+          <div>
+              <label htmlFor="email" className="block text-sm font-medium">Email Address</label>
+              <input type="email" id="email" name="email" value={formData.email} onChange={handleChange} className="form-control mt-1" />
+          </div>
+          <div>
               <button type="submit" className="w-full btn btn-primary" disabled={isLoading || (!formData.name && !formData.company_name)}>
                   Continue
               </button>
@@ -346,10 +362,15 @@ function AuthForm({ setToken }: Props) {
                 <h3 className="card-title">Enter Verification Code</h3>
                 {message && <div className="alert alert-info mt-4">{message}</div>}
            </div>
-          <div>
-              <label htmlFor="code">6-Digit Code</label>
-              <input type="text" id="code" name="code" value={formData.code} onChange={handleChange} className="form-control mt-1" required minLength={6} maxLength={6} autoFocus/>
-          </div>
+          <StyledDigitInput
+            id="code"
+            label="6-Digit Code"
+            value={formData.code}
+            onChange={(value) => setFormData(prev => ({ ...prev, code: value }))}
+            digitCount={6}
+            autoComplete="one-time-code"
+            format="code"
+          />
           <div>
               <button type="submit" className="w-full btn btn-primary" disabled={isLoading}>{isLoading ? 'Verifying...' : 'Verify and Continue'}</button>
           </div>

@@ -29,6 +29,45 @@ body {
   .btn-link {
       @apply p-0 bg-transparent border-transparent shadow-none text-event-blue hover:underline disabled:no-underline disabled:text-gray-400;
   }
+  .sdi-input {
+    @apply absolute top-0 left-0 w-full h-full bg-transparent border-0 opacity-0;
+    caret-color: theme('colors.event-blue');
+    z-index: 1;
+  }
+
+  .sdi-input:focus + .sdi-display .sdi-box {
+    @apply border-event-blue ring-1 ring-event-blue;
+  }
+
+  .sdi-display {
+    @apply pointer-events-none;
+  }
+
+  .sdi-container-phone,
+  .sdi-container-code {
+    @apply flex items-center;
+  }
+
+  .sdi-container-phone {
+    @apply space-x-1;
+  }
+  .sdi-container-code {
+    @apply space-x-2;
+  }
+
+  .sdi-box {
+    @apply form-control h-12 flex items-center justify-center text-center text-lg font-mono transition;
+  }
+  .sdi-container-phone .sdi-box {
+    @apply w-10;
+  }
+  .sdi-container-code .sdi-box {
+    @apply w-12;
+  }
+
+  .sdi-char {
+    @apply text-lg font-mono text-text-secondary-light dark:text-text-secondary-dark px-1;
+  }
 
 @layer base {
   .rbc-day-bg.lighter-day {

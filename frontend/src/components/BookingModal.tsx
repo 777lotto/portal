@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { createPublicBooking } from '../lib/api';
 import { ApiError } from '../lib/fetchJson';
 import { format } from 'date-fns';
+import StyledDigitInput from './StyledDigitInput';
 
 // Add the global window type definition for the Turnstile callback
 // This should match the working implementation in your other forms.
@@ -74,11 +75,13 @@ function BookingModal({ isOpen, onClose, selectedDate }: Props) {
       setError('Please select at least one service.');
       return;
     }
-    // Check for the turnstile token before allowing submission
     if (!turnstileToken) {
       setError("Please wait for the security check to complete.");
       return;
     }
+
+    // The cleaning logic is now handled by the component's onChange
+
     setError('');
     setSuccess('');
     setIsSubmitting(true);
@@ -144,9 +147,22 @@ function BookingModal({ isOpen, onClose, selectedDate }: Props) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <input name="name" placeholder="Full Name" onChange={handleChange} className="form-control" required />
             <input name="email" type="email" placeholder="Email Address" onChange={handleChange} className="form-control" required />
-            <input name="phone" type="tel" placeholder="Phone Number" onChange={handleChange} className="form-control" required />
+
+            <div className="md:col-span-2">
+              <StyledDigitInput
+                id="phone"
+                label="Phone Number"
+                value={formData.phone}
+                onChange={(value) => setFormData(prev => ({ ...prev, phone: value }))}
+                digitCount={10}
+                format="phone"
+                autoComplete="tel"
+              />
+            </div>
+
             <input name="address" placeholder="Service Address" onChange={handleChange} className="form-control md:col-span-2" required />
           </div>
+
 
           {/* This container will be populated by your Zaraz script */}
           <div className="mb-3 d-flex justify-content-center" id="turnstile-container"></div>
