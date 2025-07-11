@@ -1,7 +1,7 @@
 // frontend/src/components/AuthForm.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { checkUser, login, requestPasswordReset, verifyResetCode, setPassword, signup } from '../lib/api';
+import { checkUser, login, requestPasswordReset, verifyResetCode, setPassword, signup, loginWithToken } from '../lib/api';
 import { ApiError } from '../lib/fetchJson';
 
 // Declare the global Turnstile type
@@ -24,38 +24,35 @@ type Step =
   | 'VERIFY_CODE'
   | 'SET_PASSWORD';
 
-// This will determine the context for the final steps (e.g., setting a password for a new user vs. an existing one)
-type AuthAction = 'LOGIN' | 'SIGNUP';
+type FlowContext = 'LOGIN' | 'SIGNUP' | 'PASSWORD_RESET';
 
 function AuthForm({ setToken }: Props) {
   const [step, setStep] = useState<Step>('IDENTIFY');
-  const [authAction, setAuthAction] = useState<AuthAction>('LOGIN');
+  const [flowContext, setFlowContext] = useState<FlowContext>('LOGIN');
 
   const [formData, setFormData] = useState({
-    identifier: '', // Used in IDENTIFY step
+    identifier: '',
     name: '',
     company_name: '',
     email: '',
     phone: '',
     password: '',
     confirmPassword: '',
-    code: '', // For VERIFY_CODE step
+    code: '',
   });
 
   const [contactInfo, setContactInfo] = useState<{ email?: string; phone?: string }>({});
   const [passwordSetToken, setPasswordSetToken] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<React.ReactNode>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Effect to render Cloudflare Turnstile widget
   useEffect(() => {
     window.onTurnstileSuccess = (token: string) => setTurnstileToken(token);
 
     if (step === 'LOGIN_PASSWORD' || step === 'SET_PASSWORD') {
-        // Delay rendering to ensure the container is in the DOM
         setTimeout(() => {
             if (window.renderCfTurnstile) {
                 window.renderCfTurnstile();
@@ -84,7 +81,6 @@ function AuthForm({ setToken }: Props) {
       setMessage(null);
   }
 
-  // Step 1: Handle user identification (email/phone)
   const handleIdentify = async (e: React.FormEvent) => {
     e.preventDefault();
     clearMessages();
@@ -95,18 +91,19 @@ function AuthForm({ setToken }: Props) {
       setContactInfo({ email: response.email, phone: response.phone });
 
       if (response.status === 'EXISTING_WITH_PASSWORD') {
+        setFlowContext('LOGIN');
         setStep('LOGIN_PASSWORD');
       } else if (response.status === 'EXISTING_NO_PASSWORD') {
-        setAuthAction('LOGIN');
+        setFlowContext('SIGNUP');
         setStep('CHOOSE_VERIFY_METHOD');
-      } else { // 'NEW'
+      } else {
+        setFlowContext('SIGNUP');
         const isEmail = formData.identifier.includes('@');
         setFormData(prev => ({
             ...prev,
             email: isEmail ? prev.identifier : '',
             phone: !isEmail ? prev.identifier : ''
         }));
-        setAuthAction('SIGNUP');
         setStep('SIGNUP_DETAILS');
       }
     } catch (err: any) {
@@ -116,7 +113,6 @@ function AuthForm({ setToken }: Props) {
     }
   };
 
-  // Step 2 (Scenario 1): Handle login with password
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!turnstileToken) {
@@ -144,22 +140,23 @@ function AuthForm({ setToken }: Props) {
     }
   };
 
-  // Step 2 (Scenario 3): Move from signup details to verification
   const handleDetailsSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (!formData.name && !formData.company_name) {
           setError("Please enter either your name or a company/community name.");
           return;
       }
+      clearMessages();
       setStep('CHOOSE_VERIFY_METHOD');
   }
 
-  // Step 3: Request a verification code to be sent
   const handleRequestCode = async (channel: 'email' | 'sms') => {
     clearMessages();
     setIsLoading(true);
     try {
-        const identifier = authAction === 'SIGNUP' ? (channel === 'email' ? formData.email : formData.phone) : formData.identifier;
+        const identifier = flowContext === 'SIGNUP'
+            ? (channel === 'email' ? formData.email : formData.phone)
+            : formData.identifier;
         await requestPasswordReset(identifier, channel);
         setMessage(`A verification code has been sent to your ${channel}.`);
         setStep('VERIFY_CODE');
@@ -170,17 +167,24 @@ function AuthForm({ setToken }: Props) {
     }
   };
 
-  // Step 4: Verify the one-time code
   const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
     clearMessages();
     setIsLoading(true);
     try {
-        const identifier = authAction === 'SIGNUP' ? (contactInfo.email || formData.email || contactInfo.phone || formData.phone) : formData.identifier;
+        const identifier = flowContext === 'SIGNUP'
+            ? (contactInfo.email || formData.email || contactInfo.phone || formData.phone)
+            : formData.identifier;
         const response = await verifyResetCode(identifier, formData.code);
         if (response.passwordSetToken) {
-            setPasswordSetToken(response.passwordSetToken);
-            setStep('SET_PASSWORD');
+            if (flowContext === 'LOGIN') {
+                const sessionResponse = await loginWithToken(response.passwordSetToken);
+                setToken(sessionResponse.token);
+                navigate('/dashboard', { replace: true });
+            } else {
+                setPasswordSetToken(response.passwordSetToken);
+                setStep('SET_PASSWORD');
+            }
         } else {
             throw new Error("Verification failed to return a token.");
         }
@@ -191,7 +195,7 @@ function AuthForm({ setToken }: Props) {
     }
   };
 
-  // Step 5: Set or Reset the password
+  // --- COMPLETE `handleSetPassword` FUNCTION ---
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
@@ -199,29 +203,30 @@ function AuthForm({ setToken }: Props) {
       return;
     }
     if (!turnstileToken) {
-        setError("Please complete the security check.");
-        return;
+      setError("Please complete the security check.");
+      return;
     }
     clearMessages();
     setIsLoading(true);
 
     try {
-        // If it's a new user, we call signup. Otherwise, we call setPassword.
-        const response = authAction === 'SIGNUP'
-            ? await signup({
-                name: formData.name,
-                company_name: formData.company_name,
-                email: formData.email,
-                phone: formData.phone,
-                password: formData.password,
-                'cf-turnstile-response': turnstileToken,
-              })
-            : await setPassword(formData.password, passwordSetToken);
+      const response = flowContext === 'SIGNUP'
+        ? await signup({
+            name: formData.name,
+            company_name: formData.company_name,
+            email: formData.email,
+            phone: formData.phone,
+            password: formData.password,
+            'cf-turnstile-response': turnstileToken,
+          })
+        : await setPassword(formData.password, passwordSetToken);
 
-        if (response.token) {
-            setToken(response.token);
-            navigate('/dashboard', { replace: true });
-        }
+      if (response.token) {
+        setToken(response.token);
+        navigate('/dashboard', { replace: true });
+      } else {
+        throw new Error("Authentication failed: No token received.");
+      }
     } catch (err: any) {
       setError(err instanceof ApiError ? err.message : 'An unexpected error occurred.');
     } finally {
@@ -230,8 +235,6 @@ function AuthForm({ setToken }: Props) {
     }
   };
 
-
-  // --- RENDER FUNCTIONS FOR EACH STEP ---
 
   const renderIdentify = () => (
     <form onSubmit={handleIdentify}>
@@ -261,9 +264,20 @@ function AuthForm({ setToken }: Props) {
                 {isLoading ? 'Signing In...' : 'Sign In'}
             </button>
         </div>
-        <div className="text-center mt-3">
-            <button type="button" className="btn btn-link" onClick={() => { clearMessages(); setStep('CHOOSE_VERIFY_METHOD'); }}>
-                Sign in with a code instead
+        <div className="text-center mt-3 d-flex justify-content-between">
+            <button type="button" className="btn btn-link" onClick={() => {
+                clearMessages();
+                setFlowContext('PASSWORD_RESET');
+                setStep('CHOOSE_VERIFY_METHOD');
+            }}>
+                Forgot Password?
+            </button>
+            <button type="button" className="btn btn-link" onClick={() => {
+                clearMessages();
+                setFlowContext('LOGIN');
+                setStep('CHOOSE_VERIFY_METHOD');
+            }}>
+                Sign in with a code
             </button>
         </div>
     </form>
@@ -291,7 +305,9 @@ function AuthForm({ setToken }: Props) {
   );
 
   const renderChooseVerifyMethod = () => {
-    const methods = authAction === 'SIGNUP' ? { email: formData.email, phone: formData.phone } : contactInfo;
+    const methods = flowContext === 'SIGNUP'
+        ? { email: formData.email, phone: formData.phone }
+        : contactInfo;
     return (
         <div>
             <h3 className="card-title text-center">Verify Your Identity</h3>
@@ -315,9 +331,9 @@ function AuthForm({ setToken }: Props) {
   const renderVerifyCode = () => (
       <form onSubmit={handleVerifyCode}>
           <h3 className="card-title text-center">Enter Verification Code</h3>
-          <p className="text-center text-muted mb-4">A 6-digit code was sent to your chosen destination.</p>
+          {message && <div className="alert alert-info">{message}</div>}
           <div className="mb-3">
-              <label htmlFor="code">Verification Code</label>
+              <label htmlFor="code">6-Digit Code</label>
               <input type="text" id="code" name="code" value={formData.code} onChange={handleChange} className="form-control" required minLength={6} maxLength={6} autoFocus/>
           </div>
           <div className="d-grid">
@@ -331,7 +347,7 @@ function AuthForm({ setToken }: Props) {
         <h3 className="card-title text-center">Create a Secure Password</h3>
         <p className="text-center text-muted mb-4">This will be used to access your account.</p>
          <div className="mb-3">
-             <label htmlFor="password">Password</label>
+             <label htmlFor="password">Password (min. 8 characters)</label>
              <input type="password" id="password" name="password" value={formData.password} onChange={handleChange} className="form-control" required minLength={8} autoComplete="new-password" autoFocus/>
          </div>
          <div className="mb-3">
@@ -346,7 +362,6 @@ function AuthForm({ setToken }: Props) {
          </div>
     </form>
   );
-
 
   const renderStep = () => {
     switch (step) {
@@ -366,8 +381,7 @@ function AuthForm({ setToken }: Props) {
         <div className="col-md-6">
           <div className="card">
             <div className="card-body">
-                {error && <div className="alert alert-danger">{error}</div>}
-                {message && <div className="alert alert-success">{message}</div>}
+                {error && <div className="alert alert-danger" role="alert">{error}</div>}
                 {renderStep()}
                 {step !== 'IDENTIFY' && (
                     <div className="text-center mt-3">

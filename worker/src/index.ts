@@ -9,11 +9,11 @@ import manifest from '__STATIC_CONTENT_MANIFEST';
 
 import { errorResponse } from './utils.js';
 import { requireAuthMiddleware, requireAdminAuthMiddleware, requirePasswordSetTokenMiddleware } from './auth.js';
-import { handleSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode } from './handlers/auth.js';
+// MODIFIED: Import handleLoginWithToken
+import { handleSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './handlers/auth.js';
 import { handleGetProfile, handleUpdateProfile } from './handlers/profile.js';
 import { handleStripeWebhook } from './handlers/stripe.js';
 import { handleListServices, handleGetService, handleCreateInvoice, handleGetPhotosForService, handleGetNotesForService } from './handlers/services.js';
-// --- NEW: Import handleCreateJob ---
 import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob } from './handlers/jobs.js';
 import { handleGetAllUsers } from './handlers/admin/users.js';
 import { handleGetPhotosForJob, handleAdminUploadPhoto } from './handlers/photos.js';
@@ -51,6 +51,8 @@ publicApi.post('/login', handleLogin);
 publicApi.post('/check-user', handleCheckUser);
 publicApi.post('/request-password-reset', handleRequestPasswordReset);
 publicApi.post('/verify-reset-code', handleVerifyResetCode);
+// MODIFIED: Added the new route for token-based login
+publicApi.post('/login-with-token', requirePasswordSetTokenMiddleware, handleLoginWithToken);
 publicApi.post('/set-password', requirePasswordSetTokenMiddleware, handleSetPassword);
 publicApi.post('/stripe/webhook', handleStripeWebhook);
 publicApi.get('/public/availability', handleGetAvailability);
@@ -65,8 +67,6 @@ customerApi.post('/services/:id/invoice', handleCreateInvoice);
 customerApi.get('/services/:id/photos', handleGetPhotosForService);
 customerApi.get('/services/:id/notes', handleGetNotesForService);
 customerApi.get('/jobs', handleGetJobs);
-
-// --- NEW: Route to create a job ---
 customerApi.post('/jobs', handleCreateJob);
 customerApi.get('/jobs/:id', handleGetJobById);
 customerApi.get('/jobs/:id/photos', handleGetPhotosForJob);

@@ -43,14 +43,20 @@ export const requestPasswordReset = (identifier: string, channel: 'email' | 'sms
 export const verifyResetCode = (identifier: string, code: string) => {
     return apiPost<{ passwordSetToken: string }>('/api/verify-reset-code', { identifier, code });
 };
+export const loginWithToken = (passwordSetToken: string) => {
+  return fetchJson<AuthResponse>('/api/login-with-token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${passwordSetToken}`
+    },
+  });
+};
 export const setPassword = (password: string, passwordSetToken: string) => {
-  // We can't use the standard apiPost here because it uses the login token from localStorage.
-  // We need to use our special, temporary token for this one request.
   return fetchJson<AuthResponse>('/api/set-password', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      // Use the special password-set token for authorization
       'Authorization': `Bearer ${passwordSetToken}`
     },
     body: JSON.stringify({ password }),

@@ -1,5 +1,4 @@
 // 777lotto/portal/portal-bet/worker/src/handlers/auth.ts
-// 777lotto/portal/portal-bet/worker/src/handlers/auth.ts
 import { Context } from 'hono';
 import { z } from 'zod';
 import { AppEnv } from '../index.js';
@@ -76,15 +75,13 @@ export const handleVerifyResetCode = async (c: Context<AppEnv>) => {
             return errorResponse("This code is invalid or has expired.", 400);
         }
 
-        // The code is valid, delete it so it can't be reused
         await c.env.DB.prepare(`DELETE FROM password_reset_tokens WHERE token = ?`).bind(code).run();
 
-        // Create a new special-purpose, short-lived JWT that authorizes a password change
         const passwordSetToken = await new SignJWT({ purpose: 'password-set' })
           .setProtectedHeader({ alg: "HS256" })
           .setSubject(user.id.toString())
           .setIssuedAt()
-          .setExpirationTime('10m') // This token is only valid for 10 minutes
+          .setExpirationTime('10m')
           .sign(getJwtSecretKey(c.env.JWT_SECRET));
 
         return successResponse({ passwordSetToken });
@@ -94,6 +91,29 @@ export const handleVerifyResetCode = async (c: Context<AppEnv>) => {
         return errorResponse("An unexpected error occurred.", 500);
     }
 };
+
+// --- NEW HANDLER TO ADD ---
+export const handleLoginWithToken = async (c: Context<AppEnv>) => {
+    const userToLogin = c.get('user');
+
+    try {
+        const user = await c.env.DB.prepare(
+            `SELECT id, name, email, phone, role, stripe_customer_id, company_name FROM users WHERE id = ?`
+        ).bind(userToLogin.id).first<User>();
+
+        if (!user) {
+            return errorResponse("User for this token not found.", 404);
+        }
+
+        const jwt = await createJwtToken(user, c.env.JWT_SECRET);
+        return successResponse({ token: jwt, user });
+
+    } catch (e: any) {
+        console.error("Login with token error:", e);
+        return errorResponse("An unexpected error occurred.", 500);
+    }
+};
+
 
 export const handleCheckUser = async (c: Context<AppEnv>) => {
     const body = await c.req.json();
@@ -243,25 +263,22 @@ export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
             if ((channel === 'email' && !user.email) || (channel === 'sms' && !user.phone)) {
                  console.warn(`Password reset for user ${user.id} requested for unavailable channel ${channel}`);
             } else {
-                // MODIFIED: Generate a 6-digit code instead of a UUID
                 const token = Math.floor(100000 + Math.random() * 900000).toString();
                 const expires = new Date();
-                expires.setMinutes(expires.getMinutes() + 10); // Code expires in 10 minutes
+                expires.setMinutes(expires.getMinutes() + 10);
 
                 await c.env.DB.prepare(
                     `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)`
                 ).bind(user.id, token, expires.toISOString()).run();
 
-                // MODIFIED: Send the code, not a link
                 await c.env.NOTIFICATION_QUEUE.send({
                     type: 'password_reset',
                     userId: user.id,
-                    data: { name: user.name, resetCode: token }, // Pass 'resetCode'
+                    data: { name: user.name, resetCode: token },
                     channels: [channel]
                 });
             }
         }
-        // MODIFIED: The message is more generic now
         return successResponse({ message: `If an account with that ${channel} exists, a verification code has been sent.` });
 
     } catch (e: any) {
@@ -278,7 +295,6 @@ export const handleSetPassword = async (c: Context<AppEnv>) => {
     }
     const { password } = parsed.data;
 
-    // The user object is now on the context from our new middleware
     const userToUpdate = c.get('user');
 
     try {
@@ -287,7 +303,6 @@ export const handleSetPassword = async (c: Context<AppEnv>) => {
             `UPDATE users SET password_hash = ? WHERE id = ?`
         ).bind(hashedPassword, userToUpdate.id).run();
 
-        // Fetch the full user object to create a new session token
         const user = await c.env.DB.prepare(
             `SELECT id, name, email, phone, role, stripe_customer_id, company_name FROM users WHERE id = ?`
         ).bind(userToUpdate.id).first<User>();
