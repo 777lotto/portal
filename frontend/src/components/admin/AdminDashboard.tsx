@@ -15,7 +15,7 @@ function AdminDashboard() {
         setIsLoading(true);
         setError(null);
         // FIX: The token argument has been removed as it's now handled by the fetch helper.
-        const data = await apiGet<User[]>('/admin/users');
+        const data = await apiGet<User[]>('/api/admin/users');
         setUsers(data);
       } catch (err: any) {
         console.error("Error fetching users:", err);
