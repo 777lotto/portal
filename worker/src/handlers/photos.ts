@@ -71,10 +71,12 @@ export const handleGetUserPhotos = async (c: PhotoContext<PhotoAppEnv>) => {
 export const handleGetPhotosForJob = async (c: PhotoContext<PhotoAppEnv>) => {
     const { jobId } = c.req.param();
     try {
-        const { results } = await c.env.DB.prepare(
+        const dbResponse = await c.env.DB.prepare(
             `SELECT * FROM photos WHERE job_id = ? ORDER BY created_at DESC`
         ).bind(jobId).all<Photo>();
-        return photoSuccessResponse(results);
+
+        const photos = dbResponse?.results || [];
+        return photoSuccessResponse(photos);
     } catch (e: any) {
         console.error("Failed to get photos:", e.message);
         return photoErrorResponse("Failed to retrieve photos", 500);

@@ -9,10 +9,12 @@ import { Service } from '@portal/shared';
 export const handleListServices = async (c: ServiceContext<ServiceAppEnv>) => {
     const user = c.get('user');
     try {
-        const { results } = await c.env.DB.prepare(
+        const dbResponse = await c.env.DB.prepare(
             `SELECT * FROM services WHERE user_id = ? ORDER BY service_date DESC`
         ).bind(user.id).all();
-        return serviceSuccessResponse(results);
+
+        const services = dbResponse?.results || [];
+        return serviceSuccessResponse(services);
     } catch (e: any) {
         console.error("Failed to get services:", e);
         return serviceErrorResponse("Failed to retrieve services", 500);

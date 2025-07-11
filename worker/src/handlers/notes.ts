@@ -6,10 +6,12 @@ import { errorResponse as noteErrorResponse, successResponse as noteSuccessRespo
 export const handleGetNotesForJob = async (c: NoteContext<NoteAppEnv>) => {
     const { jobId } = c.req.param();
     try {
-        const { results } = await c.env.DB.prepare(
+        const dbResponse = await c.env.DB.prepare(
             `SELECT * FROM notes WHERE job_id = ? ORDER BY created_at DESC`
         ).bind(jobId).all();
-        return noteSuccessResponse(results);
+
+        const notes = dbResponse?.results || [];
+        return noteSuccessResponse(notes);
     } catch (e: any) {
         return noteErrorResponse("Failed to retrieve notes", 500);
     }

@@ -28,10 +28,12 @@ export const handleCreateJob = async (c: HonoContext<WorkerAppEnv>) => {
 export const handleGetJobs = async (c: HonoContext<WorkerAppEnv>) => {
     const user = c.get('user');
     try {
-        const { results } = await c.env.DB.prepare(
+        const dbResponse = await c.env.DB.prepare(
             `SELECT * FROM jobs WHERE customerId = ? ORDER BY start DESC`
         ).bind(user.id.toString()).all<Job>();
-        return workerSuccessResponse(results);
+
+        const jobs = dbResponse?.results || [];
+        return workerSuccessResponse(jobs);
     } catch (e: any) {
         return workerErrorResponse("Failed to retrieve jobs", 500);
     }
