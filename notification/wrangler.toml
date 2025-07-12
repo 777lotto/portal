@@ -10,11 +10,21 @@ compatibility_flags = [ "nodejs_compat_v2" ]
 enabled = true
 head_sampling_rate = 1
 
-# D1 Database binding for all environments
-[[d1_databases]]
+# ===============================================================
+#      DEVELOPMENT-SPECIFIC CONFIGURATION
+# ===============================================================
+[env.development]
+
+# Development D1 binding (will use a local file)
+[[env.development.d1_databases]]
 binding = "DB"
 database_name = "gutter_db"
 database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+migrations_dir = "../worker/migrations" # Point to the canonical migrations directory
+
+# Development Queue consumer binding (will consume from the local in-memory queue)
+[[env.development.queues.consumers]]
+queue = "notifications"
 
 # ===============================================================
 #      PRODUCTION-SPECIFIC CONFIGURATION

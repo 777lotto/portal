@@ -1,4 +1,4 @@
-// worker/src/handlers/profile.ts - MODIFIED
+// 777lotto/portal/portal-bet/worker/src/handlers/profile.ts
 import { Context as ProfileContext } from 'hono';
 import { z } from 'zod';
 import { AppEnv as ProfileAppEnv } from '../index.js';
@@ -6,7 +6,6 @@ import { errorResponse as profileErrorResponse, successResponse as profileSucces
 import { UserSchema, type User } from '@portal/shared';
 import { verifyPassword, hashPassword } from '../auth.js';
 
-// MODIFIED: Added notification preferences to the payload
 const UpdateProfilePayload = UserSchema.pick({
     name: true,
     email: true,
@@ -24,7 +23,9 @@ const ChangePasswordPayload = z.object({
 
 export const handleGetProfile = async (c: ProfileContext<ProfileAppEnv>) => {
   const user = c.get('user');
-  return profileSuccessResponse(user);
+  // To ensure the client gets the latest data, let's re-fetch from the DB
+  const freshUser = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(user.id).first<User>();
+  return profileSuccessResponse(freshUser);
 };
 
 export const handleUpdateProfile = async (c: ProfileContext<ProfileAppEnv>) => {
@@ -44,16 +45,20 @@ export const handleUpdateProfile = async (c: ProfileContext<ProfileAppEnv>) => {
         ).bind(
             name ?? user.name,
             email ?? user.email,
-            phone ?? user.phone,
-            company_name ?? user.company_name,
-            email_notifications_enabled !== undefined ? (email_notifications_enabled ? 1 : 0) : (user.email_notifications_enabled ? 1 : 0),
-            sms_notifications_enabled !== undefined ? (sms_notifications_enabled ? 1 : 0) : (user.sms_notifications_enabled ? 1 : 0),
+            phone !== undefined ? phone : user.phone,
+            company_name !== undefined ? company_name : user.company_name,
+            email_notifications_enabled, // These are the new fields
+            sms_notifications_enabled,   // These are the new fields
             user.id
         ).run();
 
-        const updatedUserResult = await c.env.DB.prepare(`SELECT * FROM users WHERE id = ?`).bind(user.id).first<User>();
-        return profileSuccessResponse(updatedUserResult);
+        const updatedUser = { ...user, ...parsed.data };
+        return profileSuccessResponse(updatedUser);
     } catch (e: any) {
+        if (e.message?.includes('UNIQUE constraint failed')) {
+            return profileErrorResponse('That email or phone number is already in use by another account.', 409);
+        }
+        console.error("Failed to update profile:", e);
         return profileErrorResponse("Failed to update profile", 500);
     }
 };

@@ -15,8 +15,8 @@ export const UserSchema = z.object({
   stripe_customer_id: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   company_name: z.string().optional().nullable(),
-  email_notifications_enabled: z.number().optional().transform(val => val === 1),
-  sms_notifications_enabled: z.number().optional().transform(val => val === 1)
+  email_notifications_enabled: z.boolean().default(true).optional(),
+  sms_notifications_enabled: z.boolean().default(true).optional(),
 });
 export type User = z.infer<typeof UserSchema>;
 
