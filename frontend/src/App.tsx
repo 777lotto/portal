@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { jwtDecode } from 'jwt-decode';
 
 // --- Page Components ---
-// REMOVED: LoginForm, SignupForm, ForgotPasswordForm, VerifyCodeForm, SetPasswordForm
-import AuthForm from "./components/AuthForm.js"; // ADDED
+import AuthForm from "./components/AuthForm.js";
 import Dashboard from "./components/Dashboard.js";
 import Services from "./components/Services.js";
 import ServiceDetail from "./components/ServiceDetail.js";
@@ -15,18 +14,17 @@ import CalendarSync from "./components/CalendarSync.js";
 import Navbar from "./components/Navbar.js";
 import PublicBookingPage from "./components/PublicBookingPage.js";
 import Photos from "./components/Photos.js";
+import AccountPage from "./components/AccountPage.js"; // ADDED
 
-// --- NEW: Admin Page Components (you will create these) ---
+// --- Admin Page Components ---
 import AdminDashboard from "./components/admin/AdminDashboard.js";
 import AdminUserDetail from "./components/admin/AdminUserDetail.js";
 
-// --- NEW: Define a type for the decoded user payload ---
 interface UserPayload {
   id: number;
   email: string;
   name: string;
   role: 'customer' | 'admin';
-  // add other fields from your JWT payload as needed
 }
 
 function App() {
@@ -96,10 +94,8 @@ function App() {
         <Routes>
           {/* --- Public Routes --- */}
           <Route path="/booking" element={<PublicBookingPage />} />
-          {/* MODIFIED: Unified auth route */}
           <Route path="/auth" element={token ? <Navigate to="/dashboard" replace /> : <AuthForm setToken={handleSetToken} />} />
           <Route path="/" element={<Navigate to={token ? "/dashboard" : "/auth"} replace />} />
-          {/* REMOVED: Old auth routes */}
 
           {/* --- Customer-facing Routes --- */}
           <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/auth" replace />} />
@@ -109,7 +105,7 @@ function App() {
           <Route path="/photos" element={token ? <Photos /> : <Navigate to="/auth" replace />} />
           <Route path="/jobs/:id" element={token ? <JobDetail /> : <Navigate to="/auth" replace />} />
           <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/auth" replace />} />
-
+          <Route path="/account" element={token ? <AccountPage /> : <Navigate to="/auth" replace />} /> {/* ADDED */}
 
           {/* --- Admin Routes --- */}
           <Route

@@ -1,8 +1,6 @@
-// frontend/src/components/Navbar.tsx - UPDATED
-
+// frontend/src/components/Navbar.tsx - MERGED
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../lib/api.js";
-// 1. Import your SVG from the assets directory
 import companyLogo from '../assets/777-solutions.svg';
 
 interface UserPayload {
@@ -38,17 +36,10 @@ export default function Navbar({ token, setToken, user }: Props) {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
-            {/*
-              2. The <Link> component now wraps both the logo and the text.
-                 - It points directly to "/dashboard".
-                 - `flex items-center space-x-3` aligns the logo and text horizontally.
-            */}
             <Link to="/dashboard" className="flex items-center space-x-3 text-white font-bold text-lg">
-              {/* 3. The imported SVG is used in an <img> tag.
-                  - `h-8 w-8` controls the display size (32x32 pixels).
-              */}
               <img src={companyLogo} className="h-8 w-8" alt="777 Solutions Logo" />
-              <span>Customer Portal</span>
+              {/* This now includes your conditional title */}
+              <span>{user?.role === 'admin' ? 'Admin Center' : 'Customer Portal'}</span>
             </Link>
             <div className="hidden md:block">
               <div className="ml-10 flex items-baseline space-x-4">
@@ -58,6 +49,8 @@ export default function Navbar({ token, setToken, user }: Props) {
                     <NavLink to="/services" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Services</NavLink>
                     <NavLink to="/calendar" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Calendar</NavLink>
                     <NavLink to="/photos" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Photos</NavLink>
+                    {/* The Account link is now included */}
+                    <NavLink to="/account" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Account</NavLink>
                     {user?.role === 'admin' && (
                        <NavLink to="/admin/dashboard" className={({isActive}) => isActive ? activeLinkStyle + ' text-cyan-400' : linkStyle + ' text-cyan-400'}>Admin</NavLink>
                     )}
