@@ -65,7 +65,7 @@ export const handleGetAvailability = async (c: Context<AppEnv>) => {
     });
 
     // NEW: Add manually blocked dates to the set
-    blockedDateResults?.forEach(blocked => {
+    blockedDateResults?.forEach((blocked: { date: string }) => {
         bookedDays.add(blocked.date);
     });
 

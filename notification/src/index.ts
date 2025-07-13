@@ -134,7 +134,7 @@ export default {
 
         // Send email if channel is selected and user has an email
         if (channels.includes('email') && user.email) {
-          const subject = `Gutter Portal Reminder: ${type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}`;
+          const subject = `Gutter Portal Reminder: ${type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}`;
           const html = generateEmailHTML(type, user.name, data);
           const text = generateEmailText(type, user.name, data);
           notificationPromises.push(sendEmailNotification(env, { to: user.email, toName: user.name, subject, html, text }));

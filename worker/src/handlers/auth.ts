@@ -260,43 +260,45 @@ export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
         ).bind(identifier.toLowerCase(), identifier).first<User>();
 
         if (user) {
-            if ((channel === 'email' && !user.email) || (channel === 'sms' && !user.phone)) {
-                 console.warn(`[worker] Password reset for user ${user.id} requested for unavailable channel ${channel}`);
+            const token = Math.floor(100000 + Math.random() * 900000).toString();
+            const expires = new Date();
+            expires.setMinutes(expires.getMinutes() + 10);
+
+            await c.env.DB.prepare(
+                `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)`
+            ).bind(user.id, token, expires.toISOString()).run();
+
+            // This is the development-only log in the correct location
+            if (c.env.ENVIRONMENT === 'development') {
+                console.log(`\n--- [WORKER] DEV ONLY | Verification Code for ${user.email || user.phone}: ${token} ---\n`);
+            }
+
+            const notificationPayload = {
+                type: 'password_reset',
+                userId: user.id,
+                data: { name: user.name, resetCode: token },
+                channels: [channel]
+            };
+
+            if (c.env.ENVIRONMENT === 'development' && c.env.NOTIFICATION_SERVICE) {
+                console.log("[worker] Awaiting direct fetch to notification service...");
+                const res = await c.env.NOTIFICATION_SERVICE.fetch('http://localhost/api/notifications/send', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(notificationPayload)
+                });
+                console.log(`[worker] Direct fetch completed with status: ${res.status}`);
             } else {
-                const token = Math.floor(100000 + Math.random() * 900000).toString();
-                const expires = new Date();
-                expires.setMinutes(expires.getMinutes() + 10);
-
-                await c.env.DB.prepare(
-                    `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)`
-                ).bind(user.id, token, expires.toISOString()).run();
-
-                const notificationPayload = {
-                    type: 'password_reset',
-                    userId: user.id,
-                    data: { name: user.name, resetCode: token },
-                    channels: [channel]
-                };
-
-                // --- MODIFIED SECTION ---
-                if (c.env.ENVIRONMENT === 'development' && c.env.NOTIFICATION_SERVICE) {
-                    console.log("[worker] Awaiting direct fetch to notification service...");
-                    const res = await c.env.NOTIFICATION_SERVICE.fetch('http://localhost/api/notifications/send', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify(notificationPayload)
-                    });
-                    console.log(`[worker] Direct fetch completed with status: ${res.status}`);
-                } else {
-                    await c.env.NOTIFICATION_QUEUE.send(notificationPayload);
-                }
-                // --- END MODIFIED SECTION ---
+                await c.env.NOTIFICATION_QUEUE.send(notificationPayload);
             }
         }
+        // This is a security best practice: always return a generic success message
+        // to prevent attackers from discovering which emails/phones are registered.
         return successResponse({ message: `If an account with that ${channel} exists, a verification code has been sent.` });
 
     } catch (e: any) {
         console.error("Password reset request failed:", e);
+        // Also return a generic message on unexpected errors
         return successResponse({ message: "If an account exists, a verification code has been sent." });
     }
 };
