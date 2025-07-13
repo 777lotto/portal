@@ -75,11 +75,11 @@ migrations_dir = "./migrations"
 
 [[env.production.services]]
 binding = "NOTIFICATION_SERVICE"
-service = "notification"
+service = "notification-production"
 
 [[env.production.services]]
 binding = "PAYMENT_SERVICE"
-service = "payment"
+service = "payment-production"
 
 # Production queue binding
 [[env.production.queues.producers]]
