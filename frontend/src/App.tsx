@@ -14,7 +14,7 @@ import CalendarSync from "./components/CalendarSync.js";
 import Navbar from "./components/Navbar.js";
 import PublicBookingPage from "./components/PublicBookingPage.js";
 import Photos from "./components/Photos.js";
-import AccountPage from "./components/AccountPage.js"; // ADDED
+import AccountPage from "./components/AccountPage.js";
 
 // --- Admin Page Components ---
 import AdminDashboard from "./components/admin/AdminDashboard.js";
@@ -105,11 +105,11 @@ function App() {
           <Route path="/photos" element={token ? <Photos /> : <Navigate to="/auth" replace />} />
           <Route path="/jobs/:id" element={token ? <JobDetail /> : <Navigate to="/auth" replace />} />
           <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/auth" replace />} />
-          <Route path="/account" element={token ? <AccountPage /> : <Navigate to="/auth" replace />} /> {/* ADDED */}
+          <Route path="/account" element={token ? <AccountPage /> : <Navigate to="/auth" replace />} />
 
           {/* --- Admin Routes --- */}
           <Route
-            path="/admin/dashboard"
+            path="/admin/users"
             element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/dashboard" replace />}
           />
           <Route

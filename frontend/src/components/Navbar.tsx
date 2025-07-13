@@ -52,7 +52,7 @@ export default function Navbar({ token, setToken, user }: Props) {
                     {/* The Account link is now included */}
                     <NavLink to="/account" className={({isActive}) => isActive ? activeLinkStyle : linkStyle}>Account</NavLink>
                     {user?.role === 'admin' && (
-                       <NavLink to="/admin/dashboard" className={({isActive}) => isActive ? activeLinkStyle + ' text-cyan-400' : linkStyle + ' text-cyan-400'}>Admin</NavLink>
+                       <NavLink to="/admin/users" className={({isActive}) => isActive ? activeLinkStyle + ' text-cyan-400' : linkStyle + ' text-cyan-400'}>Users</NavLink>
                     )}
                   </>
                 )}

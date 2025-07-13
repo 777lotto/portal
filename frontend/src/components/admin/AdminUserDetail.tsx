@@ -1,14 +1,16 @@
 // frontend/src/components/admin/AdminUserDetail.tsx
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
-import { apiGet, apiPost, apiPostFormData } from '../../lib/api.js';
-import type { Job, Photo } from '@portal/shared';
+import { apiGet, apiPost, apiPostFormData, deleteUser } from '../../lib/api.js';
+import type { Job, Photo, User } from '@portal/shared';
 
 function AdminUserDetail() {
   const { userId } = useParams<{ userId: string }>();
+  const navigate = useNavigate();
 
   // State
+  const [user, setUser] = useState<User | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -22,6 +24,8 @@ function AdminUserDetail() {
   const [photoJobId, setPhotoJobId] = useState('');
   const [isPhotoSubmitting, setIsPhotoSubmitting] = useState(false);
   const [photoMessage, setPhotoMessage] = useState<{ type: 'success' | 'danger', text: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
 
   useEffect(() => {
     const fetchDataForUser = async () => {
@@ -29,14 +33,18 @@ function AdminUserDetail() {
       setIsLoadingJobs(true);
       setIsLoadingPhotos(true);
       try {
-        const [userJobs, userPhotos] = await Promise.all([
+        const [allUsers, userJobs, userPhotos] = await Promise.all([
+          apiGet<User[]>('/api/admin/users'),
           apiGet<Job[]>(`/api/admin/users/${userId}/jobs`),
           apiGet<Photo[]>(`/api/admin/users/${userId}/photos`)
         ]);
+        const currentUser = allUsers.find(u => u.id.toString() === userId);
+        setUser(currentUser || null);
         setJobs(userJobs);
         setPhotos(userPhotos);
       } catch (err: any) {
-        console.error("Failed to fetch jobs or photos for user", err);
+        setError(err.message);
+        console.error("Failed to fetch data for user", err);
       } finally {
         setIsLoadingJobs(false);
         setIsLoadingPhotos(false);
@@ -102,14 +110,27 @@ function AdminUserDetail() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!user) return;
+    if (window.confirm(`Are you sure you want to permanently delete ${user.name} (${user.email})? This action cannot be undone.`)) {
+        try {
+            await deleteUser(user.id.toString());
+            navigate('/admin/users');
+        } catch(err: any) {
+            setError(`Failed to delete user: ${err.message}`)
+        }
+    }
+  }
+
   const removeFile = (fileName: string) => {
     setPhotoFiles(photoFiles.filter(file => file.name !== fileName));
   };
 
   return (
     <div className="container mt-4">
-      <Link to="/admin/dashboard">&larr; Back to Admin Dashboard</Link>
-      <h2 className="mt-2">Manage User: {userId}</h2>
+      <Link to="/admin/users">&larr; Back to Users</Link>
+      <h2 className="mt-2">Manage User: {user ? user.name : userId}</h2>
+      {error && <div className="alert alert-danger">{error}</div>}
       <div className="row mt-4">
         <div className="col-md-6 mb-4">
           <div className="card h-100">
@@ -182,6 +203,11 @@ function AdminUserDetail() {
           </div>
         </div>
       </div>
+       <div className="mt-4 d-flex justify-content-end">
+            <button onClick={handleDelete} className="btn btn-danger" disabled={!user}>
+                Delete This User
+            </button>
+       </div>
     </div>
   );
 }
