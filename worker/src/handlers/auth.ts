@@ -261,7 +261,7 @@ export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
 
         if (user) {
             if ((channel === 'email' && !user.email) || (channel === 'sms' && !user.phone)) {
-                 console.warn(`Password reset for user ${user.id} requested for unavailable channel ${channel}`);
+                 console.warn(`[worker] Password reset for user ${user.id} requested for unavailable channel ${channel}`);
             } else {
                 const token = Math.floor(100000 + Math.random() * 900000).toString();
                 const expires = new Date();
@@ -278,18 +278,19 @@ export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
                     channels: [channel]
                 };
 
-                // In dev, call the notification service directly. In production, use the queue.
+                // --- MODIFIED SECTION ---
                 if (c.env.ENVIRONMENT === 'development' && c.env.NOTIFICATION_SERVICE) {
-                    c.executionCtx.waitUntil(
-                        c.env.NOTIFICATION_SERVICE.fetch('http://localhost/api/notifications/send', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify(notificationPayload)
-                        })
-                    );
+                    console.log("[worker] Awaiting direct fetch to notification service...");
+                    const res = await c.env.NOTIFICATION_SERVICE.fetch('http://localhost/api/notifications/send', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(notificationPayload)
+                    });
+                    console.log(`[worker] Direct fetch completed with status: ${res.status}`);
                 } else {
                     await c.env.NOTIFICATION_QUEUE.send(notificationPayload);
                 }
+                // --- END MODIFIED SECTION ---
             }
         }
         return successResponse({ message: `If an account with that ${channel} exists, a verification code has been sent.` });
@@ -299,6 +300,7 @@ export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
         return successResponse({ message: "If an account exists, a verification code has been sent." });
     }
 };
+
 
 
 export const handleSetPassword = async (c: Context<AppEnv>) => {
