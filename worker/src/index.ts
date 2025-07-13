@@ -13,7 +13,7 @@ import { handleGetProfile, handleUpdateProfile, handleChangePassword } from './h
 import { handleStripeWebhook } from './handlers/stripe.js';
 import { handleListServices, handleGetService, handleCreateInvoice, handleGetPhotosForService, handleGetNotesForService } from './handlers/services.js';
 import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob, handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl } from './handlers/jobs.js';
-import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser } from './handlers/admin/users.js';
+import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser } from './handlers/admin/users.js';
 import { handleGetUserPhotos, handleGetPhotosForJob, handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleGetNotesForJob, handleAdminAddNoteForUser } from './handlers/notes.js';
 import { handlePortalSession } from './handlers/user.js';
