@@ -46,3 +46,41 @@ export async function handleAdminGetPhotosForUser(c: Context<AppEnv>): Promise<R
         return errorResponse("Failed to retrieve photos for user.", 500);
     }
 }
+
+export async function handleAdminDeleteUser(c: Context<AppEnv>): Promise<Response> {
+  const { userId } = c.req.param();
+  if (!userId) {
+    return errorResponse("User ID is required.", 400);
+  }
+
+  const db = c.env.DB;
+
+  try {
+    // D1 batches are transactional. If one statement fails, all are rolled back.
+    const stmts = [
+      // Delete all dependent records first
+      db.prepare("DELETE FROM notes WHERE user_id = ?"),
+      db.prepare("DELETE FROM photos WHERE user_id = ?"),
+      db.prepare("DELETE FROM services WHERE user_id = ?"),
+      db.prepare("DELETE FROM sms_messages WHERE user_id = ?"),
+      db.prepare("DELETE FROM notifications WHERE user_id = ?"),
+      db.prepare("DELETE FROM blocked_dates WHERE user_id = ?"),
+      db.prepare("DELETE FROM jobs WHERE customerId = ?"),
+      // Finally, delete the user. Records in tables with ON DELETE CASCADE
+      // (calendar_tokens, password_reset_tokens) will be deleted automatically.
+      db.prepare("DELETE FROM users WHERE id = ?"),
+    ];
+
+    // Bind the userId to all statements. Note that jobs.customerId is TEXT.
+    const batch = stmts.map((stmt, index) =>
+        index === 6 ? stmt.bind(userId) : stmt.bind(Number(userId))
+    );
+
+    await db.batch(batch);
+
+    return successResponse({ message: `User ${userId} and all associated data deleted successfully.` });
+  } catch (e: any) {
+    console.error(`Failed to delete user ${userId}:`, e);
+    return errorResponse("Failed to delete user. The user may have associated records that could not be deleted.", 500);
+  }
+}

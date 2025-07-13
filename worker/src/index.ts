@@ -90,6 +90,7 @@ adminApi.post('/users/:userId/photos', handleAdminUploadPhotoForUser);
 adminApi.post('/users/:userId/notes', handleAdminAddNoteForUser);
 adminApi.get('/blocked-dates', handleGetBlockedDates);
 adminApi.post('/blocked-dates', handleAddBlockedDate);
+adminApi.delete('/users/:userId', handleAdminDeleteUser);
 adminApi.delete('/blocked-dates/:date', handleRemoveBlockedDate);
 
 api.route('/', publicApi);

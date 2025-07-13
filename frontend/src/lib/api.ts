@@ -84,6 +84,7 @@ export const getJobs = () => apiGet<Job[]>('/api/jobs');
 export const getJob = (id: string) => apiGet<Job>(`/api/jobs/${id}`);
 
 // --- ADMIN API ---
+export const deleteUser = (userId: string) => fetchJson(`/api/admin/users/${userId}`, { method: 'DELETE' });
 export const getBlockedDates = () => apiGet<BlockedDate[]>('/api/admin/blocked-dates');
 export const addBlockedDate = (date: string, reason?: string) => apiPost('/api/admin/blocked-dates', { date, reason });
 export const removeBlockedDate = (date: string) => fetchJson(`/api/admin/blocked-dates/${date}`, { method: 'DELETE' });
