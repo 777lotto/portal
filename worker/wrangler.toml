@@ -73,17 +73,6 @@ database_name = "gutter_db"
 database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
 migrations_dir = "./migrations"
 
-# Production service bindings
-[[env.production.services]]
-binding = "NOTIFICATION_SERVICE"
-service = "notification"
-environment = "production"
-
-[[env.production.services]]
-binding = "PAYMENT_SERVICE"
-service = "payment"
-environment = "production"
-
 # Production queue binding
 [[env.production.queues.producers]]
 queue = "notifications"

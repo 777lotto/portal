@@ -1,3 +1,4 @@
+// 777lotto/portal/portal-bet/frontend/src/components/AuthForm.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { checkUser, login, requestPasswordReset, verifyResetCode, setPassword, signup, loginWithToken } from '../lib/api';
@@ -29,6 +30,7 @@ type FlowContext = 'LOGIN' | 'SIGNUP' | 'PASSWORD_RESET';
 function AuthForm({ setToken }: Props) {
   const [step, setStep] = useState<Step>('IDENTIFY');
   const [flowContext, setFlowContext] = useState<FlowContext>('LOGIN');
+  const [verificationChannel, setVerificationChannel] = useState<'email' | 'sms' | null>(null);
 
   const [formData, setFormData] = useState({
     identifier: '',
@@ -163,6 +165,7 @@ function AuthForm({ setToken }: Props) {
             ? (channel === 'email' ? formData.email : formData.phone)
             : formData.identifier;
         await requestPasswordReset(identifier, channel);
+        setVerificationChannel(channel);
         setMessage(`A verification code has been sent to your ${channel}.`);
         setStep('VERIFY_CODE');
     } catch (err: any) {
@@ -178,7 +181,7 @@ function AuthForm({ setToken }: Props) {
     setIsLoading(true);
     try {
         const identifier = flowContext === 'SIGNUP'
-            ? (contactInfo.email || formData.email || contactInfo.phone || formData.phone)
+            ? (verificationChannel === 'email' ? formData.email : formData.phone)
             : formData.identifier;
         const response = await verifyResetCode(identifier, formData.code);
         if (response.passwordSetToken) {
@@ -356,7 +359,15 @@ function AuthForm({ setToken }: Props) {
     );
   };
 
-  const renderVerifyCode = () => (
+  const renderVerifyCode = () => {
+    const availableMethods = flowContext === 'SIGNUP'
+        ? { email: formData.email, phone: formData.phone }
+        : contactInfo;
+
+    const otherChannel = verificationChannel === 'email' ? 'sms' : 'email';
+    const canSwitch = !!(availableMethods.email && availableMethods.phone);
+
+    return (
       <form onSubmit={handleVerifyCode} className="space-y-6">
            <div className="text-center">
                 <h3 className="card-title">Enter Verification Code</h3>
@@ -374,8 +385,21 @@ function AuthForm({ setToken }: Props) {
           <div>
               <button type="submit" className="w-full btn btn-primary" disabled={isLoading}>{isLoading ? 'Verifying...' : 'Verify and Continue'}</button>
           </div>
+          {canSwitch && (
+            <div className="text-center mt-2">
+                <button
+                    type="button"
+                    className="btn btn-link"
+                    onClick={() => handleRequestCode(otherChannel)}
+                    disabled={isLoading}
+                >
+                    {isLoading ? 'Sending...' : `Get ${otherChannel === 'sms' ? 'SMS' : 'Email'} Code Instead`}
+                </button>
+            </div>
+          )}
       </form>
-  );
+    );
+  };
 
   const renderSetPassword = () => (
     <form onSubmit={handleSetPassword} className="space-y-6">
@@ -414,7 +438,7 @@ function AuthForm({ setToken }: Props) {
 
   return (
     <div className="min-h-full flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="sm:mx-auto sm:w-full sm:max-w-xl">
              <div className="card">
                 <div className="card-body">
                     {error && <div className="alert alert-danger" role="alert">{error}</div>}

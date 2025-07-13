@@ -26,6 +26,10 @@ body {
   .btn-info {
       @apply text-white bg-cyan-600 hover:bg-cyan-700 focus:ring-cyan-500;
   }
+
+  .btn-success {
+      @apply text-white bg-event-green hover:bg-event-green/90 focus:ring-event-green;
+  }
   .btn-link {
       @apply p-0 bg-transparent border-transparent shadow-none text-event-blue hover:underline disabled:no-underline disabled:text-gray-400;
   }
@@ -57,6 +61,9 @@ body {
 
   .sdi-box {
     @apply form-control h-12 flex items-center justify-center text-center text-lg font-mono transition;
+  }
+  .sdi-box-complete {
+    @apply border-event-green ring-1 ring-event-green;
   }
   .sdi-container-phone .sdi-box {
     @apply w-10;

@@ -1,3 +1,4 @@
+// 777lotto/portal/portal-bet/frontend/tailwind.config.js
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -21,10 +22,10 @@ export default {
         'text-primary-light': '#212529',
         'text-secondary-light': '#495057',
 
-        // Accent colors for events, alerts, etc.
-        'event-blue': '#0d6efd',
-        'event-green': '#198754',
-        'event-red': '#dc3545',
+        // MODIFIED: Use your brand's specific highlight colors
+        'event-blue': '#0000FF',
+        'event-green': '#00FF00',
+        'event-red': '#FF0000',
       }
     },
   },

@@ -22,6 +22,7 @@
     "clean": "pnpm --recursive exec rimraf dist",
     "build": "tsc --build && pnpm --filter frontend build",
     "typecheck": "tsc --build --verbose --noEmit",
+    "dev": "pnpm --parallel --filter \"./{frontend,worker,notification,payment}\" run dev",
     "deploy": "pnpm run build && pnpm run migrate && pnpm run deploy:workers",
     "deploy:dev": "pnpm run build && pnpm run deploy:workers:dev",
     "deploy:workers": "pnpm --filter notification run deploy && pnpm --filter payment run deploy && pnpm --filter worker run deploy",

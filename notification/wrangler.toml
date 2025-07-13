@@ -15,6 +15,9 @@ head_sampling_rate = 1
 # ===============================================================
 [env.development]
 
+[env.development.vars]
+ENVIRONMENT = "development"
+
 # Development D1 binding (will use a local file)
 [[env.development.d1_databases]]
 binding = "DB"

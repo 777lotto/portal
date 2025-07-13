@@ -1,3 +1,4 @@
+// 777lotto/portal/portal-bet/frontend/src/components/StyledDigitInput.tsx
 import React, { useMemo } from 'react';
 
 interface StyledDigitInputProps {
@@ -20,20 +21,32 @@ const StyledDigitInput: React.FC<StyledDigitInputProps> = ({
   format = 'code',
 }) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const cleanedValue = e.target.value.replace(/\D/g, '').substring(0, digitCount);
-    onChange(cleanedValue);
+    let cleaned = e.target.value.replace(/\D/g, '');
+
+    // If the number starts with '1' and is 11 digits long (country code + 10 digits),
+    // strip the leading '1' to handle US/Canada autofill correctly.
+    if (cleaned.length === 11 && cleaned.startsWith('1')) {
+      cleaned = cleaned.substring(1);
+    }
+
+    // Ensure the final value does not exceed the specified digit count.
+    const finalValue = cleaned.substring(0, digitCount);
+    onChange(finalValue);
   };
 
   const displayBoxes = useMemo(() => {
     const digits = value.split('');
     const boxes = [];
+    const isComplete = value.length === digitCount;
+
     for (let i = 0; i < digitCount; i++) {
       boxes.push(
-        <div key={i} className="sdi-box">
+        <div key={i} className={`sdi-box ${isComplete ? 'sdi-box-complete' : ''}`}>
           {digits[i] || ''}
         </div>
       );
     }
+
     if (format === 'phone' && digitCount === 10) {
       return (
         <div className="sdi-container-phone">

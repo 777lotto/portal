@@ -271,12 +271,25 @@ export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
                     `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)`
                 ).bind(user.id, token, expires.toISOString()).run();
 
-                await c.env.NOTIFICATION_QUEUE.send({
+                const notificationPayload = {
                     type: 'password_reset',
                     userId: user.id,
                     data: { name: user.name, resetCode: token },
                     channels: [channel]
-                });
+                };
+
+                // In dev, call the notification service directly. In production, use the queue.
+                if (c.env.ENVIRONMENT === 'development' && c.env.NOTIFICATION_SERVICE) {
+                    c.executionCtx.waitUntil(
+                        c.env.NOTIFICATION_SERVICE.fetch('http://localhost/api/notifications/send', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify(notificationPayload)
+                        })
+                    );
+                } else {
+                    await c.env.NOTIFICATION_QUEUE.send(notificationPayload);
+                }
             }
         }
         return successResponse({ message: `If an account with that ${channel} exists, a verification code has been sent.` });
@@ -286,6 +299,7 @@ export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
         return successResponse({ message: "If an account exists, a verification code has been sent." });
     }
 };
+
 
 export const handleSetPassword = async (c: Context<AppEnv>) => {
     const body = await c.req.json();

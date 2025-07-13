@@ -20,10 +20,20 @@ export async function sendEmailNotification(
         return { success: false, error };
     }
 
+    if (env.ENVIRONMENT === 'development') {
+        console.log('\n\n--- 📧 DEV EMAIL 📧 ---');
+        console.log(`To: ${params.toName} <${params.to}>`);
+        console.log(`Subject: ${params.subject}`);
+        console.log('--- BODY ---');
+        console.log(params.text);
+        console.log('-----------------------\n\n');
+        return { success: true };
+    }
+
     const { ZEPTOMAIL_TOKEN, EMAIL_FROM } = env;
 
     if (!ZEPTOMAIL_TOKEN || !EMAIL_FROM) {
-        console.warn("Email service not configured. Missing ZEPTOMAIL_TOKEN or EMAIL_FROM.");
+        console.warn("Email service not configured for production. Missing ZEPTOMAIL_TOKEN or EMAIL_FROM.");
         return { success: false, error: "Email service not configured." };
     }
 
