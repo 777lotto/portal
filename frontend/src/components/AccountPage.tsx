@@ -249,6 +249,7 @@ function AccountPage() {
               </div>
 
               {/* Billing Card */}
+              {user?.role === 'customer' && (
               <div className="card">
                 <div className="card-header"><h2 className="card-title text-xl">Billing</h2></div>
                 <div className="card-body">
@@ -256,6 +257,7 @@ function AccountPage() {
                   <button type="button" onClick={handleBillingPortal} className="btn btn-primary">Manage Billing</button>
                 </div>
               </div>
+            )}
           </div>
 
           {/* Column 2 */}

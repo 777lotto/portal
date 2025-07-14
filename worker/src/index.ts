@@ -39,7 +39,7 @@ import { handleGetNotesForJob } from './handlers/notes.js';
 import { handlePortalSession } from './handlers/user.js';
 
 // --- Admin Handlers ---
-import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleAdminCreateInvoice } from './handlers/admin/users.js';
+import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleAdminCreateInvoice, handleGetAllJobs, handleGetAllServices } from './handlers/admin/users.js';
 import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleAdminAddNoteForUser } from './handlers/notes.js';
 import { handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate } from './handlers/jobs.js';
@@ -152,6 +152,8 @@ adminApi.post('/users/:userId/invoice', handleAdminCreateInvoice);
 adminApi.get('/blocked-dates', handleGetBlockedDates);
 adminApi.post('/blocked-dates', handleAddBlockedDate);
 adminApi.delete('/blocked-dates/:date', handleRemoveBlockedDate);
+adminApi.get('/jobs', handleGetAllJobs);
+adminApi.get('/services', handleGetAllServices);
 
 
 /* ========================================================================

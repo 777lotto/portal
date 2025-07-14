@@ -4,7 +4,7 @@ import { errorResponse, successResponse } from '../../utils.js';
 import { Context } from 'hono';
 import type { AppEnv } from '../../index.js';
 import { getStripe, createStripeCustomer, createDraftStripeInvoice } from '../../stripe.js';
-import type { User, Job, Photo, Env } from '@portal/shared';
+import type { User, Job, Photo, Service, Env } from '@portal/shared';
 
 export async function handleGetAllUsers(c: Context<AppEnv>): Promise<Response> {
   const env = c.env;
@@ -86,6 +86,32 @@ export async function handleAdminDeleteUser(c: Context<AppEnv>): Promise<Respons
   }
 }
 
+export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
+    try {
+        const dbResponse = await c.env.DB.prepare(
+            `SELECT * FROM jobs ORDER BY start DESC`
+        ).all<Job>();
+        const jobs = dbResponse?.results || [];
+        return successResponse(jobs);
+    } catch (e: any) {
+        console.error(`Failed to get all jobs:`, e);
+        return errorResponse("Failed to retrieve all jobs.", 500);
+    }
+}
+
+export async function handleGetAllServices(c: Context<AppEnv>): Promise<Response> {
+    try {
+        const dbResponse = await c.env.DB.prepare(
+            `SELECT * FROM services ORDER BY service_date DESC`
+        ).all<Service>();
+        const services = dbResponse?.results || [];
+        return successResponse(services);
+    } catch (e: any) {
+        console.error(`Failed to get all services:`, e);
+        return errorResponse("Failed to retrieve all services.", 500);
+    }
+}
+
 export async function handleAdminCreateInvoice(c: Context<AppEnv>): Promise<Response> {
   const { userId } = c.req.param();
   const db = c.env.DB;
@@ -97,6 +123,10 @@ export async function handleAdminCreateInvoice(c: Context<AppEnv>): Promise<Resp
 
     if (!user) {
       return errorResponse("User not found.", 404);
+    }
+
+    if (user.role === 'admin') {
+      return errorResponse("Invoices cannot be created for admin users.", 400);
     }
 
     const stripe = getStripe(c.env as Env);
