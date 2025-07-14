@@ -88,6 +88,7 @@ export const deleteUser = (userId: string) => fetchJson(`/api/admin/users/${user
 export const getBlockedDates = () => apiGet<BlockedDate[]>('/api/admin/blocked-dates');
 export const addBlockedDate = (date: string, reason?: string) => apiPost('/api/admin/blocked-dates', { date, reason });
 export const removeBlockedDate = (date: string) => fetchJson(`/api/admin/blocked-dates/${date}`, { method: 'DELETE' });
+export const adminCreateInvoice = (userId: string) => apiPost<{ invoiceUrl: string }>(`/api/admin/users/${userId}/invoice`, {});
 
 // --- PHOTOS & NOTES (can belong to jobs or services) ---
 export const getPhotos = (filters: { [key: string]: string } = {}) => {
@@ -104,7 +105,6 @@ export const sendSms = (phoneNumber: string, message: string) => apiPost<SMSMess
 
 // --- CALENDAR ---
 export const downloadCalendarFeed = () => apiGet<string>('/api/calendar.ics');
-// MODIFIED: Renamed old function and added new ones
 export const getSecretCalendarUrl = () => apiGet<{url: string}>('/api/calendar/secret-url');
 export const regenerateSecretCalendarUrl = () => apiPost<{url: string}>('/api/calendar/regenerate-url', {});
 export const syncCalendar = (url: string) => apiPost('/api/calendar-sync', { url });

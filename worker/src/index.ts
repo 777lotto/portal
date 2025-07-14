@@ -1,4 +1,4 @@
-// worker/src/index.ts - MODIFIED
+// worker/src/index.ts
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -8,12 +8,11 @@ import manifest from '__STATIC_CONTENT_MANIFEST';
 import { errorResponse } from './utils.js';
 import { requireAuthMiddleware, requireAdminAuthMiddleware, requirePasswordSetTokenMiddleware } from './auth.js';
 import { handleSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './handlers/auth.js';
-// MODIFIED: Import handleChangePassword
 import { handleGetProfile, handleUpdateProfile, handleChangePassword } from './handlers/profile.js';
 import { handleStripeWebhook } from './handlers/stripe.js';
 import { handleListServices, handleGetService, handleCreateInvoice, handleGetPhotosForService, handleGetNotesForService } from './handlers/services.js';
 import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob, handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl } from './handlers/jobs.js';
-import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser } from './handlers/admin/users.js';
+import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleAdminCreateInvoice } from './handlers/admin/users.js';
 import { handleGetUserPhotos, handleGetPhotosForJob, handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleGetNotesForJob, handleAdminAddNoteForUser } from './handlers/notes.js';
 import { handlePortalSession } from './handlers/user.js';
@@ -46,7 +45,6 @@ adminApi.use('*', requireAuthMiddleware, requireAdminAuthMiddleware);
 /* --- Public API Routes --- */
 publicApi.post('/signup', handleSignup);
 publicApi.post('/login', handleLogin);
-// ... (rest of public routes are unchanged)
 publicApi.post('/check-user', handleCheckUser);
 publicApi.post('/request-password-reset', handleRequestPasswordReset);
 publicApi.post('/verify-reset-code', handleVerifyResetCode);
@@ -60,8 +58,7 @@ publicApi.get('/public/calendar/feed/:token', handlePublicCalendarFeed);
 /* --- Customer API Routes (Authenticated) --- */
 customerApi.get('/profile', handleGetProfile);
 customerApi.put('/profile', handleUpdateProfile);
-customerApi.post('/profile/change-password', handleChangePassword); // ADDED
-// ... (rest of customer routes are unchanged)
+customerApi.post('/profile/change-password', handleChangePassword);
 customerApi.get('/services', handleListServices);
 customerApi.get('/services/:id', handleGetService);
 customerApi.post('/services/:id/invoice', handleCreateInvoice);
@@ -82,7 +79,6 @@ customerApi.post('/calendar/regenerate-url', handleRegenerateSecretCalendarUrl);
 
 
 /* --- Admin API Routes (Admin-Only) --- */
-// ... (admin routes are unchanged)
 adminApi.get('/users', handleGetAllUsers);
 adminApi.get('/users/:userId/jobs', handleAdminGetJobsForUser);
 adminApi.get('/users/:userId/photos', handleAdminGetPhotosForUser);
@@ -91,6 +87,7 @@ adminApi.post('/users/:userId/notes', handleAdminAddNoteForUser);
 adminApi.get('/blocked-dates', handleGetBlockedDates);
 adminApi.post('/blocked-dates', handleAddBlockedDate);
 adminApi.delete('/users/:userId', handleAdminDeleteUser);
+adminApi.post('/users/:userId/invoice', handleAdminCreateInvoice);
 adminApi.delete('/blocked-dates/:date', handleRemoveBlockedDate);
 
 api.route('/', publicApi);

@@ -3,7 +3,8 @@
 import { errorResponse, successResponse } from '../../utils.js';
 import { Context } from 'hono';
 import type { AppEnv } from '../../index.js';
-import type { User, Job, Photo } from '@portal/shared';
+import { getStripe, createStripeCustomer, createDraftStripeInvoice } from '../../stripe.js';
+import type { User, Job, Photo, Env } from '@portal/shared';
 
 export async function handleGetAllUsers(c: Context<AppEnv>): Promise<Response> {
   const env = c.env;
@@ -82,5 +83,44 @@ export async function handleAdminDeleteUser(c: Context<AppEnv>): Promise<Respons
   } catch (e: any) {
     console.error(`Failed to delete user ${userId}:`, e);
     return errorResponse("Failed to delete user. The user may have associated records that could not be deleted.", 500);
+  }
+}
+
+export async function handleAdminCreateInvoice(c: Context<AppEnv>): Promise<Response> {
+  const { userId } = c.req.param();
+  const db = c.env.DB;
+
+  try {
+    const user = await db.prepare(
+      `SELECT id, name, email, phone, stripe_customer_id FROM users WHERE id = ?`
+    ).bind(Number(userId)).first<User>();
+
+    if (!user) {
+      return errorResponse("User not found.", 404);
+    }
+
+    const stripe = getStripe(c.env as Env);
+    let stripeCustomerId = user.stripe_customer_id;
+
+    if (!stripeCustomerId) {
+      const customer = await createStripeCustomer(stripe, user);
+      stripeCustomerId = customer.id;
+      await db.prepare(
+        `UPDATE users SET stripe_customer_id = ? WHERE id = ?`
+      ).bind(stripeCustomerId, user.id).run();
+    }
+
+    if (!stripeCustomerId) {
+        return errorResponse("Could not create or find Stripe customer.", 500);
+    }
+
+    const invoice = await createDraftStripeInvoice(stripe, stripeCustomerId);
+
+    const invoiceUrl = `https://dashboard.stripe.com/invoices/${invoice.id}`;
+
+    return successResponse({ invoiceUrl });
+  } catch (e: any) {
+    console.error(`Failed to create draft invoice for user ${userId}:`, e);
+    return errorResponse(`Failed to create draft invoice: ${e.message}`, 500);
   }
 }

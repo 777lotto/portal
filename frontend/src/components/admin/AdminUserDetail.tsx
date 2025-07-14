@@ -24,6 +24,8 @@ function AdminUserDetail() {
   const [photoJobId, setPhotoJobId] = useState('');
   const [isPhotoSubmitting, setIsPhotoSubmitting] = useState(false);
   const [photoMessage, setPhotoMessage] = useState<{ type: 'success' | 'danger', text: string } | null>(null);
+  const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
+  const [invoiceMessage, setInvoiceMessage] = useState<{ type: 'success' | 'danger', text: string | React.ReactNode } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
 
@@ -126,6 +128,30 @@ function AdminUserDetail() {
     setPhotoFiles(photoFiles.filter(file => file.name !== fileName));
   };
 
+  const handleCreateDraftInvoice = async () => {
+    if (!userId) return;
+    setIsCreatingInvoice(true);
+    setInvoiceMessage(null);
+    try {
+      const result = await adminCreateInvoice(userId);
+      setInvoiceMessage({
+        type: 'success',
+        text: (
+          <>
+            Draft invoice created successfully!{' '}
+            <a href={result.invoiceUrl} target="_blank" rel="noopener noreferrer" className="font-bold underline">
+              View on Stripe
+            </a>
+          </>
+        ),
+      });
+    } catch (err: any) {
+      setInvoiceMessage({ type: 'danger', text: `Error: ${err.message}` });
+    } finally {
+      setIsCreatingInvoice(false);
+    }
+  };
+
   return (
     <div className="container mt-4">
       <Link to="/admin/users">&larr; Back to Users</Link>
@@ -200,6 +226,17 @@ function AdminUserDetail() {
                 </button>
               </form>
             </div>
+          </div>
+        </div>
+      </div>
+      <div className="row mt-4">
+        <div className="col-md-6 mb-4">
+          <div className="card">
+              <div className="card-body">
+                  <h5 className="card-title">Stripe Actions</h5>
+                  {invoiceMessage && <div className={`alert alert-${invoiceMessage.type}`}>{invoiceMessage.text}</div>}
+                  <button onClick={handleCreateDraftInvoice} className="btn btn-info" disabled={isCreatingInvoice || !user}>{isCreatingInvoice ? 'Creating...' : 'Create Draft Invoice'}</button>
+              </div>
           </div>
         </div>
       </div>

@@ -76,3 +76,16 @@ export async function finalizeStripeInvoice(stripe: Stripe, invoiceId: string | 
   const finalInvoice = await stripe.invoices.finalizeInvoice(invoiceId);
   return finalInvoice;
 }
+
+// ADDED_START
+export async function createDraftStripeInvoice(stripe: Stripe, customerId: string): Promise<Stripe.Invoice> {
+    console.log(`Creating new draft Stripe invoice for customer: ${customerId}`);
+    const invoice = await stripe.invoices.create({
+      customer: customerId,
+      collection_method: 'send_invoice',
+      days_until_due: 30,
+      auto_advance: false,
+    });
+    return invoice;
+}
+// ADDED_END
