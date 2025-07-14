@@ -10,11 +10,16 @@ import {
   type Photo,
   type Note,
   type PhotoWithNotes,
-  type BlockedDate
+  type BlockedDate,
+  type StripeInvoice
 } from "@portal/shared";
 import { fetchJson } from './fetchJson.js';
 
-// --- API HELPER FUNCTIONS ---
+
+
+/* ========================================================================
+                                  API HELPER FUNCTIONS
+   ======================================================================== */
 
 export const apiGet = <T>(path: string): Promise<T> => {
   return fetchJson<T>(path);
@@ -35,7 +40,11 @@ export const apiPostFormData = <T>(path: string, formData: FormData): Promise<T>
   });
 };
 
-// --- PUBLIC API (No Auth Required) ---
+
+/* ========================================================================
+                                  PUBLIC API
+   ======================================================================== */
+
 export const getPublicAvailability = () => apiGet<{ bookedDays: string[] }>('/api/public/availability');
 export const createPublicBooking = (data: unknown) => apiPost('/api/public/booking', data);
 export const checkUser = (identifier: string) => apiPost<{ status: string }>('/api/check-user', { identifier });
@@ -64,33 +73,75 @@ export const setPassword = (password: string, passwordSetToken: string) => {
 };
 
 
-// --- AUTH ---
+/* ========================================================================
+                                  AUTH
+   ======================================================================== */
+
 export const login = (data: unknown) => apiPost<AuthResponse>('/api/login', data);
 export const signup = (data: unknown) => apiPost<AuthResponse>('/api/signup', data);
 export const logout = () => apiPost('/api/logout', {});
 
-// --- USER & PROFILE ---
+
+/* ========================================================================
+                                  USER & PROFILE
+   ======================================================================== */
+
 export const getProfile = () => apiGet<User>('/api/profile');
 export const updateProfile = (data: Partial<User>) => apiPost<User>('/api/profile', data, 'PUT');
 export const createPortalSession = () => apiPost<PortalSession>('/api/portal', {});
 
-// --- SERVICES ---
+
+/* ========================================================================
+                                  SERVICES
+   ======================================================================== */
+
 export const getServices = () => apiGet<Service[]>('/api/services');
 export const getService = (id: string) => apiGet<Service>(`/api/services/${id}`);
 export const createInvoice = (serviceId: string) => apiPost<any>(`/api/services/${serviceId}/invoice`, {});
 
-// --- JOBS ---
+
+/* ========================================================================
+                                  JOBS
+   ======================================================================== */
+
 export const getJobs = () => apiGet<Job[]>('/api/jobs');
 export const getJob = (id: string) => apiGet<Job>(`/api/jobs/${id}`);
 
-// --- ADMIN API ---
+
+/* ========================================================================
+                                  ADMIN API
+   ======================================================================== */
+
 export const deleteUser = (userId: string) => fetchJson(`/api/admin/users/${userId}`, { method: 'DELETE' });
 export const getBlockedDates = () => apiGet<BlockedDate[]>('/api/admin/blocked-dates');
 export const addBlockedDate = (date: string, reason?: string) => apiPost('/api/admin/blocked-dates', { date, reason });
 export const removeBlockedDate = (date: string) => fetchJson(`/api/admin/blocked-dates/${date}`, { method: 'DELETE' });
-export const adminCreateInvoice = (userId: string) => apiPost<{ invoiceUrl: string }>(`/api/admin/users/${userId}/invoice`, {});
+export const adminCreateInvoice = (userId: string) => apiPost<{ invoice: StripeInvoice }>(`/api/admin/users/${userId}/invoice`, {});
 
-// --- PHOTOS & NOTES (can belong to jobs or services) ---
+
+/* ========================================================================
+                            ADMIN INVOICE FUNCTIONS
+   ======================================================================== */
+
+export const getInvoice = (invoiceId: string) => apiGet<StripeInvoice>(`/api/admin/invoices/${invoiceId}`);
+
+export const addInvoiceItem = (invoiceId: string, data: { description: string, amount: number }) => {
+  return apiPost(`/api/admin/invoices/${invoiceId}/items`, data);
+};
+
+export const deleteInvoiceItem = (invoiceId: string, itemId: string) => {
+  return fetchJson(`/api/admin/invoices/${invoiceId}/items/${itemId}`, { method: 'DELETE' });
+};
+
+export const finalizeInvoice = (invoiceId: string) => {
+  return apiPost<StripeInvoice>(`/api/admin/invoices/${invoiceId}/finalize`, {});
+};
+
+
+/* ========================================================================
+                                PHOTOS & NOTES
+   ======================================================================== */
+
 export const getPhotos = (filters: { [key: string]: string } = {}) => {
   const query = new URLSearchParams(filters).toString();
   return apiGet<PhotoWithNotes[]>(`/api/photos?${query}`);
@@ -98,12 +149,20 @@ export const getPhotos = (filters: { [key: string]: string } = {}) => {
 export const getPhotosForJob = (jobId: string) => apiGet<Photo[]>(`/api/jobs/${jobId}/photos`);
 export const getNotesForJob = (jobId: string) => apiGet<Note[]>(`/api/jobs/${jobId}/notes`);
 
-// --- SMS ---
+
+/* ========================================================================
+                                    SMS
+   ======================================================================== */
+
 export const getSmsConversations = () => apiGet<Conversation[]>('/api/sms/conversations');
 export const getSmsConversation = (phoneNumber: string) => apiGet<SMSMessage[]>(`/api/sms/conversation/${phoneNumber}`);
 export const sendSms = (phoneNumber: string, message: string) => apiPost<SMSMessage>('/api/sms/send', { to: phoneNumber, message });
 
-// --- CALENDAR ---
+
+/* ========================================================================
+                                  CALENDAR
+   ======================================================================== */
+
 export const downloadCalendarFeed = () => apiGet<string>('/api/calendar.ics');
 export const getSecretCalendarUrl = () => apiGet<{url: string}>('/api/calendar/secret-url');
 export const regenerateSecretCalendarUrl = () => apiPost<{url: string}>('/api/calendar/regenerate-url', {});

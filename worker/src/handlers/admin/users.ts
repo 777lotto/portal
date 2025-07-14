@@ -114,11 +114,19 @@ export async function handleAdminCreateInvoice(c: Context<AppEnv>): Promise<Resp
         return errorResponse("Could not create or find Stripe customer.", 500);
     }
 
-    const invoice = await createDraftStripeInvoice(stripe, stripeCustomerId);
+    const draftInvoice = await createDraftStripeInvoice(stripe, stripeCustomerId);
 
-    const invoiceUrl = `https://dashboard.stripe.com/invoices/${invoice.id}`;
+    // FINAL FIX: Add a check to ensure the draft invoice and its ID exist before using it.
+    if (!draftInvoice || !draftInvoice.id) {
+        return errorResponse("Failed to create a valid draft invoice in Stripe.", 500);
+    }
 
-    return successResponse({ invoiceUrl });
+    // Now TypeScript knows draftInvoice.id is a string.
+    const invoice = await stripe.invoices.retrieve(draftInvoice.id, {
+        expand: ['lines'],
+    });
+
+    return successResponse({ invoice });
   } catch (e: any) {
     console.error(`Failed to create draft invoice for user ${userId}:`, e);
     return errorResponse(`Failed to create draft invoice: ${e.message}`, 500);

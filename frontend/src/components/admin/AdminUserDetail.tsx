@@ -1,9 +1,10 @@
 // frontend/src/components/admin/AdminUserDetail.tsx
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { apiGet, apiPost, apiPostFormData, deleteUser, adminCreateInvoice } from '../../lib/api.js';
-import type { Job, Photo, User } from '@portal/shared';
+import type { Job, Photo, User, StripeInvoice } from '@portal/shared';
+import { InvoiceEditor } from './InvoiceEditor.js';
 
 function AdminUserDetail() {
   const { userId } = useParams<{ userId: string }>();
@@ -26,8 +27,9 @@ function AdminUserDetail() {
   const [photoMessage, setPhotoMessage] = useState<{ type: 'success' | 'danger', text: string } | null>(null);
   const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
   const [invoiceMessage, setInvoiceMessage] = useState<{ type: 'success' | 'danger', text: string | React.ReactNode } | null>(null);
+  const [activeInvoice, setActiveInvoice] = useState<StripeInvoice | null>(null);
   const [error, setError] = useState<string | null>(null);
-
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchDataForUser = async () => {
@@ -128,29 +130,27 @@ function AdminUserDetail() {
     setPhotoFiles(photoFiles.filter(file => file.name !== fileName));
   };
 
+  // FIX: This is now the one and only declaration of this function.
   const handleCreateDraftInvoice = async () => {
     if (!userId) return;
     setIsCreatingInvoice(true);
     setInvoiceMessage(null);
+    setActiveInvoice(null); // Clear previous invoice
     try {
       const result = await adminCreateInvoice(userId);
-      setInvoiceMessage({
-        type: 'success',
-        text: (
-          <>
-            Draft invoice created successfully!{' '}
-            <a href={result.invoiceUrl} target="_blank" rel="noopener noreferrer" className="font-bold underline">
-              View on Stripe
-            </a>
-          </>
-        ),
-      });
+      setActiveInvoice(result.invoice);
+      setInvoiceMessage({ type: 'success', text: `Draft invoice ${result.invoice.id} created.` });
     } catch (err: any) {
       setInvoiceMessage({ type: 'danger', text: `Error: ${err.message}` });
     } finally {
       setIsCreatingInvoice(false);
     }
   };
+
+  const handleInvoiceFinalized = () => {
+      setInvoiceMessage({type: 'success', text: `Invoice ${activeInvoice?.id} has been finalized and sent!`});
+      setActiveInvoice(null);
+  }
 
   return (
     <div className="container mt-4">
@@ -230,21 +230,26 @@ function AdminUserDetail() {
         </div>
       </div>
       <div className="row mt-4">
-        <div className="col-md-6 mb-4">
+        <div className="col-12 mb-4">
           <div className="card">
-              <div className="card-body">
-                  <h5 className="card-title">Stripe Actions</h5>
-                  {invoiceMessage && <div className={`alert alert-${invoiceMessage.type}`}>{invoiceMessage.text}</div>}
-                  <button onClick={handleCreateDraftInvoice} className="btn btn-info" disabled={isCreatingInvoice || !user}>{isCreatingInvoice ? 'Creating...' : 'Create Draft Invoice'}</button>
-              </div>
+            <div className="card-body">
+              <h5 className="card-title">Stripe Actions</h5>
+              {invoiceMessage && <div className={`alert alert-${invoiceMessage.type}`}>{invoiceMessage.text}</div>}
+              {!activeInvoice && (
+                <button onClick={handleCreateDraftInvoice} className="btn btn-info" disabled={isCreatingInvoice || !user}>
+                  {isCreatingInvoice ? 'Creating...' : 'Create Draft Invoice'}
+                </button>
+              )}
+              {activeInvoice && <InvoiceEditor invoiceId={activeInvoice.id} onFinalize={handleInvoiceFinalized} />}
+            </div>
           </div>
         </div>
       </div>
-       <div className="mt-4 d-flex justify-content-end">
-            <button onClick={handleDelete} className="btn btn-danger" disabled={!user}>
-                Delete This User
-            </button>
-       </div>
+      <div className="mt-4 d-flex justify-content-end">
+        <button onClick={handleDelete} className="btn btn-danger" disabled={!user}>
+          Delete This User
+        </button>
+      </div>
     </div>
   );
 }

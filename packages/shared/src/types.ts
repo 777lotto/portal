@@ -112,6 +112,35 @@ export type PhotoWithNotes = z.infer<typeof PhotoWithNotesSchema>;
  });
  export type BlockedDate = z.infer<typeof BlockedDateSchema>;
 
+ /* ========================================================================
+   STRIPE-SPECIFIC MODELS
+   ======================================================================== */
+
+export const StripeInvoiceItemSchema = z.object({
+  id: z.string(),
+  object: z.literal('line_item'),
+  amount: z.number(), // in cents
+  currency: z.string(),
+  description: z.string().nullable(),
+  quantity: z.number().nullable(),
+});
+export type StripeInvoiceItem = z.infer<typeof StripeInvoiceItemSchema>;
+
+export const StripeInvoiceSchema = z.object({
+    id: z.string(),
+    object: z.literal('invoice'),
+    customer: z.string(),
+    status: z.enum(['draft', 'open', 'paid', 'uncollectible', 'void']),
+    total: z.number(), // in cents
+    hosted_invoice_url: z.string().nullable(),
+    lines: z.object({
+        object: z.literal('list'),
+        data: z.array(StripeInvoiceItemSchema),
+    }),
+});
+export type StripeInvoice = z.infer<typeof StripeInvoiceSchema>;
+
+
 
 /* ========================================================================
    API, AUTH & NOTIFICATION TYPES

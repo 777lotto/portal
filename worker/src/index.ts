@@ -19,6 +19,12 @@ import { handlePortalSession } from './handlers/user.js';
 import { handleSmsProxy } from './sms.js';
 import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed } from './handlers/public.js';
 import type { Env, User } from '@portal/shared';
+import {
+  handleAdminGetInvoice,
+  handleAdminAddInvoiceItem,
+  handleAdminDeleteInvoiceItem,
+  handleAdminFinalizeInvoice
+} from './handlers/admin/invoices.js';
 
 export type AppEnv = {
   Bindings: Env;
@@ -89,6 +95,13 @@ adminApi.post('/blocked-dates', handleAddBlockedDate);
 adminApi.delete('/users/:userId', handleAdminDeleteUser);
 adminApi.post('/users/:userId/invoice', handleAdminCreateInvoice);
 adminApi.delete('/blocked-dates/:date', handleRemoveBlockedDate);
+
+// INVOICE MANAGEMENT ROUTES
+adminApi.get('/invoices/:invoiceId', handleAdminGetInvoice);
+adminApi.post('/invoices/:invoiceId/items', handleAdminAddInvoiceItem);
+adminApi.delete('/invoices/:invoiceId/items/:itemId', handleAdminDeleteInvoiceItem);
+adminApi.post('/invoices/:invoiceId/finalize', handleAdminFinalizeInvoice);
+
 
 api.route('/', publicApi);
 api.route('/', customerApi);
