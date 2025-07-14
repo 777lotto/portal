@@ -5,6 +5,7 @@ import { AppEnv as ProfileAppEnv } from '../index.js';
 import { errorResponse as profileErrorResponse, successResponse as profileSuccessResponse } from '../utils.js';
 import { UserSchema, type User } from '@portal/shared';
 import { verifyPassword, hashPassword } from '../auth.js';
+import { getStripe } from '../stripe.js';
 
 const UpdateProfilePayload = UserSchema.pick({
     name: true,
@@ -53,6 +54,15 @@ export const handleUpdateProfile = async (c: ProfileContext<ProfileAppEnv>) => {
             preferred_contact_method ?? user.preferred_contact_method,
             user.id
         ).run();
+
+        if (user.stripe_customer_id && (name || company_name)) {
+            const stripe = getStripe(c.env);
+            await stripe.customers.update(user.stripe_customer_id, {
+                name: name,
+                // Stripe doesn't have a dedicated company name field, metadata is the standard place
+                metadata: { company_name: company_name || '' }
+            });
+        }
 
         const updatedUser = { ...user, ...parsed.data };
         return profileSuccessResponse(updatedUser);

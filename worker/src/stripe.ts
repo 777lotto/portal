@@ -13,7 +13,7 @@ export function getStripe(env: Env): Stripe {
 }
 
 export async function createStripeCustomer(stripe: Stripe, user: User): Promise<Stripe.Customer> {
-  const { email, name, phone } = user;
+  const { email, name, phone, company_name } = user;
 
   const existingCustomers = await stripe.customers.list({ email: email, limit: 1 });
   if (existingCustomers.data.length > 0) {
@@ -26,6 +26,9 @@ export async function createStripeCustomer(stripe: Stripe, user: User): Promise<
       email: email,
       name: name,
       phone: phone || undefined,
+      metadata: {
+        company_name: company_name || ''
+      }
   });
 }
 

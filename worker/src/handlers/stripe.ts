@@ -38,6 +38,11 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
 
                 break;
 
+            case 'billing_portal.session.created':
+                const session = event.data.object as Stripe.BillingPortal.Session;
+                console.log(`Stripe billing portal session ${session.id} was created for customer ${session.customer}. No action taken.`);
+                break;
+
             default:
                 console.log(`Unhandled event type ${event.type}`);
         }

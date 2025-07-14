@@ -191,6 +191,21 @@ function AccountPage() {
     }
   };
 
+  const handleProfileSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileMessage(null);
+    try {
+      const updatedUser = await updateProfile({
+        name: formData.name,
+        company_name: formData.company_name
+      });
+      setUser(updatedUser); // Update local user state
+      setProfileMessage({type: 'success', text: 'Profile updated successfully!'});
+    } catch (err: any) {
+      setProfileMessage({type: 'danger', text: err.message});
+    }
+  }
+
 
 /* ========================================================================
                              RENDER LOGIC
@@ -217,13 +232,18 @@ function AccountPage() {
               <div className="card">
                   <div className="card-header"><h2 className="card-title text-xl">Profile</h2></div>
                   <div className="card-body space-y-4">
+                      {profileMessage && <div className={`alert alert-${profileMessage.type}`}>{profileMessage.text}</div>}
                       <div>
                         <label htmlFor="name" className="form-label">Full Name</label>
                         <input type="text" id="name" name="name" value={formData.name} onChange={handleProfileChange} className="form-control" />
                       </div>
                       <div>
                         <label htmlFor="company_name" className="form-label">Company/Community Name</label>
-                        <input type="text" id="company_name" name="company_name" value={formData.company_name} onChange={handleProfileChange} className="form-control" />
+                        <input type="text" id="company_name" name="company_name" value={formData.company_name || ''} onChange={handleProfileChange} className="form-control" />
+                      </div>
+                      {/* ADDED: New Save button for this card */}
+                      <div className="pt-2 flex justify-end">
+                        <button type="button" onClick={handleProfileSave} className="btn btn-secondary">Save Profile</button>
                       </div>
                   </div>
               </div>
