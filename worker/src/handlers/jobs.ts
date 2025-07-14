@@ -264,6 +264,9 @@ export const handleAdminCompleteJob = async (c: HonoContext<WorkerAppEnv>) => {
         // Finalize the invoice
         const finalInvoice = await stripe.invoices.finalizeInvoice(draftInvoice.id);
 
+if (!finalInvoice?.id) {
+            throw new Error('Failed to finalize invoice: No ID returned from Stripe.');
+        }
         // Send the invoice
         await stripe.invoices.sendInvoice(finalInvoice.id);
 

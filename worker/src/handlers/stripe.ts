@@ -36,6 +36,10 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
                 const quote = event.data.object as Stripe.Quote;
                 console.log(`Quote ${quote.id} was finalized.`);
 
+                // Retrieve the customer to get their name
+                const customer = await stripe.customers.retrieve(quote.customer as string);
+                const customerName = (customer as Stripe.Customer).name || 'A customer';
+
                 // Update job status to 'quote_accepted'
                 const jobUpdate = await c.env.DB.prepare(
                     `UPDATE jobs SET status = 'quote_accepted' WHERE stripe_quote_id = ?`
