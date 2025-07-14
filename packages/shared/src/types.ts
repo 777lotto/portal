@@ -20,6 +20,7 @@ export const UserSchema = z.object({
   company_name: z.string().optional().nullable(),
   email_notifications_enabled: z.boolean().default(true).optional(),
   sms_notifications_enabled: z.boolean().default(true).optional(),
+  preferred_contact_method: z.enum(['email', 'sms']).default('email').optional(),
 });
 export type User = z.infer<typeof UserSchema>;
 

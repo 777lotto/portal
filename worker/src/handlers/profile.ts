@@ -12,7 +12,8 @@ const UpdateProfilePayload = UserSchema.pick({
     phone: true,
     company_name: true,
     email_notifications_enabled: true,
-    sms_notifications_enabled: true
+    sms_notifications_enabled: true,
+    preferred_contact_method: true
 }).partial();
 
 const ChangePasswordPayload = z.object({
@@ -37,18 +38,19 @@ export const handleUpdateProfile = async (c: ProfileContext<ProfileAppEnv>) => {
         return profileErrorResponse("Invalid data", 400, parsed.error.flatten());
     }
 
-    const { name, email, phone, company_name, email_notifications_enabled, sms_notifications_enabled } = parsed.data;
+    const { name, email, phone, company_name, email_notifications_enabled, sms_notifications_enabled, preferred_contact_method } = parsed.data;
 
     try {
         await c.env.DB.prepare(
-            `UPDATE users SET name = ?, email = ?, phone = ?, company_name = ?, email_notifications_enabled = ?, sms_notifications_enabled = ? WHERE id = ?`
+            `UPDATE users SET name = ?, email = ?, phone = ?, company_name = ?, email_notifications_enabled = ?, sms_notifications_enabled = ?, preferred_contact_method = ? WHERE id = ?`
         ).bind(
             name ?? user.name,
             email ?? user.email,
             phone !== undefined ? phone : user.phone,
             company_name !== undefined ? company_name : user.company_name,
-            email_notifications_enabled, // These are the new fields
-            sms_notifications_enabled,   // These are the new fields
+            email_notifications_enabled,
+            sms_notifications_enabled,
+            preferred_contact_method ?? user.preferred_contact_method,
             user.id
         ).run();
 
