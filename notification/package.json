@@ -12,10 +12,12 @@
   "typecheck": "tsc --noEmit"
 },
   "dependencies": {
-    "@portal/shared": "workspace:*"
+    "@portal/shared": "workspace:*",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240528.0",
+    "@types/web-push": "^3.6.3",
     "rimraf": "^5.0.10",
     "typescript": "^5.5.2",
     "wrangler": "^4.13.2"

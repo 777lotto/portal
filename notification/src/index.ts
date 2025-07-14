@@ -1,78 +1,99 @@
-// notification/src/index.ts - UPDATED
+/* ========================================================================
+                            IMPORTS & TYPES
+   ======================================================================== */
 
 import {
   type Env,
   NotificationRequestSchema,
+  PushSubscriptionSchema
 } from '@portal/shared';
+import type { D1Database, MessageBatch } from '@cloudflare/workers-types';
 import { sendEmailNotification, generateEmailHTML, generateEmailText } from './email.js';
+import { sendPushNotification } from './push.js';
 import {
     handleSMSWebhook,
     generateSMSMessage,
     handleGetSmsConversations,
     handleGetSmsConversation,
     handleSendSms,
-    // ADDED: Statically import the sender function
     sendSMSNotification
 } from './sms.js';
-import type { D1Database, MessageBatch } from '@cloudflare/workers-types';
 
-// Define the environment interface for this worker
+
+/* ========================================================================
+                           TYPE DEFINITIONS
+   ======================================================================== */
+
+// Extends the shared Env type with bindings specific to this worker
 interface NotificationEnv extends Env {
   DB: D1Database;
 }
 
-// --- Notification Sending Logic (API-based for immediate sends) ---
 
-async function handleSendNotification(request: Request, env: NotificationEnv): Promise<Response> {
-    if (request.method !== 'POST') {
-        return new Response('Method Not Allowed', { status: 405 });
+/* ========================================================================
+                               API HANDLERS
+   ======================================================================== */
+
+/**
+ * Provides the VAPID public key to the frontend.
+ */
+async function handleVapidKey(env: NotificationEnv): Promise<Response> {
+    if (!env.VAPID_PUBLIC_KEY) {
+        return new Response("VAPID public key not configured", { status: 500 });
     }
+    return new Response(env.VAPID_PUBLIC_KEY, { headers: { 'Content-Type': 'text/plain' } });
+}
 
-    const body = await request.json();
-    const validation = NotificationRequestSchema.safeParse(body);
+/**
+ * Saves a user's push notification subscription to the database.
+ */
+async function handleSubscribe(request: Request, env: NotificationEnv): Promise<Response> {
+    const userIdHeader = request.headers.get('X-Internal-User-Id');
+    if (!userIdHeader) return new Response("Unauthorized", { status: 401 });
+    const userId = parseInt(userIdHeader, 10);
+
+    const subscription = await request.json();
+    const validation = PushSubscriptionSchema.safeParse(subscription);
 
     if (!validation.success) {
-        return new Response(JSON.stringify({ error: 'Invalid request body', details: validation.error.flatten() }), { status: 400, headers: { 'Content-Type': 'application/json' }});
+        return new Response(JSON.stringify({ error: "Invalid subscription object" }), { status: 400 });
     }
 
-    const { type, userId, data, channels = ['email'] } = validation.data;
-    const db = env.DB;
+    try {
+        await env.DB.prepare(
+            `INSERT OR REPLACE INTO push_subscriptions (user_id, subscription_json) VALUES (?, ?)`
+        ).bind(userId, JSON.stringify(subscription)).run();
 
-    const user = await db.prepare(
-        'SELECT id, email, name, phone FROM users WHERE id = ?'
-    ).bind(userId).first<any>();
-
-    if (!user) {
-        return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 });
+        return new Response(JSON.stringify({ success: true }), { status: 201 });
+    } catch (e: any) {
+        console.error("Failed to save push subscription:", e);
+        return new Response("Failed to save subscription", { status: 500 });
     }
-
-    const results: Record<string, { success: boolean; error?: string }> = {};
-
-    if (channels.includes('email') && user.email) {
-        const subject = `Gutter Portal: ${type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}`;
-        const html = generateEmailHTML(type, user.name, data);
-        const text = generateEmailText(type, user.name, data);
-        results.email = await sendEmailNotification(env, { to: user.email, toName: user.name, subject, html, text });
-    }
-
-    if (channels.includes('sms') && user.phone) {
-        const message = generateSMSMessage(type, data);
-        const smsResult = await sendSMSNotification(env, user.phone, message);
-        results.sms = { success: smsResult.success, error: smsResult.error };
-    }
-
-    return new Response(JSON.stringify({ success: true, results }), { headers: { 'Content-Type': 'application/json' }});
 }
 
 
-// --- Worker Entry Point ---
+/* ========================================================================
+                             WORKER ENTRYPOINT
+   ======================================================================== */
 
 export default {
+/* ========================================================================
+                               FETCH HANDLER
+   ======================================================================== */
+
   async fetch(request: Request, env: NotificationEnv): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
 
     try {
+      // --- Push Notification Routes ---
+      if (path === '/api/notifications/vapid-key') {
+        return handleVapidKey(env);
+      }
+      if (path === '/api/notifications/subscribe') {
+        return handleSubscribe(request, env);
+      }
+
       // --- SMS Routes ---
       if (path === '/api/sms/conversations') {
         return handleGetSmsConversations(request, env);
@@ -87,11 +108,6 @@ export default {
         return handleSMSWebhook(request, env);
       }
 
-      // --- Automated Notification Route ---
-      if (path.startsWith('/api/notifications/send')) {
-        return handleSendNotification(request, env);
-      }
-
       // Fallback for unknown routes
       return new Response("Not Found in Notification Worker", { status: 404 });
 
@@ -101,11 +117,12 @@ export default {
     }
   },
 
-  // FIXED: Implemented the queue handler logic
-  async queue(
-    batch: MessageBatch<any>,
-    env: NotificationEnv
-  ): Promise<void> {
+
+/* ========================================================================
+                               QUEUE HANDLER
+   ======================================================================== */
+
+  async queue(batch: MessageBatch<any>, env: NotificationEnv): Promise<void> {
     const promises = batch.messages.map(async (message) => {
       try {
         const body = message.body;
@@ -120,7 +137,7 @@ export default {
         const { type, userId, data, channels = ['email', 'sms'] } = validation.data;
 
         const user = await env.DB.prepare(
-            'SELECT id, email, name, phone FROM users WHERE id = ?'
+            'SELECT id, email, name, phone, email_notifications_enabled, sms_notifications_enabled FROM users WHERE id = ?'
         ).bind(userId).first<any>();
 
         if (!user) {
@@ -132,22 +149,49 @@ export default {
         console.log(`Processing queued notification for user ${user.id}. Type: ${type}`);
         const notificationPromises = [];
 
-        // Send email if channel is selected and user has an email
-        if (channels.includes('email') && user.email) {
+        // Send email if channel is selected and user has enabled email notifications
+        if (channels.includes('email') && user.email && user.email_notifications_enabled) {
           const subject = `Gutter Portal Reminder: ${type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}`;
           const html = generateEmailHTML(type, user.name, data);
           const text = generateEmailText(type, user.name, data);
           notificationPromises.push(sendEmailNotification(env, { to: user.email, toName: user.name, subject, html, text }));
         }
 
-        // Send SMS if channel is selected and user has a phone number
-        if (channels.includes('sms') && user.phone) {
+        // Send SMS if channel is selected and user has enabled SMS notifications
+        if (channels.includes('sms') && user.phone && user.sms_notifications_enabled) {
           const smsMessage = generateSMSMessage(type, data);
           notificationPromises.push(sendSMSNotification(env, user.phone, smsMessage));
         }
 
+        // Send Push Notification if user is subscribed
+        const pushSubResult = await env.DB.prepare(
+            `SELECT subscription_json FROM push_subscriptions WHERE user_id = ?`
+        ).bind(userId).first<{ subscription_json: string }>();
+
+        if (pushSubResult?.subscription_json) {
+            try {
+                const subscription = JSON.parse(pushSubResult.subscription_json);
+                const payload = JSON.stringify({
+                    title: `Gutter Portal: ${type.replace(/_/g, ' ')}`,
+                    body: generateSMSMessage(type, data) // Re-use SMS text for push body
+                });
+
+                notificationPromises.push(
+                    sendPushNotification(env, subscription, payload)
+                        .catch(async (e: any) => {
+                            if (e.statusCode === 410) {
+                                console.log(`Subscription for user ${userId} is expired/invalid. Deleting.`);
+                                await env.DB.prepare(`DELETE FROM push_subscriptions WHERE user_id = ?`).bind(userId).run();
+                            }
+                        })
+                );
+            } catch (e) {
+                console.error(`Could not parse or send push notification for user ${userId}`, e);
+            }
+        }
+
         await Promise.all(notificationPromises);
-        console.log(`Successfully sent notifications for user ${userId}`);
+        console.log(`Successfully processed notifications for user ${userId}`);
         message.ack();
 
       } catch (e: any) {

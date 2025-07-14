@@ -167,3 +167,11 @@ export const downloadCalendarFeed = () => apiGet<string>('/api/calendar.ics');
 export const getSecretCalendarUrl = () => apiGet<{url: string}>('/api/calendar/secret-url');
 export const regenerateSecretCalendarUrl = () => apiPost<{url: string}>('/api/calendar/regenerate-url', {});
 export const syncCalendar = (url: string) => apiPost('/api/calendar-sync', { url });
+
+
+/* ========================================================================
+                             PUSH NOTIFICATIONS
+   ======================================================================== */
+
+export const getVapidKey = () => apiGet<string>('/api/notifications/vapid-key');
+export const subscribeToPush = (subscription: PushSubscription) => apiPost('/api/notifications/subscribe', subscription);

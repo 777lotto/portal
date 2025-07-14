@@ -1,8 +1,11 @@
 // packages/shared/src/types.ts - THE SINGLE SOURCE OF TRUTH
 import type { D1Database, Fetcher } from '@cloudflare/workers-types';
 import { z } from 'zod';
+
+
+
 /* ========================================================================
-   DATABASE & CORE MODELS
+                            DATABASE & CORE MODELS
    ======================================================================== */
 
 // Defines the structure for a user, aligning with the database and JWT payload.
@@ -113,7 +116,7 @@ export type PhotoWithNotes = z.infer<typeof PhotoWithNotesSchema>;
  export type BlockedDate = z.infer<typeof BlockedDateSchema>;
 
  /* ========================================================================
-   STRIPE-SPECIFIC MODELS
+                              STRIPE-SPECIFIC MODELS
    ======================================================================== */
 
 export const StripeInvoiceItemSchema = z.object({
@@ -143,7 +146,7 @@ export type StripeInvoice = z.infer<typeof StripeInvoiceSchema>;
 
 
 /* ========================================================================
-   API, AUTH & NOTIFICATION TYPES
+                        API, AUTH & NOTIFICATION TYPES
    ======================================================================== */
 
 // Exporting AuthResponse for the API client.
@@ -201,8 +204,17 @@ export interface SendSMSResult {
   messageSid?: string;
 }
 
+export const PushSubscriptionSchema = z.object({
+  endpoint: z.string().url(),
+  keys: z.object({
+    p256dh: z.string(),
+    auth: z.string(),
+  }),
+});
+export type PushSubscription = z.infer<typeof PushSubscriptionSchema>;
+
 /* ========================================================================
-   ENVIRONMENT & CLOUDFLARE TYPES
+                    ENVIRONMENT & CLOUDFLARE TYPES
    ======================================================================== */
 
 // Consolidating and exporting all worker environment variables and types.
@@ -220,6 +232,8 @@ export interface Env {
   CF_IMAGES_ACCOUNT_HASH: string;
   CF_IMAGES_API_TOKEN: string;
   ZEPTOMAIL_TOKEN: string;
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
 
   // Variables
   PORTAL_URL: string;

@@ -1,25 +1,53 @@
-// 777lotto/portal/portal-bet/worker/src/index.ts
+/* ========================================================================
+                        IMPORTS & INITIALIZATION
+   ======================================================================== */
 
-import { Hono } from 'hono';
+import { Hono, Context } from 'hono';
 import { cors } from 'hono/cors';
 import { serveStatic } from 'hono/cloudflare-workers';
 import manifest from '__STATIC_CONTENT_MANIFEST';
+import type { Env, User } from '@portal/shared';
+
+/* ========================================================================
+                           MIDDLEWARE & UTILITIES
+   ======================================================================== */
 
 import { errorResponse } from './utils.js';
 import { requireAuthMiddleware, requireAdminAuthMiddleware, requirePasswordSetTokenMiddleware } from './auth.js';
-// MODIFIED: Import new handler and remove old one
-import { handleInitializeSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './handlers/auth.js';
-import { handleGetProfile, handleUpdateProfile, handleChangePassword } from './handlers/profile.js';
-import { handleStripeWebhook } from './handlers/stripe.js';
-import { handleListServices, handleGetService, handleCreateInvoice, handleGetPhotosForService, handleGetNotesForService } from './handlers/services.js';
-import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob, handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl } from './handlers/jobs.js';
-import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleAdminCreateInvoice } from './handlers/admin/users.js';
-import { handleGetUserPhotos, handleGetPhotosForJob, handleAdminUploadPhotoForUser } from './handlers/photos.js';
-import { handleGetNotesForJob, handleAdminAddNoteForUser } from './handlers/notes.js';
-import { handlePortalSession } from './handlers/user.js';
+
+/* ========================================================================
+                                PROXIES
+   ======================================================================== */
+
 import { handleSmsProxy } from './sms.js';
+
+/* ========================================================================
+                               ROUTE HANDLERS
+   ======================================================================== */
+
+// --- Public Handlers ---
+import { handleInitializeSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './handlers/auth.js';
+import { handleStripeWebhook } from './handlers/stripe.js';
 import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed } from './handlers/public.js';
-import type { Env, User } from '@portal/shared';
+
+// --- Customer Handlers ---
+import { handleGetProfile, handleUpdateProfile, handleChangePassword } from './handlers/profile.js';
+import { handleListServices, handleGetService, handleCreateInvoice, handleGetPhotosForService, handleGetNotesForService } from './handlers/services.js';
+import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl } from './handlers/jobs.js';
+import { handleGetUserPhotos, handleGetPhotosForJob } from './handlers/photos.js';
+import { handleGetNotesForJob } from './handlers/notes.js';
+import { handlePortalSession } from './handlers/user.js';
+
+// --- Admin Handlers ---
+import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleAdminCreateInvoice } from './handlers/admin/users.js';
+import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
+import { handleAdminAddNoteForUser } from './handlers/notes.js';
+import { handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate } from './handlers/jobs.js';
+
+
+/* ========================================================================
+                       ENVIRONMENT & CLOUDFLARE TYPES
+   ======================================================================== */
 
 export type AppEnv = {
   Bindings: Env;
@@ -27,6 +55,26 @@ export type AppEnv = {
     user: User;
   };
 };
+
+/* ========================================================================
+                          PROXY HANDLER FUNCTIONS
+   ======================================================================== */
+
+const handleNotificationProxy = async (c: Context<AppEnv>) => {
+    const notificationService = c.env.NOTIFICATION_SERVICE;
+    if (!notificationService) {
+        return c.json({ error: "Notification service is unavailable" }, 503);
+    }
+    const newRequest = new Request(c.req.url, c.req.raw);
+    const user = c.get('user');
+    newRequest.headers.set('X-Internal-User-Id', user.id.toString());
+    newRequest.headers.set('X-Internal-User-Role', user.role);
+    return await notificationService.fetch(newRequest);
+};
+
+/* ========================================================================
+                                 APP SETUP
+   ======================================================================== */
 
 const app = new Hono<AppEnv>().onError((err, c) => {
   console.error(`Hono Error: ${err}`, c.req.url, err.stack);
@@ -43,10 +91,11 @@ const adminApi = new Hono<AppEnv>();
 customerApi.use('*', requireAuthMiddleware);
 adminApi.use('*', requireAuthMiddleware, requireAdminAuthMiddleware);
 
-/* --- Public API Routes --- */
-// REMOVED: Old insecure signup route
-// publicApi.post('/signup', handleSignup);
-// ADDED: New secure signup initialization route
+
+/* ========================================================================
+                            PUBLIC API ROUTES
+   ======================================================================== */
+
 publicApi.post('/signup/initialize', handleInitializeSignup);
 publicApi.post('/login', handleLogin);
 publicApi.post('/check-user', handleCheckUser);
@@ -59,7 +108,11 @@ publicApi.get('/public/availability', handleGetAvailability);
 publicApi.post('/public/booking', handleCreateBooking);
 publicApi.get('/public/calendar/feed/:token', handlePublicCalendarFeed);
 
-/* --- Customer API Routes (Authenticated) --- */
+
+/* ========================================================================
+                       CUSTOMER API ROUTES (Authenticated)
+   ======================================================================== */
+
 customerApi.get('/profile', handleGetProfile);
 customerApi.put('/profile', handleUpdateProfile);
 customerApi.post('/profile/change-password', handleChangePassword);
@@ -74,31 +127,47 @@ customerApi.get('/jobs/:id', handleGetJobById);
 customerApi.get('/jobs/:id/photos', handleGetPhotosForJob);
 customerApi.get('/jobs/:id/notes', handleGetNotesForJob);
 customerApi.post('/portal', handlePortalSession);
-customerApi.all('/sms/*', handleSmsProxy);
 customerApi.post('/logout', handleLogout);
 customerApi.get('/calendar.ics', handleCalendarFeed);
 customerApi.get('/photos', handleGetUserPhotos);
 customerApi.get('/calendar/secret-url', handleGetSecretCalendarUrl);
 customerApi.post('/calendar/regenerate-url', handleRegenerateSecretCalendarUrl);
 
+// --- Proxied Routes ---
+customerApi.all('/sms/*', handleSmsProxy);
+customerApi.all('/notifications/*', handleNotificationProxy);
 
-/* --- Admin API Routes (Admin-Only) --- */
+
+/* ========================================================================
+                         ADMIN API ROUTES (Admin-Only)
+   ======================================================================== */
+
 adminApi.get('/users', handleGetAllUsers);
 adminApi.get('/users/:userId/jobs', handleAdminGetJobsForUser);
 adminApi.get('/users/:userId/photos', handleAdminGetPhotosForUser);
 adminApi.post('/users/:userId/photos', handleAdminUploadPhotoForUser);
 adminApi.post('/users/:userId/notes', handleAdminAddNoteForUser);
-adminApi.get('/blocked-dates', handleGetBlockedDates);
-adminApi.post('/blocked-dates', handleAddBlockedDate);
 adminApi.delete('/users/:userId', handleAdminDeleteUser);
 adminApi.post('/users/:userId/invoice', handleAdminCreateInvoice);
+adminApi.get('/blocked-dates', handleGetBlockedDates);
+adminApi.post('/blocked-dates', handleAddBlockedDate);
 adminApi.delete('/blocked-dates/:date', handleRemoveBlockedDate);
+
+
+/* ========================================================================
+                              ROUTER REGISTRATION
+   ======================================================================== */
 
 api.route('/', publicApi);
 api.route('/', customerApi);
 api.route('/admin', adminApi);
 
 app.route('/api', api);
+
+
+/* ========================================================================
+                             STATIC SITE SERVING
+   ======================================================================== */
 
 app.get('/*', serveStatic({
     root: './',
@@ -109,5 +178,10 @@ app.get('*', serveStatic({
     path: './index.html',
     manifest,
 }));
+
+
+/* ========================================================================
+                                   EXPORT
+   ======================================================================== */
 
 export default app;

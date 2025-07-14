@@ -1,10 +1,23 @@
-// frontend/src/components/AccountPage.tsx
+/* ========================================================================
+                            IMPORTS & TYPES
+   ======================================================================== */
 import { useState, useEffect } from 'react';
 import { getProfile, updateProfile, createPortalSession, apiPost } from '../lib/api';
+import { subscribeUser, unsubscribeUser } from '../lib/push';
 import type { User } from '@portal/shared';
 import { ApiError } from '../lib/fetchJson';
 
+
+/* ========================================================================
+                               COMPONENT
+   ======================================================================== */
+
 function AccountPage() {
+
+/* ========================================================================
+                                 STATE
+   ======================================================================== */
+
   const [user, setUser] = useState<User | null>(null);
   const [formData, setFormData] = useState({
       name: '',
@@ -13,11 +26,18 @@ function AccountPage() {
       sms_notifications_enabled: true,
   });
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [pushState, setPushState] = useState({ isSubscribed: false, isSupported: false });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+
+/* ========================================================================
+                                EFFECTS
+   ======================================================================== */
+
   useEffect(() => {
+    // Fetch user profile on initial load
     const fetchProfile = async () => {
       try {
         setIsLoading(true);
@@ -36,7 +56,24 @@ function AccountPage() {
       }
     };
     fetchProfile();
+
+    // Check for push notification support and subscription status
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      setPushState(prev => ({ ...prev, isSupported: true }));
+      navigator.serviceWorker.ready.then(reg => {
+        reg.pushManager.getSubscription().then(sub => {
+          if (sub) {
+            setPushState(prev => ({ ...prev, isSubscribed: true }));
+          }
+        });
+      });
+    }
   }, []);
+
+
+/* ========================================================================
+                                HANDLERS
+   ======================================================================== */
 
   const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -88,8 +125,31 @@ function AccountPage() {
     }
   };
 
-    if (isLoading) return <div>Loading account details...</div>;
-    if (error && !user) return <div className="alert alert-danger">{error}</div>;
+  const handleTogglePush = async () => {
+    setError(null);
+    setSuccess(null);
+    try {
+      if (pushState.isSubscribed) {
+        await unsubscribeUser();
+        setPushState(prev => ({ ...prev, isSubscribed: false }));
+        setSuccess("You have been unsubscribed from push notifications.");
+      } else {
+        await subscribeUser();
+        setPushState(prev => ({ ...prev, isSubscribed: true }));
+        setSuccess("Successfully subscribed to push notifications!");
+      }
+    } catch (err: any) {
+      setError(err.message || "An error occurred with push notifications.");
+    }
+  };
+
+
+/* ========================================================================
+                             RENDER LOGIC
+   ======================================================================== */
+
+  if (isLoading) return <div>Loading account details...</div>;
+  if (error && !user) return <div className="alert alert-danger">{error}</div>;
 
   return (
     <div className="container mt-4">
@@ -152,18 +212,40 @@ function AccountPage() {
             </form>
           </div>
         </div>
-      </div> {/* FIX: This closing div for the grid was missing */}
+      </div>
 
-      {/* Billing Card */}
-      <div className="card mt-8">
-        <div className="card-header"><h2 className="card-title">Billing</h2></div>
-        <div className="card-body">
-          <p className="mb-4">Manage your billing information, payment methods, and view your invoice history through our secure payment portal.</p>
-          <button onClick={handleBillingPortal} className="btn btn-primary">Manage Billing</button>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+        {/* Billing Card */}
+        <div className="card">
+          <div className="card-header"><h2 className="card-title">Billing</h2></div>
+          <div className="card-body">
+            <p className="mb-4">Manage your billing information, payment methods, and view your invoice history through our secure payment portal.</p>
+            <button onClick={handleBillingPortal} className="btn btn-primary">Manage Billing</button>
+          </div>
+        </div>
+
+        {/* Push Notifications Card */}
+        <div className="card">
+          <div className="card-header"><h2 className="card-title">Browser Notifications</h2></div>
+          <div className="card-body">
+            <p className="mb-4">Receive instant alerts for appointments and invoices directly on this device.</p>
+            {pushState.isSupported ? (
+              <button onClick={handleTogglePush} className={`btn ${pushState.isSubscribed ? 'btn-secondary' : 'btn-success'}`}>
+                {pushState.isSubscribed ? 'Disable Notifications' : 'Enable Notifications'}
+              </button>
+            ) : (
+              <p className="text-sm text-red-500">Push notifications are not supported on this browser.</p>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
+
+/* ========================================================================
+                                EXPORT
+   ======================================================================== */
 
 export default AccountPage;
