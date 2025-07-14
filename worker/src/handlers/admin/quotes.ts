@@ -57,7 +57,7 @@ export async function handleAdminCreateQuote(c: Context<AppEnv>) {
           userId: customer.id,
           data: {
               quoteId: finalizedQuote.id,
-              quoteUrl: finalizedQuote.hosted_details_url,
+              quoteUrl: (finalizedQuote as any).hosted_details_url,
               customerName: customer.name,
           },
           channels: ['email']
