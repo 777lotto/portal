@@ -9,7 +9,7 @@ export async function sendPushNotification(env: Env, subscription: PushSubscript
   }
 
   webpush.setVapidDetails(
-    'mailto:your-email@example.com', // Replace with your email
+    'mailto:support@777.foo', // Changed to a more suitable contact email
     env.VAPID_PUBLIC_KEY,
     env.VAPID_PRIVATE_KEY
   );

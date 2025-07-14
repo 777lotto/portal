@@ -2,7 +2,7 @@
                             IMPORTS & TYPES
    ======================================================================== */
 import { useState, useEffect } from 'react';
-import { getProfile, updateProfile, createPortalSession, apiPost } from '../lib/api';
+import { getProfile, updateProfile, createPortalSession, apiPost, requestPasswordReset } from '../lib/api';
 import { subscribeUser, unsubscribeUser } from '../lib/push';
 import type { User } from '@portal/shared';
 import { ApiError } from '../lib/fetchJson';
@@ -31,6 +31,8 @@ function AccountPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [passwordMessage, setPasswordMessage] = useState<{type: 'success'|'danger', text: string} | null>(null);
+  const [isSendingCode, setIsSendingCode] = useState(false);
 
 
 /* ========================================================================
@@ -88,10 +90,17 @@ function AccountPage() {
                                 HANDLERS
    ======================================================================== */
 
-  const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
-    setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
-  };
+  const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    const isCheckbox = type === 'checkbox';
+    // Assert the target is a checkbox to access 'checked' property
+    const checked = isCheckbox ? (e.target as HTMLInputElement).checked : undefined;
+
+    setFormData(prev => ({
+        ...prev,
+        [name]: isCheckbox ? checked : value
+    }));
+};
 
   const handleSettingsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,6 +139,26 @@ function AccountPage() {
         setTimeout(() => setError(null), 5000);
     }
   };
+
+  const handleRequestResetCode = async (channel: 'email' | 'sms') => {
+    if (!user) return;
+    const identifier = channel === 'email' ? user.email : user.phone;
+    if (!identifier) {
+        setPasswordMessage({type: 'danger', text: `You do not have a registered ${channel}.`});
+        return;
+    }
+
+    setIsSendingCode(true);
+    setPasswordMessage(null);
+    try {
+        await requestPasswordReset(identifier, channel);
+        setPasswordMessage({type: 'success', text: `A verification code has been sent. Please use the "Forgot Password" option on the login page to complete the password change.`})
+    } catch (err: any) {
+        setPasswordMessage({type: 'danger', text: (err as Error).message});
+    } finally {
+        setIsSendingCode(false);
+    }
+  }
 
   const handleBillingPortal = async () => {
     setError(null);
@@ -180,109 +209,119 @@ function AccountPage() {
       {error && <div className="alert alert-danger mb-4">{error}</div>}
       {success && <div className="alert alert-success mb-4">{success}</div>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left Column */}
-        <div className="space-y-8">
-             {/* Profile & Notifications Card */}
-            <div className="card">
-                <form onSubmit={handleSettingsSubmit} className="divide-y divide-border-light dark:divide-border-dark">
-                    {/* Profile Section */}
-                    <div className="p-6">
-                        <h2 className="text-xl font-semibold">Profile</h2>
-                        <div className="mt-4 space-y-4">
-                            <div>
-                              <label htmlFor="name" className="form-label">Full Name</label>
-                              <input type="text" id="name" name="name" value={formData.name} onChange={handleProfileChange} className="form-control" />
-                            </div>
-                            <div>
-                              <label htmlFor="company_name" className="form-label">Company/Community Name</label>
-                              <input type="text" id="company_name" name="company_name" value={formData.company_name} onChange={handleProfileChange} className="form-control" />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Notification Preferences Section */}
-                    <div className="p-6">
-                        <h2 className="text-xl font-semibold">Notification Preferences</h2>
-                        <div className="mt-4 space-y-6">
-                            <div>
-                                <label className="form-label font-medium">Preferred Contact Method</label>
-                                <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mb-2">We'll use this for important alerts. This method cannot be disabled.</p>
-                                <div className="flex gap-4">
-                                    <div className="form-check">
-                                        <input className="form-check-input" type="radio" name="preferred_contact_method" id="contact_email" value="email" checked={formData.preferred_contact_method === 'email'} onChange={handleProfileChange} />
-                                        <label className="form-check-label" htmlFor="contact_email">Email</label>
-                                    </div>
-                                     <div className="form-check">
-                                        <input className="form-check-input" type="radio" name="preferred_contact_method" id="contact_sms" value="sms" checked={formData.preferred_contact_method === 'sms'} onChange={handleProfileChange} disabled={!user?.phone}/>
-                                        <label className="form-check-label" htmlFor="contact_sms">SMS {user?.phone ? '' : '(No number on file)'}</label>
-                                    </div>
-                                </div>
-                            </div>
-                             <div className="space-y-4">
-                                <label className="form-label font-medium">Notification Channels</label>
-                                <div className="form-switch">
-                                    <input className="form-check-input" type="checkbox" role="switch" id="email_notifications_enabled" name="email_notifications_enabled" checked={formData.email_notifications_enabled} onChange={handleProfileChange} disabled={formData.preferred_contact_method === 'email'} />
-                                    <label className="form-check-label ml-3" htmlFor="email_notifications_enabled">Email Notifications</label>
-                                    {formData.preferred_contact_method === 'email' && <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark ml-3">Cannot be disabled for preferred contact method.</p>}
-                                </div>
-                                 <div className="form-switch">
-                                    <input className="form-check-input" type="checkbox" role="switch" id="sms_notifications_enabled" name="sms_notifications_enabled" checked={formData.sms_notifications_enabled} onChange={handleProfileChange} disabled={!user?.phone || formData.preferred_contact_method === 'sms'}/>
-                                    <label className="form-check-label ml-3" htmlFor="sms_notifications_enabled">SMS Text Notifications</label>
-                                     {formData.preferred_contact_method === 'sms' && <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark ml-3">Cannot be disabled for preferred contact method.</p>}
-                                </div>
-                                 {pushState.isSupported && (
-                                    <div className="form-switch">
-                                        <input className="form-check-input" type="checkbox" role="switch" id="web_notifications_enabled" checked={pushState.isSubscribed} onChange={handleTogglePush} />
-                                        <label className="form-check-label ml-3" htmlFor="web_notifications_enabled">Web Push Notifications</label>
-                                    </div>
-                                 )}
-                             </div>
-                        </div>
-                    </div>
-                    <div className="p-6 bg-secondary-light/50 dark:bg-secondary-dark/20">
-                         <button type="submit" className="btn btn-primary">Save Settings</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        {/* Right Column */}
-        <div className="space-y-8">
-            {/* Security Card */}
-            <div className="card">
-              <div className="card-header"><h2 className="card-title">Security</h2></div>
-              <div className="card-body">
-                 <form onSubmit={handlePasswordSubmit}>
-                    <div className="space-y-4">
-                        <div>
-                            <label htmlFor="currentPassword">Current Password</label>
-                            <input type="password" id="currentPassword" name="currentPassword" value={passwordData.currentPassword} onChange={handlePasswordChange} className="form-control" required autoComplete="current-password"/>
-                        </div>
-                        <div>
-                            <label htmlFor="newPassword">New Password</label>
-                            <input type="password" id="newPassword" name="newPassword" value={passwordData.newPassword} onChange={handlePasswordChange} className="form-control" required minLength={8} autoComplete="new-password"/>
-                        </div>
-                        <div>
-                            <label htmlFor="confirmPassword">Confirm New Password</label>
-                            <input type="password" id="confirmPassword" name="confirmPassword" value={passwordData.confirmPassword} onChange={handlePasswordChange} className="form-control" required autoComplete="new-password"/>
-                        </div>
-                    </div>
-                    <button type="submit" className="btn btn-secondary mt-6">Change Password</button>
-                </form>
+      <form onSubmit={handleSettingsSubmit}>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Column 1 */}
+          <div className="space-y-8">
+              {/* Profile Card */}
+              <div className="card">
+                  <div className="card-header"><h2 className="card-title text-xl">Profile</h2></div>
+                  <div className="card-body space-y-4">
+                      <div>
+                        <label htmlFor="name" className="form-label">Full Name</label>
+                        <input type="text" id="name" name="name" value={formData.name} onChange={handleProfileChange} className="form-control" />
+                      </div>
+                      <div>
+                        <label htmlFor="company_name" className="form-label">Company/Community Name</label>
+                        <input type="text" id="company_name" name="company_name" value={formData.company_name} onChange={handleProfileChange} className="form-control" />
+                      </div>
+                  </div>
               </div>
-            </div>
 
-            {/* Billing Card */}
-            <div className="card">
-              <div className="card-header"><h2 className="card-title">Billing</h2></div>
-              <div className="card-body">
-                <p className="mb-4">Manage your billing information, payment methods, and view your invoice history through our secure payment portal.</p>
-                <button type="button" onClick={handleBillingPortal} className="btn btn-primary">Manage Billing</button>
+              {/* Billing Card */}
+              <div className="card">
+                <div className="card-header"><h2 className="card-title text-xl">Billing</h2></div>
+                <div className="card-body">
+                  <p className="mb-4">Manage your billing information, payment methods, and view your invoice history through our secure payment portal.</p>
+                  <button type="button" onClick={handleBillingPortal} className="btn btn-primary">Manage Billing</button>
+                </div>
               </div>
-            </div>
+          </div>
+
+          {/* Column 2 */}
+          <div className="space-y-8">
+              {/* Notification Preferences Card */}
+              <div className="card">
+                   <div className="card-header"><h2 className="card-title text-xl">Notification Preferences</h2></div>
+                   <div className="card-body space-y-6">
+                       <div>
+                           <label className="form-label font-medium">Preferred Contact Method</label>
+                           <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mb-2">We'll use this for important alerts. This method cannot be disabled.</p>
+                           <div className="flex gap-4">
+                               <div className="form-check">
+                                   <input className="form-check-input" type="radio" name="preferred_contact_method" id="contact_email" value="email" checked={formData.preferred_contact_method === 'email'} onChange={handleProfileChange} />
+                                   <label className="form-check-label" htmlFor="contact_email">Email</label>
+                               </div>
+                                <div className="form-check">
+                                   <input className="form-check-input" type="radio" name="preferred_contact_method" id="contact_sms" value="sms" checked={formData.preferred_contact_method === 'sms'} onChange={handleProfileChange} disabled={!user?.phone}/>
+                                   <label className="form-check-label" htmlFor="contact_sms">SMS {user?.phone ? '' : '(No number on file)'}</label>
+                               </div>
+                           </div>
+                       </div>
+                        <div className="space-y-4">
+                           <label className="form-label font-medium">Notification Channels</label>
+                           <div className="form-switch">
+                               <input className="form-check-input" type="checkbox" role="switch" id="email_notifications_enabled" name="email_notifications_enabled" checked={formData.email_notifications_enabled} onChange={handleProfileChange} disabled={formData.preferred_contact_method === 'email'} />
+                               <label className="form-check-label ml-3" htmlFor="email_notifications_enabled">Email Notifications</label>
+                               {formData.preferred_contact_method === 'email' && <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark ml-3">Cannot be disabled for preferred contact method.</p>}
+                           </div>
+                            <div className="form-switch">
+                               <input className="form-check-input" type="checkbox" role="switch" id="sms_notifications_enabled" name="sms_notifications_enabled" checked={formData.sms_notifications_enabled} onChange={handleProfileChange} disabled={!user?.phone || formData.preferred_contact_method === 'sms'}/>
+                               <label className="form-check-label ml-3" htmlFor="sms_notifications_enabled">SMS Text Notifications</label>
+                                {formData.preferred_contact_method === 'sms' && <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark ml-3">Cannot be disabled for preferred contact method.</p>}
+                           </div>
+                            {pushState.isSupported && (
+                               <div className="form-switch">
+                                   <input className="form-check-input" type="checkbox" role="switch" id="web_notifications_enabled" checked={pushState.isSubscribed} onChange={handleTogglePush} />
+                                   <label className="form-check-label ml-3" htmlFor="web_notifications_enabled">Web Push Notifications</label>
+                               </div>
+                            )}
+                        </div>
+                   </div>
+              </div>
+
+               {/* Security Card */}
+               <div className="card">
+                <div className="card-header"><h2 className="card-title text-xl">Security</h2></div>
+                <div className="card-body">
+                   <form onSubmit={handlePasswordSubmit}>
+                      <div className="space-y-4">
+                          <div>
+                              <label htmlFor="currentPassword">Current Password</label>
+                              <input type="password" id="currentPassword" name="currentPassword" value={passwordData.currentPassword} onChange={handlePasswordChange} className="form-control" required autoComplete="current-password"/>
+                          </div>
+                          <div>
+                              <label htmlFor="newPassword">New Password</label>
+                              <input type="password" id="newPassword" name="newPassword" value={passwordData.newPassword} onChange={handlePasswordChange} className="form-control" required minLength={8} autoComplete="new-password"/>
+                          </div>
+                          <div>
+                              <label htmlFor="confirmPassword">Confirm New Password</label>
+                              <input type="password" id="confirmPassword" name="confirmPassword" value={passwordData.confirmPassword} onChange={handlePasswordChange} className="form-control" required autoComplete="new-password"/>
+                          </div>
+                      </div>
+                      <button type="submit" className="btn btn-secondary mt-6">Change Password</button>
+                  </form>
+                  <hr className="my-6 border-border-light dark:border-border-dark" />
+                  <div className="space-y-4">
+                      <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">If you've forgotten your current password, you can request a one-time code to reset it.</p>
+                      {passwordMessage && <div className={`p-4 mb-4 rounded-md border ${passwordMessage.type === 'success' ? 'bg-green-50 border-green-300 text-green-800 dark:bg-green-900/20 dark:border-green-500/30 dark:text-green-300' : 'bg-red-50 border-red-300 text-red-800 dark:bg-red-900/20 dark:border-red-500/30 dark:text-red-300'}`}>{passwordMessage.text}</div>}
+                      <div className="flex flex-col space-y-2">
+                          <button onClick={() => handleRequestResetCode('email')} className="btn btn-secondary" disabled={isSendingCode || !user?.email}>
+                              {isSendingCode ? 'Sending...' : 'Send Code to Email'}
+                          </button>
+                          <button onClick={() => handleRequestResetCode('sms')} className="btn btn-secondary" disabled={isSendingCode || !user?.phone}>
+                              {isSendingCode ? 'Sending...' : 'Send Code via Text'}
+                          </button>
+                      </div>
+                  </div>
+                </div>
+              </div>
+          </div>
         </div>
-      </div>
+        <div className="mt-8 flex justify-end">
+            <button type="submit" className="btn btn-primary btn-lg">Save All Settings</button>
+        </div>
+      </form>
     </div>
   );
 }
