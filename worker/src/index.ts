@@ -1,4 +1,4 @@
-// worker/src/index.ts
+// 777lotto/portal/portal-bet/worker/src/index.ts
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -7,7 +7,8 @@ import manifest from '__STATIC_CONTENT_MANIFEST';
 
 import { errorResponse } from './utils.js';
 import { requireAuthMiddleware, requireAdminAuthMiddleware, requirePasswordSetTokenMiddleware } from './auth.js';
-import { handleSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './handlers/auth.js';
+// MODIFIED: Import new handler and remove old one
+import { handleInitializeSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './handlers/auth.js';
 import { handleGetProfile, handleUpdateProfile, handleChangePassword } from './handlers/profile.js';
 import { handleStripeWebhook } from './handlers/stripe.js';
 import { handleListServices, handleGetService, handleCreateInvoice, handleGetPhotosForService, handleGetNotesForService } from './handlers/services.js';
@@ -19,12 +20,6 @@ import { handlePortalSession } from './handlers/user.js';
 import { handleSmsProxy } from './sms.js';
 import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed } from './handlers/public.js';
 import type { Env, User } from '@portal/shared';
-import {
-  handleAdminGetInvoice,
-  handleAdminAddInvoiceItem,
-  handleAdminDeleteInvoiceItem,
-  handleAdminFinalizeInvoice
-} from './handlers/admin/invoices.js';
 
 export type AppEnv = {
   Bindings: Env;
@@ -49,7 +44,10 @@ customerApi.use('*', requireAuthMiddleware);
 adminApi.use('*', requireAuthMiddleware, requireAdminAuthMiddleware);
 
 /* --- Public API Routes --- */
-publicApi.post('/signup', handleSignup);
+// REMOVED: Old insecure signup route
+// publicApi.post('/signup', handleSignup);
+// ADDED: New secure signup initialization route
+publicApi.post('/signup/initialize', handleInitializeSignup);
 publicApi.post('/login', handleLogin);
 publicApi.post('/check-user', handleCheckUser);
 publicApi.post('/request-password-reset', handleRequestPasswordReset);
@@ -95,13 +93,6 @@ adminApi.post('/blocked-dates', handleAddBlockedDate);
 adminApi.delete('/users/:userId', handleAdminDeleteUser);
 adminApi.post('/users/:userId/invoice', handleAdminCreateInvoice);
 adminApi.delete('/blocked-dates/:date', handleRemoveBlockedDate);
-
-// INVOICE MANAGEMENT ROUTES
-adminApi.get('/invoices/:invoiceId', handleAdminGetInvoice);
-adminApi.post('/invoices/:invoiceId/items', handleAdminAddInvoiceItem);
-adminApi.delete('/invoices/:invoiceId/items/:itemId', handleAdminDeleteInvoiceItem);
-adminApi.post('/invoices/:invoiceId/finalize', handleAdminFinalizeInvoice);
-
 
 api.route('/', publicApi);
 api.route('/', customerApi);

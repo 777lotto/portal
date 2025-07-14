@@ -18,7 +18,7 @@ import { fetchJson } from './fetchJson.js';
 
 
 /* ========================================================================
-                                  API HELPER FUNCTIONS
+                              API HELPER FUNCTIONS
    ======================================================================== */
 
 export const apiGet = <T>(path: string): Promise<T> => {
@@ -48,6 +48,7 @@ export const apiPostFormData = <T>(path: string, formData: FormData): Promise<T>
 export const getPublicAvailability = () => apiGet<{ bookedDays: string[] }>('/api/public/availability');
 export const createPublicBooking = (data: unknown) => apiPost('/api/public/booking', data);
 export const checkUser = (identifier: string) => apiPost<{ status: string }>('/api/check-user', { identifier });
+export const initializeSignup = (data: unknown) => apiPost<InitializeSignupResponse>('/api/signup/initialize', data);
 export const requestPasswordReset = (identifier: string, channel: 'email' | 'sms') => apiPost('/api/request-password-reset', { identifier, channel });
 export const verifyResetCode = (identifier: string, code: string) => {
     return apiPost<{ passwordSetToken: string }>('/api/verify-reset-code', { identifier, code });
@@ -78,7 +79,6 @@ export const setPassword = (password: string, passwordSetToken: string) => {
    ======================================================================== */
 
 export const login = (data: unknown) => apiPost<AuthResponse>('/api/login', data);
-export const signup = (data: unknown) => apiPost<AuthResponse>('/api/signup', data);
 export const logout = () => apiPost('/api/logout', {});
 
 

@@ -37,7 +37,7 @@ export function generatePastDueHtml(data: PastDueTemplateData): string {
           <p>If you have already made this payment, please disregard this email. If you have any questions, please don't hesitate to contact us.</p>
         </div>
         <div class="footer">
-          <p>© ${new Date().getFullYear()} Gutter Portal. All rights reserved.</p>
+          <p>© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.</p>
         </div>
       </div>
     </body>
@@ -58,6 +58,6 @@ ${data.invoiceUrl}
 
 If you have already made this payment, please disregard this email. If you have any questions, please don't hesitate to contact us.
 
-© ${new Date().getFullYear()} Gutter Portal. All rights reserved.
+© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.
   `;
 }

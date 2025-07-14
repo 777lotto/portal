@@ -1,7 +1,8 @@
 // 777lotto/portal/portal-bet/frontend/src/components/AuthForm.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { checkUser, login, requestPasswordReset, verifyResetCode, setPassword, signup, loginWithToken } from '../lib/api';
+// MODIFIED: Import `initializeSignup` and remove `signup`
+import { initializeSignup, checkUser, login, requestPasswordReset, verifyResetCode, setPassword, loginWithToken } from '../lib/api';
 import { ApiError } from '../lib/fetchJson';
 import StyledDigitInput from './StyledDigitInput';
 
@@ -54,7 +55,8 @@ function AuthForm({ setToken }: Props) {
   useEffect(() => {
     window.onTurnstileSuccess = (token: string) => setTurnstileToken(token);
 
-    if (step === 'LOGIN_PASSWORD' || step === 'SET_PASSWORD') {
+    // MODIFIED: Also render turnstile on the details step, since it now calls an API
+    if (step === 'LOGIN_PASSWORD' || step === 'SET_PASSWORD' || step === 'SIGNUP_DETAILS') {
         setTimeout(() => {
             if (window.renderCfTurnstile) {
                 window.renderCfTurnstile();
@@ -147,14 +149,47 @@ function AuthForm({ setToken }: Props) {
     }
   };
 
-  const handleDetailsSubmit = (e: React.FormEvent) => {
+  // MODIFIED: This function is now async and handles the first part of the signup
+  const handleDetailsSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!formData.name && !formData.company_name) {
           setError("Please enter either your name or a company/community name.");
           return;
       }
+      if (!turnstileToken) {
+          setError("Please complete the security check.");
+          return;
+      }
       clearMessages();
-      setStep('CHOOSE_VERIFY_METHOD');
+      setIsLoading(true);
+
+      try {
+        const initResponse = await initializeSignup({
+            name: formData.name,
+            company_name: formData.company_name,
+            email: formData.email,
+            phone: formData.phone,
+            'cf-turnstile-response': turnstileToken,
+        });
+
+        const channel = formData.email ? 'email' : 'sms';
+        const identifier = channel === 'email' ? initResponse.email : initResponse.phone;
+
+        if (identifier) {
+             await requestPasswordReset(identifier, channel);
+             setVerificationChannel(channel);
+             setMessage(`A verification code has been sent to your ${channel}.`);
+             setStep('VERIFY_CODE');
+        } else {
+            throw new Error("Could not determine where to send verification code.");
+        }
+
+      } catch(err: any) {
+        setError(err.message || 'An error occurred during signup.');
+      } finally {
+        setIsLoading(false);
+        setTurnstileToken('');
+      }
   }
 
   const handleRequestCode = async (channel: 'email' | 'sms') => {
@@ -203,6 +238,7 @@ function AuthForm({ setToken }: Props) {
     }
   };
 
+  // MODIFIED: This function is now simpler and only calls `setPassword`
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
@@ -217,16 +253,7 @@ function AuthForm({ setToken }: Props) {
     setIsLoading(true);
 
     try {
-      const response = flowContext === 'SIGNUP'
-        ? await signup({
-            name: formData.name,
-            company_name: formData.company_name,
-            email: formData.email,
-            phone: formData.phone,
-            password: formData.password,
-            'cf-turnstile-response': turnstileToken,
-          })
-        : await setPassword(formData.password, passwordSetToken);
+      const response = await setPassword(formData.password, passwordSetToken);
 
       if (response.token) {
         setToken(response.token);
@@ -295,6 +322,7 @@ function AuthForm({ setToken }: Props) {
     </form>
   );
 
+  // MODIFIED: This form now includes the Turnstile widget
   const renderSignupDetails = () => (
       <form onSubmit={handleDetailsSubmit} className="space-y-6">
            <div className="text-center">
@@ -325,9 +353,10 @@ function AuthForm({ setToken }: Props) {
               <label htmlFor="email" className="block text-sm font-medium">Email Address</label>
               <input type="email" id="email" name="email" value={formData.email} onChange={handleChange} className="form-control mt-1" />
           </div>
+          <div className="flex justify-center" id="turnstile-container"></div>
           <div>
-              <button type="submit" className="w-full btn btn-primary" disabled={isLoading || (!formData.name && !formData.company_name)}>
-                  Continue
+              <button type="submit" className="w-full btn btn-primary" disabled={isLoading || !turnstileToken || (!formData.name && !formData.company_name)}>
+                  {isLoading ? 'Initializing...' : 'Continue'}
               </button>
           </div>
       </form>

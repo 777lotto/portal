@@ -42,7 +42,7 @@ export function generateConfirmationHtml(data: AppointmentTemplateData): string 
           <a href="https://portal.777.foo/dashboard" class="button">View in Portal</a>
         </div>
         <div class="footer">
-          <p>© ${new Date().getFullYear()} Gutter Portal. All rights reserved.</p>
+          <p>© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.</p>
           <p>If you have any questions, please contact our support team.</p>
         </div>
       </div>
@@ -66,7 +66,7 @@ please log in to your account or contact us at least 24 hours in advance.
 
 Visit https://portal.777.foo/dashboard to manage your appointments.
 
-© ${new Date().getFullYear()} Gutter Portal. All rights reserved.
+© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.
   `;
 }
 
@@ -103,7 +103,7 @@ export function generateReminderHtml(data: AppointmentTemplateData): string {
           <a href="https://portal.777.foo/dashboard" class="button">View in Portal</a>
         </div>
         <div class="footer">
-          <p>© ${new Date().getFullYear()} Gutter Portal. All rights reserved.</p>
+          <p>© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.</p>
           <p>If you have any questions, please contact our support team.</p>
         </div>
       </div>
@@ -126,6 +126,6 @@ We're looking forward to seeing you. If you need to reschedule, please contact u
 
 Visit https://portal.777.foo/dashboard to manage your appointments.
 
-© ${new Date().getFullYear()} Gutter Portal. All rights reserved.
+© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.
   `;
 }

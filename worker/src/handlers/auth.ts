@@ -11,14 +11,22 @@ import { SignJWT } from "jose";
 
 // --- Zod Schemas for Payloads ---
 
+// ADD: New schema for initializing the signup process
+const InitializeSignupPayload = UserSchema.pick({ name: true, email: true, phone: true, company_name: true }).extend({
+    'cf-turnstile-response': z.string(),
+});
+
 const CheckUserPayload = z.object({
     identifier: z.string().min(1),
 });
 
+// REMOVED: The old SignupPayload is no longer needed as we use the initialize payload now.
+/*
 const SignupPayload = UserSchema.pick({ name: true, email: true, phone: true, company_name: true }).extend({
     password: z.string().min(8),
     'cf-turnstile-response': z.string(),
 });
+*/
 
 const LoginPayload = z.object({
     email: z.string().email(),
@@ -46,6 +54,53 @@ const GetUserFromTokenPayload = z.object({
 
 
 // --- Route Handlers ---
+
+// ADD: New handler to create a guest user before sending a verification code.
+export const handleInitializeSignup = async (c: Context<AppEnv>) => {
+    const body = await c.req.json();
+    const parsed = InitializeSignupPayload.safeParse(body);
+    if (!parsed.success) {
+        return errorResponse("Invalid data provided.", 400, parsed.error.flatten());
+    }
+
+    const ip = c.req.header('CF-Connecting-IP') || '127.0.0.1';
+    const turnstileSuccess = await validateTurnstileToken(parsed.data['cf-turnstile-response'], ip, c.env);
+    if (!turnstileSuccess) {
+        return errorResponse("Invalid security token. Please try again.", 403);
+    }
+
+    const { name, email, company_name, phone } = parsed.data;
+    const lowercasedEmail = email?.toLowerCase();
+    const cleanedPhone = phone?.replace(/\D/g, '');
+
+    try {
+        // Create a guest user record without a password
+        const { results } = await c.env.DB.prepare(
+            `INSERT INTO users (name, email, company_name, phone, role) VALUES (?, ?, ?, ?, 'guest') RETURNING id, email, phone`
+        ).bind(name, lowercasedEmail, company_name, cleanedPhone).all<{id: number, email: string, phone: string}>();
+
+        if (!results || results.length === 0) {
+            return errorResponse("Failed to initialize account.", 500);
+        }
+
+        const newUser = results[0];
+
+        // Return info needed for the frontend to request a verification code
+        return successResponse({
+            userId: newUser.id,
+            email: newUser.email,
+            phone: newUser.phone
+        });
+
+    } catch (e: any) {
+        if (e.message?.includes('UNIQUE constraint failed')) {
+            return errorResponse("An account with this email or phone number already exists.", 409);
+        }
+        console.error("Signup initialization error:", e);
+        return errorResponse("An unexpected error occurred during signup.", 500);
+    }
+};
+
 
 export const handleVerifyResetCode = async (c: Context<AppEnv>) => {
     const body = await c.req.json();
@@ -92,7 +147,7 @@ export const handleVerifyResetCode = async (c: Context<AppEnv>) => {
     }
 };
 
-// --- NEW HANDLER TO ADD ---
+
 export const handleLoginWithToken = async (c: Context<AppEnv>) => {
     const userToLogin = c.get('user');
 
@@ -146,64 +201,12 @@ export const handleCheckUser = async (c: Context<AppEnv>) => {
     }
 };
 
+// REMOVED: This function is insecure and is replaced by the new flow.
+/*
 export const handleSignup = async (c: Context<AppEnv>) => {
-    const body = await c.req.json();
-    const parsed = SignupPayload.safeParse(body);
-    if (!parsed.success) {
-        return errorResponse("Invalid signup data", 400, parsed.error.flatten());
-    }
-
-    const { name, email, password, phone, company_name } = parsed.data;
-    const lowercasedEmail = email.toLowerCase();
-
-    const ip = c.req.header('CF-Connecting-IP') || '127.0.0.1';
-    const turnstileSuccess = await validateTurnstileToken(parsed.data['cf-turnstile-response'], ip, c.env);
-    if (!turnstileSuccess) {
-        return errorResponse("Invalid Turnstile token. Please try again.", 403);
-    }
-
-    try {
-        const hashedPassword = await hashPassword(password);
-        const { results } = await c.env.DB.prepare(
-            `INSERT INTO users (name, email, password_hash, phone, company_name, role) VALUES (?, ?, ?, ?, ?, 'customer') RETURNING id, name, email, phone, role, stripe_customer_id, company_name`
-        ).bind(name, lowercasedEmail, hashedPassword, phone, company_name).all<User>();
-
-        if (!results || results.length === 0) {
-            return errorResponse("Failed to create account.", 500);
-        }
-        let userForToken = results[0];
-
-        if (!userForToken.stripe_customer_id) {
-            const stripe = getStripe(c.env);
-            const customer = await createStripeCustomer(stripe, userForToken);
-            await c.env.DB.prepare(
-                `UPDATE users SET stripe_customer_id = ? WHERE id = ?`
-            ).bind(customer.id, userForToken.id).run();
-            userForToken.stripe_customer_id = customer.id;
-        }
-
-        try {
-            await c.env.NOTIFICATION_QUEUE.send({
-              type: 'welcome',
-              userId: userForToken.id,
-              data: { name: userForToken.name },
-              channels: ['email', 'sms']
-            });
-        } catch (queueError: any) {
-            console.error(`Failed to enqueue welcome notification for user ${userForToken.id}:`, queueError);
-        }
-
-        const token = await createJwtToken(userForToken, c.env.JWT_SECRET);
-        return successResponse({ token, user: userForToken });
-
-    } catch (e: any) {
-        if (e.message?.includes('UNIQUE constraint failed')) {
-             return errorResponse("An account with this email or phone number already exists.", 409);
-        }
-        console.error("Signup error:", e);
-        return errorResponse("An unexpected error occurred during signup.", 500);
-    }
+    // ...
 };
+*/
 
 export const handleLogin = async (c: Context<AppEnv>) => {
     const body = await c.req.json();
@@ -268,7 +271,6 @@ export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
                 `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)`
             ).bind(user.id, token, expires.toISOString()).run();
 
-            // This is the development-only log in the correct location
             if (c.env.ENVIRONMENT === 'development') {
                 console.log(`\n--- [WORKER] DEV ONLY | Verification Code for ${user.email || user.phone}: ${token} ---\n`);
             }
@@ -292,19 +294,16 @@ export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
                 await c.env.NOTIFICATION_QUEUE.send(notificationPayload);
             }
         }
-        // This is a security best practice: always return a generic success message
-        // to prevent attackers from discovering which emails/phones are registered.
         return successResponse({ message: `If an account with that ${channel} exists, a verification code has been sent.` });
 
     } catch (e: any) {
         console.error("Password reset request failed:", e);
-        // Also return a generic message on unexpected errors
         return successResponse({ message: "If an account exists, a verification code has been sent." });
     }
 };
 
 
-
+// MODIFIED: This handler now activates guest accounts to customer accounts
 export const handleSetPassword = async (c: Context<AppEnv>) => {
     const body = await c.req.json();
     const parsed = SetPasswordPayload.safeParse(body);
@@ -317,15 +316,43 @@ export const handleSetPassword = async (c: Context<AppEnv>) => {
 
     try {
         const hashedPassword = await hashPassword(password);
-        await c.env.DB.prepare(
-            `UPDATE users SET password_hash = ? WHERE id = ?`
-        ).bind(hashedPassword, userToUpdate.id).run();
+
+        const currentUser = await c.env.DB.prepare(`SELECT role FROM users WHERE id = ?`).bind(userToUpdate.id).first<{role: string}>();
+        const isNewUserSignup = currentUser?.role === 'guest';
+
+        const updateQuery = isNewUserSignup
+            ? `UPDATE users SET password_hash = ?, role = 'customer' WHERE id = ?`
+            : `UPDATE users SET password_hash = ? WHERE id = ?`;
+
+        await c.env.DB.prepare(updateQuery).bind(hashedPassword, userToUpdate.id).run();
 
         const user = await c.env.DB.prepare(
             `SELECT id, name, email, phone, role, stripe_customer_id, company_name FROM users WHERE id = ?`
         ).bind(userToUpdate.id).first<User>();
 
         if (!user) return errorResponse("Could not find user after password update.", 500);
+
+        if (isNewUserSignup) {
+            if (!user.stripe_customer_id) {
+                const stripe = getStripe(c.env);
+                const customer = await createStripeCustomer(stripe, user);
+                await c.env.DB.prepare(
+                    `UPDATE users SET stripe_customer_id = ? WHERE id = ?`
+                ).bind(customer.id, user.id).run();
+                user.stripe_customer_id = customer.id;
+            }
+
+            try {
+                await c.env.NOTIFICATION_QUEUE.send({
+                  type: 'welcome',
+                  userId: user.id,
+                  data: { name: user.name },
+                  channels: ['email', 'sms']
+                });
+            } catch (queueError: any) {
+                console.error(`Failed to enqueue welcome notification for user ${user.id}:`, queueError);
+            }
+        }
 
         const jwt = await createJwtToken(user, c.env.JWT_SECRET);
         return successResponse({ token: jwt, user });
