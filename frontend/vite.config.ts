@@ -25,10 +25,21 @@ export default defineConfig(({ mode }) => {
     // Build configuration (`pnpm build`)
     build: {
       sourcemap: true,
+      // IMPROVEMENT: Explicitly set the output directory for clarity
+      outDir: 'dist',
       rollupOptions: {
         input: {
           main: resolve(__dirname, 'index.html'),
         },
+        // IMPROVEMENT: Optimize code splitting for better caching
+        output: {
+          manualChunks(id) {
+            // Creates a separate 'vendor' chunk for packages from node_modules
+            if (id.includes('node_modules')) {
+              return 'vendor';
+            }
+          }
+        }
       },
     },
   };
