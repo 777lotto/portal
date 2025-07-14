@@ -9,7 +9,7 @@ export async function handleGetAllUsers(c: Context<AppEnv>): Promise<Response> {
   const env = c.env;
   try {
     const dbResponse = await env.DB.prepare(
-      `SELECT id, email, name, phone, role, stripe_customer_id, company_name FROM users ORDER BY name ASC`
+      `SELECT id, email, name, phone, role, stripe_customer_id, company_name FROM users ORDER BY id DESC`
     ).all<User>();
     const users = dbResponse?.results || [];
     return successResponse(users);
