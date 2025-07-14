@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
-import { apiGet, apiPost, apiPostFormData, deleteUser } from '../../lib/api.js';
+import { apiGet, apiPost, apiPostFormData, deleteUser, adminCreateInvoice } from '../../lib/api.js';
 import type { Job, Photo, User } from '@portal/shared';
 
 function AdminUserDetail() {
