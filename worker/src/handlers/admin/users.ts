@@ -4,7 +4,8 @@ import { errorResponse, successResponse } from '../../utils.js';
 import { Context } from 'hono';
 import type { AppEnv } from '../../index.js';
 import { getStripe, createStripeCustomer, createDraftStripeInvoice } from '../../stripe.js';
-import type { User, Job, Photo, Service, Env } from '@portal/shared';
+// MODIFIED: Imported 'Note' and 'PhotoWithNotes' and removed the unused 'Photo' type.
+import type { User, Job, Service, Env, Note, PhotoWithNotes } from '@portal/shared';
 
 export async function handleGetAllUsers(c: Context<AppEnv>): Promise<Response> {
   const env = c.env;
@@ -34,19 +35,46 @@ export async function handleAdminGetJobsForUser(c: Context<AppEnv>): Promise<Res
     }
 }
 
+// MODIFIED: This function is now correctly typed and fetches notes with photos.
 export async function handleAdminGetPhotosForUser(c: Context<AppEnv>): Promise<Response> {
     const { userId } = c.req.param();
+    if (!userId) {
+        return errorResponse("User ID parameter is required.", 400);
+    }
     try {
-        const dbResponse = await c.env.DB.prepare(
-            `SELECT * FROM photos WHERE user_id = ? ORDER BY created_at DESC`
-        ).bind(userId).all<Photo>();
-        const photos = dbResponse?.results || [];
+        const query = `
+            SELECT
+                p.id, p.url, p.created_at, p.job_id, p.service_id, p.invoice_id,
+                (SELECT JSON_GROUP_ARRAY(JSON_OBJECT('id', n.id, 'content', n.content, 'created_at', n.created_at))
+                 FROM notes n WHERE n.photo_id = p.id) as notes
+            FROM photos p
+            WHERE p.user_id = ?
+            ORDER BY p.created_at DESC
+        `;
+
+        // Define the raw result type from D1, where notes is a JSON string.
+        type PhotoQueryResult = Omit<PhotoWithNotes, 'notes'> & { notes: string | null };
+
+        const { results } = await c.env.DB.prepare(query).bind(userId).all<PhotoQueryResult>();
+
+        // Map the raw results to the final, correctly typed PhotoWithNotes array.
+        const photos: PhotoWithNotes[] = (results || []).map((p) => {
+            // Parse the JSON string for notes and ensure it's a valid array of Note objects.
+            const notesArray: Note[] = p.notes ? JSON.parse(p.notes) : [];
+            const validNotes = notesArray.filter(note => note && note.id !== null);
+            return {
+                ...p,
+                notes: validNotes,
+            };
+        });
+
         return successResponse(photos);
     } catch (e: any) {
         console.error(`Failed to get photos for user ${userId}:`, e);
         return errorResponse("Failed to retrieve photos for user.", 500);
     }
 }
+
 
 export async function handleAdminDeleteUser(c: Context<AppEnv>): Promise<Response> {
   const { userId } = c.req.param();
@@ -146,12 +174,10 @@ export async function handleAdminCreateInvoice(c: Context<AppEnv>): Promise<Resp
 
     const draftInvoice = await createDraftStripeInvoice(stripe, stripeCustomerId);
 
-    // FINAL FIX: Add a check to ensure the draft invoice and its ID exist before using it.
     if (!draftInvoice || !draftInvoice.id) {
         return errorResponse("Failed to create a valid draft invoice in Stripe.", 500);
     }
 
-    // Now TypeScript knows draftInvoice.id is a string.
     const invoice = await stripe.invoices.retrieve(draftInvoice.id, {
         expand: ['lines'],
     });
