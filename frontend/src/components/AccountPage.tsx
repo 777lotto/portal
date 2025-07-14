@@ -24,7 +24,9 @@ function AccountPage() {
       company_name: '',
       email_notifications_enabled: true,
       sms_notifications_enabled: true,
-      preferred_contact_method: 'email'
+      preferred_contact_method: 'email',
+      calendar_reminders_enabled: true,
+      calendar_reminder_minutes: 60,
   });
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [pushState, setPushState] = useState({ isSubscribed: false, isSupported: false });
@@ -40,7 +42,6 @@ function AccountPage() {
    ======================================================================== */
 
   useEffect(() => {
-    // Fetch user profile on initial load
     const fetchProfile = async () => {
       try {
         setIsLoading(true);
@@ -51,7 +52,9 @@ function AccountPage() {
             company_name: profileData.company_name || '',
             email_notifications_enabled: profileData.email_notifications_enabled,
             sms_notifications_enabled: profileData.sms_notifications_enabled,
-            preferred_contact_method: profileData.preferred_contact_method || 'email'
+            preferred_contact_method: profileData.preferred_contact_method || 'email',
+            calendar_reminders_enabled: profileData.calendar_reminders_enabled ?? true,
+            calendar_reminder_minutes: profileData.calendar_reminder_minutes ?? 60,
         });
       } catch (err: any) {
         setError(err.message);
@@ -61,7 +64,6 @@ function AccountPage() {
     };
     fetchProfile();
 
-    // Check for push notification support and subscription status
     if ('serviceWorker' in navigator && 'PushManager' in window) {
       setPushState(prev => ({ ...prev, isSupported: true }));
       navigator.serviceWorker.ready.then(reg => {
@@ -72,16 +74,11 @@ function AccountPage() {
     }
   }, []);
 
-  // When preferred contact method changes, ensure the corresponding toggle is enabled.
   useEffect(() => {
-    if (formData.preferred_contact_method === 'email') {
-        if (!formData.email_notifications_enabled) {
-            setFormData(prev => ({ ...prev, email_notifications_enabled: true }));
-        }
-    } else if (formData.preferred_contact_method === 'sms') {
-        if (!formData.sms_notifications_enabled) {
-            setFormData(prev => ({ ...prev, sms_notifications_enabled: true }));
-        }
+    if (formData.preferred_contact_method === 'email' && !formData.email_notifications_enabled) {
+        setFormData(prev => ({ ...prev, email_notifications_enabled: true }));
+    } else if (formData.preferred_contact_method === 'sms' && !formData.sms_notifications_enabled) {
+        setFormData(prev => ({ ...prev, sms_notifications_enabled: true }));
     }
   }, [formData.preferred_contact_method, formData.email_notifications_enabled, formData.sms_notifications_enabled]);
 
@@ -90,24 +87,27 @@ function AccountPage() {
                                 HANDLERS
    ======================================================================== */
 
-  const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const isCheckbox = type === 'checkbox';
-    // Assert the target is a checkbox to access 'checked' property
     const checked = isCheckbox ? (e.target as HTMLInputElement).checked : undefined;
 
     setFormData(prev => ({
         ...prev,
         [name]: isCheckbox ? checked : value
     }));
-};
+  };
 
   const handleSettingsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
     try {
-      const updatedUser = await updateProfile(formData);
+      const payload = {
+          ...formData,
+          calendar_reminder_minutes: Number(formData.calendar_reminder_minutes)
+      };
+      const updatedUser = await updateProfile(payload);
       setUser(updatedUser);
       setSuccess('Profile and notification settings saved!');
       setTimeout(() => setSuccess(null), 5000);
@@ -117,6 +117,7 @@ function AccountPage() {
     }
   };
 
+  // ... other handlers are unchanged ...
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPasswordData({ ...passwordData, [e.target.name]: e.target.value });
   };
@@ -124,19 +125,18 @@ function AccountPage() {
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setError("New passwords do not match.");
+      setPasswordMessage({type: 'danger', text: "New passwords do not match."});
       return;
     }
-    setError(null);
-    setSuccess(null);
+    setPasswordMessage(null);
     try {
         await apiPost('/api/profile/change-password', passwordData);
-        setSuccess('Password changed successfully!');
+        setPasswordMessage({type: 'success', text: 'Password changed successfully!'});
         setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-        setTimeout(() => setSuccess(null), 5000);
+        setTimeout(() => setPasswordMessage(null), 5000);
     } catch (err: any) {
-        setError(err instanceof ApiError ? err.message : 'An unknown error occurred.');
-        setTimeout(() => setError(null), 5000);
+        setPasswordMessage({type: 'danger', text: err instanceof ApiError ? err.message : 'An unexpected error occurred.'});
+        setTimeout(() => setPasswordMessage(null), 5000);
     }
   };
 
@@ -191,22 +191,6 @@ function AccountPage() {
     }
   };
 
-  const handleProfileSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setProfileMessage(null);
-    try {
-      const updatedUser = await updateProfile({
-        name: formData.name,
-        company_name: formData.company_name
-      });
-      setUser(updatedUser); // Update local user state
-      setProfileMessage({type: 'success', text: 'Profile updated successfully!'});
-    } catch (err: any) {
-      setProfileMessage({type: 'danger', text: err.message});
-    }
-  }
-
-
 /* ========================================================================
                              RENDER LOGIC
    ======================================================================== */
@@ -232,21 +216,38 @@ function AccountPage() {
               <div className="card">
                   <div className="card-header"><h2 className="card-title text-xl">Profile</h2></div>
                   <div className="card-body space-y-4">
-                      {profileMessage && <div className={`alert alert-${profileMessage.type}`}>{profileMessage.text}</div>}
                       <div>
                         <label htmlFor="name" className="form-label">Full Name</label>
-                        <input type="text" id="name" name="name" value={formData.name} onChange={handleProfileChange} className="form-control" />
+                        <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} className="form-control" />
                       </div>
                       <div>
                         <label htmlFor="company_name" className="form-label">Company/Community Name</label>
-                        <input type="text" id="company_name" name="company_name" value={formData.company_name || ''} onChange={handleProfileChange} className="form-control" />
-                      </div>
-                      {/* ADDED: New Save button for this card */}
-                      <div className="pt-2 flex justify-end">
-                        <button type="button" onClick={handleProfileSave} className="btn btn-secondary">Save Profile</button>
+                        <input type="text" id="company_name" name="company_name" value={formData.company_name || ''} onChange={handleChange} className="form-control" />
                       </div>
                   </div>
               </div>
+
+            {/* Calendar Settings Card */}
+            <div className="card">
+                <div className="card-header"><h2 className="card-title text-xl">Calendar Settings</h2></div>
+                <div className="card-body space-y-4">
+                    <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">Customize your external calendar feed.</p>
+                    <div className="form-switch">
+                        <input className="form-check-input" type="checkbox" role="switch" id="calendar_reminders_enabled" name="calendar_reminders_enabled" checked={formData.calendar_reminders_enabled} onChange={handleChange} />
+                        <label className="form-check-label ml-3" htmlFor="calendar_reminders_enabled">Enable Calendar Reminders</label>
+                    </div>
+                    <div>
+                        <label htmlFor="calendar_reminder_minutes" className="form-label">Reminder Time</label>
+                        <select id="calendar_reminder_minutes" name="calendar_reminder_minutes" className="form-control" value={formData.calendar_reminder_minutes} onChange={handleChange} disabled={!formData.calendar_reminders_enabled}>
+                            <option value="15">15 minutes before</option>
+                            <option value="30">30 minutes before</option>
+                            <option value="60">1 hour before</option>
+                            <option value="120">2 hours before</option>
+                            <option value="1440">1 day before</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
 
               {/* Billing Card */}
               {user?.role === 'customer' && (
@@ -271,11 +272,11 @@ function AccountPage() {
                            <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mb-2">We'll use this for important alerts. This method cannot be disabled.</p>
                            <div className="flex gap-4">
                                <div className="form-check">
-                                   <input className="form-check-input" type="radio" name="preferred_contact_method" id="contact_email" value="email" checked={formData.preferred_contact_method === 'email'} onChange={handleProfileChange} />
+                                   <input className="form-check-input" type="radio" name="preferred_contact_method" id="contact_email" value="email" checked={formData.preferred_contact_method === 'email'} onChange={handleChange} />
                                    <label className="form-check-label" htmlFor="contact_email">Email</label>
                                </div>
                                 <div className="form-check">
-                                   <input className="form-check-input" type="radio" name="preferred_contact_method" id="contact_sms" value="sms" checked={formData.preferred_contact_method === 'sms'} onChange={handleProfileChange} disabled={!user?.phone}/>
+                                   <input className="form-check-input" type="radio" name="preferred_contact_method" id="contact_sms" value="sms" checked={formData.preferred_contact_method === 'sms'} onChange={handleChange} disabled={!user?.phone}/>
                                    <label className="form-check-label" htmlFor="contact_sms">SMS {user?.phone ? '' : '(No number on file)'}</label>
                                </div>
                            </div>
@@ -283,12 +284,12 @@ function AccountPage() {
                         <div className="space-y-4">
                            <label className="form-label font-medium">Notification Channels</label>
                            <div className="form-switch">
-                               <input className="form-check-input" type="checkbox" role="switch" id="email_notifications_enabled" name="email_notifications_enabled" checked={formData.email_notifications_enabled} onChange={handleProfileChange} disabled={formData.preferred_contact_method === 'email'} />
+                               <input className="form-check-input" type="checkbox" role="switch" id="email_notifications_enabled" name="email_notifications_enabled" checked={formData.email_notifications_enabled} onChange={handleChange} disabled={formData.preferred_contact_method === 'email'} />
                                <label className="form-check-label ml-3" htmlFor="email_notifications_enabled">Email Notifications</label>
                                {formData.preferred_contact_method === 'email' && <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark ml-3">Cannot be disabled for preferred contact method.</p>}
                            </div>
                             <div className="form-switch">
-                               <input className="form-check-input" type="checkbox" role="switch" id="sms_notifications_enabled" name="sms_notifications_enabled" checked={formData.sms_notifications_enabled} onChange={handleProfileChange} disabled={!user?.phone || formData.preferred_contact_method === 'sms'}/>
+                               <input className="form-check-input" type="checkbox" role="switch" id="sms_notifications_enabled" name="sms_notifications_enabled" checked={formData.sms_notifications_enabled} onChange={handleChange} disabled={!user?.phone || formData.preferred_contact_method === 'sms'}/>
                                <label className="form-check-label ml-3" htmlFor="sms_notifications_enabled">SMS Text Notifications</label>
                                 {formData.preferred_contact_method === 'sms' && <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark ml-3">Cannot be disabled for preferred contact method.</p>}
                            </div>
@@ -308,6 +309,7 @@ function AccountPage() {
                 <div className="card-body">
                    <form onSubmit={handlePasswordSubmit}>
                       <div className="space-y-4">
+                          {passwordMessage && <div className={`alert alert-${passwordMessage.type}`}>{passwordMessage.text}</div>}
                           <div>
                               <label htmlFor="currentPassword">Current Password</label>
                               <input type="password" id="currentPassword" name="currentPassword" value={passwordData.currentPassword} onChange={handlePasswordChange} className="form-control" required autoComplete="current-password"/>
@@ -326,12 +328,11 @@ function AccountPage() {
                   <hr className="my-6 border-border-light dark:border-border-dark" />
                   <div className="space-y-4">
                       <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">If you've forgotten your current password, you can request a one-time code to reset it.</p>
-                      {passwordMessage && <div className={`p-4 mb-4 rounded-md border ${passwordMessage.type === 'success' ? 'bg-green-50 border-green-300 text-green-800 dark:bg-green-900/20 dark:border-green-500/30 dark:text-green-300' : 'bg-red-50 border-red-300 text-red-800 dark:bg-red-900/20 dark:border-red-500/30 dark:text-red-300'}`}>{passwordMessage.text}</div>}
                       <div className="flex flex-col space-y-2">
-                          <button onClick={() => handleRequestResetCode('email')} className="btn btn-secondary" disabled={isSendingCode || !user?.email}>
+                          <button type="button" onClick={() => handleRequestResetCode('email')} className="btn btn-secondary" disabled={isSendingCode || !user?.email}>
                               {isSendingCode ? 'Sending...' : 'Send Code to Email'}
                           </button>
-                          <button onClick={() => handleRequestResetCode('sms')} className="btn btn-secondary" disabled={isSendingCode || !user?.phone}>
+                          <button type="button" onClick={() => handleRequestResetCode('sms')} className="btn btn-secondary" disabled={isSendingCode || !user?.phone}>
                               {isSendingCode ? 'Sending...' : 'Send Code via Text'}
                           </button>
                       </div>

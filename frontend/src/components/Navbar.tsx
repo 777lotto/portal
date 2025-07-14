@@ -1,3 +1,5 @@
+// frontend/src/components/Navbar.tsx
+
 import { useState, useEffect, useRef } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../lib/api.js";
@@ -80,7 +82,11 @@ export default function Navbar({ token, setToken, user }: Props) {
   const navLinks = (
     <>
       <NavLink to="/dashboard" className={({ isActive }) => isActive ? activeLinkStyle : linkStyle}>Dashboard</NavLink>
-      <NavLink to="/services" className={({ isActive }) => isActive ? activeLinkStyle : linkStyle}>Services</NavLink>
+      {/* MODIFICATION START: Only show Services link to customers */}
+      {user?.role === 'customer' && (
+        <NavLink to="/services" className={({ isActive }) => isActive ? activeLinkStyle : linkStyle}>Services</NavLink>
+      )}
+      {/* MODIFICATION END */}
       <NavLink to="/calendar" className={({ isActive }) => isActive ? activeLinkStyle : linkStyle}>Calendar</NavLink>
       <NavLink to="/photos" className={({ isActive }) => isActive ? activeLinkStyle : linkStyle}>Photos</NavLink>
       {user?.role === 'admin' && (
@@ -92,7 +98,11 @@ export default function Navbar({ token, setToken, user }: Props) {
   const mobileNavLinks = (
       <>
         <NavLink to="/dashboard" onClick={closeMobileMenu} className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileLinkStyle}>Dashboard</NavLink>
-        <NavLink to="/services" onClick={closeMobileMenu} className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileLinkStyle}>Services</NavLink>
+        {/* MODIFICATION START: Only show Services link to customers */}
+        {user?.role === 'customer' && (
+          <NavLink to="/services" onClick={closeMobileMenu} className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileLinkStyle}>Services</NavLink>
+        )}
+        {/* MODIFICATION END */}
         <NavLink to="/calendar" onClick={closeMobileMenu} className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileLinkStyle}>Calendar</NavLink>
         <NavLink to="/photos" onClick={closeMobileMenu} className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileLinkStyle}>Photos</NavLink>
         {user?.role === 'admin' && (

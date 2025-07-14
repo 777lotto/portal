@@ -21,6 +21,10 @@ export const UserSchema = z.object({
   email_notifications_enabled: z.boolean().default(true).optional(),
   sms_notifications_enabled: z.boolean().default(true).optional(),
   preferred_contact_method: z.enum(['email', 'sms']).default('email').optional(),
+  // ADDED_START
+  calendar_reminders_enabled: z.boolean().default(true).optional(),
+  calendar_reminder_minutes: z.number().default(60).optional(),
+  // ADDED_END
 });
 export type User = z.infer<typeof UserSchema>;
 
