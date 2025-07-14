@@ -1,11 +1,12 @@
-// worker/src/handlers/jobs.ts - CORRECTED
+// worker/src/handlers/jobs.ts
 import { Context as HonoContext } from 'hono';
 import { z } from 'zod';
-import { v4 as uuidv4 } from 'uuid'; // MODIFIED: Import uuid
+import { v4 as uuidv4 } from 'uuid';
 import { AppEnv as WorkerAppEnv } from '../index.js';
 import { errorResponse as workerErrorResponse, successResponse as workerSuccessResponse } from '../utils.js';
 import { generateCalendarFeed, createJob } from '../calendar.js';
-import type { Job } from '@portal/shared';
+import type { Job, Service } from '@portal/shared';
+import { getStripe } from '../stripe.js';
 
 const BlockDatePayload = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
@@ -187,4 +188,94 @@ export async function handleRemoveBlockedDate(c: HonoContext<WorkerAppEnv>) {
     console.error("Error removing blocked date:", e);
     return workerErrorResponse('Failed to unblock date.', 500);
   }
+}
+
+// --- NEW: HANDLER TO ADD A SERVICE TO A JOB ---
+export const handleAdminAddServiceToJob = async (c: HonoContext<WorkerAppEnv>) => {
+    const { jobId } = c.req.param();
+    const body = await c.req.json();
+    // Basic validation
+    if (!body.notes || !body.price_cents) {
+        return workerErrorResponse("Service notes and price_cents are required.", 400);
+    }
+
+    try {
+        const job = await c.env.DB.prepare(`SELECT * FROM jobs WHERE id = ?`).bind(jobId).first<Job>();
+        if (!job) {
+            return workerErrorResponse("Job not found.", 404);
+        }
+
+        const { results } = await c.env.DB.prepare(
+            `INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents)
+             VALUES (?, ?, ?, ?, ?, ?) RETURNING *`
+        ).bind(
+            job.customerId,
+            jobId,
+            job.start, // Use job's start date as the service date
+            'pending',
+            body.notes,
+            body.price_cents
+        ).all<Service>();
+
+        return workerSuccessResponse(results[0], 201);
+    } catch (e: any) {
+        console.error(`Failed to add service to job ${jobId}:`, e);
+        return workerErrorResponse("Failed to add service.", 500);
+    }
+}
+
+// --- NEW: HANDLER TO MARK JOB AS COMPLETE AND INVOICE ---
+export const handleAdminCompleteJob = async (c: HonoContext<WorkerAppEnv>) => {
+    const { jobId } = c.req.param();
+    const db = c.env.DB;
+    const stripe = getStripe(c.env);
+
+    try {
+        const job = await db.prepare(`SELECT * FROM jobs WHERE id = ?`).bind(jobId).first<Job>();
+        if (!job) return workerErrorResponse("Job not found", 404);
+
+        const services = await db.prepare(`SELECT * FROM services WHERE job_id = ?`).bind(jobId).all<Service>();
+        if (!services.results || services.results.length === 0) {
+            return workerErrorResponse("Cannot complete a job with no services.", 400);
+        }
+
+        // Create a draft invoice
+        const draftInvoice = await stripe.invoices.create({
+            customer: job.customerId,
+            collection_method: 'send_invoice',
+            description: `Invoice for job: ${job.title}`,
+            auto_advance: false,// Keep it as a draft until all items are added
+        });
+        if (!draftInvoice.id) {
+    return workerErrorResponse("Failed to create a draft invoice.", 500);
+}
+
+        // Add each service as a line item
+        for (const service of services.results) {
+            await stripe.invoiceItems.create({
+                customer: job.customerId,
+                invoice: draftInvoice.id,
+                description: service.notes || 'Service',
+                amount: service.price_cents || 0,
+                currency: 'usd',
+            });
+        }
+
+        // Finalize the invoice
+        const finalInvoice = await stripe.invoices.finalizeInvoice(draftInvoice.id);
+
+        // Send the invoice
+        await stripe.invoices.sendInvoice(finalInvoice.id);
+
+        // Update job status in DB
+        await db.prepare(`UPDATE jobs SET status = 'completed', stripe_invoice_id = ? WHERE id = ?`)
+            .bind(finalInvoice.id, jobId)
+            .run();
+
+        return workerSuccessResponse({ invoiceId: finalInvoice.id, invoiceUrl: finalInvoice.hosted_invoice_url });
+
+    } catch (e: any) {
+        console.error(`Failed to complete job ${jobId}:`, e);
+        return workerErrorResponse(`Failed to complete job: ${e.message}`, 500);
+    }
 }

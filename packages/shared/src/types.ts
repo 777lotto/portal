@@ -37,6 +37,7 @@ export const ServiceSchema = z.object({
   notes: z.string().optional().nullable(),
   price_cents: z.number().optional().nullable(),
   stripe_invoice_id: z.string().optional().nullable(),
+  job_id: z.number().optional().nullable(), // MODIFIED: Add job_id
 });
 export type Service = z.infer<typeof ServiceSchema>;
 
@@ -48,7 +49,11 @@ export const JobStatusEnum = z.enum([
   'payment_pending',
   'past_due',
   'cancelled',
-  'pending_confirmation'
+  'pending_confirmation',
+  // --- NEW STATUSES ---
+  'pending_quote',
+  'quote_accepted',
+  'paid'
 ]);
 export type JobStatus = z.infer<typeof JobStatusEnum>;
 
@@ -67,6 +72,7 @@ export const JobSchema = z.object({
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
   stripe_invoice_id: z.string().optional().nullable(),
+  stripe_quote_id: z.string().optional().nullable(), // MODIFIED: Add stripe_quote_id
   invoice_created_at: z.string().optional().nullable(),
 });
 export type Job = z.infer<typeof JobSchema>;

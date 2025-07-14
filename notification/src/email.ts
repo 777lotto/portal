@@ -6,6 +6,7 @@ import { generatePasswordResetHtml, generatePasswordResetText } from './template
 import { generateInvoiceCreatedHtml, generateInvoiceCreatedText, generateInvoicePaidHtml, generateInvoicePaidText } from './templates/invoice.js';
 import { generateReminderHtml as generateServiceReminderHtml, generateReminderText as generateServiceReminderText } from './templates/appointment.js';
 import { generatePastDueHtml, generatePastDueText } from './templates/pastDue.js';
+import { generateQuoteCreatedHtml, generateQuoteAcceptedHtml } from './templates/quote.js';
 
 
 // Main function to send an email with ZeptoMail
@@ -122,6 +123,11 @@ export function generateEmailHTML(type: string, name: string, data: Record<strin
                 date: serviceDate.toLocaleDateString(),
                 time: serviceDate.toLocaleTimeString(),
             });
+
+        case 'quote_created':
+            return generateQuoteCreatedHtml({ name, quoteUrl: data.quoteUrl });
+        case 'quote_accepted':
+            return generateQuoteAcceptedHtml({ adminName: name, customerName: data.customerName, quoteId: data.quoteId });
         default:
             return `<p>Hello ${name},</p><p>You have a new notification.</p>`;
     }

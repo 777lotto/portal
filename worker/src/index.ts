@@ -28,11 +28,11 @@ import { handleSmsProxy } from './sms.js';
 // --- Public Handlers ---
 import { handleInitializeSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './handlers/auth.js';
 import { handleStripeWebhook } from './handlers/stripe.js';
-import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed } from './handlers/public.js';
+import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed, handleAcceptQuote } from './handlers/public.js';
 
 // --- Customer Handlers ---
 import { handleGetProfile, handleUpdateProfile, handleChangePassword } from './handlers/profile.js';
-import { handleListServices, handleGetService, handleCreateInvoice, handleGetPhotosForService, handleGetNotesForService } from './handlers/services.js';
+import { handleListServices, handleGetService } from './handlers/services.js';
 import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl } from './handlers/jobs.js';
 import { handleGetUserPhotos, handleGetPhotosForJob } from './handlers/photos.js';
 import { handleGetNotesForJob } from './handlers/notes.js';
@@ -42,7 +42,8 @@ import { handlePortalSession } from './handlers/user.js';
 import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleAdminCreateInvoice, handleGetAllJobs, handleGetAllServices } from './handlers/admin/users.js';
 import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleAdminAddNoteForUser } from './handlers/notes.js';
-import { handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate } from './handlers/jobs.js';
+import { handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate, handleAdminAddServiceToJob, handleAdminCompleteJob } from './handlers/jobs.js';
+import { handleAdminCreateQuote } from './handlers/admin/quotes.js';
 
 
 /* ========================================================================
@@ -107,6 +108,7 @@ publicApi.post('/stripe/webhook', handleStripeWebhook);
 publicApi.get('/public/availability', handleGetAvailability);
 publicApi.post('/public/booking', handleCreateBooking);
 publicApi.get('/public/calendar/feed/:token', handlePublicCalendarFeed);
+publicApi.post('/quotes/:quoteId/accept', handleAcceptQuote);
 
 
 /* ========================================================================
@@ -118,9 +120,7 @@ customerApi.put('/profile', handleUpdateProfile);
 customerApi.post('/profile/change-password', handleChangePassword);
 customerApi.get('/services', handleListServices);
 customerApi.get('/services/:id', handleGetService);
-customerApi.post('/services/:id/invoice', handleCreateInvoice);
-customerApi.get('/services/:id/photos', handleGetPhotosForService);
-customerApi.get('/services/:id/notes', handleGetNotesForService);
+// customerApi.post('/services/:id/invoice', handleCreateInvoice); // DEPRECATED
 customerApi.get('/jobs', handleGetJobs);
 customerApi.post('/jobs', handleCreateJob);
 customerApi.get('/jobs/:id', handleGetJobById);
@@ -143,6 +143,7 @@ customerApi.all('/notifications/*', handleNotificationProxy);
    ======================================================================== */
 
 adminApi.get('/users', handleGetAllUsers);
+adminApi.post('/jobs/:jobId/quote', handleAdminCreateQuote);
 adminApi.get('/users/:userId/jobs', handleAdminGetJobsForUser);
 adminApi.get('/users/:userId/photos', handleAdminGetPhotosForUser);
 adminApi.post('/users/:userId/photos', handleAdminUploadPhotoForUser);
@@ -154,6 +155,9 @@ adminApi.post('/blocked-dates', handleAddBlockedDate);
 adminApi.delete('/blocked-dates/:date', handleRemoveBlockedDate);
 adminApi.get('/jobs', handleGetAllJobs);
 adminApi.get('/services', handleGetAllServices);
+// --- NEW ADMIN JOB ROUTES ---
+adminApi.post('/jobs/:jobId/complete', handleAdminCompleteJob);
+adminApi.post('/jobs/:jobId/services', handleAdminAddServiceToJob);
 
 
 /* ========================================================================

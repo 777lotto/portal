@@ -1,5 +1,4 @@
 // worker/src/handlers/stripe.ts
-// --------------------------------------
 import { Context as StripeContext } from 'hono';
 import { AppEnv as StripeAppEnv } from '../index.js';
 import { getStripe } from '../stripe.js';
@@ -26,16 +25,42 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
                 const invoice = event.data.object as Stripe.Invoice;
                 console.log(`Invoice ${invoice.id} was paid successfully.`);
 
-                // Update the service status in your DB
+                // Update the job's status to 'paid'
                 await c.env.DB.prepare(
-                    `UPDATE services SET status = 'paid' WHERE stripe_invoice_id = ?`
+                    `UPDATE jobs SET status = 'paid' WHERE stripe_invoice_id = ?`
                 ).bind(invoice.id).run();
+                break;
 
-                // NEW: Also update the corresponding job's status to 'completed'
-                await c.env.DB.prepare(
-                    `UPDATE jobs SET status = 'completed' WHERE stripe_invoice_id = ?`
-                ).bind(invoice.id).run();
+            // --- NEW WEBHOOK HANDLER FOR QUOTES ---
+            case 'quote.finalized':
+                const quote = event.data.object as Stripe.Quote;
+                console.log(`Quote ${quote.id} was finalized.`);
 
+                // Update job status to 'quote_accepted'
+                const jobUpdate = await c.env.DB.prepare(
+                    `UPDATE jobs SET status = 'quote_accepted' WHERE stripe_quote_id = ?`
+                ).bind(quote.id).run();
+
+                // Notify admin that quote was accepted
+                if (jobUpdate.meta.changes > 0) {
+                    const admins = await c.env.DB.prepare(
+                        `SELECT id FROM users WHERE role = 'admin'`
+                    ).all<{ id: number }>();
+
+                    if (admins.results) {
+                        for (const admin of admins.results) {
+                            await c.env.NOTIFICATION_QUEUE.send({
+                                type: 'quote_accepted',
+                                userId: admin.id,
+                                data: {
+                                    quoteId: quote.id,
+                                    customerName: customerName
+                                },
+                                channels: ['email']
+                            });
+                        }
+                    }
+                }
                 break;
 
             case 'billing_portal.session.created':

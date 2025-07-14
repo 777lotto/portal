@@ -6,6 +6,20 @@ import { PublicBookingRequestSchema, User } from '@portal/shared';
 import { errorResponse, successResponse } from '../utils.js';
 import { createJob, generateCalendarFeed } from '../calendar.js'; // MODIFIED: import generateCalendarFeed
 import { validateTurnstileToken } from '../auth.js';
+import { getStripe } from '../stripe.js';
+
+export async function handleAcceptQuote(c: Context<AppEnv>) {
+    const { quoteId } = c.req.param();
+    const stripe = getStripe(c.env);
+
+    try {
+        const acceptedQuote = await stripe.quotes.accept(quoteId);
+        return successResponse({ message: 'Quote accepted successfully', quoteId: acceptedQuote.id });
+    } catch (e: any) {
+        console.error(`Failed to accept quote ${quoteId}:`, e);
+        return errorResponse(`Failed to accept quote: ${e.message}`, 500);
+    }
+}
 
 
 // NEW: Handler for public iCal feed

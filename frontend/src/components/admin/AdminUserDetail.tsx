@@ -3,8 +3,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { apiGet, apiPost, apiPostFormData, deleteUser, adminCreateInvoice } from '../../lib/api.js';
-import type { Job, Photo, User, StripeInvoice } from '@portal/shared';
+import type { Job, Photo, User, StripeInvoice, Service } from '@portal/shared'; // MODIFIED: Import Service
 import { InvoiceEditor } from './InvoiceEditor.js';
+import { QuoteManager } from './QuoteManager.js'; // MODIFIED: Import QuoteManager
 
 function AdminUserDetail() {
   const { userId } = useParams<{ userId: string }>();
@@ -16,240 +17,154 @@ function AdminUserDetail() {
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [isLoadingPhotos, setIsLoadingPhotos] = useState(true);
-  const [noteContent, setNoteContent] = useState('');
-  const [noteJobId, setNoteJobId] = useState('');
-  const [notePhotoId, setNotePhotoId] = useState('');
-  const [isNoteSubmitting, setIsNoteSubmitting] = useState(false);
-  const [noteMessage, setNoteMessage] = useState<{ type: 'success' | 'danger', text: string } | null>(null);
-  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
-  const [photoJobId, setPhotoJobId] = useState('');
-  const [isPhotoSubmitting, setIsPhotoSubmitting] = useState(false);
-  const [photoMessage, setPhotoMessage] = useState<{ type: 'success' | 'danger', text: string } | null>(null);
-  const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
-  const [invoiceMessage, setInvoiceMessage] = useState<{ type: 'success' | 'danger', text: string | React.ReactNode } | null>(null);
+
+  // MODIFIED: State for managing services on a specific job
+  const [services, setServices] = useState<Service[]>([]);
+  const [selectedJobForServices, setSelectedJobForServices] = useState<Job | null>(null);
+  const [newService, setNewService] = useState({ notes: '', price: '' });
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'danger', text: string } | null>(null);
+
   const [activeInvoice, setActiveInvoice] = useState<StripeInvoice | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const fetchDataForUser = async () => {
-      if (!userId) return;
-      setIsLoadingJobs(true);
-      setIsLoadingPhotos(true);
-      try {
-        const [allUsers, userJobs, userPhotos] = await Promise.all([
-          apiGet<User[]>('/api/admin/users'),
-          apiGet<Job[]>(`/api/admin/users/${userId}/jobs`),
-          apiGet<Photo[]>(`/api/admin/users/${userId}/photos`)
-        ]);
-        const currentUser = allUsers.find(u => u.id.toString() === userId);
-        setUser(currentUser || null);
-        setJobs(userJobs);
-        setPhotos(userPhotos);
-      } catch (err: any) {
-        setError(err.message);
-        console.error("Failed to fetch data for user", err);
-      } finally {
-        setIsLoadingJobs(false);
-        setIsLoadingPhotos(false);
-      }
-    };
-    fetchDataForUser();
+
+  const fetchDataForUser = useCallback(async () => {
+    if (!userId) return;
+    setIsLoadingJobs(true);
+    try {
+      const [allUsers, userJobs] = await Promise.all([
+        apiGet<User[]>('/api/admin/users'),
+        apiGet<Job[]>(`/api/admin/users/${userId}/jobs`),
+      ]);
+      const currentUser = allUsers.find(u => u.id.toString() === userId);
+      setUser(currentUser || null);
+      setJobs(userJobs);
+    } catch (err: any) {
+      setError(err.message);
+      console.error("Failed to fetch data for user", err);
+    } finally {
+      setIsLoadingJobs(false);
+    }
   }, [userId]);
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    setPhotoFiles(prevFiles => [...prevFiles, ...acceptedFiles]);
-  }, []);
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: { 'image/*': [] } });
 
-  const handleAddNote = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsNoteSubmitting(true);
-    setNoteMessage(null);
-    if (!userId || !noteContent) return;
+  useEffect(() => {
+    fetchDataForUser();
+  }, [fetchDataForUser]);
 
-    try {
-      const payload = {
-        content: noteContent,
-        job_id: noteJobId || undefined,
-        photo_id: notePhotoId || undefined,
-      };
-      await apiPost(`/api/admin/users/${userId}/notes`, payload);
-      setNoteMessage({ type: 'success', text: 'Note added successfully!' });
-      setNoteContent('');
-      setNoteJobId('');
-      setNotePhotoId('');
-    } catch (err: any) {
-      setNoteMessage({ type: 'danger', text: `Error: ${err.message}` });
-    } finally {
-      setIsNoteSubmitting(false);
-    }
-  };
-
-  const handlePhotoUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userId || photoFiles.length === 0) {
-      setPhotoMessage({ type: 'danger', text: 'Please select one or more photos.' });
-      return;
-    }
-    setIsPhotoSubmitting(true);
-    setPhotoMessage(null);
-
-    const uploadPromises = photoFiles.map(file => {
-      const formData = new FormData();
-      formData.append('photo', file);
-      if (photoJobId) formData.append('job_id', photoJobId);
-      return apiPostFormData(`/api/admin/users/${userId}/photos`, formData);
-    });
-
-    try {
-      await Promise.all(uploadPromises);
-      setPhotoMessage({ type: 'success', text: `${photoFiles.length} photo(s) uploaded successfully!` });
-      setPhotoFiles([]);
-      setPhotoJobId('');
-    } catch (err: any) {
-      setPhotoMessage({ type: 'danger', text: `Error: ${err.message}` });
-    } finally {
-      setIsPhotoSubmitting(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!user) return;
-    if (window.confirm(`Are you sure you want to permanently delete ${user.name} (${user.email})? This action cannot be undone.`)) {
-        try {
-            await deleteUser(user.id.toString());
-            navigate('/admin/users');
-        } catch(err: any) {
-            setError(`Failed to delete user: ${err.message}`)
-        }
-    }
+  const handleSelectJobForServices = async (job: Job) => {
+    setSelectedJobForServices(job);
+    // Fetch services for this job
+    const fetchedServices = await apiGet<Service[]>(`/api/jobs/${job.id}/services`);
+    setServices(fetchedServices);
   }
 
-  const removeFile = (fileName: string) => {
-    setPhotoFiles(photoFiles.filter(file => file.name !== fileName));
+  const handleAddServiceToJob = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!selectedJobForServices || !newService.notes || !newService.price) return;
+
+      setIsSubmitting(true);
+      setMessage(null);
+      try {
+          const price_cents = Math.round(parseFloat(newService.price) * 100);
+          await apiPost(`/api/admin/jobs/${selectedJobForServices.id}/services`, {
+              notes: newService.notes,
+              price_cents,
+          });
+          setNewService({ notes: '', price: '' });
+          // Refresh services for the current job
+          handleSelectJobForServices(selectedJobForServices);
+          setMessage({ type: 'success', text: 'Service added successfully!' });
+      } catch (err: any) {
+          setMessage({ type: 'danger', text: `Error: ${err.message}` });
+      } finally {
+          setIsSubmitting(false);
+      }
   };
 
-  // FIX: This is now the one and only declaration of this function.
-  const handleCreateDraftInvoice = async () => {
-    if (!userId) return;
-    setIsCreatingInvoice(true);
-    setInvoiceMessage(null);
-    setActiveInvoice(null); // Clear previous invoice
-    try {
-      const result = await adminCreateInvoice(userId);
-      setActiveInvoice(result.invoice);
-      setInvoiceMessage({ type: 'success', text: `Draft invoice ${result.invoice.id} created.` });
-    } catch (err: any) {
-      setInvoiceMessage({ type: 'danger', text: `Error: ${err.message}` });
-    } finally {
-      setIsCreatingInvoice(false);
-    }
+  const handleCompleteJob = async (jobId: string) => {
+      if (!window.confirm("Are you sure you want to mark this job as complete and issue an invoice?")) return;
+      setIsSubmitting(true);
+      setMessage(null);
+      try {
+          await apiPost(`/api/admin/jobs/${jobId}/complete`, {});
+          setMessage({ type: 'success', text: 'Job marked as complete and invoice sent!' });
+          fetchDataForUser(); // Refresh all user data
+      } catch (err: any) {
+          setMessage({ type: 'danger', text: `Error: ${err.message}` });
+      } finally {
+          setIsSubmitting(false);
+      }
   };
 
-  const handleInvoiceFinalized = () => {
-      setInvoiceMessage({type: 'success', text: `Invoice ${activeInvoice?.id} has been finalized and sent!`});
-      setActiveInvoice(null);
-  }
 
   return (
     <div className="container mt-4">
       <Link to="/admin/users">&larr; Back to Users</Link>
       <h2 className="mt-2">Manage User: {user ? user.name : userId}</h2>
       {error && <div className="alert alert-danger">{error}</div>}
-      <div className="row mt-4">
-        <div className="col-md-6 mb-4">
-          <div className="card h-100">
-            <div className="card-body">
-              <h5 className="card-title">Add a Note</h5>
-              <form onSubmit={handleAddNote}>
-                <div className="mb-3">
-                  <label htmlFor="noteContent" className="form-label">Note Content</label>
-                  <textarea id="noteContent" name="noteContent" className="form-control" value={noteContent} onChange={(e) => setNoteContent(e.target.value)} required />
+      {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
+
+      <div className="card mt-4">
+        <div className="card-body">
+          <h5 className="card-title">Jobs</h5>
+          {isLoadingJobs ? <p>Loading jobs...</p> : (
+            <div className="list-group">
+              {jobs.map(job => (
+                <div key={job.id} className="list-group-item">
+                  <h6>{job.title} - {new Date(job.start).toLocaleDateString()}</h6>
+                  <p>Status: <span className="badge bg-info">{job.status}</span></p>
+                  <button className="btn btn-sm btn-secondary me-2" onClick={() => handleSelectJobForServices(job)}>
+                    Manage Services & Quote
+                  </button>
+                  {job.status === 'quote_accepted' && (
+                    <button
+                      className="btn btn-sm btn-success"
+                      onClick={() => handleCompleteJob(job.id)}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? 'Completing...' : 'Mark Complete & Invoice'}
+                    </button>
+                  )}
                 </div>
-                <div className="mb-3">
-                  <label htmlFor="noteJobId" className="form-label">Associated Job (Optional)</label>
-                  <select id="noteJobId" name="noteJobId" className="form-control" value={noteJobId} onChange={(e) => setNoteJobId(e.target.value)} disabled={isLoadingJobs}>
-                    <option value="">None</option>
-                    {jobs.map(job => (<option key={job.id} value={job.id}>{job.title} - {new Date(job.start).toLocaleDateString()}</option>))}
-                  </select>
-                </div>
-                <div className="mb-3">
-                  <label htmlFor="notePhotoId" className="form-label">Associated Photo (Optional)</label>
-                  <select id="notePhotoId" name="notePhotoId" className="form-control" value={notePhotoId} onChange={(e) => setNotePhotoId(e.target.value)} disabled={isLoadingPhotos}>
-                    <option value="">None</option>
-                    {photos.map(photo => (
-                        <option key={photo.id} value={photo.id}>
-                            Photo from {new Date(photo.created_at).toLocaleString()}
-                        </option>
-                    ))}
-                  </select>
-                </div>
-                {noteMessage && <div className={`alert alert-${noteMessage.type}`}>{noteMessage.text}</div>}
-                <button type="submit" className="btn btn-secondary" disabled={isNoteSubmitting}>{isNoteSubmitting ? 'Submitting...' : 'Add Note'}</button>
-              </form>
+              ))}
             </div>
-          </div>
-        </div>
-        <div className="col-md-6 mb-4">
-          <div className="card h-100">
-            <div className="card-body d-flex flex-column">
-              <h5 className="card-title">Upload Photos</h5>
-              <form onSubmit={handlePhotoUpload} className="flex-grow-1 d-flex flex-column">
-                <div {...getRootProps()} className="border-2 border-dashed rounded-md p-6 text-center cursor-pointer mb-3 flex-grow-1 d-flex align-items-center justify-content-center">
-                  <input {...getInputProps()} />
-                  {isDragActive ? <p>Drop files here...</p> : <p>Drag 'n' drop files here, or click to select</p>}
-                </div>
-                {photoFiles.length > 0 && (
-                  <div className="mb-3">
-                    <strong>Selected files:</strong>
-                    <ul className="list-unstyled">
-                      {photoFiles.map(file => (
-                        <li key={file.name} className="d-flex justify-content-between align-items-center">
-                          {file.name}
-                          <button type="button" className="btn btn-sm btn-danger" onClick={() => removeFile(file.name)}>X</button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <div className="mb-3">
-                  <label htmlFor="photoJobId" className="form-label">Associate with Job (Optional)</label>
-                  <select id="photoJobId" className="form-control" value={photoJobId} onChange={(e) => setPhotoJobId(e.target.value)} disabled={isLoadingJobs}>
-                    <option value="">None</option>
-                    {jobs.map(job => (<option key={job.id} value={job.id}>{job.title} - {new Date(job.start).toLocaleDateString()}</option>))}
-                  </select>
-                </div>
-                {photoMessage && <div className={`alert alert-${photoMessage.type}`}>{photoMessage.text}</div>}
-                <button type="submit" className="btn btn-primary mt-auto" disabled={isPhotoSubmitting || photoFiles.length === 0}>
-                  {isPhotoSubmitting ? 'Uploading...' : `Upload ${photoFiles.length} File(s)`}
-                </button>
-              </form>
-            </div>
-          </div>
+          )}
         </div>
       </div>
-      <div className="row mt-4">
-        <div className="col-12 mb-4">
-          <div className="card">
-            <div className="card-body">
-              <h5 className="card-title">Stripe Actions</h5>
-              {invoiceMessage && <div className={`alert alert-${invoiceMessage.type}`}>{invoiceMessage.text}</div>}
-              {!activeInvoice && (
-                <button onClick={handleCreateDraftInvoice} className="btn btn-info" disabled={isCreatingInvoice || !user}>
-                  {isCreatingInvoice ? 'Creating...' : 'Create Draft Invoice'}
-                </button>
-              )}
-              {activeInvoice && <InvoiceEditor invoiceId={activeInvoice.id} onFinalize={handleInvoiceFinalized} />}
-            </div>
+
+      {selectedJobForServices && (
+        <div className="card mt-4">
+          <div className="card-body">
+            <h5 className="card-title">Manage Services for Job: {selectedJobForServices.title}</h5>
+             {/* Service List */}
+            <ul className="list-group mb-3">
+                {services.map(s => <li key={s.id} className="list-group-item">{s.notes} - ${(s.price_cents / 100).toFixed(2)}</li>)}
+            </ul>
+
+             {/* Add Service Form */}
+            <form onSubmit={handleAddServiceToJob} className="mb-4">
+                <h6>Add a Service Line Item</h6>
+                <div className="row g-3">
+                    <div className="col-md-6">
+                        <input type="text" className="form-control" placeholder="Service Description" value={newService.notes} onChange={e => setNewService({...newService, notes: e.target.value})} required/>
+                    </div>
+                    <div className="col-md-4">
+                        <input type="number" step="0.01" className="form-control" placeholder="Price ($)" value={newService.price} onChange={e => setNewService({...newService, price: e.target.value})} required/>
+                    </div>
+                    <div className="col-md-2">
+                         <button type="submit" className="btn btn-primary w-100" disabled={isSubmitting}>Add</button>
+                    </div>
+                </div>
+            </form>
+
+             {/* Quote Manager */}
+            <QuoteManager job={selectedJobForServices} onQuoteCreated={fetchDataForUser} />
           </div>
         </div>
-      </div>
-      <div className="mt-4 d-flex justify-content-end">
-        <button onClick={handleDelete} className="btn btn-danger" disabled={!user}>
-          Delete This User
-        </button>
-      </div>
+      )}
     </div>
   );
 }
