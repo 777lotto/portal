@@ -117,6 +117,8 @@ export const getBlockedDates = () => apiGet<BlockedDate[]>('/api/admin/blocked-d
 export const addBlockedDate = (date: string, reason?: string) => apiPost('/api/admin/blocked-dates', { date, reason });
 export const removeBlockedDate = (date: string) => fetchJson(`/api/admin/blocked-dates/${date}`, { method: 'DELETE' });
 export const adminCreateInvoice = (userId: string) => apiPost<{ invoice: StripeInvoice }>(`/api/admin/users/${userId}/invoice`, {});
+export const adminGetAllJobs = () => apiGet<Job[]>('/api/admin/jobs');
+export const adminGetAllServices = () => apiGet<Service[]>('/api/admin/services');
 
 
 /* ========================================================================
