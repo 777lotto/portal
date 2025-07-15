@@ -148,7 +148,7 @@ function AdminUserDetail() {
 
       {/* Job Management Card */}
       <div className="card mt-4">
-        <div className="card-header d-flex justify-content-between align-items-center">
+        <div className="card-header flex justify-between items-center">
             <h5 className="mb-0">Jobs</h5>
             <button className="btn btn-primary" onClick={() => setIsJobModalOpen(true)}>Add Job</button>
         </div>
