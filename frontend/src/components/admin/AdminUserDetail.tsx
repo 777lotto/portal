@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
-import { apiGet, apiPost, apiPostFormData } from '../../lib/api.js';
+import { apiGet, apiPost, apiPostFormData, adminCreateJobForUser, adminFinalizeJob } from '../../lib/api.js';
 import type { Job, User, StripeInvoice, Service, PhotoWithNotes, Note } from '@portal/shared';
 import { InvoiceEditor } from './InvoiceEditor.js';
 import { QuoteManager } from './QuoteManager.js';
@@ -24,6 +24,8 @@ function AdminUserDetail() {
   const [error, setError] = useState<string | null>(null);
   const [noteInputs, setNoteInputs] = useState<Record<string, string>>({});
   const [uploadJobId, setUploadJobId] = useState<string>('');
+  const [isJobModalOpen, setIsJobModalOpen] = useState(false);
+  const [newJobData, setNewJobData] = useState({ title: '', start: '', price: '' });
 
 
   const fetchDataForUser = useCallback(async () => {
@@ -96,6 +98,45 @@ function AdminUserDetail() {
     }
   };
 
+  const handleCreateJob = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userId || !newJobData.title || !newJobData.start || !newJobData.price) return;
+    setIsSubmitting(true);
+    setMessage(null);
+    try {
+      await adminCreateJobForUser(userId, {
+        title: newJobData.title,
+        start: new Date(newJobData.start).toISOString(),
+        price_cents: Math.round(parseFloat(newJobData.price) * 100),
+      });
+      setMessage({ type: 'success', text: 'Job created successfully!' });
+      setIsJobModalOpen(false);
+      setNewJobData({ title: '', start: '', price: '' });
+      fetchDataForUser(); // Refresh data
+    } catch (err: any) {
+      setMessage({ type: 'danger', text: `Failed to create job: ${err.message}` });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleFinalizeJob = async (jobId: string) => {
+    if (!window.confirm("Are you sure you want to finalize this job? This will generate and send an invoice to the customer.")) {
+      return;
+    }
+    setIsSubmitting(true);
+    setMessage(null);
+    try {
+      const result = await adminFinalizeJob(jobId);
+      setMessage({ type: 'success', text: `Job finalized and invoice ${result.invoiceId} sent!` });
+      fetchDataForUser(); // Refresh data
+    } catch (err: any) {
+      setMessage({ type: 'danger', text: `Failed to finalize job: ${err.message}` });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (isLoading) return <div className="container mt-4">Loading user details...</div>;
 
   return (
@@ -104,6 +145,40 @@ function AdminUserDetail() {
       <h2 className="mt-2">Manage User: {user ? user.name : userId}</h2>
       {error && <div className="alert alert-danger">{error}</div>}
       {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
+
+      {/* Job Management Card */}
+      <div className="card mt-4">
+        <div className="card-header d-flex justify-content-between align-items-center">
+            <h5 className="mb-0">Jobs</h5>
+            <button className="btn btn-primary" onClick={() => setIsJobModalOpen(true)}>Add Job</button>
+        </div>
+        <div className="card-body">
+            {jobs.length > 0 ? (
+                <ul className="list-group">
+                    {jobs.map(job => (
+                        <li key={job.id} className="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <Link to={`/jobs/${job.id}`} className="fw-bold">{job.title}</Link>
+                                <p className="mb-0"><small>Date: {new Date(job.start).toLocaleString()}</small></p>
+                                <p className="mb-0"><small>Status: <span className="badge bg-secondary">{job.status}</span></small></p>
+                            </div>
+                            {['upcoming', 'confirmed'].includes(job.status) && (
+                              <button
+                                className="btn btn-success"
+                                onClick={() => handleFinalizeJob(job.id)}
+                                disabled={isSubmitting}
+                              >
+                                {isSubmitting ? 'Finalizing...' : 'Finalize Job'}
+                              </button>
+                            )}
+                        </li>
+                    ))}
+                </ul>
+            ) : (
+                <p>No jobs found for this user.</p>
+            )}
+        </div>
+      </div>
 
       {/* Photo Management Card */}
       <div className="card mt-4">
@@ -171,14 +246,41 @@ function AdminUserDetail() {
         </div>
       </div>
 
-      {/* Existing Job Management can go here, simplified for brevity */}
-      <div className="card mt-4">
-        <div className="card-body">
-            <h5 className="card-title">Jobs & Quotes</h5>
-            {/* You can map through jobs here as before */}
-        </div>
-      </div>
-
+      {/* Add Job Modal */}
+      {isJobModalOpen && (
+          <div className="modal show" style={{ display: 'block' }} tabIndex={-1}>
+              <div className="modal-dialog">
+                  <div className="modal-content">
+                      <form onSubmit={handleCreateJob}>
+                          <div className="modal-header">
+                              <h5 className="modal-title">Add New Job</h5>
+                              <button type="button" className="btn-close" onClick={() => setIsJobModalOpen(false)}></button>
+                          </div>
+                          <div className="modal-body">
+                              <div className="mb-3">
+                                  <label htmlFor="title" className="form-label">Service / Title</label>
+                                  <input type="text" className="form-control" id="title" required value={newJobData.title} onChange={e => setNewJobData({...newJobData, title: e.target.value})} />
+                              </div>
+                              <div className="mb-3">
+                                  <label htmlFor="start" className="form-label">Job Date</label>
+                                  <input type="datetime-local" className="form-control" id="start" required value={newJobData.start} onChange={e => setNewJobData({...newJobData, start: e.target.value})} />
+                              </div>
+                              <div className="mb-3">
+                                  <label htmlFor="price" className="form-label">Price ($)</label>
+                                  <input type="number" step="0.01" className="form-control" id="price" required value={newJobData.price} onChange={e => setNewJobData({...newJobData, price: e.target.value})} />
+                              </div>
+                          </div>
+                          <div className="modal-footer">
+                              <button type="button" className="btn btn-secondary" onClick={() => setIsJobModalOpen(false)}>Close</button>
+                              <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+                                {isSubmitting ? 'Saving...' : 'Save Job'}
+                              </button>
+                          </div>
+                      </form>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 }

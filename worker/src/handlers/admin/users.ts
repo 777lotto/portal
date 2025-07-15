@@ -5,6 +5,7 @@ import { Context } from 'hono';
 import type { AppEnv } from '../../index.js';
 import { getStripe, createStripeCustomer, createDraftStripeInvoice } from '../../stripe.js';
 // MODIFIED: Imported 'Note' and 'PhotoWithNotes' and removed the unused 'Photo' type.
+import { createJob } from '../../calendar.js'
 import type { User, Job, Service, Env, Note, PhotoWithNotes } from '@portal/shared';
 
 export async function handleGetAllUsers(c: Context<AppEnv>): Promise<Response> {
@@ -186,5 +187,45 @@ export async function handleAdminCreateInvoice(c: Context<AppEnv>): Promise<Resp
   } catch (e: any) {
     console.error(`Failed to create draft invoice for user ${userId}:`, e);
     return errorResponse(`Failed to create draft invoice: ${e.message}`, 500);
+  }
+}
+
+export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<Response> {
+  const { userId } = c.req.param();
+  const body = await c.req.json();
+
+  // Basic validation
+  if (!body.title || !body.start || !body.price_cents) {
+    return errorResponse("Job title, start date, and price are required.", 400);
+  }
+
+  try {
+    // 1. Create the job using the existing helper
+    const jobData = {
+      title: body.title,
+      description: `Created by admin on ${new Date().toLocaleDateString()}`,
+      start: body.start,
+      // Assume a 1-hour duration for simplicity
+      end: new Date(new Date(body.start).getTime() + 60 * 60 * 1000).toISOString(),
+      status: 'upcoming',
+    };
+    const newJob = await createJob(c.env, jobData, userId);
+
+    // 2. Create the associated service which acts as a line item
+    await c.env.DB.prepare(
+      `INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents)
+       VALUES (?, ?, ?, 'pending', ?, ?)`
+    ).bind(
+      parseInt(userId, 10),
+      newJob.id,
+      newJob.start,
+      body.title, // Use the job title as the service notes
+      body.price_cents
+    ).run();
+
+    return successResponse(newJob, 201);
+  } catch (e: any) {
+    console.error(`Failed to create job for user ${userId}:`, e);
+    return errorResponse("Failed to create job.", 500);
   }
 }
