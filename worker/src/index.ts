@@ -44,6 +44,7 @@ import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleAdminAddNoteForUser } from './handlers/notes.js';
 import { handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate, handleAdminAddServiceToJob, handleAdminCompleteJob } from './handlers/jobs.js';
 import { handleAdminCreateQuote } from './handlers/admin/quotes.js';
+import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice } from './handlers/admin/invoices.js';
 
 
 /* ========================================================================
@@ -158,6 +159,11 @@ adminApi.get('/services', handleGetAllServices);
 adminApi.post('/users/:userId/jobs', handleAdminCreateJobForUser);
 adminApi.post('/jobs/:jobId/complete', handleAdminCompleteJob);
 adminApi.post('/jobs/:jobId/services', handleAdminAddServiceToJob);
+adminApi.post('/invoices/import', handleAdminImportInvoices);
+adminApi.get('/invoices/:invoiceId', handleAdminGetInvoice);
+adminApi.post('/invoices/:invoiceId/items', handleAdminAddInvoiceItem);
+adminApi.delete('/invoices/:invoiceId/items/:itemId', handleAdminDeleteInvoiceItem);
+adminApi.post('/invoices/:invoiceId/finalize', handleAdminFinalizeInvoice);
 
 
 /* ========================================================================

@@ -125,6 +125,7 @@ export const adminCreateJobForUser = (userId: string, data: { title: string; sta
 export const adminFinalizeJob = (jobId: string) => {
   return apiPost<{ invoiceId: string; invoiceUrl: string | null }>(`/api/admin/jobs/${jobId}/complete`, {});
 };
+export const adminImportInvoices = () => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>('/api/admin/invoices/import', {});
 
 /* ========================================================================
                             ADMIN INVOICE FUNCTIONS
