@@ -9,8 +9,6 @@ import { Elements } from '@stripe/react-stripe-js';
 import Navbar from "./components/Navbar.js";
 import Dashboard from "./components/Dashboard.js";
 // Lazily load components that aren't needed on the initial page load
-const Services = lazy(() => import("./components/Services.js"));
-const ServiceDetail = lazy(() => import("./components/ServiceDetail.js"));
 const JobCalendar = lazy(() => import("./components/Calendar.js"));
 const JobDetail = lazy(() => import("./components/JobDetail.js"));
 const CalendarSync = lazy(() => import("./components/CalendarSync.js"));
@@ -113,8 +111,6 @@ function App() {
 
               {/* --- Customer-facing Routes --- */}
               <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/auth" replace />} />
-              <Route path="/services" element={token ? <Services /> : <Navigate to="/auth" replace />} />
-              <Route path="/services/:id" element={token ? <ServiceDetail /> : <Navigate to="/auth" replace />} />
               <Route path="/calendar" element={token ? <JobCalendar /> : <Navigate to="/auth" replace />} />
               <Route path="/photos" element={token ? <Photos /> : <Navigate to="/auth" replace />} />
               <Route path="/jobs/:id" element={token ? <JobDetail /> : <Navigate to="/auth" replace />} />

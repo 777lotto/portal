@@ -82,11 +82,6 @@ export default function Navbar({ token, setToken, user }: Props) {
   const navLinks = (
     <>
       <NavLink to="/dashboard" className={({ isActive }) => isActive ? activeLinkStyle : linkStyle}>Dashboard</NavLink>
-      {/* MODIFICATION START: Only show Services link to customers */}
-      {user?.role === 'customer' && (
-        <NavLink to="/services" className={({ isActive }) => isActive ? activeLinkStyle : linkStyle}>Services</NavLink>
-      )}
-      {/* MODIFICATION END */}
       <NavLink to="/calendar" className={({ isActive }) => isActive ? activeLinkStyle : linkStyle}>Calendar</NavLink>
       <NavLink to="/photos" className={({ isActive }) => isActive ? activeLinkStyle : linkStyle}>Photos</NavLink>
       {user?.role === 'admin' && (
@@ -98,11 +93,6 @@ export default function Navbar({ token, setToken, user }: Props) {
   const mobileNavLinks = (
       <>
         <NavLink to="/dashboard" onClick={closeMobileMenu} className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileLinkStyle}>Dashboard</NavLink>
-        {/* MODIFICATION START: Only show Services link to customers */}
-        {user?.role === 'customer' && (
-          <NavLink to="/services" onClick={closeMobileMenu} className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileLinkStyle}>Services</NavLink>
-        )}
-        {/* MODIFICATION END */}
         <NavLink to="/calendar" onClick={closeMobileMenu} className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileLinkStyle}>Calendar</NavLink>
         <NavLink to="/photos" onClick={closeMobileMenu} className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileLinkStyle}>Photos</NavLink>
         {user?.role === 'admin' && (
@@ -130,7 +120,12 @@ export default function Navbar({ token, setToken, user }: Props) {
           <div className="hidden md:block">
             <div className="ml-4 flex items-center md:ml-6">
               {token && user ? (
-                <div className="relative ml-3" ref={userMenuRef}>
+                <div
+                  className="relative ml-3"
+                  ref={userMenuRef}
+                  onMouseEnter={() => setIsUserMenuOpen(true)}
+                  onMouseLeave={() => setIsUserMenuOpen(false)}
+                >
                   <div>
                     <button
                       type="button"
