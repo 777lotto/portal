@@ -1,5 +1,6 @@
+// 777lotto/portal/portal-bet/frontend/src/components/admin/AdminDashboard.tsx
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom'; // Import useSearchParams
 import { apiGet, deleteUser, adminImportInvoices } from '../../lib/api.js';
 import type { User } from '@portal/shared';
 import AddUserModal from './AddUserModal.js';
@@ -14,8 +15,21 @@ function AdminDashboard() {
   const [isImporting, setIsImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams(); // For reading URL params
 
   useEffect(() => {
+    // Check for import status from Google OAuth redirect
+    const importStatus = searchParams.get('import_status');
+    if (importStatus === 'success') {
+      const count = searchParams.get('count');
+      setImportMessage(`Successfully imported ${count} new contacts from Google.`);
+      setSearchParams({}, { replace: true }); // Clear URL params
+    } else if (importStatus === 'error') {
+      const errorMessage = searchParams.get('error_message');
+      setError(`Google Contact import failed: ${errorMessage || 'An unknown error occurred.'}`);
+      setSearchParams({}, { replace: true }); // Clear URL params
+    }
+
     const fetchUsers = async () => {
       try {
         setIsLoading(true);
@@ -30,7 +44,7 @@ function AdminDashboard() {
       }
     };
     fetchUsers();
-  }, []);
+  }, [searchParams, setSearchParams]); // Add dependencies
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -92,6 +106,10 @@ function AdminDashboard() {
     );
   }, [users, searchQuery]);
 
+  const handleGoogleImportClick = () => {
+    // This simply redirects the user to the backend endpoint to start the flow
+    window.location.href = '/api/auth/google';
+  };
 
   if (isLoading) return <div className="text-center p-8">Loading users...</div>;
 
@@ -114,9 +132,16 @@ function AdminDashboard() {
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by name, company, email, or phone..."
             className="form-control"
-            style={{width: '50%'}}
+            style={{width: '40%'}}
           />
           <div className="flex items-center gap-2">
+            {/* ADD THIS BUTTON */}
+            <button
+                onClick={handleGoogleImportClick}
+                className="btn btn-secondary"
+            >
+                Import from Google
+            </button>
             <button
                 onClick={handleImportClick}
                 className="btn btn-secondary"

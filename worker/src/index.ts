@@ -8,6 +8,7 @@ import { cors } from 'hono/cors';
 import { serveStatic } from 'hono/cloudflare-workers';
 import manifest from '__STATIC_CONTENT_MANIFEST';
 import type { Env, User } from '@portal/shared';
+import { handleGoogleLogin, handleGoogleCallback } from './handlers/google.js';
 
 /* ========================================================================
                            MIDDLEWARE & UTILITIES
@@ -99,6 +100,8 @@ adminApi.use('*', requireAuthMiddleware, requireAdminAuthMiddleware);
                             PUBLIC API ROUTES
    ======================================================================== */
 
+publicApi.get('/auth/google', handleGoogleLogin);
+publicApi.get('/auth/google/callback', handleGoogleCallback);
 publicApi.post('/signup/initialize', handleInitializeSignup);
 publicApi.post('/login', handleLogin);
 publicApi.post('/check-user', handleCheckUser);

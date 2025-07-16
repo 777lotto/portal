@@ -266,6 +266,10 @@ export interface Env {
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
 
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
+  GOOGLE_REDIRECT_URI: string;
+
   // Variables
   PORTAL_URL: string;
   ENVIRONMENT?: 'development' | 'production';
