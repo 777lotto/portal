@@ -82,6 +82,7 @@ function AddUserModal({ isOpen, onClose, onUserAdded }: Props) {
                 <select id="role" name="role" className="form-select" value={formData.role} onChange={handleChange}>
                   <option value="customer">Customer</option>
                   <option value="admin">Admin</option>
+                  <option value="associate">Associate</option>
                 </select>
               </div>
             </div>

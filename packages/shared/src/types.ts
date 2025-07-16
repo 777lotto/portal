@@ -14,7 +14,7 @@ export const UserSchema = z.object({
   email: z.string().email(),
   name: z.string(),
   phone: z.string().nullable(),
-  role: z.enum(['customer', 'admin', 'guest']),
+  role: z.enum(['customer', 'admin', 'guest', 'associate']),
   stripe_customer_id: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   company_name: z.string().optional().nullable(),
@@ -131,7 +131,7 @@ export type PhotoWithNotes = z.infer<typeof PhotoWithNotesSchema>;
   company_name: z.string().optional(),
   email: z.string().email().optional(),
   phone: z.string().optional(),
-  role: z.enum(['customer', 'admin']).default('customer'),
+  role: z.enum(['customer', 'admin', 'associate']).default('customer'),
 });
 export type AdminCreateUser = z.infer<typeof AdminCreateUserSchema>;
 

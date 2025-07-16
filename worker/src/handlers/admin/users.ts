@@ -137,7 +137,7 @@ export async function handleAdminCreateUser(c: Context<AppEnv>): Promise<Respons
 
         const newUser = results[0];
 
-        if (newUser.email) {
+        if (newUser.email && newUser.role !== 'admin' && newUser.role !== 'associate') {
             const stripe = getStripe(c.env);
             const customer = await createStripeCustomer(stripe, newUser);
             await db.prepare(
@@ -232,15 +232,15 @@ export async function handleAdminCreateInvoice(c: Context<AppEnv>): Promise<Resp
 
   try {
     const user = await db.prepare(
-      `SELECT id, name, email, phone, stripe_customer_id FROM users WHERE id = ?`
+      `SELECT id, name, email, phone, stripe_customer_id, role FROM users WHERE id = ?`
     ).bind(Number(userId)).first<User>();
 
     if (!user) {
       return errorResponse("User not found.", 404);
     }
 
-    if (user.role === 'admin') {
-      return errorResponse("Invoices cannot be created for admin users.", 400);
+    if (user.role === 'admin' || user.role === 'associate') {
+      return errorResponse("Invoices cannot be created for admin or associate users.", 400);
     }
 
     const stripe = getStripe(c.env as Env);
