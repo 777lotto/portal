@@ -1,7 +1,7 @@
 /* ========================================================================
                             IMPORTS & TYPES
    ======================================================================== */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { getProfile, updateProfile, apiPost, requestPasswordReset, listPaymentMethods, createSetupIntent } from '../lib/api';
 import { subscribeUser, unsubscribeUser } from '../lib/push';
 import type { User } from '@portal/shared';
@@ -17,6 +17,34 @@ const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
     const elements = useElements();
     const [error, setError] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isDarkMode, setIsDarkMode] = useState(false);
+
+    useEffect(() => {
+        const checkDarkMode = () => document.documentElement.classList.contains('dark');
+        setIsDarkMode(checkDarkMode());
+
+        const observer = new MutationObserver(() => {
+            setIsDarkMode(checkDarkMode());
+        });
+
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
+        return () => observer.disconnect();
+    }, []);
+
+    const cardElementOptions = useMemo(() => ({
+        style: {
+            base: {
+                color: isDarkMode ? '#dee2e6' : '#212529',
+                fontFamily: 'system-ui, sans-serif',
+                fontSize: '16px',
+                '::placeholder': {
+                    color: isDarkMode ? '#adb5bd' : '#6c757d',
+                },
+            },
+            invalid: { color: '#fa755a', iconColor: '#fa755a' },
+        },
+    }), [isDarkMode]);
 
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
@@ -54,7 +82,9 @@ const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
 
     return (
         <form onSubmit={handleSubmit}>
-            <CardElement />
+            <div className="p-3 border rounded-md border-border-light dark:border-border-dark bg-white dark:bg-secondary-dark">
+                 <CardElement options={cardElementOptions} />
+            </div>
             <button type="submit" className="btn btn-primary mt-4" disabled={!stripe || isProcessing}>
                 {isProcessing ? 'Saving...' : 'Save Card'}
             </button>
@@ -251,7 +281,7 @@ function AccountPage() {
   if (error && !user) return <div className="alert alert-danger">{error}</div>;
 
   return (
-    <div className="container mt-4">
+    <div className="container max-w-7xl mx-auto mt-4">
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold">Account Settings</h1>
         <p className="text-text-secondary-light dark:text-text-secondary-dark">Manage your profile, security, and notification preferences.</p>

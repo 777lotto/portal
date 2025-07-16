@@ -39,27 +39,27 @@ function Photos() {
   };
 
   return (
-    <div className="container mt-4">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
       <h2 className="text-2xl font-bold mb-4">Your Photos</h2>
 
       {/* Filter Section */}
       <div className="card mb-4">
         <div className="card-body">
           <h5 className="card-title">Filter Photos</h5>
-          <div className="row g-3">
-            <div className="col-md-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
               <label htmlFor="created_at" className="form-label">Date</label>
               <input type="date" id="created_at" name="created_at" value={filters.created_at} onChange={handleFilterChange} className="form-control" />
             </div>
-            <div className="col-md-3">
+            <div>
               <label htmlFor="job_id" className="form-label">Job ID</label>
               <input type="text" id="job_id" name="job_id" value={filters.job_id} onChange={handleFilterChange} className="form-control" placeholder="Job ID"/>
             </div>
-            <div className="col-md-3">
+            <div>
               <label htmlFor="service_id" className="form-label">Service ID</label>
               <input type="text" id="service_id" name="service_id" value={filters.service_id} onChange={handleFilterChange} className="form-control" placeholder="Service ID"/>
             </div>
-            <div className="col-md-3">
+            <div>
               <label htmlFor="invoice_id" className="form-label">Invoice ID</label>
               <input type="text" id="invoice_id" name="invoice_id" onChange={handleFilterChange} className="form-control" placeholder="Invoice ID"/>
             </div>
@@ -71,11 +71,10 @@ function Photos() {
       {isLoading && <p>Loading photos...</p>}
       {error && <div className="alert alert-danger">{error}</div>}
       {!isLoading && !error && (
-        <div className="row">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {photos.length > 0 ? (
             photos.map(photo => (
-              <div key={photo.id} className="col-md-4 mb-4">
-                <div className="card h-100">
+              <div key={photo.id} className="card h-100">
                   <a href={photo.url} target="_blank" rel="noopener noreferrer">
                     <img src={photo.url} alt={`Photo from ${new Date(photo.created_at).toLocaleDateString()}`} className="card-img-top" style={{ aspectRatio: '16/9', objectFit: 'cover' }} />
                   </a>
@@ -99,7 +98,6 @@ function Photos() {
                      )}
                   </div>
                 </div>
-              </div>
             ))
           ) : (
             <p>No photos found matching your criteria.</p>
