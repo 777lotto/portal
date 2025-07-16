@@ -2,15 +2,66 @@
                             IMPORTS & TYPES
    ======================================================================== */
 import { useState, useEffect } from 'react';
-import { getProfile, updateProfile, createPortalSession, apiPost, requestPasswordReset } from '../lib/api';
+import { getProfile, updateProfile, apiPost, requestPasswordReset, listPaymentMethods, createSetupIntent } from '../lib/api';
 import { subscribeUser, unsubscribeUser } from '../lib/push';
 import type { User } from '@portal/shared';
 import { ApiError } from '../lib/fetchJson';
-
+import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
 /* ========================================================================
                                COMPONENT
    ======================================================================== */
+
+const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
+    const stripe = useStripe();
+    const elements = useElements();
+    const [error, setError] = useState<string | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
+
+        if (!stripe || !elements) {
+            return;
+        }
+
+        setIsProcessing(true);
+
+        const { clientSecret } = await createSetupIntent();
+        const cardElement = elements.getElement(CardElement);
+
+        if (!cardElement) {
+            setError("Card element not found");
+            setIsProcessing(false);
+            return;
+        }
+
+        const { error, setupIntent } = await stripe.confirmCardSetup(clientSecret, {
+            payment_method: {
+                card: cardElement,
+            },
+        });
+
+        if (error) {
+            setError(error.message || 'An unexpected error occurred.');
+        } else {
+            setError(null);
+            onSuccessfulAdd();
+        }
+
+        setIsProcessing(false);
+    };
+
+    return (
+        <form onSubmit={handleSubmit}>
+            <CardElement />
+            <button type="submit" className="btn btn-primary mt-4" disabled={!stripe || isProcessing}>
+                {isProcessing ? 'Saving...' : 'Save Card'}
+            </button>
+            {error && <div className="alert alert-danger mt-2">{error}</div>}
+        </form>
+    );
+};
 
 function AccountPage() {
 
@@ -19,6 +70,8 @@ function AccountPage() {
    ======================================================================== */
 
   const [user, setUser] = useState<User | null>(null);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [showAddPaymentMethod, setShowAddPaymentMethod] = useState(false);
   const [formData, setFormData] = useState({
       name: '',
       company_name: '',
@@ -41,6 +94,15 @@ function AccountPage() {
                                 EFFECTS
    ======================================================================== */
 
+  const fetchPaymentMethods = async () => {
+    try {
+        const methods = await listPaymentMethods();
+        setPaymentMethods(methods);
+    } catch (err: any) {
+        setError(err.message);
+    }
+  };
+
   useEffect(() => {
     const fetchProfile = async () => {
       try {
@@ -56,6 +118,7 @@ function AccountPage() {
             calendar_reminders_enabled: profileData.calendar_reminders_enabled ?? true,
             calendar_reminder_minutes: profileData.calendar_reminder_minutes ?? 60,
         });
+        fetchPaymentMethods();
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -160,17 +223,6 @@ function AccountPage() {
     }
   }
 
-  const handleBillingPortal = async () => {
-    setError(null);
-    setSuccess(null);
-    try {
-      const session = await createPortalSession();
-      window.location.href = session.url;
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
-
   const handleTogglePush = async () => {
     setError(null);
     setSuccess(null);
@@ -249,16 +301,32 @@ function AccountPage() {
                 </div>
             </div>
 
-              {/* Billing Card */}
+             {/* Billing Card */}
               {user?.role === 'customer' && (
-              <div className="card">
-                <div className="card-header"><h2 className="card-title text-xl">Billing</h2></div>
-                <div className="card-body">
-                  <p className="mb-4">Manage your billing information, payment methods, and view your invoice history through our secure payment portal.</p>
-                  <button type="button" onClick={handleBillingPortal} className="btn btn-primary">Manage Billing</button>
-                </div>
-              </div>
-            )}
+                  <div className="card">
+                      <div className="card-header"><h2 className="card-title text-xl">Payment Methods</h2></div>
+                      <div className="card-body">
+                          {paymentMethods.map(pm => (
+                              <div key={pm.id} className="flex justify-between items-center p-2 border-b">
+                                  <span>{pm.card.brand} **** {pm.card.last4}</span>
+                                  <span>Exp: {pm.card.exp_month}/{pm.card.exp_year}</span>
+                              </div>
+                          ))}
+                          {showAddPaymentMethod ? (
+                              <div className="mt-4">
+                                <CheckoutForm onSuccessfulAdd={() => {
+                                    setShowAddPaymentMethod(false);
+                                    fetchPaymentMethods();
+                                }} />
+                              </div>
+                          ) : (
+                              <button type="button" onClick={() => setShowAddPaymentMethod(true)} className="btn btn-secondary mt-4">
+                                  Add Payment Method
+                              </button>
+                          )}
+                      </div>
+                  </div>
+              )}
           </div>
 
           {/* Column 2 */}

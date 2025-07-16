@@ -154,7 +154,18 @@ export const StripeInvoiceSchema = z.object({
 });
 export type StripeInvoice = z.infer<typeof StripeInvoiceSchema>;
 
-
+ /* ========================================================================
+                            PAYMENT & BILLING
+   ======================================================================== */
+ export const PaymentMethodSchema = z.object({
+  id: z.string(),
+  brand: z.string(),
+  last4: z.string(),
+  exp_month: z.number(),
+  exp_year: z.number(),
+  is_default: z.boolean(),
+ });
+ export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
 
 /* ========================================================================
                         API, AUTH & NOTIFICATION TYPES

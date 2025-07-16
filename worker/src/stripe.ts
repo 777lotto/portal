@@ -91,4 +91,32 @@ export async function createDraftStripeInvoice(stripe: Stripe, customerId: strin
     });
     return invoice;
 }
+
+export async function listPaymentMethods(stripe: Stripe, customerId: string): Promise<Stripe.ApiList<Stripe.PaymentMethod>> {
+    return stripe.paymentMethods.list({
+        customer: customerId,
+        type: 'card',
+    });
+}
+
+export async function attachPaymentMethod(stripe: Stripe, paymentMethodId: string, customerId: string): Promise<Stripe.PaymentMethod> {
+    return stripe.paymentMethods.attach(paymentMethodId, {
+        customer: customerId,
+    });
+}
+
+export async function updateCustomerDefaultPaymentMethod(stripe: Stripe, customerId: string, paymentMethodId: string): Promise<Stripe.Customer> {
+    return stripe.customers.update(customerId, {
+        invoice_settings: {
+            default_payment_method: paymentMethodId,
+        },
+    });
+}
+
+export async function createSetupIntent(stripe: Stripe, customerId: string): Promise<Stripe.SetupIntent> {
+    return stripe.setupIntents.create({
+        customer: customerId,
+        payment_method_types: ['card'],
+    });
+}
 // ADDED_END

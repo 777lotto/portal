@@ -9,6 +9,8 @@
     "@fullcalendar/interaction": "^6.1.11",
     "@fullcalendar/react": "^6.1.11",
     "@fullcalendar/timegrid": "^6.1.11",
+    "@stripe/react-stripe-js": "^2.7.3",
+    "@stripe/stripe-js": "^4.1.0",
     "@hono/zod-validator": "^0.2.1",
     "@portal/shared": "workspace:*",
     "date-fns": "^4.1.0",

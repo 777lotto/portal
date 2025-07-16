@@ -48,7 +48,7 @@ export const apiPostFormData = <T>(path: string, formData: FormData): Promise<T>
 export const getPublicAvailability = () => apiGet<{ bookedDays: string[] }>('/api/public/availability');
 export const createPublicBooking = (data: unknown) => apiPost('/api/public/booking', data);
 export const checkUser = (identifier: string) => apiPost<{ status: string }>('/api/check-user', { identifier });
-export const initializeSignup = (data: unknown) => apiPost<InitializeSignupResponse>('/api/signup/initialize', data);
+export const initializeSignup = (data: unknown) => apiPost<any>('/api/signup/initialize', data);
 export const requestPasswordReset = (identifier: string, channel: 'email' | 'sms') => apiPost('/api/request-password-reset', { identifier, channel });
 export const verifyResetCode = (identifier: string, code: string) => {
     return apiPost<{ passwordSetToken: string }>('/api/verify-reset-code', { identifier, code });
@@ -89,6 +89,8 @@ export const logout = () => apiPost('/api/logout', {});
 export const getProfile = () => apiGet<User>('/api/profile');
 export const updateProfile = (data: Partial<User>) => apiPost<User>('/api/profile', data, 'PUT');
 export const createPortalSession = () => apiPost<PortalSession>('/api/portal', {});
+export const listPaymentMethods = () => apiGet<any[]>('/api/profile/payment-methods');
+export const createSetupIntent = () => apiPost<{ clientSecret: string }>('/api/profile/setup-intent', {});
 
 
 /* ========================================================================
@@ -182,4 +184,4 @@ export const syncCalendar = (url: string) => apiPost('/api/calendar-sync', { url
    ======================================================================== */
 
 export const getVapidKey = () => apiGet<string>('/api/notifications/vapid-key');
-export const subscribeToPush = (subscription: PushSubscription) => apiPost('/api/notifications/subscribe', subscription);
+export const subscribeToPush = (subscription: any) => apiPost('/api/notifications/subscribe', subscription);

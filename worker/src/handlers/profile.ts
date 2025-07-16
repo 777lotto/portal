@@ -5,7 +5,7 @@ import { AppEnv as ProfileAppEnv } from '../index.js';
 import { errorResponse as profileErrorResponse, successResponse as profileSuccessResponse } from '../utils.js';
 import { UserSchema, type User } from '@portal/shared';
 import { verifyPassword, hashPassword } from '../auth.js';
-import { getStripe } from '../stripe.js';
+import { getStripe, listPaymentMethods, createSetupIntent } from '../stripe.js';
 
 const UpdateProfilePayload = UserSchema.pick({
     name: true,
@@ -106,4 +106,24 @@ export const handleChangePassword = async (c: ProfileContext<ProfileAppEnv>) => 
         .run();
 
     return profileSuccessResponse({ message: 'Password updated successfully.' });
+};
+
+export const handleListPaymentMethods = async (c: ProfileContext<ProfileAppEnv>) => {
+    const user = c.get('user');
+    if (!user.stripe_customer_id) {
+        return profileSuccessResponse([]);
+    }
+    const stripe = getStripe(c.env);
+    const paymentMethods = await listPaymentMethods(stripe, user.stripe_customer_id);
+    return profileSuccessResponse(paymentMethods.data);
+};
+
+export const handleCreateSetupIntent = async (c: ProfileContext<ProfileAppEnv>) => {
+    const user = c.get('user');
+    if (!user.stripe_customer_id) {
+        return profileErrorResponse("User is not a Stripe customer", 400);
+    }
+    const stripe = getStripe(c.env);
+    const setupIntent = await createSetupIntent(stripe, user.stripe_customer_id);
+    return profileSuccessResponse({ clientSecret: setupIntent.client_secret });
 };
