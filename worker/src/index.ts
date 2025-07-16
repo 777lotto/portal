@@ -39,7 +39,7 @@ import { handleGetNotesForJob } from './handlers/notes.js';
 import { handlePortalSession } from './handlers/user.js';
 
 // --- Admin Handlers ---
-import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleAdminCreateInvoice, handleGetAllJobs, handleGetAllServices, handleAdminCreateJobForUser } from './handlers/admin/users.js';
+import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleAdminCreateInvoice, handleGetAllJobs, handleGetAllServices, handleAdminCreateJobForUser, handleAdminCreateUser } from './handlers/admin/users.js';
 import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleAdminAddNoteForUser } from './handlers/notes.js';
 import { handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate, handleAdminAddServiceToJob, handleAdminCompleteJob } from './handlers/jobs.js';
@@ -147,6 +147,7 @@ customerApi.all('/notifications/*', handleNotificationProxy);
    ======================================================================== */
 
 adminApi.get('/users', handleGetAllUsers);
+adminApi.post('/users', handleAdminCreateUser);
 adminApi.post('/jobs/:jobId/quote', handleAdminCreateQuote);
 adminApi.get('/users/:userId/jobs', handleAdminGetJobsForUser);
 adminApi.get('/users/:userId/photos', handleAdminGetPhotosForUser);

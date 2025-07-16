@@ -126,6 +126,15 @@ export type PhotoWithNotes = z.infer<typeof PhotoWithNotesSchema>;
  });
  export type BlockedDate = z.infer<typeof BlockedDateSchema>;
 
+ export const AdminCreateUserSchema = z.object({
+  name: z.string().optional(),
+  company_name: z.string().optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  role: z.enum(['customer', 'admin']).default('customer'),
+});
+export type AdminCreateUser = z.infer<typeof AdminCreateUserSchema>;
+
  /* ========================================================================
                               STRIPE-SPECIFIC MODELS
    ======================================================================== */

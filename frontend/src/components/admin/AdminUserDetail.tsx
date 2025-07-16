@@ -189,8 +189,11 @@ function AdminUserDetail() {
 
   return (
     <div className="container max-w-7xl mx-auto mt-4">
-      <Link to="/admin/users">&larr; Back to Users</Link>
-      <h2 className="mt-2">Manage User: {user ? user.name : userId}</h2>
+      <div className="flex justify-between items-center">
+        <Link to="/admin/users">&larr; Back to Users</Link>
+        <h2 className="mt-2 text-xl font-bold">Manage User: {user ? (user.name || user.company_name) : userId}</h2>
+        <button className="btn btn-secondary">Edit User</button>
+      </div>
       {error && <div className="alert alert-danger">{error}</div>}
       {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
       {importMessage && <div className="alert alert-info">{importMessage}</div>}

@@ -4,9 +4,9 @@ import { errorResponse, successResponse } from '../../utils.js';
 import { Context } from 'hono';
 import type { AppEnv } from '../../index.js';
 import { getStripe, createStripeCustomer, createDraftStripeInvoice } from '../../stripe.js';
-// MODIFIED: Imported 'Note' and 'PhotoWithNotes' and removed the unused 'Photo' type.
 import { createJob } from '../../calendar.js'
-import type { User, Job, Service, Env, Note, PhotoWithNotes } from '@portal/shared';
+// MODIFIED: 'AdminCreateUserSchema' is now a value import, and the others are explicit type imports.
+import { AdminCreateUserSchema, type User, type Job, type Service, type Env, type Note, type PhotoWithNotes } from '@portal/shared';
 
 export async function handleGetAllUsers(c: Context<AppEnv>): Promise<Response> {
   const env = c.env;
@@ -36,7 +36,6 @@ export async function handleAdminGetJobsForUser(c: Context<AppEnv>): Promise<Res
     }
 }
 
-// MODIFIED: This function is now correctly typed and fetches notes with photos.
 export async function handleAdminGetPhotosForUser(c: Context<AppEnv>): Promise<Response> {
     const { userId } = c.req.param();
     if (!userId) {
@@ -53,14 +52,11 @@ export async function handleAdminGetPhotosForUser(c: Context<AppEnv>): Promise<R
             ORDER BY p.created_at DESC
         `;
 
-        // Define the raw result type from D1, where notes is a JSON string.
         type PhotoQueryResult = Omit<PhotoWithNotes, 'notes'> & { notes: string | null };
 
         const { results } = await c.env.DB.prepare(query).bind(userId).all<PhotoQueryResult>();
 
-        // Map the raw results to the final, correctly typed PhotoWithNotes array.
         const photos: PhotoWithNotes[] = (results || []).map((p) => {
-            // Parse the JSON string for notes and ensure it's a valid array of Note objects.
             const notesArray: Note[] = p.notes ? JSON.parse(p.notes) : [];
             const validNotes = notesArray.filter(note => note && note.id !== null);
             return {
@@ -86,9 +82,7 @@ export async function handleAdminDeleteUser(c: Context<AppEnv>): Promise<Respons
   const db = c.env.DB;
 
   try {
-    // D1 batches are transactional. If one statement fails, all are rolled back.
     const stmts = [
-      // Delete all dependent records first
       db.prepare("DELETE FROM notes WHERE user_id = ?"),
       db.prepare("DELETE FROM photos WHERE user_id = ?"),
       db.prepare("DELETE FROM services WHERE user_id = ?"),
@@ -96,12 +90,9 @@ export async function handleAdminDeleteUser(c: Context<AppEnv>): Promise<Respons
       db.prepare("DELETE FROM notifications WHERE user_id = ?"),
       db.prepare("DELETE FROM blocked_dates WHERE user_id = ?"),
       db.prepare("DELETE FROM jobs WHERE customerId = ?"),
-      // Finally, delete the user. Records in tables with ON DELETE CASCADE
-      // (calendar_tokens, password_reset_tokens) will be deleted automatically.
       db.prepare("DELETE FROM users WHERE id = ?"),
     ];
 
-    // Bind the userId to all statements. Note that jobs.customerId is TEXT.
     const batch = stmts.map((stmt, index) =>
         index === 6 ? stmt.bind(userId) : stmt.bind(Number(userId))
     );
@@ -114,6 +105,57 @@ export async function handleAdminDeleteUser(c: Context<AppEnv>): Promise<Respons
     return errorResponse("Failed to delete user. The user may have associated records that could not be deleted.", 500);
   }
 }
+
+export async function handleAdminCreateUser(c: Context<AppEnv>): Promise<Response> {
+    const body = await c.req.json();
+    const parsed = AdminCreateUserSchema.safeParse(body);
+
+    if (!parsed.success) {
+        return errorResponse('Invalid user data', 400, parsed.error.flatten());
+    }
+
+    const { name, company_name, email, phone, role } = parsed.data;
+    const db = c.env.DB;
+
+    try {
+        if (!email && !phone) {
+            return errorResponse("An email or phone number is required to create a user.", 400);
+        }
+
+        const lowercasedEmail = email?.toLowerCase();
+        const cleanedPhone = phone?.replace(/\D/g, '');
+
+        const { results } = await db.prepare(
+            `INSERT INTO users (name, company_name, email, phone, role) VALUES (?, ?, ?, ?, ?) RETURNING *`
+        ).bind(
+            name || null,
+            company_name || null,
+            lowercasedEmail || null,
+            cleanedPhone || null,
+            role
+        ).all<User>();
+
+        const newUser = results[0];
+
+        if (newUser.email) {
+            const stripe = getStripe(c.env);
+            const customer = await createStripeCustomer(stripe, newUser);
+            await db.prepare(
+                `UPDATE users SET stripe_customer_id = ? WHERE id = ?`
+            ).bind(customer.id, newUser.id).run();
+            newUser.stripe_customer_id = customer.id;
+        }
+
+        return successResponse(newUser, 201);
+    } catch (e: any) {
+        if (e.message?.includes('UNIQUE constraint failed')) {
+            return errorResponse('A user with this email or phone number already exists.', 409);
+        }
+        console.error(`Failed to create user by admin:`, e);
+        return errorResponse('Failed to create user.', 500);
+    }
+}
+
 
 export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
     try {
@@ -194,25 +236,20 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
   const { userId } = c.req.param();
   const body = await c.req.json();
 
-  // New validation for the array of services
   if (!body.title || !body.start || !Array.isArray(body.services) || body.services.length === 0) {
     return errorResponse("Job title, start date, and at least one service are required.", 400);
   }
 
   try {
-    // 1. Create the main job record
     const jobData = {
       title: body.title,
       description: `Created by admin on ${new Date().toLocaleDateString()}`,
       start: body.start,
-      // End time can be calculated based on services, or just set to a default.
-      // For simplicity, we'll keep the 1-hour default but you could make this more complex.
       end: new Date(new Date(body.start).getTime() + 60 * 60 * 1000).toISOString(),
       status: 'upcoming',
     };
     const newJob = await createJob(c.env, jobData, userId);
 
-    // 2. Prepare to insert all services in a single batch
     const serviceInserts = body.services.map((service: { notes: string, price_cents: number }) => {
       return c.env.DB.prepare(
         `INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents)
@@ -226,7 +263,6 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
       );
     });
 
-    // 3. Execute the batch insert. This is atomic - all succeed or all fail.
     await c.env.DB.batch(serviceInserts);
 
     return successResponse(newJob, 201);

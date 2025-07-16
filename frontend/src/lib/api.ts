@@ -114,6 +114,7 @@ export const getJob = (id: string) => apiGet<Job>(`/api/jobs/${id}`);
                                   ADMIN API
    ======================================================================== */
 
+export const adminCreateUser = (data: unknown) => apiPost<User>('/api/admin/users', data);
 export const deleteUser = (userId: string) => fetchJson(`/api/admin/users/${userId}`, { method: 'DELETE' });
 export const getBlockedDates = () => apiGet<BlockedDate[]>('/api/admin/blocked-dates');
 export const addBlockedDate = (date: string, reason?: string) => apiPost('/api/admin/blocked-dates', { date, reason });
