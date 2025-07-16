@@ -276,3 +276,18 @@ export interface Env {
   VOIPMS_USERNAME?: string;
   VOIPMS_PASSWORD?: string;
 }
+
+
+/* ========================================================================
+                            UI NOTIFICATIONS
+   ======================================================================== */
+export const UINotificationSchema = z.object({
+  id: z.number(),
+  user_id: z.number(),
+  type: z.string(),
+  message: z.string(),
+  link: z.string().optional().nullable(),
+  is_read: z.number(), // D1 returns 0 or 1
+  created_at: z.string(),
+});
+export type UINotification = z.infer<typeof UINotificationSchema>;

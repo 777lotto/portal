@@ -1,8 +1,12 @@
 // frontend/src/components/Navbar.tsx
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { logout } from "../lib/api.js";
+import useSWR from 'swr';
+import { formatDistanceToNow } from 'date-fns';
+import { apiGet, apiPost, logout } from '../lib/api';
+import { UINotification } from '@portal/shared';
+
 import companyLogo from '../assets/777-solutions.svg';
 
 interface UserPayload {
@@ -14,6 +18,79 @@ interface Props {
   token: string | null;
   setToken: (token: string | null) => void;
   user: UserPayload | null;
+}
+const BellIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+  </svg>
+);
+
+function NotificationBell() {
+  const { data: notifications, error, mutate } = useSWR<UINotification[]>('/api/notifications', apiGet, { refreshInterval: 30000 });
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const unreadCount = notifications?.filter(n => !n.is_read).length || 0;
+
+  useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+          if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+              setIsOpen(false);
+          }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleMarkAllAsRead = async () => {
+      const updatedNotifications = notifications?.map(n => ({...n, is_read: 1}));
+      mutate(updatedNotifications, false);
+      try {
+          await apiPost('/api/notifications/read-all', {});
+      } catch (error) {
+          mutate(); // revert on error
+          console.error("Failed to mark all as read", error);
+      }
+  }
+
+  return (
+      <div className="relative" ref={dropdownRef}>
+          <button onClick={() => setIsOpen(!isOpen)} className="relative p-2 rounded-full text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800">
+              <span className="sr-only">View notifications</span>
+              <BellIcon />
+              {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 block h-4 w-4 rounded-full bg-event-red text-white text-xs flex items-center justify-center">{unreadCount}</span>
+              )}
+          </button>
+          {isOpen && (
+              <div className="absolute right-0 z-10 mt-2 w-80 origin-top-right rounded-md bg-white dark:bg-gray-800 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                  <div className="flex justify-between items-center px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                       <h6 className="font-semibold text-gray-800 dark:text-gray-200">Notifications</h6>
+                       {unreadCount > 0 && <button onClick={handleMarkAllAsRead} className="text-sm text-event-blue hover:underline">Mark all as read</button>}
+                  </div>
+                  <div className="max-h-96 overflow-y-auto">
+                      {notifications && notifications.length > 0 ? (
+                          notifications.map(notification => (
+                              <Link to={notification.link || '#'} key={notification.id}
+                                    onClick={() => setIsOpen(false)}
+                                    className={`block px-4 py-3 text-sm ${!notification.is_read ? 'bg-blue-50 dark:bg-blue-900/20' : ''} hover:bg-gray-100 dark:hover:bg-gray-700`}
+                              >
+                                  <p className="font-medium text-gray-900 dark:text-white">{notification.message}</p>
+                                  <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">
+                                      {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                                  </p>
+                              </Link>
+                          ))
+                      ) : (
+                          <div className="px-4 py-4 text-center text-gray-500 dark:text-gray-400">
+                              You have no new notifications.
+                          </div>
+                      )}
+                  </div>
+              </div>
+          )}
+      </div>
+  );
 }
 
 export default function Navbar({ token, setToken, user }: Props) {
@@ -120,39 +197,42 @@ export default function Navbar({ token, setToken, user }: Props) {
           <div className="hidden md:block">
             <div className="ml-4 flex items-center md:ml-6">
               {token && user ? (
-                <div
-                  className="relative ml-3"
-                  ref={userMenuRef}
-                  onMouseEnter={() => setIsUserMenuOpen(true)}
-                  onMouseLeave={() => setIsUserMenuOpen(false)}
-                >
-                  <div>
-                    <button
-                      type="button"
-                      className="flex max-w-xs items-center rounded-full bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800 p-2"
-                      onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                    >
-                      <span className="sr-only">Open user menu</span>
-                       <span className="text-white mx-2 text-sm font-medium">{user.name}</span>
-                       <svg className={`h-5 w-5 text-gray-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  </div>
-                  {isUserMenuOpen && (
-                    <div className="absolute right-0 z-10 mt-0 w-48 origin-top-right rounded-md bg-white dark:bg-gray-800 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                      <NavLink to="/account" onClick={() => setIsUserMenuOpen(false)} className={({isActive}) => "block px-4 py-2 text-sm " + (isActive ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white" : "text-gray-700 dark:text-gray-200")}>
-                        My Account
-                      </NavLink>
-                       <button onClick={toggleTheme} className="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                        {isDarkMode ? "Light Mode" : "Dark Mode"}
-                      </button>
-                      <button onClick={handleLogout} className="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                        Logout
+                <>
+                  <NotificationBell />
+                  <div
+                    className="relative ml-3"
+                    ref={userMenuRef}
+                    onMouseEnter={() => setIsUserMenuOpen(true)}
+                    onMouseLeave={() => setIsUserMenuOpen(false)}
+                  >
+                    <div>
+                      <button
+                        type="button"
+                        className="flex max-w-xs items-center rounded-full bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800 p-2"
+                        onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                      >
+                        <span className="sr-only">Open user menu</span>
+                         <span className="text-white mx-2 text-sm font-medium">{user.name}</span>
+                         <svg className={`h-5 w-5 text-gray-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
                       </button>
                     </div>
-                  )}
-                </div>
+                    {isUserMenuOpen && (
+                      <div className="absolute right-0 z-10 mt-0 w-48 origin-top-right rounded-md bg-white dark:bg-gray-800 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                        <NavLink to="/account" onClick={() => setIsUserMenuOpen(false)} className={({isActive}) => "block px-4 py-2 text-sm " + (isActive ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white" : "text-gray-700 dark:text-gray-200")}>
+                          My Account
+                        </NavLink>
+                         <button onClick={toggleTheme} className="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                          {isDarkMode ? "Light Mode" : "Dark Mode"}
+                        </button>
+                        <button onClick={handleLogout} className="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                          Logout
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
               ) : (
                 <NavLink to="/auth" className={({ isActive }) => isActive ? activeLinkStyle : linkStyle}>Sign In</NavLink>
               )}

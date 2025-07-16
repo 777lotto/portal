@@ -31,7 +31,7 @@ import { handleStripeWebhook } from './handlers/stripe.js';
 import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed, handleAcceptQuote } from './handlers/public.js';
 
 // --- Customer Handlers ---
-import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent } from './handlers/profile.js';
+import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent, handleGetNotifications, handleMarkAllNotificationsRead } from './handlers/profile.js';
 import { handleListServices, handleGetService } from './handlers/services.js';
 import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl } from './handlers/jobs.js';
 import { handleGetUserPhotos, handleGetPhotosForJob } from './handlers/photos.js';
@@ -135,6 +135,8 @@ customerApi.get('/calendar/secret-url', handleGetSecretCalendarUrl);
 customerApi.post('/calendar/regenerate-url', handleRegenerateSecretCalendarUrl);
 customerApi.get('/profile/payment-methods', handleListPaymentMethods);
 customerApi.post('/profile/setup-intent', handleCreateSetupIntent);
+customerApi.get('/notifications', handleGetNotifications);
+customerApi.post('/notifications/read-all', handleMarkAllNotificationsRead);
 
 
 // --- Proxied Routes ---

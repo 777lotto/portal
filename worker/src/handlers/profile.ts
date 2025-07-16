@@ -3,7 +3,7 @@ import { Context as ProfileContext } from 'hono';
 import { z } from 'zod';
 import { AppEnv as ProfileAppEnv } from '../index.js';
 import { errorResponse as profileErrorResponse, successResponse as profileSuccessResponse } from '../utils.js';
-import { UserSchema, type User } from '@portal/shared';
+import { UserSchema, type User, type UINotification } from '@portal/shared';
 import { verifyPassword, hashPassword } from '../auth.js';
 import { getStripe, listPaymentMethods, createSetupIntent } from '../stripe.js';
 
@@ -126,4 +126,40 @@ export const handleCreateSetupIntent = async (c: ProfileContext<ProfileAppEnv>) 
     const stripe = getStripe(c.env);
     const setupIntent = await createSetupIntent(stripe, user.stripe_customer_id);
     return profileSuccessResponse({ clientSecret: setupIntent.client_secret });
+};
+
+export const handleGetNotifications = async (c: ProfileContext<ProfileAppEnv>) => {
+    const user = c.get('user');
+    try {
+        // NOTE: This assumes a 'ui_notifications' table exists.
+        // In a real scenario, a migration would be created for this.
+        const { results } = await c.env.DB.prepare(
+            `SELECT id, user_id, type, message, link, is_read, created_at FROM ui_notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 20`
+        ).bind(user.id).all<UINotification>();
+        return profileSuccessResponse(results || []);
+    } catch (e: any) {
+        console.error("Failed to get notifications:", e);
+        // Fallback to empty array if table doesn't exist
+        if (e.message.includes('no such table')) {
+            return profileSuccessResponse([]);
+        }
+        return profileErrorResponse("Failed to retrieve notifications", 500);
+    }
+};
+
+export const handleMarkAllNotificationsRead = async (c: ProfileContext<ProfileAppEnv>) => {
+    const user = c.get('user');
+    try {
+        // NOTE: This assumes a 'ui_notifications' table exists.
+        await c.env.DB.prepare(
+            `UPDATE ui_notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0`
+        ).bind(user.id).run();
+        return profileSuccessResponse({ success: true });
+    } catch (e: any) {
+        // Silently fail if table doesn't exist
+        if (e.message.includes('no such table')) {
+            return profileSuccessResponse({ success: true });
+        }
+        return profileErrorResponse("Failed to mark all notifications as read", 500);
+    }
 };

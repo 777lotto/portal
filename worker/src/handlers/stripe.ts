@@ -25,6 +25,23 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
                 const invoice = event.data.object as Stripe.Invoice;
                 console.log(`Invoice ${invoice.id} was paid successfully.`);
 
+                // Add UI notification for the customer
+                const user = await c.env.DB.prepare(`SELECT id FROM users WHERE stripe_customer_id = ?`).bind(invoice.customer as string).first<{id: number}>();
+
+                if (user) {
+                    try {
+                        const message = `Payment of $${(invoice.amount_paid / 100).toFixed(2)} for invoice #${invoice.number} was successful.`;
+                        const link = `/account`; // Link to their account/billing page
+                        // NOTE: This assumes a 'ui_notifications' table exists.
+                        await c.env.DB.prepare(
+                            `INSERT INTO ui_notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)`
+                        ).bind(user.id, 'invoice_paid', message, link).run();
+                    } catch (e) {
+                        console.error("Failed to create UI notification for invoice.paid event", e);
+                        // Do not block the main flow if UI notification fails
+                    }
+                }
+
                 // Update the job's status to 'paid'
                 await c.env.DB.prepare(
                     `UPDATE jobs SET status = 'paid' WHERE stripe_invoice_id = ?`

@@ -11,7 +11,8 @@ import {
   type Note,
   type PhotoWithNotes,
   type BlockedDate,
-  type StripeInvoice
+  type StripeInvoice,
+  type UINotification
 } from "@portal/shared";
 import { fetchJson } from './fetchJson.js';
 
@@ -187,3 +188,11 @@ export const syncCalendar = (url: string) => apiPost('/api/calendar-sync', { url
 
 export const getVapidKey = () => apiGet<string>('/api/notifications/vapid-key');
 export const subscribeToPush = (subscription: any) => apiPost('/api/notifications/subscribe', subscription);
+
+
+/* ========================================================================
+                             UI NOTIFICATIONS
+   ======================================================================== */
+
+export const getNotifications = () => apiGet<UINotification[]>('/api/notifications');
+export const markAllNotificationsRead = () => apiPost('/api/notifications/read-all', {});
