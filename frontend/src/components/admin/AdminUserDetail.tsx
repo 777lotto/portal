@@ -1,4 +1,4 @@
-// frontend/src/components/admin/AdminUserDetail.tsx
+// 777lotto/portal/portal-bet/frontend/src/components/admin/AdminUserDetail.tsx
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
@@ -6,6 +6,7 @@ import { apiGet, apiPost, apiPostFormData, adminCreateJobForUser, adminFinalizeJ
 import type { Job, User, PhotoWithNotes, Note, StripeInvoice } from '@portal/shared';
 import { InvoiceEditor } from './InvoiceEditor';
 import { QuoteManager } from './QuoteManager';
+import EditUserModal from './EditUserModal';
 
 function AdminUserDetail() {
   const { userId } = useParams<{ userId: string }>();
@@ -25,6 +26,7 @@ function AdminUserDetail() {
   const [isImporting, setIsImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [activeInvoice, setActiveInvoice] = useState<StripeInvoice | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
 
   const fetchDataForUser = useCallback(async () => {
@@ -51,6 +53,11 @@ function AdminUserDetail() {
   useEffect(() => {
     fetchDataForUser();
   }, [fetchDataForUser]);
+
+  const handleUserUpdated = (updatedUser: User) => {
+    setUser(updatedUser);
+    fetchDataForUser();
+  };
 
   const handleCreateInvoiceClick = async () => {
     if (!userId) return;
@@ -188,252 +195,262 @@ function AdminUserDetail() {
   if (isLoading) return <div className="container mt-4">Loading user details...</div>;
 
   return (
-    <div className="container max-w-7xl mx-auto mt-4">
-      <div className="flex justify-between items-center">
-        <Link to="/admin/users">&larr; Back to Users</Link>
-        <h2 className="mt-2 text-xl font-bold">Manage User: {user ? (user.name || user.company_name) : userId}</h2>
-        <button className="btn btn-secondary">Edit User</button>
-      </div>
-      {error && <div className="alert alert-danger">{error}</div>}
-      {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
-      {importMessage && <div className="alert alert-info">{importMessage}</div>}
-
-      {/* Job Management Card */}
-      <div className="card mt-4">
-        <div className="card-header flex justify-between items-center">
-            <h5 className="mb-0">Jobs</h5>
-            <div className="flex items-center gap-2">
-              <button
-                className="btn btn-secondary"
-                onClick={handleImportClick}
-                disabled={isImporting}
-              >
-                  {isImporting ? 'Importing...' : 'Import Invoices'}
-              </button>
-              <button className="btn btn-primary" onClick={() => setIsJobModalOpen(true)}>Add Job</button>
-            </div>
+    <>
+      <div className="container max-w-7xl mx-auto mt-4">
+        <div className="flex justify-between items-center">
+          <Link to="/admin/users">&larr; Back to Users</Link>
+          <h2 className="mt-2 text-xl font-bold">Manage User: {user ? (user.name || user.company_name) : userId}</h2>
+          <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(true)}>Edit User</button>
         </div>
-        <div className="card-body">
-            {jobs.length > 0 ? (
-                <ul className="list-group">
-                    {jobs.map(job => (
-                        <li key={job.id} className="list-group-item">
-                            <div className="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <Link to={`/jobs/${job.id}`} className="fw-bold">{job.title}</Link>
-                                    <p className="mb-0"><small>Date: {new Date(job.start).toLocaleString()}</small></p>
-                                    <p className="mb-0"><small>Status: <span className="badge bg-secondary">{job.status}</span></small></p>
-                                </div>
-                                {['upcoming', 'confirmed'].includes(job.status) && (
-                                  <button
-                                    className="btn btn-success"
-                                    onClick={() => handleFinalizeJob(job.id)}
-                                    disabled={isSubmitting}
-                                  >
-                                    {isSubmitting ? 'Finalizing...' : 'Finalize Job'}
-                                  </button>
-                                )}
-                            </div>
-                            <div className="mt-3">
-                                <QuoteManager job={job} onQuoteCreated={fetchDataForUser} />
-                            </div>
-                        </li>
-                    ))}
-                </ul>
-            ) : (
-                <p>No jobs found for this user.</p>
+        {error && <div className="alert alert-danger">{error}</div>}
+        {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
+        {importMessage && <div className="alert alert-info">{importMessage}</div>}
+
+        {/* Job Management Card */}
+        <div className="card mt-4">
+          <div className="card-header flex justify-between items-center">
+              <h5 className="mb-0">Jobs</h5>
+              <div className="flex items-center gap-2">
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleImportClick}
+                  disabled={isImporting}
+                >
+                    {isImporting ? 'Importing...' : 'Import Invoices'}
+                </button>
+                <button className="btn btn-primary" onClick={() => setIsJobModalOpen(true)}>Add Job</button>
+              </div>
+          </div>
+          <div className="card-body">
+              {jobs.length > 0 ? (
+                  <ul className="list-group">
+                      {jobs.map(job => (
+                          <li key={job.id} className="list-group-item">
+                              <div className="d-flex justify-content-between align-items-center">
+                                  <div>
+                                      <Link to={`/jobs/${job.id}`} className="fw-bold">{job.title}</Link>
+                                      <p className="mb-0"><small>Date: {new Date(job.start).toLocaleString()}</small></p>
+                                      <p className="mb-0"><small>Status: <span className="badge bg-secondary">{job.status}</span></small></p>
+                                  </div>
+                                  {['upcoming', 'confirmed'].includes(job.status) && (
+                                    <button
+                                      className="btn btn-success"
+                                      onClick={() => handleFinalizeJob(job.id)}
+                                      disabled={isSubmitting}
+                                    >
+                                      {isSubmitting ? 'Finalizing...' : 'Finalize Job'}
+                                    </button>
+                                  )}
+                              </div>
+                              <div className="mt-3">
+                                  <QuoteManager job={job} onQuoteCreated={fetchDataForUser} />
+                              </div>
+                          </li>
+                      ))}
+                  </ul>
+              ) : (
+                  <p>No jobs found for this user.</p>
+              )}
+          </div>
+        </div>
+
+        {/* Invoice Management Card */}
+        <div className="card mt-4">
+            <div className="card-header flex justify-between items-center">
+                <h5 className="mb-0">Manual Invoice</h5>
+                <button className="btn btn-info" onClick={handleCreateInvoiceClick} disabled={isSubmitting}>
+                    {isSubmitting ? 'Creating...' : 'Create New Invoice'}
+                </button>
+            </div>
+            {activeInvoice && (
+                <div className="card-body">
+                    <InvoiceEditor invoiceId={activeInvoice.id} onFinalize={() => {
+                        setActiveInvoice(null);
+                        fetchDataForUser();
+                    }} />
+                </div>
             )}
         </div>
-      </div>
-
-      {/* Invoice Management Card */}
-      <div className="card mt-4">
-          <div className="card-header flex justify-between items-center">
-              <h5 className="mb-0">Manual Invoice</h5>
-              <button className="btn btn-info" onClick={handleCreateInvoiceClick} disabled={isSubmitting}>
-                  {isSubmitting ? 'Creating...' : 'Create New Invoice'}
-              </button>
-          </div>
-          {activeInvoice && (
-              <div className="card-body">
-                  <InvoiceEditor invoiceId={activeInvoice.id} onFinalize={() => {
-                      setActiveInvoice(null);
-                      fetchDataForUser();
-                  }} />
-              </div>
-          )}
-      </div>
 
 
-      {/* Photo Management Card */}
-      <div className="card mt-4">
-        <div className="card-body">
-          <h5 className="card-title">Photo Management</h5>
+        {/* Photo Management Card */}
+        <div className="card mt-4">
+          <div className="card-body">
+            <h5 className="card-title">Photo Management</h5>
 
-          {/* Uploader */}
-          <div {...getRootProps()} className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:bg-light mb-4">
-            <input {...getInputProps()} />
-            {isDragActive ? <p>Drop the files here ...</p> : <p>Drag 'n' drop some files here, or click to select files</p>}
-          </div>
-          <div className="mb-3">
-            <label htmlFor="uploadJobId" className="form-label">Associate with Job (Optional)</label>
-            <select id="uploadJobId" className="form-select" value={uploadJobId} onChange={e => setUploadJobId(e.target.value)}>
-              <option value="">No specific job</option>
-              {jobs.map(job => (
-                <option key={job.id} value={job.id}>{job.title} - {new Date(job.start).toLocaleDateString()}</option>
-              ))}
-            </select>
-          </div>
+            {/* Uploader */}
+            <div {...getRootProps()} className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:bg-light mb-4">
+              <input {...getInputProps()} />
+              {isDragActive ? <p>Drop the files here ...</p> : <p>Drag 'n' drop some files here, or click to select files</p>}
+            </div>
+            <div className="mb-3">
+              <label htmlFor="uploadJobId" className="form-label">Associate with Job (Optional)</label>
+              <select id="uploadJobId" className="form-select" value={uploadJobId} onChange={e => setUploadJobId(e.target.value)}>
+                <option value="">No specific job</option>
+                {jobs.map(job => (
+                  <option key={job.id} value={job.id}>{job.title} - {new Date(job.start).toLocaleDateString()}</option>
+                ))}
+              </select>
+            </div>
 
-          {/* Photo Gallery */}
-          <div className="row">
-            {photos.map(photo => (
-              <div key={photo.id} className="col-md-6 col-lg-4 mb-4">
-                <div className="card h-100">
-                  <a href={photo.url} target="_blank" rel="noopener noreferrer">
-                    <img src={photo.url} alt="User upload" className="card-img-top" style={{ aspectRatio: '16/9', objectFit: 'cover' }} />
-                  </a>
-                  <div className="card-body">
-                    <p><small className="text-muted">Uploaded: {new Date(photo.created_at).toLocaleString()}</small></p>
-                    {photo.job_id && <p><small className="text-muted">Job ID: {photo.job_id}</small></p>}
+            {/* Photo Gallery */}
+            <div className="row">
+              {photos.map(photo => (
+                <div key={photo.id} className="col-md-6 col-lg-4 mb-4">
+                  <div className="card h-100">
+                    <a href={photo.url} target="_blank" rel="noopener noreferrer">
+                      <img src={photo.url} alt="User upload" className="card-img-top" style={{ aspectRatio: '16/9', objectFit: 'cover' }} />
+                    </a>
+                    <div className="card-body">
+                      <p><small className="text-muted">Uploaded: {new Date(photo.created_at).toLocaleString()}</small></p>
+                      {photo.job_id && <p><small className="text-muted">Job ID: {photo.job_id}</small></p>}
 
-                    {/* Notes Section */}
-                    <div className="mt-2">
-                      <h6>Notes:</h6>
-                      {photo.notes && photo.notes.length > 0 ? (
-                        <ul className="list-unstyled">
-                          {photo.notes.map((note: Note) => (
-                            <li key={note.id} className="mb-1">
-                              <p className="mb-0 text-sm">{note.content}</p>
-                              <small className="text-muted text-xs">{new Date(note.created_at).toLocaleString()}</small>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : <p className="text-muted text-sm">No notes for this photo.</p>}
+                      {/* Notes Section */}
+                      <div className="mt-2">
+                        <h6>Notes:</h6>
+                        {photo.notes && photo.notes.length > 0 ? (
+                          <ul className="list-unstyled">
+                            {photo.notes.map((note: Note) => (
+                              <li key={note.id} className="mb-1">
+                                <p className="mb-0 text-sm">{note.content}</p>
+                                <small className="text-muted text-xs">{new Date(note.created_at).toLocaleString()}</small>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : <p className="text-muted text-sm">No notes for this photo.</p>}
 
-                      {/* Add Note Form */}
-                      <div className="input-group mt-2">
-                        <input
-                          type="text"
-                          className="form-control form-control-sm"
-                          placeholder="Add a note..."
-                          value={noteInputs[photo.id] || ''}
-                          onChange={e => handleNoteChange(photo.id, e.target.value)}
-                        />
-                        <button className="btn btn-sm btn-outline-secondary" type="button" onClick={() => handleAddNote(photo.id)}>Add</button>
+                        {/* Add Note Form */}
+                        <div className="input-group mt-2">
+                          <input
+                            type="text"
+                            className="form-control form-control-sm"
+                            placeholder="Add a note..."
+                            value={noteInputs[photo.id] || ''}
+                            onChange={e => handleNoteChange(photo.id, e.target.value)}
+                          />
+                          <button className="btn btn-sm btn-outline-secondary" type="button" onClick={() => handleAddNote(photo.id)}>Add</button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
+
+        {/* Add Job Modal */}
+        {isJobModalOpen && (
+            <div className="modal show" style={{ display: 'block' }} tabIndex={-1}>
+                <div className="modal-dialog">
+                    <div className="modal-content">
+                        <form onSubmit={handleCreateJob}>
+                          <div className="modal-body">
+                            <div className="mb-3">
+                              <label htmlFor="title" className="form-label">Job Title</label>
+                              <input
+                                type="text"
+                                className="form-control"
+                                id="title"
+                                required
+                                value={newJobData.title}
+                                onChange={e => setNewJobData({ ...newJobData, title: e.target.value })}
+                              />
+                            </div>
+                            <div className="mb-3">
+                              <label htmlFor="start" className="form-label">Job Date</label>
+                              <input
+                                type="datetime-local"
+                                className="form-control"
+                                id="start"
+                                required
+                                value={newJobData.start}
+                                onChange={e => setNewJobData({ ...newJobData, start: e.target.value })}
+                              />
+                            </div>
+
+                            <hr className="my-4" />
+                            <h6 className="font-bold">Service Line Items</h6>
+                            {newJobData.services.map((service, index) => (
+                              <div key={index} className="row g-3 align-items-center mb-2">
+                                <div className="col">
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    placeholder="Service description"
+                                    required
+                                    value={service.notes}
+                                    onChange={e => {
+                                      const newServices = [...newJobData.services];
+                                      newServices[index].notes = e.target.value;
+                                      setNewJobData({ ...newJobData, services: newServices });
+                                    }}
+                                  />
+                                </div>
+                                <div className="col">
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    className="form-control"
+                                    placeholder="Price ($)"
+                                    required
+                                    value={service.price_cents}
+                                    onChange={e => {
+                                      const newServices = [...newJobData.services];
+                                      newServices[index].price_cents = e.target.value;
+                                      setNewJobData({ ...newJobData, services: newServices });
+                                    }}
+                                  />
+                                </div>
+                                <div className="col-auto">
+                                  {newJobData.services.length > 1 && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-danger"
+                                      onClick={() => {
+                                        const newServices = newJobData.services.filter((_, i) => i !== index);
+                                        setNewJobData({ ...newJobData, services: newServices });
+                                      }}
+                                    >
+                                      Remove
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                            <button
+                              type="button"
+                              className="btn btn-secondary mt-2"
+                              onClick={() => {
+                                const newServices = [...newJobData.services, { notes: '', price_cents: '' }];
+                                setNewJobData({ ...newJobData, services: newServices });
+                              }}
+                            >
+                              Add Another Service
+                            </button>
+
+                          </div>
+                          <div className="modal-footer">
+                            <button type="button" className="btn btn-secondary" onClick={() => setIsJobModalOpen(false)}>Close</button>
+                            <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+                              {isSubmitting ? 'Saving...' : 'Save Job'}
+                            </button>
+                          </div>
+                      </form>
+                    </div>
+                </div>
+            </div>
+        )}
       </div>
-
-      {/* Add Job Modal */}
-      {isJobModalOpen && (
-          <div className="modal show" style={{ display: 'block' }} tabIndex={-1}>
-              <div className="modal-dialog">
-                  <div className="modal-content">
-                      <form onSubmit={handleCreateJob}>
-  <div className="modal-body">
-    <div className="mb-3">
-      <label htmlFor="title" className="form-label">Job Title</label>
-      <input
-        type="text"
-        className="form-control"
-        id="title"
-        required
-        value={newJobData.title}
-        onChange={e => setNewJobData({ ...newJobData, title: e.target.value })}
-      />
-    </div>
-    <div className="mb-3">
-      <label htmlFor="start" className="form-label">Job Date</label>
-      <input
-        type="datetime-local"
-        className="form-control"
-        id="start"
-        required
-        value={newJobData.start}
-        onChange={e => setNewJobData({ ...newJobData, start: e.target.value })}
-      />
-    </div>
-
-    <hr className="my-4" />
-    <h6 className="font-bold">Service Line Items</h6>
-    {newJobData.services.map((service, index) => (
-      <div key={index} className="row g-3 align-items-center mb-2">
-        <div className="col">
-          <input
-            type="text"
-            className="form-control"
-            placeholder="Service description"
-            required
-            value={service.notes}
-            onChange={e => {
-              const newServices = [...newJobData.services];
-              newServices[index].notes = e.target.value;
-              setNewJobData({ ...newJobData, services: newServices });
-            }}
-          />
-        </div>
-        <div className="col">
-          <input
-            type="number"
-            step="0.01"
-            className="form-control"
-            placeholder="Price ($)"
-            required
-            value={service.price_cents}
-            onChange={e => {
-              const newServices = [...newJobData.services];
-              newServices[index].price_cents = e.target.value;
-              setNewJobData({ ...newJobData, services: newServices });
-            }}
-          />
-        </div>
-        <div className="col-auto">
-          {newJobData.services.length > 1 && (
-            <button
-              type="button"
-              className="btn btn-danger"
-              onClick={() => {
-                const newServices = newJobData.services.filter((_, i) => i !== index);
-                setNewJobData({ ...newJobData, services: newServices });
-              }}
-            >
-              Remove
-            </button>
-          )}
-        </div>
-      </div>
-    ))}
-    <button
-      type="button"
-      className="btn btn-secondary mt-2"
-      onClick={() => {
-        const newServices = [...newJobData.services, { notes: '', price_cents: '' }];
-        setNewJobData({ ...newJobData, services: newServices });
-      }}
-    >
-      Add Another Service
-    </button>
-
-  </div>
-  <div className="modal-footer">
-    <button type="button" className="btn btn-secondary" onClick={() => setIsJobModalOpen(false)}>Close</button>
-    <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-      {isSubmitting ? 'Saving...' : 'Save Job'}
-    </button>
-  </div>
-</form>
-                  </div>
-              </div>
-          </div>
+      {isEditModalOpen && user && (
+        <EditUserModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onUserUpdated={handleUserUpdated}
+          user={user}
+        />
       )}
-    </div>
+    </>
   );
 }
 

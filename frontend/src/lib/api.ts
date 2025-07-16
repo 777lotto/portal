@@ -1,4 +1,4 @@
-// frontend/src/lib/api.ts
+// 777lotto/portal/portal-bet/frontend/src/lib/api.ts
 import {
   type Job,
   type Service,
@@ -116,6 +116,7 @@ export const getJob = (id: string) => apiGet<Job>(`/api/jobs/${id}`);
    ======================================================================== */
 
 export const adminCreateUser = (data: unknown) => apiPost<User>('/api/admin/users', data);
+export const adminUpdateUser = (userId: string, data: Partial<User>) => apiPost<User>(`/api/admin/users/${userId}`, data, 'PUT');
 export const deleteUser = (userId: string) => fetchJson(`/api/admin/users/${userId}`, { method: 'DELETE' });
 export const getBlockedDates = () => apiGet<BlockedDate[]>('/api/admin/blocked-dates');
 export const addBlockedDate = (date: string, reason?: string) => apiPost('/api/admin/blocked-dates', { date, reason });

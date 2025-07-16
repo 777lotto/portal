@@ -156,6 +156,49 @@ export async function handleAdminCreateUser(c: Context<AppEnv>): Promise<Respons
     }
 }
 
+export async function handleAdminUpdateUser(c: Context<AppEnv>): Promise<Response> {
+    const { userId } = c.req.param();
+    const body = await c.req.json();
+    const parsed = AdminCreateUserSchema.partial().safeParse(body);
+
+    if (!parsed.success) {
+        return errorResponse('Invalid user data', 400, parsed.error.flatten());
+    }
+
+    const { name, company_name, email, phone, role } = parsed.data;
+    const db = c.env.DB;
+
+    try {
+        const existingUser = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(userId).first<User>();
+        if (!existingUser) {
+            return errorResponse("User not found", 404);
+        }
+
+        const lowercasedEmail = email?.toLowerCase();
+        const cleanedPhone = phone?.replace(/\D/g, '');
+
+        const updatedResult = await db.prepare(
+            `UPDATE users SET name = ?, company_name = ?, email = ?, phone = ?, role = ? WHERE id = ? RETURNING *`
+        ).bind(
+            name ?? existingUser.name,
+            company_name ?? existingUser.company_name,
+            lowercasedEmail ?? existingUser.email,
+            cleanedPhone ?? existingUser.phone,
+            role ?? existingUser.role,
+            userId
+        ).first<User>();
+
+        return successResponse(updatedResult);
+
+    } catch (e: any) {
+        if (e.message?.includes('UNIQUE constraint failed')) {
+            return errorResponse('A user with this email or phone number already exists.', 409);
+        }
+        console.error(`Failed to update user ${userId}:`, e);
+        return errorResponse('Failed to update user.', 500);
+    }
+}
+
 
 export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
     try {
