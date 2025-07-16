@@ -21,7 +21,7 @@ function AdminUserDetail() {
   const [noteInputs, setNoteInputs] = useState<Record<string, string>>({});
   const [uploadJobId, setUploadJobId] = useState<string>('');
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
-  const [newJobData, setNewJobData] = useState({ title: '', start: '', price: '' });
+  const [newJobData, setNewJobData] = useState({ title: '', start: '', services: [{ notes: '', price_cents: '' }] });
   const [isImporting, setIsImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [activeInvoice, setActiveInvoice] = useState<StripeInvoice | null>(null);
@@ -141,25 +141,32 @@ function AdminUserDetail() {
 
   const handleCreateJob = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userId || !newJobData.title || !newJobData.start || !newJobData.price) return;
+    if (!userId || !newJobData.title || !newJobData.start || newJobData.services.some(s => !s.notes || !s.price_cents)) {
+        setMessage({ type: 'danger', text: 'Please fill out all job and service fields.' });
+        return;
+    }
     setIsSubmitting(true);
     setMessage(null);
     try {
-      await adminCreateJobForUser(userId, {
-        title: newJobData.title,
-        start: new Date(newJobData.start).toISOString(),
-        price_cents: Math.round(parseFloat(newJobData.price) * 100),
-      });
-      setMessage({ type: 'success', text: 'Job created successfully!' });
-      setIsJobModalOpen(false);
-      setNewJobData({ title: '', start: '', price: '' });
-      fetchDataForUser(); // Refresh data
+        const payload = {
+            ...newJobData,
+            start: new Date(newJobData.start).toISOString(),
+            services: newJobData.services.map(s => ({
+                notes: s.notes,
+                price_cents: Math.round(parseFloat(s.price_cents) * 100)
+            }))
+        };
+        await adminCreateJobForUser(userId, payload);
+        setMessage({ type: 'success', text: 'Job created successfully!' });
+        setIsJobModalOpen(false);
+        setNewJobData({ title: '', start: '', services: [{ notes: '', price_cents: '' }] });
+        fetchDataForUser();
     } catch (err: any) {
-      setMessage({ type: 'danger', text: `Failed to create job: ${err.message}` });
+        setMessage({ type: 'danger', text: `Failed to create job: ${err.message}` });
     } finally {
-      setIsSubmitting(false);
+        setIsSubmitting(false);
     }
-  };
+};
 
   const handleFinalizeJob = async (jobId: string) => {
     if (!window.confirm("Are you sure you want to finalize this job? This will generate and send an invoice to the customer.")) {
@@ -327,31 +334,98 @@ function AdminUserDetail() {
               <div className="modal-dialog">
                   <div className="modal-content">
                       <form onSubmit={handleCreateJob}>
-                          <div className="modal-header">
-                              <h5 className="modal-title">Add New Job</h5>
-                              <button type="button" className="btn-close" onClick={() => setIsJobModalOpen(false)}></button>
-                          </div>
-                          <div className="modal-body">
-                              <div className="mb-3">
-                                  <label htmlFor="title" className="form-label">Service / Title</label>
-                                  <input type="text" className="form-control" id="title" required value={newJobData.title} onChange={e => setNewJobData({...newJobData, title: e.target.value})} />
-                              </div>
-                              <div className="mb-3">
-                                  <label htmlFor="start" className="form-label">Job Date</label>
-                                  <input type="datetime-local" className="form-control" id="start" required value={newJobData.start} onChange={e => setNewJobData({...newJobData, start: e.target.value})} />
-                              </div>
-                              <div className="mb-3">
-                                  <label htmlFor="price" className="form-label">Price ($)</label>
-                                  <input type="number" step="0.01" className="form-control" id="price" required value={newJobData.price} onChange={e => setNewJobData({...newJobData, price: e.target.value})} />
-                              </div>
-                          </div>
-                          <div className="modal-footer">
-                              <button type="button" className="btn btn-secondary" onClick={() => setIsJobModalOpen(false)}>Close</button>
-                              <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-                                {isSubmitting ? 'Saving...' : 'Save Job'}
-                              </button>
-                          </div>
-                      </form>
+  <div className="modal-body">
+    <div className="mb-3">
+      <label htmlFor="title" className="form-label">Job Title</label>
+      <input
+        type="text"
+        className="form-control"
+        id="title"
+        required
+        value={newJobData.title}
+        onChange={e => setNewJobData({ ...newJobData, title: e.target.value })}
+      />
+    </div>
+    <div className="mb-3">
+      <label htmlFor="start" className="form-label">Job Date</label>
+      <input
+        type="datetime-local"
+        className="form-control"
+        id="start"
+        required
+        value={newJobData.start}
+        onChange={e => setNewJobData({ ...newJobData, start: e.target.value })}
+      />
+    </div>
+
+    <hr className="my-4" />
+    <h6 className="font-bold">Service Line Items</h6>
+    {newJobData.services.map((service, index) => (
+      <div key={index} className="row g-3 align-items-center mb-2">
+        <div className="col">
+          <input
+            type="text"
+            className="form-control"
+            placeholder="Service description"
+            required
+            value={service.notes}
+            onChange={e => {
+              const newServices = [...newJobData.services];
+              newServices[index].notes = e.target.value;
+              setNewJobData({ ...newJobData, services: newServices });
+            }}
+          />
+        </div>
+        <div className="col">
+          <input
+            type="number"
+            step="0.01"
+            className="form-control"
+            placeholder="Price ($)"
+            required
+            value={service.price_cents}
+            onChange={e => {
+              const newServices = [...newJobData.services];
+              newServices[index].price_cents = e.target.value;
+              setNewJobData({ ...newJobData, services: newServices });
+            }}
+          />
+        </div>
+        <div className="col-auto">
+          {newJobData.services.length > 1 && (
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={() => {
+                const newServices = newJobData.services.filter((_, i) => i !== index);
+                setNewJobData({ ...newJobData, services: newServices });
+              }}
+            >
+              Remove
+            </button>
+          )}
+        </div>
+      </div>
+    ))}
+    <button
+      type="button"
+      className="btn btn-secondary mt-2"
+      onClick={() => {
+        const newServices = [...newJobData.services, { notes: '', price_cents: '' }];
+        setNewJobData({ ...newJobData, services: newServices });
+      }}
+    >
+      Add Another Service
+    </button>
+
+  </div>
+  <div className="modal-footer">
+    <button type="button" className="btn btn-secondary" onClick={() => setIsJobModalOpen(false)}>Close</button>
+    <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+      {isSubmitting ? 'Saving...' : 'Save Job'}
+    </button>
+  </div>
+</form>
                   </div>
               </div>
           </div>

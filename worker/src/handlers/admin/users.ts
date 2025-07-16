@@ -194,34 +194,40 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
   const { userId } = c.req.param();
   const body = await c.req.json();
 
-  // Basic validation
-  if (!body.title || !body.start || !body.price_cents) {
-    return errorResponse("Job title, start date, and price are required.", 400);
+  // New validation for the array of services
+  if (!body.title || !body.start || !Array.isArray(body.services) || body.services.length === 0) {
+    return errorResponse("Job title, start date, and at least one service are required.", 400);
   }
 
   try {
-    // 1. Create the job using the existing helper
+    // 1. Create the main job record
     const jobData = {
       title: body.title,
       description: `Created by admin on ${new Date().toLocaleDateString()}`,
       start: body.start,
-      // Assume a 1-hour duration for simplicity
+      // End time can be calculated based on services, or just set to a default.
+      // For simplicity, we'll keep the 1-hour default but you could make this more complex.
       end: new Date(new Date(body.start).getTime() + 60 * 60 * 1000).toISOString(),
       status: 'upcoming',
     };
     const newJob = await createJob(c.env, jobData, userId);
 
-    // 2. Create the associated service which acts as a line item
-    await c.env.DB.prepare(
-      `INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents)
-       VALUES (?, ?, ?, 'pending', ?, ?)`
-    ).bind(
-      parseInt(userId, 10),
-      newJob.id,
-      newJob.start,
-      body.title, // Use the job title as the service notes
-      body.price_cents
-    ).run();
+    // 2. Prepare to insert all services in a single batch
+    const serviceInserts = body.services.map((service: { notes: string, price_cents: number }) => {
+      return c.env.DB.prepare(
+        `INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents)
+         VALUES (?, ?, ?, 'pending', ?, ?)`
+      ).bind(
+        parseInt(userId, 10),
+        newJob.id,
+        newJob.start,
+        service.notes,
+        service.price_cents
+      );
+    });
+
+    // 3. Execute the batch insert. This is atomic - all succeed or all fail.
+    await c.env.DB.batch(serviceInserts);
 
     return successResponse(newJob, 201);
   } catch (e: any) {
