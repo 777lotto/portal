@@ -1,11 +1,11 @@
 // frontend/src/components/admin/AdminUserDetail.tsx
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
-import { apiGet, apiPost, apiPostFormData, adminCreateJobForUser, adminFinalizeJob } from '../../lib/api.js';
-import type { Job, User, StripeInvoice, Service, PhotoWithNotes, Note } from '@portal/shared';
-import { InvoiceEditor } from './InvoiceEditor.js';
-import { QuoteManager } from './QuoteManager.js';
+import { apiGet, apiPost, apiPostFormData, adminCreateJobForUser, adminFinalizeJob, adminImportInvoicesForUser, adminCreateInvoice } from '../../lib/api';
+import type { Job, User, PhotoWithNotes, Note, StripeInvoice } from '@portal/shared';
+import { InvoiceEditor } from './InvoiceEditor';
+import { QuoteManager } from './QuoteManager';
 
 function AdminUserDetail() {
   const { userId } = useParams<{ userId: string }>();
@@ -15,17 +15,16 @@ function AdminUserDetail() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [photos, setPhotos] = useState<PhotoWithNotes[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
-  const [selectedJobForServices, setSelectedJobForServices] = useState<Job | null>(null);
-  const [newService, setNewService] = useState({ notes: '', price: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'danger', text: string } | null>(null);
-  const [activeInvoice, setActiveInvoice] = useState<StripeInvoice | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [noteInputs, setNoteInputs] = useState<Record<string, string>>({});
   const [uploadJobId, setUploadJobId] = useState<string>('');
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
   const [newJobData, setNewJobData] = useState({ title: '', start: '', price: '' });
+  const [isImporting, setIsImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [activeInvoice, setActiveInvoice] = useState<StripeInvoice | null>(null);
 
 
   const fetchDataForUser = useCallback(async () => {
@@ -52,6 +51,48 @@ function AdminUserDetail() {
   useEffect(() => {
     fetchDataForUser();
   }, [fetchDataForUser]);
+
+  const handleCreateInvoiceClick = async () => {
+    if (!userId) return;
+    if (!window.confirm("Are you sure you want to create a new draft invoice for this user? This will not be associated with a specific job.")) {
+        return;
+    }
+
+    setMessage(null);
+    setIsSubmitting(true);
+    try {
+        const { invoice } = await adminCreateInvoice(userId);
+        setActiveInvoice(invoice);
+        setMessage({ type: 'success', text: 'Draft invoice created successfully! You can now add line items.' });
+    } catch (err: any) {
+        setMessage({ type: 'danger', text: `Failed to create invoice: ${err.message}` });
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
+  const handleImportClick = async () => {
+      if (!userId) return;
+      if (!window.confirm(`This will import this user's paid Stripe invoices as jobs. This may take a moment. Continue?`)) {
+          return;
+      }
+      setIsImporting(true);
+      setImportMessage(null);
+      setError(null);
+      try {
+          const result = await adminImportInvoicesForUser(userId);
+          let messageText = `Import complete! ${result.imported} jobs created, ${result.skipped} skipped.`;
+          if (result.errors && result.errors.length > 0) {
+              messageText += ` Errors: ${result.errors.join(', ')}`;
+          }
+          setImportMessage(messageText);
+          fetchDataForUser(); // Refresh the jobs list
+      } catch (err: any) {
+          setError(`Import failed: ${err.message}`);
+      } finally {
+          setIsImporting(false);
+      }
+  };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (!userId) return;
@@ -140,37 +181,52 @@ function AdminUserDetail() {
   if (isLoading) return <div className="container mt-4">Loading user details...</div>;
 
   return (
-    <div className="container mt-4">
+    <div className="container max-w-7xl mx-auto mt-4">
       <Link to="/admin/users">&larr; Back to Users</Link>
       <h2 className="mt-2">Manage User: {user ? user.name : userId}</h2>
       {error && <div className="alert alert-danger">{error}</div>}
       {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
+      {importMessage && <div className="alert alert-info">{importMessage}</div>}
 
       {/* Job Management Card */}
       <div className="card mt-4">
         <div className="card-header flex justify-between items-center">
             <h5 className="mb-0">Jobs</h5>
-            <button className="btn btn-primary" onClick={() => setIsJobModalOpen(true)}>Add Job</button>
+            <div className="flex items-center gap-2">
+              <button
+                className="btn btn-secondary"
+                onClick={handleImportClick}
+                disabled={isImporting}
+              >
+                  {isImporting ? 'Importing...' : 'Import Invoices'}
+              </button>
+              <button className="btn btn-primary" onClick={() => setIsJobModalOpen(true)}>Add Job</button>
+            </div>
         </div>
         <div className="card-body">
             {jobs.length > 0 ? (
                 <ul className="list-group">
                     {jobs.map(job => (
-                        <li key={job.id} className="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <Link to={`/jobs/${job.id}`} className="fw-bold">{job.title}</Link>
-                                <p className="mb-0"><small>Date: {new Date(job.start).toLocaleString()}</small></p>
-                                <p className="mb-0"><small>Status: <span className="badge bg-secondary">{job.status}</span></small></p>
+                        <li key={job.id} className="list-group-item">
+                            <div className="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <Link to={`/jobs/${job.id}`} className="fw-bold">{job.title}</Link>
+                                    <p className="mb-0"><small>Date: {new Date(job.start).toLocaleString()}</small></p>
+                                    <p className="mb-0"><small>Status: <span className="badge bg-secondary">{job.status}</span></small></p>
+                                </div>
+                                {['upcoming', 'confirmed'].includes(job.status) && (
+                                  <button
+                                    className="btn btn-success"
+                                    onClick={() => handleFinalizeJob(job.id)}
+                                    disabled={isSubmitting}
+                                  >
+                                    {isSubmitting ? 'Finalizing...' : 'Finalize Job'}
+                                  </button>
+                                )}
                             </div>
-                            {['upcoming', 'confirmed'].includes(job.status) && (
-                              <button
-                                className="btn btn-success"
-                                onClick={() => handleFinalizeJob(job.id)}
-                                disabled={isSubmitting}
-                              >
-                                {isSubmitting ? 'Finalizing...' : 'Finalize Job'}
-                              </button>
-                            )}
+                            <div className="mt-3">
+                                <QuoteManager job={job} onQuoteCreated={fetchDataForUser} />
+                            </div>
                         </li>
                     ))}
                 </ul>
@@ -179,6 +235,25 @@ function AdminUserDetail() {
             )}
         </div>
       </div>
+
+      {/* Invoice Management Card */}
+      <div className="card mt-4">
+          <div className="card-header flex justify-between items-center">
+              <h5 className="mb-0">Manual Invoice</h5>
+              <button className="btn btn-info" onClick={handleCreateInvoiceClick} disabled={isSubmitting}>
+                  {isSubmitting ? 'Creating...' : 'Create New Invoice'}
+              </button>
+          </div>
+          {activeInvoice && (
+              <div className="card-body">
+                  <InvoiceEditor invoiceId={activeInvoice.id} onFinalize={() => {
+                      setActiveInvoice(null);
+                      fetchDataForUser();
+                  }} />
+              </div>
+          )}
+      </div>
+
 
       {/* Photo Management Card */}
       <div className="card mt-4">

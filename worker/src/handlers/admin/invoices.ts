@@ -141,3 +141,62 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
         return errorResponse(`Failed to import invoices: ${e.message}`, 500);
     }
 }
+
+export async function handleAdminImportInvoicesForUser(c: Context<AppEnv>) {
+    const { userId } = c.req.param();
+    const stripe = getStripe(c.env);
+    const db = c.env.DB;
+    let importedCount = 0;
+    let skippedCount = 0;
+    const errors: string[] = [];
+
+    try {
+        const user = await db.prepare(`SELECT id, stripe_customer_id FROM users WHERE id = ?`).bind(userId).first<User>();
+        if (!user || !user.stripe_customer_id) {
+            return errorResponse("User not found or does not have a Stripe customer ID.", 404);
+        }
+
+        const invoices = await stripe.invoices.list({
+            customer: user.stripe_customer_id, // Filter by customer
+            status: 'paid',
+            limit: 100,
+            expand: ['data.lines.data'],
+        });
+
+        for (const invoice of invoices.data) {
+            if (!invoice.customer || typeof invoice.customer !== 'string' || invoice.customer !== user.stripe_customer_id) {
+                skippedCount++;
+                continue;
+            }
+
+            const existingJob = await db.prepare(`SELECT id FROM jobs WHERE stripe_invoice_id = ?`).bind(invoice.id).first();
+            if (existingJob) {
+                skippedCount++;
+                continue;
+            }
+
+            const jobStartDate = new Date((invoice.status_transitions.paid_at || invoice.created) * 1000);
+            const jobEndDate = new Date(jobStartDate.getTime() + 60 * 60 * 1000); // Assume 1 hour duration
+            const jobTitle = invoice.lines.data[0]?.description || invoice.description || `Imported Job ${invoice.id}`;
+            const newJobId = uuidv4();
+
+            const jobInsertStmt = db.prepare(
+                `INSERT INTO jobs (id, customerId, title, description, start, end, status, recurrence, stripe_invoice_id, invoice_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            ).bind(newJobId, user.id.toString(), jobTitle, invoice.description || `Imported from Stripe Invoice #${invoice.number}`, jobStartDate.toISOString(), jobEndDate.toISOString(), 'paid', 'none', invoice.id, new Date(invoice.created * 1000).toISOString());
+
+            const serviceInserts: D1PreparedStatement[] = invoice.lines.data.map(item =>
+                db.prepare(`INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents) VALUES (?, ?, ?, ?, ?, ?)`
+                ).bind(user.id, newJobId, jobStartDate.toISOString(), 'completed', item.description || 'Imported Service', item.amount)
+            );
+
+            await db.batch([jobInsertStmt, ...serviceInserts]);
+            importedCount++;
+        }
+
+        return successResponse({ message: `Import complete.`, imported: importedCount, skipped: skippedCount, errors });
+
+    } catch (e: any) {
+        console.error(`Failed to import Stripe invoices for user ${userId}:`, e);
+        return errorResponse(`Failed to import invoices: ${e.message}`, 500);
+    }
+}
