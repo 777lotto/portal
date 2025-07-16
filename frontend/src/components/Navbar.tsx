@@ -129,15 +129,18 @@ export default function Navbar({ token, setToken, user }: Props) {
                   <div>
                     <button
                       type="button"
-                      className="flex max-w-xs items-center rounded-full bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800"
+                      className="flex max-w-xs items-center rounded-full bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800 p-2"
                       onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                     >
                       <span className="sr-only">Open user menu</span>
-                       <span className="text-white mx-3 text-sm font-medium">{user.name}</span>
+                       <span className="text-white mx-2 text-sm font-medium">{user.name}</span>
+                       <svg className={`h-5 w-5 text-gray-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
                     </button>
                   </div>
                   {isUserMenuOpen && (
-                    <div className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white dark:bg-gray-800 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                    <div className="absolute right-0 z-10 mt-0 w-48 origin-top-right rounded-md bg-white dark:bg-gray-800 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
                       <NavLink to="/account" onClick={() => setIsUserMenuOpen(false)} className={({isActive}) => "block px-4 py-2 text-sm " + (isActive ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white" : "text-gray-700 dark:text-gray-200")}>
                         My Account
                       </NavLink>
