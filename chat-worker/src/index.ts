@@ -2,6 +2,8 @@
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { serveStatic } from 'hono/cloudflare-workers';
+import manifest from '__STATIC_CONTENT_MANIFEST';
 import type { Env } from '@portal/shared';
 
 type AppEnv = {
@@ -15,6 +17,7 @@ const app = new Hono<AppEnv>();
 
 app.use('*', cors());
 
+// API route is unchanged
 app.post('/api/token', async (c) => {
   const userId = c.req.header('X-Internal-User-Id');
   const userName = c.req.header('X-Internal-User-Name') || 'User';
@@ -32,16 +35,12 @@ app.post('/api/token', async (c) => {
   }
 
   const meetingId = "a-static-meeting-id-for-everyone";
-
-  // --- THIS IS THE CORRECTED LINE ---
   const rtkApiUrl = `https://rtk.realtime.cloudflare.com/v2/meetings/${meetingId}/participants`;
-  // ---------------------------------
 
-  const rtkResponse = await fetch(rtkApiUrl, { // Use the new URL
+  const rtkResponse = await fetch(rtkApiUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      // The Authorization header uses the Org ID and API Key as a Basic auth token
       'Authorization': `Basic ${btoa(`${DYTE_ORG_ID}:${DYTE_API_KEY}`)}`
     },
     body: JSON.stringify({
@@ -63,5 +62,15 @@ app.post('/api/token', async (c) => {
     token: responseData.data.token
   });
 });
+
+// ADDED: Serve static files for the chat frontend
+app.get('/*', serveStatic({
+    root: './',
+    manifest,
+}));
+app.get('*', serveStatic({
+    path: './index.html',
+    manifest,
+}));
 
 export default app;
