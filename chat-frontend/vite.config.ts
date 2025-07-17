@@ -1,19 +1,30 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react-swc';
+// In: 777lotto/portal/portal-bet/chat-frontend/vite.config.ts
+
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-
   server: {
-    // Run the chat-frontend on a different port
-    port: 5174,
+    // This is important for local development of the chat app
     proxy: {
-      // Proxy API requests to the local chat-worker
-      '/api': {
-        target: 'http://localhost:8788',
-        changeOrigin: true,
-      },
+      '/api': 'http://localhost:8788', // Proxies to the chat-worker
     },
   },
-});
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          // Splits the large RealtimeKit UI library into its own file
+          if (id.includes('@cloudflare/realtimekit-react-ui')) {
+            return 'vendor-realtimekit-ui';
+          }
+          if (id.includes('node_modules')) {
+            return 'vendor';
+          }
+        }
+      }
+    }
+  }
+})

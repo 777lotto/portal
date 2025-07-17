@@ -1,3 +1,5 @@
+// worker/src/auth.ts - UPDATED
+
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { Context, Next } from 'hono';
@@ -26,7 +28,6 @@ export const requireAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
         const secret = getJwtSecretKey(c.env.JWT_SECRET);
         const { payload } = await jwtVerify(token, secret);
         c.set('user', payload as User);
-        // FIXED: Added 'return' to pass control and the eventual response back up the chain.
         return await next();
     } catch (error) {
         console.error("Auth failed:", error);
@@ -37,13 +38,21 @@ export const requireAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
 // This middleware assumes requireAuthMiddleware has already run
 // and simply checks if the user has the 'admin' role.
 export const requireAdminAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
-    const user = c.get('user'); // User is populated by the first middleware
+    const user = c.get('user');
     if (user && user.role === 'admin') {
-        // FIXED: Added 'return' to proceed to the next handler.
-        return await next(); // User is an admin, proceed.
+        return await next();
     } else {
-        // If there's no user or the user isn't an admin, return a forbidden error.
         return c.json({ error: 'Forbidden: Admin access required' }, 403);
+    }
+};
+
+// NEW: Middleware specifically for chat authorization
+export const requireChatAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
+    const user = c.get('user'); // Assumes requireAuthMiddleware has run
+    if (user && (user.role === 'admin' || user.role === 'associate')) {
+        return await next(); // User is admin or associate, proceed.
+    } else {
+        return c.json({ error: 'Forbidden: You do not have permission to access chat.' }, 403);
     }
 };
 
@@ -98,7 +107,6 @@ export async function validateTurnstileToken(token: string, ip: string, env: Env
   }
 }
 
-// CORRECTED: Middleware to check for the special password-set token
 export const requirePasswordSetTokenMiddleware = async (c: Context<AppEnv>, next: Next) => {
     const authHeader = c.req.header("Authorization") || "";
     if (!authHeader.startsWith("Bearer ")) {
@@ -113,11 +121,7 @@ export const requirePasswordSetTokenMiddleware = async (c: Context<AppEnv>, next
         if (payload.purpose !== 'password-set' || !payload.sub) {
              return c.json({ error: 'Forbidden: Invalid token type' }, 403);
         }
-
-        // FIX: Cast the partial object to User to satisfy the type checker.
         c.set('user', { id: Number(payload.sub) } as User);
-
-        // FIX: Return the result of the next middleware
         return await next();
 
     } catch (error) {

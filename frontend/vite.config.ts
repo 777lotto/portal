@@ -1,5 +1,7 @@
+// In: 777lotto/portal/portal-bet/frontend/vite.config.ts
+
 import { defineConfig, loadEnv } from 'vite';
-import react from '@vitejs/plugin-react-swc';
+import react from '@vitejs/plugin-react-swc'; // Using your preferred swc plugin
 import { resolve } from 'path';
 
 // https://vitejs.dev/config/
@@ -10,7 +12,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
 
-    // Server configuration for local development (`pnpm dev`)
+    // PRESERVED: Your original server configuration for local development is kept intact.
     server: {
       port: 5173,
       proxy: {
@@ -25,16 +27,21 @@ export default defineConfig(({ mode }) => {
     // Build configuration (`pnpm build`)
     build: {
       sourcemap: true,
-      // IMPROVEMENT: Explicitly set the output directory for clarity
       outDir: 'dist',
       rollupOptions: {
         input: {
           main: resolve(__dirname, 'index.html'),
         },
-        // IMPROVEMENT: Optimize code splitting for better caching
+        // ADDED: The manualChunks logic to split large vendor libraries
         output: {
-          manualChunks(id) {
-            // Creates a separate 'vendor' chunk for packages from node_modules
+          manualChunks(id: string) {
+            // Isolate large libraries into their own chunks
+            if (id.includes('@cloudflare/realtimekit-react-ui')) {
+              return 'vendor-realtimekit-ui';
+            }
+            if (id.includes('react-big-calendar')) {
+              return 'vendor-calendar';
+            }
             if (id.includes('node_modules')) {
               return 'vendor';
             }

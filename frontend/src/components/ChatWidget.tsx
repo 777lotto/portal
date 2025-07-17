@@ -8,13 +8,12 @@ import {
   RtkUiProvider,
 } from '@cloudflare/realtimekit-react-ui';
 
-// This function fetches the chat token from your backend.
-// The main worker will proxy this request to the chat-worker.
+// This function fetches the chat token for the EMBEDDED widget. It's correct as is.
 async function getChatToken() {
   const res = await fetch('/api/chat/token', {
     method: 'POST',
     headers: {
-        // The fetchJson helper automatically includes the auth token
+        // The fetchJson helper automatically includes the auth token from localStorage
         'Authorization': `Bearer ${localStorage.getItem('token')}`
     }
    });
@@ -32,7 +31,7 @@ export function ChatWidget() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Initialize the meeting only when the modal is opened
+    // This logic correctly initializes the meeting for the embedded modal view.
     if (isOpen && !meeting) {
       setError(null);
       getChatToken()
@@ -59,9 +58,22 @@ export function ChatWidget() {
     setIsOpen(false);
   }
 
+  // NEW: This function opens the standalone chat app in a new tab,
+  // passing the user's main session token in the URL.
+  const openStandaloneChat = () => {
+    const userToken = localStorage.getItem('token');
+    if (userToken) {
+      // This constructs the URL like: https://chat.777.foo?token=ey...
+      window.open(`https://chat.777.foo?token=${userToken}`, '_blank');
+    } else {
+      // This should ideally not happen if the widget is only shown to logged-in users
+      alert("You must be logged in to open the standalone chat.");
+    }
+  };
+
   return (
     <>
-      {/* The floating chat button */}
+      {/* The floating chat button (no changes here) */}
       <button
         onClick={() => setIsOpen(true)}
         className="fixed bottom-4 right-4 bg-event-blue text-white rounded-full p-4 shadow-lg hover:bg-event-blue/90 z-40 transition-transform hover:scale-110"
@@ -78,7 +90,17 @@ export function ChatWidget() {
           <div className="bg-white dark:bg-tertiary-dark rounded-lg shadow-xl w-full max-w-4xl h-3/4 flex flex-col">
             <div className="flex justify-between items-center p-4 border-b border-border-light dark:border-border-dark">
                 <h3 className="text-lg font-bold">Live Chat</h3>
-                <button onClick={handleClose} className="text-text-primary-light dark:text-text-primary-dark">&times;</button>
+                {/* MODIFIED: Added a container for the new button */}
+                <div>
+                  <button
+                    onClick={openStandaloneChat}
+                    className="text-sm text-event-blue hover:underline mr-4"
+                    title="Open chat in a new tab"
+                  >
+                    Open Fullscreen
+                  </button>
+                  <button onClick={handleClose} className="text-text-primary-light dark:text-text-primary-dark">&times;</button>
+                </div>
             </div>
             <div className="flex-grow p-4">
               {error && <div className="alert alert-danger">Error: {error}</div>}
