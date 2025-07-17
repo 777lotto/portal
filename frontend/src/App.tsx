@@ -8,6 +8,7 @@ import { Elements } from '@stripe/react-stripe-js';
 // --- Page Components ---
 import Navbar from "./components/Navbar.js";
 import Dashboard from "./components/Dashboard.js";
+import { ChatWidget } from './components/ChatWidget.js';
 // Lazily load components that aren't needed on the initial page load
 const JobCalendar = lazy(() => import("./components/Calendar.js"));
 const JobDetail = lazy(() => import("./components/JobDetail.js"));
@@ -133,6 +134,8 @@ function App() {
           </Suspense>
         </Elements>
       </main>
+      {/* Add the chat widget here, it will only show if the user is logged in */}
+      {token && <ChatWidget />}
     </div>
   );
 }
