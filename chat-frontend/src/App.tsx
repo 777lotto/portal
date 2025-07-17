@@ -1,9 +1,16 @@
+// In: 777lotto/portal/portal-bet/chat-frontend/src/App.tsx
+
+// Correct imports based on the documentation
 import { useEffect, useState } from 'react';
-import { useDyteClient, DyteProvider } from '@cloudflare/realtimekit-react';
-import { DyteMeeting, DyteUiProvider } from '@cloudflare/realtimekit-react-ui';
+import {
+  RealtimeKitProvider,
+  useRealtimeKitClient,
+} from '@cloudflare/realtimekit-react';
+import {
+  RtkMeeting,
+  RtkUiProvider,
+} from '@cloudflare/realtimekit-react-ui';
 
-
-// This is a simple API helper for this standalone app.
 async function getDyteToken() {
   const res = await fetch('/api/token', { method: 'POST' });
   if (!res.ok) {
@@ -14,18 +21,22 @@ async function getDyteToken() {
 }
 
 function App() {
-  const [meeting, initMeeting] = useDyteClient();
+  const [meeting, initMeeting] = useRealtimeKitClient(); // Correct hook
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch the token when the component mounts
   useEffect(() => {
     getDyteToken()
       .then(setAuthToken)
-      .catch((err) => setError(err.message));
+      .catch((err: unknown) => {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('An unknown error occurred');
+        }
+      });
   }, []);
 
-  // Initialize the Dyte meeting once we have the token
   useEffect(() => {
     if (authToken) {
       initMeeting({
@@ -34,7 +45,13 @@ function App() {
           audio: false,
           video: false,
         },
-      }).catch((err) => setError(err.message));
+      }).catch((err: unknown) => {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('An unknown error occurred');
+        }
+      });
     }
   }, [authToken, initMeeting]);
 
@@ -46,12 +63,13 @@ function App() {
     return <div>Loading chat...</div>;
   }
 
+  // Use the correct RealtimeKit and Rtk components
   return (
-    <DyteProvider value={meeting}>
-      <DyteUiProvider>
-        <DyteMeeting meeting={meeting} style={{ height: '100vh' }} />
-      </DyteUiProvider>
-    </DyteProvider>
+    <RealtimeKitProvider value={meeting}>
+      <RtkUiProvider>
+        <RtkMeeting meeting={meeting} style={{ height: '100vh' }} />
+      </RtkUiProvider>
+    </RealtimeKitProvider>
   );
 }
 

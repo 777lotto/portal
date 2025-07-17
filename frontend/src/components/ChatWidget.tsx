@@ -1,6 +1,11 @@
-import { useState, useEffect } from 'react';
-import { useDyteClient, DyteProvider } from '@cloudflare/realtimekit-react';
-import { DyteMeeting, DyteUiProvider } from '@cloudflare/realtimekit-react-ui';
+import {
+  RealtimeKitProvider,
+  useRealtimeKitClient,
+} from '@cloudflare/realtimekit-react';
+import {
+  RtkMeeting,
+  RtkUiProvider,
+} from '@cloudflare/realtimekit-react-ui';
 
 // This function is now much simpler!
 async function getChatToken() {
@@ -19,7 +24,7 @@ async function getChatToken() {
 // The rest of the ChatWidget component remains the same as before...
 export function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
-  const [meeting, initMeeting] = useDyteClient();
+  const [meeting, initMeeting] = useRealtimeKitClient(); // Correct hook
 
   useEffect(() => {
     if (isOpen && !meeting) {
@@ -56,17 +61,15 @@ export function ChatWidget() {
       {isOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl h-3/4 flex flex-col">
-            <div className="p-2 border-b flex justify-between items-center">
-              <h3 className="font-bold text-lg">Support Chat</h3>
-              <button onClick={handleClose} className="font-bold p-2">X</button>
-            </div>
+            {/* ... (header) */}
             <div className="flex-grow">
               {meeting ? (
-                <DyteProvider value={meeting}>
-                  <DyteUiProvider>
-                    <DyteMeeting meeting={meeting} showSetupScreen={false} />
-                  </DyteUiProvider>
-                </DyteProvider>
+                // Use the correct RealtimeKit and Rtk components
+                <RealtimeKitProvider value={meeting}>
+                  <RtkUiProvider>
+                    <RtkMeeting meeting={meeting} showSetupScreen={false} />
+                  </RtkUiProvider>
+                </RealtimeKitProvider>
               ) : (
                 <div>Loading...</div>
               )}

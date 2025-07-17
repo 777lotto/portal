@@ -84,6 +84,7 @@ const handleChatProxy = async (c: Context<AppEnv>) => {
     const newRequest = new Request(c.req.url, c.req.raw);
     const user = c.get('user');
     newRequest.headers.set('X-Internal-User-Id', user.id.toString());
+    newRequest.headers.set('X-Internal-User-Name', user.name); // <-- ADD THIS LINE
     newRequest.headers.set('X-Internal-User-Role', user.role);
     return await chatService.fetch(newRequest);
 };
@@ -158,8 +159,7 @@ customerApi.post('/notifications/read-all', handleMarkAllNotificationsRead);
 // --- Proxied Routes ---
 customerApi.all('/sms/*', handleSmsProxy);
 customerApi.all('/notifications/*', handleNotificationProxy);
-customerApi.all('/chat/*', handleChatProxy);
-
+customerApi.all('/chat/*', requireAuthMiddleware, handleChatProxy);
 
 /* ========================================================================
                          ADMIN API ROUTES (Admin-Only)

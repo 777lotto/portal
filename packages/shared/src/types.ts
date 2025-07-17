@@ -254,6 +254,7 @@ export interface Env {
   DB: D1Database;
   NOTIFICATION_SERVICE: Fetcher;
   NOTIFICATION_QUEUE: Queue;
+  CHAT_SERVICE: Fetcher;
 
   // Secrets
   JWT_SECRET: string;

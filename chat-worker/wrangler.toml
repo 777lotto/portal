@@ -1,24 +1,45 @@
+# In: 777lotto/portal/portal-bet/chat-worker/wrangler.toml
+
 name = "chat-worker"
 main = "src/index.ts"
 account_id = "67d3a6021370e7b666fff2023b2db359"
 compatibility_date = "2024-05-28"
 compatibility_flags = [ "nodejs_compat_v2" ]
 
-# Bind to the same D1 database as your main worker
-[[d1_databases]]
+[site]
+bucket = "../chat-frontend/dist"
+
+# --- REMOVE THE D1 CONFIG FROM THE TOP LEVEL ---
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "gutter_db"
+# database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+
+# ===============================================================
+#      DEVELOPMENT-SPECIFIC CONFIGURATION
+# ===============================================================
+[env.development]
+
+# Development D1 binding
+[[env.development.d1_databases]]
 binding = "DB"
 database_name = "gutter_db"
 database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+migrations_dir = "../worker/migrations"
 
+# ===============================================================
+#      PRODUCTION-SPECIFIC CONFIGURATION
+# ===============================================================
 [env.production]
-# This sets up the subdomain
 routes = [
   { pattern = "chat.777.foo/*", zone_name = "777.foo" }
 ]
 
 [env.production.vars]
 ENVIRONMENT = "production"
-# You will get these from your Dyte account dashboard
-# Add these secrets using `npx wrangler secret put ...`
-# DYTE_ORG_ID = "..."
-# DYTE_API_KEY = "..."
+
+# --- ADD THE D1 CONFIG TO THE PRODUCTION ENV ---
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "gutter_db"
+database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
