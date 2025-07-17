@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getProfile, getJobs, getServices, adminGetAllJobs, adminGetAllServices } from '../lib/api.js';
 import type { User, Job, Service } from '@portal/shared';
+import { ChatWidget } from './ChatWidget';
 
 function Dashboard() {
   const [user, setUser] = useState<User | null>(null);

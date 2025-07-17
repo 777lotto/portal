@@ -76,6 +76,18 @@ const handleNotificationProxy = async (c: Context<AppEnv>) => {
     return await notificationService.fetch(newRequest);
 };
 
+const handleChatProxy = async (c: Context<AppEnv>) => {
+    const chatService = c.env.CHAT_SERVICE;
+    if (!chatService) {
+        return c.json({ error: "Chat service is unavailable" }, 503);
+    }
+    const newRequest = new Request(c.req.url, c.req.raw);
+    const user = c.get('user');
+    newRequest.headers.set('X-Internal-User-Id', user.id.toString());
+    newRequest.headers.set('X-Internal-User-Role', user.role);
+    return await chatService.fetch(newRequest);
+};
+
 /* ========================================================================
                                  APP SETUP
    ======================================================================== */
@@ -146,6 +158,7 @@ customerApi.post('/notifications/read-all', handleMarkAllNotificationsRead);
 // --- Proxied Routes ---
 customerApi.all('/sms/*', handleSmsProxy);
 customerApi.all('/notifications/*', handleNotificationProxy);
+customerApi.all('/chat/*', handleChatProxy);
 
 
 /* ========================================================================

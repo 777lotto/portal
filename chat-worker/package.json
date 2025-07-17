@@ -1,0 +1,21 @@
+{
+  "name": "@portal/chat-worker",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy --env production",
+    "deploy:dev": "wrangler deploy",
+    "dev": "wrangler dev --port 8788 --inspector-port 9232 --env development",
+    "start": "wrangler dev"
+  },
+  "dependencies": {
+    "@portal/shared": "workspace:*",
+    "hono": "^4.7.10"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240528.0",
+    "typescript": "^5.5.2",
+    "wrangler": "^4.13.2"
+  }
+}

@@ -46,6 +46,11 @@ service = "notification"
 binding = "PAYMENT_SERVICE"
 service = "payment"
 
+[[env.development.services]]
+binding = "CHAT_SERVICE"
+service = "chat-worker"
+
+
 # Development queue binding
 [[env.development.queues.producers]]
 queue = "notifications"
@@ -80,6 +85,11 @@ service = "notification-production"
 [[env.production.services]]
 binding = "PAYMENT_SERVICE"
 service = "payment-production"
+
+[[env.production.services]]
+binding = "CHAT_SERVICE"
+service = "chat-worker-production"
+
 
 # Production queue binding
 [[env.production.queues.producers]]
