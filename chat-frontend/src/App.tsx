@@ -4,8 +4,6 @@ import { useEffect, useState } from 'react';
 import {
   RealtimeKitProvider,
   useRealtimeKitClient,
-  // NEW: Import RtkSession type
-  type RtkSession,
 } from '@cloudflare/realtimekit-react';
 import {
   RtkMeeting,
@@ -34,8 +32,8 @@ async function getChatCredentials(userAuthToken: string): Promise<{ sessionId: s
 
 function App() {
   const [meeting, initMeeting] = useRealtimeKitClient();
-  // State to hold both sessionId and token
-  const [session, setSession] = useState<RtkSession | null>(null);
+  // Update the local type to use authToken
+  const [session, setSession] = useState<{ sessionId: string; authToken: string; } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -57,7 +55,8 @@ function App() {
           .then(credentials => {
               setSession({
                   sessionId: credentials.sessionId,
-                  token: credentials.token
+                  // FIX: Rename 'token' to 'authToken' to match what initMeeting expects
+                  authToken: credentials.token
               });
           })
           .catch((err: unknown) => {
@@ -83,6 +82,7 @@ function App() {
 
   useEffect(() => {
     // Initialize the meeting only when we have valid session credentials
+    // The 'session' object now has the correct shape
     if (session) {
       initMeeting(session).catch((err: unknown) => {
         if (err instanceof Error) {

@@ -39,9 +39,16 @@ routes = [
 
 [env.production.vars]
 ENVIRONMENT = "production"
+# You should add your ACCOUNT_ID here as a variable so your code can access it
+ACCOUNT_ID = "67d3a6021370e7b666fff2023b2db359"
 
 # --- ADD THE D1 CONFIG TO THE PRODUCTION ENV ---
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "gutter_db"
 database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+
+# --- ADD THIS BLOCK FOR KV ---
+[[env.production.kv_namespaces]]
+binding = "CHAT_SESSIONS_PROD"
+id = "7249042bdea841bd82796c90a5591a0c"

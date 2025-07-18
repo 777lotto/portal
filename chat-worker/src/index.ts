@@ -1,6 +1,7 @@
 // In: 777lotto/portal/portal-bet/chat-worker/src/index.ts
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { cors } from 'hono/cors';
 import { serveStatic } from 'hono/cloudflare-workers';
 import manifest from '__STATIC_CONTENT_MANIFEST';
@@ -30,7 +31,7 @@ app.use('*', cors());
 const SESSION_KV_KEY = "main_chat_session_id";
 
 // Creates a new voice conference session using the Cloudflare API
-async function createNewSession(c: HonoContext<AppEnv>) {
+async function createNewSession(c: Context<AppEnv>) {
     const { ACCOUNT_ID, CLOUDFLARE_API_TOKEN, CHAT_SESSIONS } = c.env;
     const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/calls/v1/sessions`;
 
@@ -57,7 +58,7 @@ async function createNewSession(c: HonoContext<AppEnv>) {
 }
 
 // Gets the current session ID, creating one if it doesn't exist
-async function getSessionId(c: HonoContext<AppEnv>) {
+async function getSessionId(c: Context<AppEnv>) {
     let sessionId = await c.env.CHAT_SESSIONS.get(SESSION_KV_KEY);
     if (!sessionId) {
         sessionId = await createNewSession(c);
@@ -111,8 +112,10 @@ app.post('/api/chat/token', async (c) => {
                 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`,
                 'Content-Type': 'application/json'
             },
-            // You can add an expiry here if desired, e.g., { exp: Math.floor(Date.now() / 1000) + 3600 }
-            body: JSON.stringify({})
+            body: JSON.stringify({
+                user_id: userId,
+                user_name: userName
+            })
         });
 
         if (!authTokenResponse.ok) {
