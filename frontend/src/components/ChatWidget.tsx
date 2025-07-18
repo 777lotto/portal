@@ -8,7 +8,7 @@ import {
   RtkUiProvider,
 } from '@cloudflare/realtimekit-react-ui';
 
-// This function fetches the chat token for the EMBEDDED widget. It's correct as is.
+// This function fetches the chat token for the EMBEDDED widget.
 async function getChatToken() {
   const res = await fetch('/api/chat/token', {
     method: 'POST',
@@ -58,7 +58,7 @@ export function ChatWidget() {
     setIsOpen(false);
   }
 
-  // NEW: This function opens the standalone chat app in a new tab,
+  // This function opens the standalone chat app in a new tab,
   // passing the user's main session token in the URL.
   const openStandaloneChat = () => {
     const userToken = localStorage.getItem('token');
@@ -73,7 +73,7 @@ export function ChatWidget() {
 
   return (
     <>
-      {/* The floating chat button (no changes here) */}
+      {/* The floating chat button */}
       <button
         onClick={() => setIsOpen(true)}
         className="fixed bottom-4 right-4 bg-event-blue text-white rounded-full p-4 shadow-lg hover:bg-event-blue/90 z-40 transition-transform hover:scale-110"
@@ -90,7 +90,6 @@ export function ChatWidget() {
           <div className="bg-white dark:bg-tertiary-dark rounded-lg shadow-xl w-full max-w-4xl h-3/4 flex flex-col">
             <div className="flex justify-between items-center p-4 border-b border-border-light dark:border-border-dark">
                 <h3 className="text-lg font-bold">Live Chat</h3>
-                {/* MODIFIED: Added a container for the new button */}
                 <div>
                   <button
                     onClick={openStandaloneChat}

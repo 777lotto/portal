@@ -1,5 +1,3 @@
-// In: 777lotto/portal/portal-bet/chat-frontend/src/App.tsx
-
 import { useEffect, useState } from 'react';
 import {
   RealtimeKitProvider,
@@ -32,7 +30,6 @@ async function getChatCredentials(userAuthToken: string): Promise<{ sessionId: s
 
 function App() {
   const [meeting, initMeeting] = useRealtimeKitClient();
-  // Update the local type to use authToken
   const [session, setSession] = useState<{ sessionId: string; authToken: string; } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -55,7 +52,6 @@ function App() {
           .then(credentials => {
               setSession({
                   sessionId: credentials.sessionId,
-                  // FIX: Rename 'token' to 'authToken' to match what initMeeting expects
                   authToken: credentials.token
               });
           })
@@ -82,7 +78,6 @@ function App() {
 
   useEffect(() => {
     // Initialize the meeting only when we have valid session credentials
-    // The 'session' object now has the correct shape
     if (session) {
       initMeeting(session).catch((err: unknown) => {
         if (err instanceof Error) {

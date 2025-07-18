@@ -1,5 +1,4 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-// In: 777lotto/portal/portal-bet/chat-frontend/src/App.tsx
 import { useEffect, useState } from 'react';
 import { RealtimeKitProvider, useRealtimeKitClient, } from '@cloudflare/realtimekit-react';
 import { RtkMeeting, RtkUiProvider, } from '@cloudflare/realtimekit-react-ui';
@@ -23,7 +22,6 @@ async function getChatCredentials(userAuthToken) {
 }
 function App() {
     const [meeting, initMeeting] = useRealtimeKitClient();
-    // Update the local type to use authToken
     const [session, setSession] = useState(null);
     const [error, setError] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -42,7 +40,6 @@ function App() {
             .then(credentials => {
             setSession({
                 sessionId: credentials.sessionId,
-                // FIX: Rename 'token' to 'authToken' to match what initMeeting expects
                 authToken: credentials.token
             });
         })
@@ -69,7 +66,6 @@ function App() {
     }, []);
     useEffect(() => {
         // Initialize the meeting only when we have valid session credentials
-        // The 'session' object now has the correct shape
         if (session) {
             initMeeting(session).catch((err) => {
                 if (err instanceof Error) {
