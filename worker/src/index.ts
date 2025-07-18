@@ -15,7 +15,7 @@ import { handleGoogleLogin, handleGoogleCallback } from './handlers/google.js';
    ======================================================================== */
 
 import { errorResponse } from './utils.js';
-import { requireAuthMiddleware, requireAdminAuthMiddleware, requirePasswordSetTokenMiddleware, requireChatAuthMiddleware } from './auth.js';
+import { requireAuthMiddleware, requireAdminAuthMiddleware, requirePasswordSetTokenMiddleware } from './auth.js';
 
 /* ========================================================================
                                 PROXIES
@@ -159,7 +159,7 @@ customerApi.post('/notifications/read-all', handleMarkAllNotificationsRead);
 // --- Proxied Routes ---
 customerApi.all('/sms/*', handleSmsProxy);
 customerApi.all('/notifications/*', handleNotificationProxy);
-customerApi.all('/chat/*', requireAuthMiddleware, requireChatAuthMiddleware, handleChatProxy);
+customerApi.all('/chat/*', requireAuthMiddleware, handleChatProxy);
 
 /* ========================================================================
                          ADMIN API ROUTES (Admin-Only)
