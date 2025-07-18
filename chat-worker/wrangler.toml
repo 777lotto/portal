@@ -1,3 +1,4 @@
+
 # In: 777lotto/portal/portal-bet/chat-worker/wrangler.toml
 
 name = "chat-worker"
@@ -8,6 +9,7 @@ compatibility_flags = [ "nodejs_compat_v2" ]
 
 [site]
 bucket = "../chat-frontend/dist"
+
 
 # --- REMOVE THE D1 CONFIG FROM THE TOP LEVEL ---
 # [[d1_databases]]

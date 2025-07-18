@@ -5,15 +5,16 @@ import { cors } from 'hono/cors';
 import { serveStatic } from 'hono/cloudflare-workers';
 import manifest from '__STATIC_CONTENT_MANIFEST';
 import type { Env, User } from '@portal/shared';
-import { jwtVerify } from 'jose'; // NEW: Import jwtVerify
+import { jwtVerify } from 'jose';
 
 type AppEnv = {
   Bindings: Env & {
     CLOUDFLARE_API_TOKEN: string;
+    ACCOUNT_ID: string; // Add your Cloudflare Account ID here
+    CHAT_SESSIONS: KVNamespace; // Use KV to store the session ID
   };
 };
 
-// NEW: Add this helper function to create the secret key
 function getJwtSecretKey(secret: string): Uint8Array {
   const encoder = new TextEncoder();
   return encoder.encode(secret);
@@ -23,76 +24,123 @@ const app = new Hono<AppEnv>();
 
 app.use('*', cors());
 
-// MODIFICATION: Replace the entire existing `/api/token` (or `/api/chat/token`) handler with this new logic.
+// --- NEW SESSION MANAGEMENT LOGIC ---
+
+// A stable key to store our main chat room session ID in KV
+const SESSION_KV_KEY = "main_chat_session_id";
+
+// Creates a new voice conference session using the Cloudflare API
+async function createNewSession(c: HonoContext<AppEnv>) {
+    const { ACCOUNT_ID, CLOUDFLARE_API_TOKEN, CHAT_SESSIONS } = c.env;
+    const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/calls/v1/sessions`;
+
+    const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`,
+            'Content-Type': 'application/json'
+        },
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Fatal: Could not create new chat session:", response.status, errorText);
+        throw new Error('Could not create a new chat session.');
+    }
+
+    const data: any = await response.json();
+    const sessionId = data.result.session_id;
+
+    // Store the new session ID in KV for persistence across worker reloads
+    await CHAT_SESSIONS.put(SESSION_KV_KEY, sessionId);
+    return sessionId;
+}
+
+// Gets the current session ID, creating one if it doesn't exist
+async function getSessionId(c: HonoContext<AppEnv>) {
+    let sessionId = await c.env.CHAT_SESSIONS.get(SESSION_KV_KEY);
+    if (!sessionId) {
+        sessionId = await createNewSession(c);
+    }
+    return sessionId;
+}
+
+// --- UPDATED TOKEN ENDPOINT ---
+
 app.post('/api/chat/token', async (c) => {
-  let userId, userName, userRole;
+    let userId, userName; // userRole is no longer needed for the token request
 
-  // Case 1: Request is from the main worker's proxy (internal headers are present)
-  const internalUserId = c.req.header('X-Internal-User-Id');
-  if (internalUserId) {
-    userId = internalUserId;
-    userName = c.req.header('X-Internal-User-Name') || 'User';
-    userRole = c.req.header('X-Internal-User-Role') || 'customer';
-  } else {
-    // Case 2: Direct request from standalone app. We must validate the JWT.
-    const authHeader = c.req.header("Authorization");
-    const token = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null;
+    const { CLOUDFLARE_API_TOKEN, ACCOUNT_ID } = c.env;
+    if (!CLOUDFLARE_API_TOKEN || !ACCOUNT_ID) {
+        console.error("FATAL: CLOUDFLARE_API_TOKEN or ACCOUNT_ID is not configured.");
+        return c.json({ error: "Chat service is not configured." }, 500);
+    }
 
-    if (!token) {
-      return c.json({ error: "Unauthorized: Missing token" }, 401);
+    // --- Authenticate the user (same logic as before) ---
+    const internalUserId = c.req.header('X-Internal-User-Id');
+    if (internalUserId) {
+        userId = internalUserId;
+        userName = c.req.header('X-Internal-User-Name') || 'User';
+    } else {
+        const authHeader = c.req.header("Authorization");
+        const token = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null;
+        if (!token) return c.json({ error: "Unauthorized: Missing token" }, 401);
+
+        try {
+            const secret = getJwtSecretKey(c.env.JWT_SECRET);
+            const { payload } = await jwtVerify(token, secret);
+            const user = payload as User;
+            userId = user.id.toString();
+            userName = user.name;
+        } catch (e) {
+            console.error("JWT validation failed in chat-worker:", e);
+            return c.json({ error: "Unauthorized: Invalid token" }, 401);
+        }
     }
 
     try {
-      const secret = getJwtSecretKey(c.env.JWT_SECRET);
-      const { payload } = await jwtVerify(token, secret);
-      const user = payload as User;
+        // Step 1: Get the persistent session ID.
+        const sessionId = await getSessionId(c);
 
-      // Check if the user is authorized for the standalone chat app
-      if (user.role !== 'admin' && user.role !== 'associate') {
-          return c.json({ error: 'Forbidden: You do not have permission to access chat.' }, 403);
-      }
+        // Step 2: Generate a user-specific, temporary auth token for that session.
+        const authApiUrl = `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/calls/v1/sessions/${sessionId}/auth`;
 
-      userId = user.id.toString();
-      userName = user.name;
-      userRole = user.role;
+        const authTokenResponse = await fetch(authApiUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`,
+                'Content-Type': 'application/json'
+            },
+            // You can add an expiry here if desired, e.g., { exp: Math.floor(Date.now() / 1000) + 3600 }
+            body: JSON.stringify({})
+        });
+
+        if (!authTokenResponse.ok) {
+            const errorBody = await authTokenResponse.text();
+            console.error("Failed to get user auth token:", authTokenResponse.status, errorBody);
+            // If the session is invalid (e.g., expired), try creating a new one and retry
+            if(authTokenResponse.status === 404) {
+                 console.log("Session not found. Attempting to create a new one.");
+                 await createNewSession(c); // This will update the KV store
+                 return c.json({ error: "Chat session was refreshed. Please try again." }, 503);
+            }
+            return c.json({ error: "Could not authenticate for chat service." }, 500);
+        }
+
+        const authData: any = await authTokenResponse.json();
+
+        // Step 3: Return both the session ID and the new token to the client.
+        return c.json({
+            sessionId: sessionId,
+            token: authData.result.token
+        });
+
     } catch (e) {
-      console.error("JWT validation failed in chat-worker:", e);
-      return c.json({ error: "Unauthorized: Invalid token" }, 401);
+        console.error("Error in /api/chat/token handler:", e);
+        return c.json({ error: "An internal error occurred while setting up the chat." }, 500);
     }
-  }
-
-  // The rest of the logic for getting a RealtimeKit token is the same
-  const { CLOUDFLARE_API_TOKEN } = c.env;
-  if (!CLOUDFLARE_API_TOKEN) {
-    console.error("CLOUDFLARE_API_TOKEN is not configured.");
-    return c.json({ error: "Chat service is not configured." }, 500);
-  }
-
-  const meetingId = "a-static-meeting-id-for-everyone";
-  const rtkApiUrl = `https://rtk.realtime.cloudflare.com/v2/meetings/${meetingId}/participants`;
-
-  const rtkResponse = await fetch(rtkApiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`
-    },
-    body: JSON.stringify({
-      name: userName,
-      preset_name: userRole === 'admin' ? 'group_call_host' : 'group_call_participant',
-      custom_participant_id: userId,
-    }),
-  });
-
-  if (!rtkResponse.ok) {
-    const errorBody = await rtkResponse.text();
-    console.error("Failed to create Realtime Kit token:", rtkResponse.status, errorBody);
-    return c.json({ error: "Could not authenticate for chat service." }, 500);
-  }
-
-  const responseData = await rtkResponse.json() as any;
-  return c.json({ token: responseData.data.token });
 });
+
 
 // Serve static files for the chat frontend
 app.get('/*', serveStatic({ root: './', manifest }));
