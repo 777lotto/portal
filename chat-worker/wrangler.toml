@@ -9,6 +9,10 @@ compatibility_flags = [ "nodejs_compat_v2" ]
 [site]
 bucket = "../chat-frontend/dist"
 
+[observability]
+enabled = true
+head_sampling_rate = 1
+
 
 # --- REMOVE THE D1 CONFIG FROM THE TOP LEVEL ---
 # [[d1_databases]]
@@ -36,10 +40,6 @@ routes = [
   { pattern = "chat.777.foo/*", zone_name = "777.foo" }
 ]
 
-[env.production.vars]
-ENVIRONMENT = "production"
-# You should add your ACCOUNT_ID here as a variable so your code can access it
-ACCOUNT_ID = "67d3a6021370e7b666fff2023b2db359"
 
 # --- ADD THE D1 CONFIG TO THE PRODUCTION ENV ---
 [[env.production.d1_databases]]

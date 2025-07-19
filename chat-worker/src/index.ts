@@ -10,8 +10,8 @@ import { jwtVerify } from 'jose';
 
 type AppEnv = {
   Bindings: Env & {
-    CLOUDFLARE_API_TOKEN: string;
-    ACCOUNT_ID: string; // Add your Cloudflare Account ID here
+    RTK_API_KEY: string;
+    RTK_ORG_ID: string; // Add your Cloudflare Account ID here
     CHAT_SESSIONS_PROD: KVNamespace; // Use KV to store the session ID
   };
 };
@@ -32,13 +32,13 @@ const SESSION_KV_KEY = "main_chat_session_id";
 
 // Creates a new voice conference session using the Cloudflare API
 async function createNewSession(c: Context<AppEnv>) {
-    const { ACCOUNT_ID, CLOUDFLARE_API_TOKEN, CHAT_SESSIONS_PROD } = c.env;
-    const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/calls/v1/sessions`;
+    const { RTK_ORG_ID, RTK_API_KEY, CHAT_SESSIONS_PROD } = c.env;
+    const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${RTK_ORG_ID}/calls/v2/sessions`;
 
     const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`,
+            'Authorization': `Bearer ${RTK_API_KEY}`,
             'Content-Type': 'application/json'
         },
     });
@@ -71,9 +71,9 @@ async function getSessionId(c: Context<AppEnv>) {
 app.post('/api/chat/token', async (c) => {
     let userId, userName; // userRole is no longer needed for the token request
 
-    const { CLOUDFLARE_API_TOKEN, ACCOUNT_ID } = c.env;
-    if (!CLOUDFLARE_API_TOKEN || !ACCOUNT_ID) {
-        console.error("FATAL: CLOUDFLARE_API_TOKEN or ACCOUNT_ID is not configured.");
+    const { RTK_API_KEY, RTK_ORG_ID } = c.env;
+    if (!RTK_API_KEY || !RTK_ORG_ID) {
+        console.error("FATAL: RTK_API_KEY or RTK_ORG_ID is not configured.");
         return c.json({ error: "Chat service is not configured." }, 500);
     }
 
@@ -104,12 +104,12 @@ app.post('/api/chat/token', async (c) => {
         const sessionId = await getSessionId(c);
 
         // Step 2: Generate a user-specific, temporary auth token for that session.
-        const authApiUrl = `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/calls/v1/sessions/${sessionId}/auth`;
+        const authApiUrl = `https://api.cloudflare.com/client/v4/accounts/${RTK_ORG_ID}/calls/v2/sessions/${sessionId}/auth`;
 
         const authTokenResponse = await fetch(authApiUrl, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`,
+                'Authorization': `Bearer ${RTK_API_KEY}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({

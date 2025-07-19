@@ -8,6 +8,7 @@ import { errorResponse, successResponse } from '../utils.js';
 import { deleteCookie } from 'hono/cookie';
 import { getStripe, createStripeCustomer } from '../stripe.js';
 import { SignJWT } from "jose";
+import { setCookie } from 'hono/cookie';
 
 // --- Zod Schemas for Payloads ---
 
@@ -161,6 +162,14 @@ export const handleLoginWithToken = async (c: Context<AppEnv>) => {
         }
 
         const jwt = await createJwtToken(user, c.env.JWT_SECRET);
+        setCookie(c, 'auth_token', jwt, {
+            path: '/',
+            domain: '.777.foo',
+            httpOnly: true,
+            secure: c.env.ENVIRONMENT === 'production',
+            sameSite: 'Lax',
+            maxAge: 60 * 60 * 24 * 7,
+        });
         return successResponse({ token: jwt, user });
 
     } catch (e: any) {
@@ -240,6 +249,16 @@ export const handleLogin = async (c: Context<AppEnv>) => {
         delete user.password_hash;
 
         const token = await createJwtToken(user as User, c.env.JWT_SECRET);
+        // Set the JWT in a secure, HttpOnly cookie scoped to the parent domain.
+        // This allows all subdomains (portal.777.foo, chat.777.foo) to use it.
+        setCookie(c, 'auth_token', token, {
+            path: '/',
+            domain: '.777.foo', // The leading dot is crucial for subdomains
+            httpOnly: true,
+            secure: c.env.ENVIRONMENT === 'production', // Only send over HTTPS in production
+            sameSite: 'Lax',
+            maxAge: 60 * 60 * 24 * 7, // 7 days
+        });
         return successResponse({ token, user: user as User });
     } catch (e: any) {
         console.error("Login error:", e);
@@ -355,6 +374,14 @@ export const handleSetPassword = async (c: Context<AppEnv>) => {
         }
 
         const jwt = await createJwtToken(user, c.env.JWT_SECRET);
+        setCookie(c, 'auth_token', jwt, {
+            path: '/',
+            domain: '.777.foo',
+            httpOnly: true,
+            secure: c.env.ENVIRONMENT === 'production',
+            sameSite: 'Lax',
+            maxAge: 60 * 60 * 24 * 7,
+        });
         return successResponse({ token: jwt, user });
 
     } catch (e: any) {
