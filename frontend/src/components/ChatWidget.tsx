@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+// In: 777lotto/portal/portal-bet/frontend/src/components/ChatWidget.tsx
+
+import { useState, useEffect, useCallback } from 'react';
 import {
   RealtimeKitProvider,
   useRealtimeKitClient,
@@ -8,65 +10,86 @@ import {
   RtkUiProvider,
 } from '@cloudflare/realtimekit-react-ui';
 
-// This function fetches the chat token for the EMBEDDED widget.
-async function getChatToken() {
+// This function fetches the chat credentials from our worker
+async function getChatCredentials(): Promise<{ sessionId: string; token: string }> {
   const res = await fetch('/api/chat/token', {
     method: 'POST',
     headers: {
-        // The fetchJson helper automatically includes the auth token from localStorage
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      'Authorization': `Bearer ${localStorage.getItem('token')}`
     }
-   });
+  });
+
   if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`Failed to get chat token: ${errorText}`);
+    // Pass the response object itself to the error for inspection
+    const err = new Error('Failed to get chat credentials');
+    (err as any).response = res; // Attach response to the error object
+    throw err;
   }
-  const data = await res.json();
-  return data.token;
+  return await res.json();
 }
 
 export function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [meeting, initMeeting] = useRealtimeKitClient();
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // This is the core logic to initialize the connection
+  const initializeChat = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const credentials = await getChatCredentials();
+      await initMeeting({
+        authToken: credentials.token,
+        sessionId: credentials.sessionId, // Provide the session ID
+        defaults: { audio: false, video: false },
+      });
+    } catch (err: any) {
+      // Check if this is the "session refreshed" error (status 503)
+      if (err.response && err.response.status === 503) {
+        console.log('Chat session was refreshed. Retrying automatically...');
+        // Wait a moment, then try again once.
+        setTimeout(() => initializeChat(), 500);
+      } else {
+        console.error("Error initializing meeting:", err);
+        const errorText = await err.response?.text();
+        setError(errorText || 'An unknown error occurred.');
+      }
+    } finally {
+      // Only set loading to false if there isn't an ongoing retry
+      if (error || meeting) {
+        setIsLoading(false);
+      }
+    }
+  }, [initMeeting, error, meeting]);
+
 
   useEffect(() => {
-    // This logic correctly initializes the meeting for the embedded modal view.
+    // Initialize the chat only when the widget is opened and we don't already have a meeting object
     if (isOpen && !meeting) {
-      setError(null);
-      getChatToken()
-        .then((token) => {
-          initMeeting({
-            authToken: token,
-            defaults: { audio: false, video: false },
-          }).catch(err => {
-              console.error("Error initializing meeting:", err);
-              setError(err.message);
-          });
-        })
-        .catch(err => {
-            console.error("Error getting chat token:", err);
-            setError(err.message);
-        });
+      initializeChat();
     }
-  }, [isOpen, meeting, initMeeting]);
+  }, [isOpen, meeting, initializeChat]);
+
 
   const handleClose = () => {
     if (meeting?.leaveRoom) {
       meeting.leaveRoom();
     }
     setIsOpen(false);
+    // Reset state when closing the widget
+    (meeting as any) = null;
+    setError(null);
   }
 
-  // This function opens the standalone chat app in a new tab,
-  // passing the user's main session token in the URL.
+  // This function opens the standalone chat app in a new tab
   const openStandaloneChat = () => {
     const userToken = localStorage.getItem('token');
     if (userToken) {
-      // This constructs the URL like: https://chat.777.foo?token=ey...
       window.open(`https://chat.777.foo?token=${userToken}`, '_blank');
     } else {
-      // This should ideally not happen if the widget is only shown to logged-in users
       alert("You must be logged in to open the standalone chat.");
     }
   };
@@ -102,15 +125,14 @@ export function ChatWidget() {
                 </div>
             </div>
             <div className="flex-grow p-4">
-              {error && <div className="alert alert-danger">Error: {error}</div>}
-              {!error && meeting ? (
+              {error && <div className="p-4 text-center text-red-500">Error: {error}</div>}
+              {(isLoading || (!meeting && !error)) && <div className="p-4 text-center">Loading Chat...</div>}
+              {!isLoading && !error && meeting && (
                 <RealtimeKitProvider value={meeting}>
                   <RtkUiProvider>
                     <RtkMeeting meeting={meeting} showSetupScreen={false} />
                   </RtkUiProvider>
                 </RealtimeKitProvider>
-              ) : (
-                <div>Loading Chat...</div>
               )}
             </div>
           </div>

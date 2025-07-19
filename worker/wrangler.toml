@@ -87,7 +87,7 @@ binding = "PAYMENT_SERVICE"
 service = "payment-production"
 
 [[env.production.services]]
-binding = "CHAT_SERVICE"
+binding = "CHAT_WORKER"
 service = "chat-worker-production"
 
 
