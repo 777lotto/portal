@@ -1,7 +1,8 @@
 // 777lotto/portal/portal-bet/frontend/src/components/admin/AdminDashboard.tsx
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom'; // Import useSearchParams
-import { apiGet, deleteUser, adminImportInvoices } from '../../lib/api.js';
+import { apiGet, deleteUser, adminImportInvoices, apiPost } from '../../lib/api.js';
+import { jwtDecode } from 'jwt-decode';
 import type { User } from '@portal/shared';
 import AddUserModal from './AddUserModal.js';
 
@@ -16,21 +17,10 @@ function AdminDashboard() {
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams(); // For reading URL params
+  const [contactsToImport, setContactsToImport] = useState<any[]>([]);
+  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    // Check for import status from Google OAuth redirect
-    const importStatus = searchParams.get('import_status');
-    if (importStatus === 'success') {
-      const count = searchParams.get('count');
-      setImportMessage(`Successfully imported ${count} new contacts from Google.`);
-      setSearchParams({}, { replace: true }); // Clear URL params
-    } else if (importStatus === 'error') {
-      const errorMessage = searchParams.get('error_message');
-      setError(`Google Contact import failed: ${errorMessage || 'An unknown error occurred.'}`);
-      setSearchParams({}, { replace: true }); // Clear URL params
-    }
-
-    const fetchUsers = async () => {
+  const fetchUsers = async () => {
       try {
         setIsLoading(true);
         setError(null);
@@ -43,6 +33,33 @@ function AdminDashboard() {
         setIsLoading(false);
       }
     };
+
+
+  useEffect(() => {
+    const contactsToken = searchParams.get('contacts_token');
+    if (contactsToken) {
+        try {
+            const decoded: { contacts: any[] } = jwtDecode(contactsToken);
+            setContactsToImport(decoded.contacts || []);
+            // Clear the token from the URL
+            searchParams.delete('contacts_token');
+            setSearchParams(searchParams);
+        } catch (e) {
+            setError('Could not decode contacts for import.');
+        }
+    }
+    // Check for import status from Google OAuth redirect
+    const importStatus = searchParams.get('import_status');
+    if (importStatus === 'success') {
+      const count = searchParams.get('count');
+      setImportMessage(`Successfully imported ${count} new contacts from Google.`);
+      setSearchParams({}, { replace: true }); // Clear URL params
+    } else if (importStatus === 'error') {
+      const errorMessage = searchParams.get('error_message');
+      setError(`Google Contact import failed: ${errorMessage || 'An unknown error occurred.'}`);
+      setSearchParams({}, { replace: true }); // Clear URL params
+    }
+
     fetchUsers();
   }, [searchParams, setSearchParams]); // Add dependencies
 
@@ -55,6 +72,39 @@ function AdminDashboard() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const handleToggleContactSelection = (contactResourceName: string) => {
+    setSelectedContacts(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(contactResourceName)) {
+            newSet.delete(contactResourceName);
+        } else {
+            newSet.add(contactResourceName);
+        }
+        return newSet;
+    });
+  };
+
+  const handleImportSelectedContacts = async () => {
+    setIsImporting(true);
+    setImportMessage(null);
+    setError(null);
+
+    const contactsToPost = contactsToImport.filter(c => selectedContacts.has(c.resourceName));
+
+    try {
+        const result = await apiPost('/api/admin/import-contacts', { contacts: contactsToPost });
+        setImportMessage(`Successfully imported ${result.importedCount} new contacts.`);
+        setContactsToImport([]);
+        setSelectedContacts(new Set());
+        fetchUsers(); // Refresh the user list
+    } catch (err: any) {
+        setError(`Import failed: ${err.message}`);
+    } finally {
+        setIsImporting(false);
+    }
+  };
+
 
   const handleDeleteUser = async (userToDelete: User) => {
     if (window.confirm(`Are you sure you want to permanently delete ${userToDelete.name || userToDelete.email} and all their data? This action cannot be undone.`)) {
@@ -120,6 +170,51 @@ function AdminDashboard() {
         onClose={() => setIsAddUserModalOpen(false)}
         onUserAdded={handleUserAdded}
       />
+      {contactsToImport.length > 0 && (
+         <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+            <div className="modal-dialog modal-lg modal-dialog-scrollable">
+                <div className="modal-content">
+                    <div className="modal-header">
+                        <h5 className="modal-title">Select Contacts to Import</h5>
+                        <button type="button" className="btn-close" onClick={() => setContactsToImport([])}></button>
+                    </div>
+                    <div className="modal-body">
+                        <ul className="list-group">
+                            {contactsToImport.map(contact => (
+                                <li key={contact.resourceName} className="list-group-item">
+                                    <input
+                                        className="form-check-input me-2"
+                                        type="checkbox"
+                                        checked={selectedContacts.has(contact.resourceName)}
+                                        onChange={() => handleToggleContactSelection(contact.resourceName)}
+                                        id={contact.resourceName}
+                                    />
+                                    <label className="form-check-label" htmlFor={contact.resourceName}>
+                                        <strong>{contact.names?.[0]?.displayName || 'No Name'}</strong>
+                                        <div className="text-muted text-sm">
+                                            {contact.emailAddresses?.[0]?.value && <span>{contact.emailAddresses[0].value}</span>}
+                                            {contact.phoneNumbers?.[0]?.value && <span className="ms-2">{contact.phoneNumbers[0].value}</span>}
+                                        </div>
+                                    </label>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <div className="modal-footer">
+                        <button type="button" className="btn btn-secondary" onClick={() => setContactsToImport([])}>Cancel</button>
+                        <button
+                            type="button"
+                            className="btn btn-primary"
+                            disabled={isImporting || selectedContacts.size === 0}
+                            onClick={handleImportSelectedContacts}
+                        >
+                            {isImporting ? 'Importing...' : `Import ${selectedContacts.size} Selected`}
+                        </button>
+                    </div>
+                </div>
+            </div>
+         </div>
+      )}
       <div className="max-w-7xl mx-auto">
         <h1 className="text-2xl font-bold mb-4">Users</h1>
         {error && <div className="alert alert-danger">{error}</div>}

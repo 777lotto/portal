@@ -8,7 +8,7 @@ import { cors } from 'hono/cors';
 import { serveStatic } from 'hono/cloudflare-workers';
 import manifest from '__STATIC_CONTENT_MANIFEST';
 import type { Env, User } from '@portal/shared';
-import { handleGoogleLogin, handleGoogleCallback } from './handlers/google.js';
+import { handleGoogleLogin, handleGoogleCallback, handleAdminImportSelectedContacts } from './handlers/google.js';
 
 /* ========================================================================
                            MIDDLEWARE & UTILITIES
@@ -176,6 +176,7 @@ adminApi.get('/invoices/:invoiceId', handleAdminGetInvoice);
 adminApi.post('/invoices/:invoiceId/items', handleAdminAddInvoiceItem);
 adminApi.delete('/invoices/:invoiceId/items/:itemId', handleAdminDeleteInvoiceItem);
 adminApi.post('/invoices/:invoiceId/finalize', handleAdminFinalizeInvoice);
+adminApi.post('/import-contacts', handleAdminImportSelectedContacts);
 
 
 /* ========================================================================

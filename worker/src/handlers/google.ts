@@ -1,7 +1,10 @@
 // 777lotto/portal/portal-bet/worker/src/handlers/google.ts
 import { Context } from 'hono';
 import { AppEnv } from '../index.js';
-// Removed unused imports 'User', 'errorResponse', and 'successResponse'
+import { getJwtSecretKey } from '../auth.js';
+import { errorResponse, successResponse } from '../utils.js';
+import { SignJWT } from 'jose';
+
 
 interface GoogleTokenResponse {
   access_token: string;
@@ -34,11 +37,10 @@ export const handleGoogleLogin = async (c: Context<AppEnv>) => {
   return c.redirect(authUrl.toString());
 };
 
-// 2. Handles the callback from Google after user gives consent
+// 2. MODIFIED: Handles the callback, fetches contacts, and returns them to the frontend
 export const handleGoogleCallback = async (c: Context<AppEnv>) => {
   const { code } = c.req.query();
   const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI } = c.env;
-  const db = c.env.DB;
   const portalRedirectUrl = new URL(c.env.PORTAL_URL);
   portalRedirectUrl.pathname = '/admin/users'; // Redirect back to the admin dashboard
 
@@ -74,7 +76,37 @@ export const handleGoogleCallback = async (c: Context<AppEnv>) => {
 
     const peopleData: { connections: GoogleContact[] } = await peopleResponse.json();
     const contacts = peopleData.connections || [];
+
+    // Create a short-lived JWT with the contacts payload
+    const contactsToken = await new SignJWT({ contacts })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setExpirationTime('15m')
+        .sign(getJwtSecretKey(c.env.JWT_SECRET));
+
+
+    // Redirect to the frontend with the token
+    portalRedirectUrl.searchParams.set('contacts_token', contactsToken);
+    return c.redirect(portalRedirectUrl.toString());
+
+  } catch (err: any) {
+    console.error("Google callback error:", err);
+    portalRedirectUrl.searchParams.set('import_status', 'error');
+    portalRedirectUrl.searchParams.set('error_message', err.message || 'An unknown error occurred.');
+    return c.redirect(portalRedirectUrl.toString());
+  }
+};
+
+
+// 3. NEW: Handles the import of admin-selected contacts
+export const handleAdminImportSelectedContacts = async (c: Context<AppEnv>) => {
+    const { contacts } = await c.req.json();
+    const db = c.env.DB;
     let importedCount = 0;
+
+    if (!Array.isArray(contacts)) {
+        return errorResponse("Invalid payload. 'contacts' must be an array.", 400);
+    }
 
     for (const contact of contacts) {
       const email = contact.emailAddresses?.[0]?.value?.toLowerCase();
@@ -93,7 +125,7 @@ export const handleGoogleCallback = async (c: Context<AppEnv>) => {
         continue; // Ignore existing users
       }
 
-      // Insert new user
+      // Insert new user as a 'guest' without a Stripe account
       const name = contact.names?.[0]?.displayName || email || phone;
       const companyName = contact.organizations?.[0]?.name;
       const address = contact.addresses?.[0]?.formattedValue;
@@ -105,14 +137,5 @@ export const handleGoogleCallback = async (c: Context<AppEnv>) => {
       importedCount++;
     }
 
-    portalRedirectUrl.searchParams.set('import_status', 'success');
-    portalRedirectUrl.searchParams.set('count', importedCount.toString());
-    return c.redirect(portalRedirectUrl.toString());
-
-  } catch (err: any) {
-    console.error("Google callback error:", err);
-    portalRedirectUrl.searchParams.set('import_status', 'error');
-    portalRedirectUrl.searchParams.set('error_message', err.message || 'An unknown error occurred.');
-    return c.redirect(portalRedirectUrl.toString());
-  }
-};
+    return successResponse({ importedCount });
+}

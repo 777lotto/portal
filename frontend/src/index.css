@@ -1,3 +1,4 @@
+/* 777lotto/portal/portal-fold/frontend/src/index.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -145,5 +146,18 @@ body {
   }
   .form-switch .form-check-input:disabled {
     @apply opacity-50 cursor-not-allowed;
+  }
+
+  /* Custom Calendar Toolbar Button Styles */
+  .rbc-btn-group button {
+    @apply text-white bg-transparent transition-colors duration-200;
+  }
+
+  .rbc-btn-group button:hover {
+    @apply bg-black text-white;
+  }
+
+  .rbc-btn-group button.rbc-active {
+    @apply bg-gray-700 text-white;
   }
 }
