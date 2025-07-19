@@ -12,7 +12,7 @@ type AppEnv = {
   Bindings: Env & {
     CLOUDFLARE_API_TOKEN: string;
     ACCOUNT_ID: string; // Add your Cloudflare Account ID here
-    CHAT_SESSIONS: KVNamespace; // Use KV to store the session ID
+    CHAT_SESSIONS_PROD: KVNamespace; // Use KV to store the session ID
   };
 };
 
@@ -32,7 +32,7 @@ const SESSION_KV_KEY = "main_chat_session_id";
 
 // Creates a new voice conference session using the Cloudflare API
 async function createNewSession(c: Context<AppEnv>) {
-    const { ACCOUNT_ID, CLOUDFLARE_API_TOKEN, CHAT_SESSIONS } = c.env;
+    const { ACCOUNT_ID, CLOUDFLARE_API_TOKEN, CHAT_SESSIONS_PROD } = c.env;
     const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/calls/v1/sessions`;
 
     const response = await fetch(apiUrl, {
@@ -53,13 +53,13 @@ async function createNewSession(c: Context<AppEnv>) {
     const sessionId = data.result.session_id;
 
     // Store the new session ID in KV for persistence across worker reloads
-    await CHAT_SESSIONS.put(SESSION_KV_KEY, sessionId);
+    await CHAT_SESSIONS_PROD.put(SESSION_KV_KEY, sessionId);
     return sessionId;
 }
 
 // Gets the current session ID, creating one if it doesn't exist
 async function getSessionId(c: Context<AppEnv>) {
-    let sessionId = await c.env.CHAT_SESSIONS.get(SESSION_KV_KEY);
+    let sessionId = await c.env.CHAT_SESSIONS_PROD.get(SESSION_KV_KEY);
     if (!sessionId) {
         sessionId = await createNewSession(c);
     }
