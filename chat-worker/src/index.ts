@@ -119,16 +119,18 @@ app.post('/api/chat/token', async (c) => {
         });
 
         if (!authTokenResponse.ok) {
-            const errorBody = await authTokenResponse.text();
-            console.error("Failed to get user auth token:", authTokenResponse.status, errorBody);
-            // If the session is invalid (e.g., expired), try creating a new one and retry
-            if(authTokenResponse.status === 404) {
-                 console.log("Session not found. Attempting to create a new one.");
-                 await createNewSession(c); // This will update the KV store
-                 return c.json({ error: "Chat session was refreshed. Please try again." }, 503);
-            }
-            return c.json({ error: "Could not authenticate for chat service." }, 500);
-        }
+    const errorBody = await authTokenResponse.text();
+    console.error("Failed to get user auth token:", authTokenResponse.status, errorBody);
+
+    if(authTokenResponse.status === 404) {
+         console.log("Session not found. Attempting to create a new one.");
+         await createNewSession(c);
+         return c.json({ error: "Chat session was refreshed. Please try again." }, 503);
+    }
+
+    // Return the actual error from the Cloudflare API
+    return c.json({ error: `Cloudflare API Error: ${errorBody}` }, 500);
+}
 
         const authData: any = await authTokenResponse.json();
 
