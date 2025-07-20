@@ -80,6 +80,18 @@ body {
     @apply text-lg font-mono text-text-secondary-light dark:text-text-secondary-dark px-1;
   }
 
+  .dropdown-menu {
+    @apply absolute z-10 mt-2 w-56 origin-top-right rounded-md shadow-lg focus:outline-none card; /* We reuse .card! */
+  }
+
+  .dropdown-item {
+    @apply block w-full text-left px-4 py-2 text-sm text-text-primary-light dark:text-text-primary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark;
+  }
+
+  .dropdown-item-danger {
+    @apply text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20;
+  }
+
 @layer base {
   .rbc-day-bg.lighter-day {
       @apply bg-primary-light dark:bg-primary-dark;

@@ -97,8 +97,25 @@ function BillingPage() {
           >
             {isImporting ? 'Importing...' : 'Import Stripe Quotes'}
           </button>
-          <button className="btn btn-primary" onClick={() => setIsJobModalOpen(true)}>Add Job</button>
-          <button className="btn btn-primary" onClick={() => setIsQuoteModalOpen(true)}>Add Quote</button>
+
+          <div className="relative">
+            <button className="btn btn-primary" onClick={() => setIsJobModalOpen(true)}>Add Job</button>
+            <JobQuoteModal
+              isOpen={isJobModalOpen}
+              onClose={() => setIsJobModalOpen(false)}
+              onSave={fetchBillingData}
+              type="job"
+            />
+          </div>
+          <div className="relative">
+            <button className="btn btn-primary" onClick={() => setIsQuoteModalOpen(true)}>Add Quote</button>
+            <JobQuoteModal
+              isOpen={isQuoteModalOpen}
+              onClose={() => setIsQuoteModalOpen(false)}
+              onSave={fetchBillingData}
+              type="quote"
+            />
+          </div>
         </div>
       </div>
 
@@ -114,18 +131,6 @@ function BillingPage() {
             )}
         </div>
       </div>
-      <JobQuoteModal
-        isOpen={isJobModalOpen}
-        onClose={() => setIsJobModalOpen(false)}
-        onSave={fetchBillingData}
-        type="job"
-      />
-      <JobQuoteModal
-        isOpen={isQuoteModalOpen}
-        onClose={() => setIsQuoteModalOpen(false)}
-        onSave={fetchBillingData}
-        type="quote"
-      />
     </div>
   );
 }

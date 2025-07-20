@@ -50,16 +50,16 @@ function AddUserModal({ isOpen, onClose, onUserAdded }: Props) {
 
   if (!isOpen) return null;
 
-  return (
+ return (
     <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
       <div className="modal-dialog">
-        <div className="modal-content">
+        <div className="modal-content card"> {/* Added .card for consistent styling */}
           <form onSubmit={handleSubmit}>
-            <div className="modal-header">
-              <h5 className="modal-title">Add New User</h5>
-              <button type="button" className="btn-close" onClick={onClose}></button>
+            <div className="card-header"> {/* Used .card-header */}
+              <h5 className="card-title text-xl">Add New User</h5>
+              <button type="button" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl font-bold" onClick={onClose}>&times;</button>
             </div>
-            <div className="modal-body">
+            <div className="card-body"> {/* Used .card-body */}
               {error && <div className="alert alert-danger">{error}</div>}
               <div className="mb-3">
                 <label htmlFor="name" className="form-label">Full Name</label>
@@ -79,7 +79,8 @@ function AddUserModal({ isOpen, onClose, onUserAdded }: Props) {
               </div>
               <div className="mb-3">
                 <label htmlFor="role" className="form-label">Role</label>
-                <select id="role" name="role" className="form-select" value={formData.role} onChange={handleChange}>
+
+                <select id="role" name="role" className="form-control" value={formData.role} onChange={handleChange}>
                   <option value="customer">Customer</option>
                   <option value="admin">Admin</option>
                   <option value="associate">Associate</option>
@@ -87,7 +88,7 @@ function AddUserModal({ isOpen, onClose, onUserAdded }: Props) {
                 </select>
               </div>
             </div>
-            <div className="modal-footer">
+            <div className="p-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2 bg-secondary-light/50 dark:bg-secondary-dark/50 rounded-b-lg">
               <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
               <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
                 {isSubmitting ? 'Saving...' : 'Create User'}
