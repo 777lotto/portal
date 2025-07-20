@@ -33,7 +33,8 @@ export const handleGoogleLogin = async (c: Context<AppEnv>) => {
   // MODIFIED: Added 'contacts.other.readonly' to get all contacts
   authUrl.searchParams.set('scope', 'https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly');
   authUrl.searchParams.set('access_type', 'offline');
-  authUrl.searchParams.set('prompt', 'consent');
+  // REMOVED: The following line forces the consent screen every time.
+  // authUrl.searchParams.set('prompt', 'consent');
 
   return c.redirect(authUrl.toString());
 };
@@ -154,21 +155,22 @@ export const handleAdminImportSelectedContacts = async (c: Context<AppEnv>) => {
     }
 
     for (const contact of contacts) {
-      // **FIXED**: Safely access contact data and ensure undefined is converted to null for the database.
+      // **FIX START**: Safely access and clean email and phone data
       const emailValue = contact.emailAddresses?.[0]?.value;
       const email = emailValue ? emailValue.toLowerCase() : null;
 
       const phoneValue = contact.phoneNumbers?.[0]?.value;
       const phone = phoneValue ? phoneValue.replace(/\D/g, '') : null;
+      // **FIX END**
 
       if (!email && !phone) {
-        continue; // Skip contacts without a usable identifier
+        continue; // Skip contacts without email or phone
       }
 
       // Check if user already exists
       const existingUser = await db.prepare(
         `SELECT id FROM users WHERE email = ? OR phone = ?`
-      ).bind(email, phone).first(); // We can bind null directly here
+      ).bind(email, phone).first();
 
       if (existingUser) {
         continue; // Ignore existing users
@@ -179,14 +181,13 @@ export const handleAdminImportSelectedContacts = async (c: Context<AppEnv>) => {
       const companyName = contact.organizations?.[0]?.name;
       const address = contact.addresses?.[0]?.formattedValue;
 
-      // Ensure all values are either a string or null before binding
       await db.prepare(
         `INSERT INTO users (name, company_name, email, phone, address, role) VALUES (?, ?, ?, ?, ?, 'guest')`
       ).bind(
           name || null,
           companyName || null,
-          email, // Already null if not present
-          phone, // Already null if not present
+          email,
+          phone,
           address || null
       ).run();
 
