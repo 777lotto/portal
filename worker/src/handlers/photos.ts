@@ -2,7 +2,7 @@
 import { Context as PhotoContext } from 'hono';
 import { AppEnv as PhotoAppEnv } from '../index.js';
 import { errorResponse as photoErrorResponse, successResponse as photoSuccessResponse } from '../utils.js';
-import type { Note, Photo, Job } from '@portal/shared';
+import type { Note, Photo } from '@portal/shared';
 
 // Define the type for the Cloudflare Images API response
 interface CloudflareImageResponse {
@@ -72,13 +72,17 @@ export const handleGetPhotosForJob = async (c: PhotoContext<PhotoAppEnv>) => {
     const user = c.get('user');
     const { jobId } = c.req.param();
     try {
-        // SECURITY FIX: Verify the user owns the job before fetching photos
+        // First, get the job to verify ownership or admin status
         const job = await c.env.DB.prepare(
-            `SELECT id FROM jobs WHERE id = ? AND customerId = ?`
-        ).bind(jobId, user.id.toString()).first<Job>();
+            `SELECT customerId FROM jobs WHERE id = ?`
+        ).bind(jobId).first<{ customerId: string }>();
 
-        if (!job && user.role !== 'admin') {
-            return photoErrorResponse("Job not found or access denied", 404);
+        if (!job) {
+            return photoErrorResponse("Job not found", 404);
+        }
+
+        if (user.role !== 'admin' && job.customerId !== user.id.toString()) {
+            return photoErrorResponse("Access denied", 403);
         }
 
         const dbResponse = await c.env.DB.prepare(

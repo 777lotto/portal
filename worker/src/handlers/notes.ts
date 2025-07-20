@@ -1,19 +1,23 @@
+// worker/src/handlers/notes.ts - CORRECTED
 import { Context as NoteContext } from 'hono';
 import { AppEnv as NoteAppEnv } from '../index.js';
 import { errorResponse as noteErrorResponse, successResponse as noteSuccessResponse } from '../utils.js';
-import type { Job } from '@portal/shared'; // Import Job type
 
 export const handleGetNotesForJob = async (c: NoteContext<NoteAppEnv>) => {
     const user = c.get('user');
     const { jobId } = c.req.param();
     try {
-        // SECURITY FIX: Verify the user owns the job before fetching notes
+        // First, get the job to verify ownership or admin status
         const job = await c.env.DB.prepare(
-            `SELECT id FROM jobs WHERE id = ? AND customerId = ?`
-        ).bind(jobId, user.id.toString()).first<Job>();
+            `SELECT customerId FROM jobs WHERE id = ?`
+        ).bind(jobId).first<{ customerId: string }>();
 
-        if (!job && user.role !== 'admin') {
-            return noteErrorResponse("Job not found or access denied", 404);
+        if (!job) {
+            return noteErrorResponse("Job not found", 404);
+        }
+
+        if (user.role !== 'admin' && job.customerId !== user.id.toString()) {
+            return noteErrorResponse("Access denied", 403);
         }
 
         const dbResponse = await c.env.DB.prepare(

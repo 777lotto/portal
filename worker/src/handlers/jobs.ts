@@ -13,32 +13,6 @@ const BlockDatePayload = z.object({
   reason: z.string().optional().nullable(),
 });
 
-export const handleGetServicesForJob = async (c: HonoContext<WorkerAppEnv>) => {
-    const user = c.get('user');
-    const { jobId } = c.req.param();
-
-    try {
-        // First, verify the user owns the job
-        const job = await c.env.DB.prepare(
-            `SELECT id FROM jobs WHERE id = ? AND customerId = ?`
-        ).bind(jobId, user.id.toString()).first<Job>();
-
-        if (!job && user.role !== 'admin') {
-            return workerErrorResponse("Job not found or access denied", 404);
-        }
-
-        // If ownership is confirmed, fetch the services
-        const { results } = await c.env.DB.prepare(
-            `SELECT * FROM services WHERE job_id = ? ORDER BY id ASC`
-        ).bind(jobId).all<Service>();
-
-        return workerSuccessResponse(results || []);
-    } catch (e: any) {
-        console.error(`Failed to get services for job ${jobId}:`, e);
-        return workerErrorResponse("Failed to retrieve services.", 500);
-    }
-}
-
 // --- NEW: Calendar URL Handlers ---
 
 export const handleGetSecretCalendarUrl = async (c: HonoContext<WorkerAppEnv>) => {
@@ -128,17 +102,24 @@ export const handleGetJobById = async (c: HonoContext<WorkerAppEnv>) => {
     const { id } = c.req.param();
     try {
         const job = await c.env.DB.prepare(
-            `SELECT * FROM jobs WHERE id = ? AND customerId = ?`
-        ).bind(id, user.id.toString()).first<Job>();
+            `SELECT * FROM jobs WHERE id = ?`
+        ).bind(id).first<Job>();
 
         if (!job) {
             return workerErrorResponse("Job not found", 404);
         }
+
+        // Grant access if user is admin or the owner of the job
+        if (user.role !== 'admin' && job.customerId !== user.id.toString()) {
+            return workerErrorResponse("Job not found", 404); // Obscure error for security
+        }
+
         return workerSuccessResponse(job);
     } catch (e: any) {
         return workerErrorResponse("Failed to retrieve job", 500);
     }
 };
+
 
 export const handleCalendarFeed = async (c: HonoContext<WorkerAppEnv>) => {
     const user = c.get('user');
@@ -306,5 +287,36 @@ if (!finalInvoice?.id) {
     } catch (e: any) {
         console.error(`Failed to complete job ${jobId}:`, e);
         return workerErrorResponse(`Failed to complete job: ${e.message}`, 500);
+    }
+};
+
+// --- NEW: HANDLER TO GET SERVICES FOR A JOB ---
+export const handleGetServicesForJob = async (c: HonoContext<WorkerAppEnv>) => {
+    const user = c.get('user');
+    const { jobId } = c.req.param();
+
+    try {
+        // First, get the job to verify ownership or admin status
+        const job = await c.env.DB.prepare(
+            `SELECT customerId FROM jobs WHERE id = ?`
+        ).bind(jobId).first<{ customerId: string }>();
+
+        if (!job) {
+            return workerErrorResponse("Job not found", 404);
+        }
+
+        if (user.role !== 'admin' && job.customerId !== user.id.toString()) {
+            return workerErrorResponse("Access denied", 403);
+        }
+
+        // If access is granted, fetch the services
+        const { results } = await c.env.DB.prepare(
+            `SELECT * FROM services WHERE job_id = ? ORDER BY id ASC`
+        ).bind(jobId).all<Service>();
+
+        return workerSuccessResponse(results || []);
+    } catch (e: any) {
+        console.error(`Failed to get services for job ${jobId}:`, e);
+        return workerErrorResponse("Failed to retrieve services.", 500);
     }
 }
