@@ -116,15 +116,31 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
                     continue;
                 }
 
-                const existingJob = await db.prepare(`SELECT id FROM jobs WHERE stripe_invoice_id = ?`).bind(invoice.id).first();
-                if (existingJob) {
-                    skippedCount++;
-                    continue;
+                let user: User | { id: number } | null = await db.prepare(`SELECT id FROM users WHERE stripe_customer_id = ?`).bind(invoice.customer.id).first<User>();
+                if (!user) {
+                    // If user doesn't exist, create one
+                    const customer = invoice.customer as Stripe.Customer;
+                    const { name, email, phone } = customer;
+                    const { results } = await db.prepare(
+                        `INSERT INTO users (name, email, phone, stripe_customer_id, role) VALUES (?, ?, ?, ?, 'guest') RETURNING id`
+                    ).bind(
+                        name || 'Stripe Customer',
+                        email,
+                        phone,
+                        invoice.customer.id,
+                    ).all<{ id: number }>();
+
+                    if (!results || results.length === 0) {
+                        errors.push(`Failed to create user for Stripe customer ${invoice.customer.id}`);
+                        skippedCount++;
+                        continue;
+                    }
+                    user = { id: results[0].id };
                 }
 
-                const user = await db.prepare(`SELECT id FROM users WHERE stripe_customer_id = ?`).bind(invoice.customer.id).first<User>();
-                if (!user) {
-                    errors.push(`User not found for Stripe customer ${invoice.customer.id}`);
+
+                const existingJob = await db.prepare(`SELECT id FROM jobs WHERE stripe_invoice_id = ?`).bind(invoice.id).first();
+                if (existingJob) {
                     skippedCount++;
                     continue;
                 }
@@ -152,7 +168,7 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
 
                 const serviceInserts: D1PreparedStatement[] = invoice.lines.data.map((item: Stripe.InvoiceLineItem) =>
                     db.prepare(`INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents) VALUES (?, ?, ?, ?, ?, ?)`
-                    ).bind(user.id, newJobId, jobStartDate.toISOString(), 'completed', item.description || 'Imported Service', item.amount)
+                    ).bind(user!.id, newJobId, jobStartDate.toISOString(), 'completed', item.description || 'Imported Service', item.amount)
                 );
 
                 await db.batch([jobInsertStmt, ...serviceInserts]);
@@ -170,6 +186,7 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
         return errorResponse(`Failed to import invoices: ${e.message}`, 500);
     }
 }
+
 
 export async function handleAdminImportInvoicesForUser(c: Context<AppEnv>) {
     const { userId } = c.req.param();

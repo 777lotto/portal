@@ -1,6 +1,6 @@
-// worker/src/handlers/admin/quotes.ts
 import { Context } from 'hono';
-import Stripe from 'stripe'; // Import the Stripe type
+import Stripe from 'stripe';
+import { v4 as uuidv4 } from 'uuid'; // <-- ADDED IMPORT
 import { AppEnv } from '../../index.js';
 import { errorResponse, successResponse } from '../../utils.js';
 import { getStripe } from '../../stripe.js';
@@ -68,5 +68,104 @@ export async function handleAdminCreateQuote(c: Context<AppEnv>) {
     } catch (e: any) {
         console.error(`Failed to create quote for job ${jobId}:`, e);
         return errorResponse(`Failed to create quote: ${e.message}`, 500);
+    }
+}
+
+export async function handleAdminImportQuotes(c: Context<AppEnv>) {
+    const stripe = getStripe(c.env);
+    const db = c.env.DB;
+    let importedCount = 0;
+    let skippedCount = 0;
+    const errors: string[] = [];
+    let hasMore = true;
+    let startingAfter: string | undefined = undefined;
+
+    try {
+        while (hasMore) {
+            const quotes: Stripe.ApiList<Stripe.Quote> = await stripe.quotes.list({
+                status: 'accepted',
+                limit: 100,
+                starting_after: startingAfter,
+                expand: ['data.customer', 'data.line_items.data'],
+            });
+
+            if (quotes.data.length === 0) {
+                hasMore = false;
+                break;
+            }
+
+            for (const quote of quotes.data) {
+                // ADDED CHECK for line_items
+                if (!quote.line_items || !quote.line_items.data || quote.line_items.data.length === 0) {
+                    skippedCount++;
+                    continue;
+                }
+
+                if (!quote.customer || typeof quote.customer !== 'object' || quote.customer.deleted) {
+                    skippedCount++;
+                    continue;
+                }
+
+                let user: User | { id: number } | null = await db.prepare(`SELECT id FROM users WHERE stripe_customer_id = ?`).bind(quote.customer.id).first<User>();
+                if (!user) {
+                    // If user doesn't exist, create one
+                    const customer = quote.customer as Stripe.Customer;
+                    const { name, email, phone } = customer;
+                    const { results } = await db.prepare(
+                        `INSERT INTO users (name, email, phone, stripe_customer_id, role) VALUES (?, ?, ?, ?, 'guest') RETURNING id`
+                    ).bind(
+                        name || 'Stripe Customer',
+                        email,
+                        phone,
+                        quote.customer.id,
+                    ).all<{ id: number }>();
+
+                    if (!results || results.length === 0) {
+                        errors.push(`Failed to create user for Stripe customer ${quote.customer.id}`);
+                        skippedCount++;
+                        continue;
+                    }
+                    user = { id: results[0].id };
+                }
+
+
+                const existingJob = await db.prepare(`SELECT id FROM jobs WHERE stripe_quote_id = ?`).bind(quote.id).first();
+                if (existingJob) {
+                    skippedCount++;
+                    continue;
+                }
+
+                const jobStartDate = new Date((quote.status_transitions.finalized_at || quote.created) * 1000);
+                const jobEndDate = new Date(jobStartDate.getTime() + 60 * 60 * 1000);
+                 // ADDED CHECK for line_items before accessing description
+                const jobTitle = quote.line_items.data[0]?.description || `Imported Job ${quote.id}`;
+                const newJobId = uuidv4();
+
+                await db.prepare(
+                    `INSERT INTO jobs (id, customerId, title, description, start, end, status, recurrence, stripe_quote_id, total_amount_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                ).bind(
+                    newJobId,
+                    user.id.toString(),
+                    jobTitle,
+                    quote.description || `Imported from Stripe Quote #${quote.number}`,
+                    jobStartDate.toISOString(),
+                    jobEndDate.toISOString(),
+                    'quote_accepted',
+                    'none',
+                    quote.id,
+                    quote.amount_total
+                ).run();
+                importedCount++;
+            }
+
+            startingAfter = quotes.data[quotes.data.length - 1].id;
+            hasMore = quotes.has_more;
+        }
+
+        return successResponse({ message: `Import complete.`, imported: importedCount, skipped: skippedCount, errors });
+
+    } catch (e: any) {
+        console.error("Failed to import Stripe quotes:", e);
+        return errorResponse(`Failed to import quotes: ${e.message}`, 500);
     }
 }

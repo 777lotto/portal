@@ -45,7 +45,7 @@ import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUs
 import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleAdminAddNoteForUser } from './handlers/notes.js';
 import { handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate, handleAdminAddServiceToJob, handleAdminCompleteJob } from './handlers/jobs.js';
-import { handleAdminCreateQuote } from './handlers/admin/quotes.js';
+import { handleAdminCreateQuote, handleAdminImportQuotes } from './handlers/admin/quotes.js';
 import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminImportInvoicesForUser } from './handlers/admin/invoices.js';
 
 
@@ -157,6 +157,7 @@ adminApi.get('/users', handleGetAllUsers);
 adminApi.post('/users', handleAdminCreateUser);
 adminApi.put('/users/:userId', handleAdminUpdateUser);
 adminApi.post('/jobs/:jobId/quote', handleAdminCreateQuote);
+adminApi.post('/quotes/import', handleAdminImportQuotes);
 adminApi.get('/users/:userId/jobs', handleAdminGetJobsForUser);
 adminApi.get('/users/:userId/photos', handleAdminGetPhotosForUser);
 adminApi.post('/users/:userId/photos', handleAdminUploadPhotoForUser);

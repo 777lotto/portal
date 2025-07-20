@@ -20,6 +20,7 @@ const AuthForm = lazy(() => import("./components/AuthForm.js"));
 // --- Admin Page Components ---
 const AdminDashboard = lazy(() => import("./components/admin/AdminDashboard.js"));
 const AdminUserDetail = lazy(() => import("./components/admin/AdminUserDetail.js"));
+const BillingPage = lazy(() => import("./components/admin/BillingPage.js"));
 
 
 interface UserPayload {
@@ -125,6 +126,10 @@ function App() {
               <Route
                 path="/admin/users/:userId"
                 element={user?.role === 'admin' ? <AdminUserDetail /> : <Navigate to="/dashboard" replace />}
+              />
+              <Route
+                path="/admin/billing"
+                element={user?.role === 'admin' ? <BillingPage /> : <Navigate to="/dashboard" replace />}
               />
 
               {/* --- Catch-all redirect --- */}
