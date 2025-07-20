@@ -28,14 +28,45 @@ export const handleGoogleLogin = async (c: Context<AppEnv>) => {
   authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID);
   authUrl.searchParams.set('redirect_uri', GOOGLE_REDIRECT_URI);
   authUrl.searchParams.set('response_type', 'code');
-  authUrl.searchParams.set('scope', 'https://www.googleapis.com/auth/contacts.readonly');
+  // MODIFIED: Added 'contacts.other.readonly' to get all contacts
+  authUrl.searchParams.set('scope', 'https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly');
   authUrl.searchParams.set('access_type', 'offline');
-  authUrl.searchParams.set('prompt', 'consent'); // Important to get a refresh token every time
+  authUrl.searchParams.set('prompt', 'consent');
 
   return c.redirect(authUrl.toString());
 };
 
-// 2. MODIFIED: Handles the callback, fetches contacts, and returns them to the frontend
+async function fetchAllGoogleContacts(
+  initialUrl: string,
+  accessToken: string
+): Promise<GoogleContact[]> {
+  let allContacts: GoogleContact[] = [];
+  let nextPageToken: string | undefined = undefined;
+
+  do {
+    const url = new URL(initialUrl);
+    if (nextPageToken) {
+      url.searchParams.set('pageToken', nextPageToken);
+    }
+
+    const response = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    const data: { connections?: GoogleContact[], otherContacts?: GoogleContact[], nextPageToken?: string } = await response.json();
+
+    // The API returns contacts in either 'connections' or 'otherContacts'
+    const contacts = data.connections || data.otherContacts || [];
+    allContacts = allContacts.concat(contacts);
+    nextPageToken = data.nextPageToken;
+
+  } while (nextPageToken);
+
+  return allContacts;
+}
+
+
+// 2. MODIFIED: Handles the callback, fetches ALL contacts, and returns them to the frontend
 export const handleGoogleCallback = async (c: Context<AppEnv>) => {
   const { code } = c.req.query();
   const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, PORTAL_URL } = c.env;
@@ -67,13 +98,28 @@ export const handleGoogleCallback = async (c: Context<AppEnv>) => {
       throw new Error('Failed to retrieve access token from Google.');
     }
 
-    // Fetch contacts from Google People API
-    const peopleResponse = await fetch('https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses,phoneNumbers,organizations,addresses', {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    // --- NEW PAGINATED FETCHING LOGIC ---
+    const personFields = 'names,emailAddresses,phoneNumbers,organizations,addresses';
+
+    // Fetch primary contacts
+    const connectionsUrl = `https://people.googleapis.com/v1/people/me/connections?personFields=${personFields}`;
+    const primaryContacts = await fetchAllGoogleContacts(connectionsUrl, tokenData.access_token);
+
+    // Fetch "Other" contacts
+    const otherContactsUrl = `https://people.googleapis.com/v1/otherContacts?readMask=${personFields}`;
+    const otherContacts = await fetchAllGoogleContacts(otherContactsUrl, tokenData.access_token);
+
+    // Combine and deduplicate contacts based on resourceName
+    const allContactsMap = new Map<string, GoogleContact>();
+    [...primaryContacts, ...otherContacts].forEach(contact => {
+      if (contact.resourceName) {
+        allContactsMap.set(contact.resourceName, contact);
+      }
     });
 
-    const peopleData: { connections: GoogleContact[] } = await peopleResponse.json();
-    const contacts = peopleData.connections || [];
+    const contacts = Array.from(allContactsMap.values());
+    // --- END NEW LOGIC ---
+
 
     // 1. Generate a secure, random token
     const importToken = uuidv4();
@@ -92,6 +138,7 @@ export const handleGoogleCallback = async (c: Context<AppEnv>) => {
     return c.redirect(portalRedirectUrl.toString());
   }
 };
+
 
 
 // 3. NEW: Handles the import of admin-selected contacts
