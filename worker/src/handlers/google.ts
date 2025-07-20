@@ -154,22 +154,21 @@ export const handleAdminImportSelectedContacts = async (c: Context<AppEnv>) => {
     }
 
     for (const contact of contacts) {
-      // **FIX START**: Safely access and clean email and phone data
+      // **FIXED**: Safely access contact data and ensure undefined is converted to null for the database.
       const emailValue = contact.emailAddresses?.[0]?.value;
-      const email = emailValue ? emailValue.toLowerCase() : undefined;
+      const email = emailValue ? emailValue.toLowerCase() : null;
 
       const phoneValue = contact.phoneNumbers?.[0]?.value;
-      const phone = phoneValue ? phoneValue.replace(/\D/g, '') : undefined;
-      // **FIX END**
+      const phone = phoneValue ? phoneValue.replace(/\D/g, '') : null;
 
       if (!email && !phone) {
-        continue; // Skip contacts without email or phone
+        continue; // Skip contacts without a usable identifier
       }
 
       // Check if user already exists
       const existingUser = await db.prepare(
         `SELECT id FROM users WHERE email = ? OR phone = ?`
-      ).bind(email || null, phone || null).first();
+      ).bind(email, phone).first(); // We can bind null directly here
 
       if (existingUser) {
         continue; // Ignore existing users
@@ -180,9 +179,16 @@ export const handleAdminImportSelectedContacts = async (c: Context<AppEnv>) => {
       const companyName = contact.organizations?.[0]?.name;
       const address = contact.addresses?.[0]?.formattedValue;
 
+      // Ensure all values are either a string or null before binding
       await db.prepare(
         `INSERT INTO users (name, company_name, email, phone, address, role) VALUES (?, ?, ?, ?, ?, 'guest')`
-      ).bind(name, companyName, email, phone, address).run();
+      ).bind(
+          name || null,
+          companyName || null,
+          email, // Already null if not present
+          phone, // Already null if not present
+          address || null
+      ).run();
 
       importedCount++;
     }
