@@ -201,17 +201,8 @@ function AdminUserDetail() {
           <Link to="/admin/users">&larr; Back to Users</Link>
           <h2 className="mt-2 text-xl font-bold">Manage User: {user ? (user.name || user.company_name) : userId}</h2>
           <div className="relative">
-            <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(prev => !prev)}>Edit User</button>
-            {isEditModalOpen && user && (
-              <div className="absolute top-full right-0 z-10 mt-2">
-                <EditUserModal
-                  isOpen={isEditModalOpen}
-                  onClose={() => setIsEditModalOpen(false)}
-                  onUserUpdated={handleUserUpdated}
-                  user={user}
-                />
-              </div>
-            )}
+            {/* The button now only toggles the state for the modal at the bottom */}
+            <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(true)}>Edit User</button>
           </div>
         </div>
         {error && <div className="alert alert-danger">{error}</div>}
@@ -454,6 +445,7 @@ function AdminUserDetail() {
             </div>
         )}
       </div>
+      {/* This is the single, correctly placed modal instance */}
       {isEditModalOpen && user && (
         <EditUserModal
           isOpen={isEditModalOpen}
