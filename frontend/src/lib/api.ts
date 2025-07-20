@@ -139,6 +139,9 @@ export const adminGetJobsAndQuotes = () => apiGet<JobWithDetails[]>('/api/admin/
 export const adminReassignJob = (jobId: string, newCustomerId: string) => {
   return apiPost(`/api/admin/jobs/${jobId}/reassign`, { newCustomerId });
 };
+export const adminCreateJob = (data: any) => apiPost('/api/admin/billing/job', data);
+export const adminCreateQuote = (data: any) => apiPost('/api/admin/billing/quote', data);
+
 
 /* ========================================================================
                             ADMIN INVOICE FUNCTIONS

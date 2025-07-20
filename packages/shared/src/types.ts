@@ -70,6 +70,9 @@ export const JobSchema = z.object({
   stripe_quote_id: z.string().optional().nullable(),
   invoice_created_at: z.string().optional().nullable(),
   total_amount_cents: z.number().optional().nullable(), // New field
+  due_date: z.string().optional().nullable(),
+  expires_at: z.string().optional().nullable(),
+  contact_method_override: z.enum(['email', 'sms', 'push']).optional().nullable(),
 });
 export type Job = z.infer<typeof JobSchema>;
 

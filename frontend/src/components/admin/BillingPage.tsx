@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { adminImportInvoices, adminImportQuotes, adminGetJobsAndQuotes } from '../../lib/api';
 import JobsAndQuotesTable from './JobsAndQuotesTable';
 import type { JobWithDetails } from '@portal/shared';
+import JobQuoteModal from './JobQuoteModal';
 
 function BillingPage() {
   const [isImporting, setIsImporting] = useState(false);
@@ -10,6 +11,8 @@ function BillingPage() {
   const [error, setError] = useState<string | null>(null);
   const [billingData, setBillingData] = useState<JobWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isJobModalOpen, setIsJobModalOpen] = useState(false);
+  const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
 
   const fetchBillingData = async () => {
     setIsLoading(true);
@@ -94,6 +97,8 @@ function BillingPage() {
           >
             {isImporting ? 'Importing...' : 'Import Stripe Quotes'}
           </button>
+          <button className="btn btn-primary" onClick={() => setIsJobModalOpen(true)}>Add Job</button>
+          <button className="btn btn-primary" onClick={() => setIsQuoteModalOpen(true)}>Add Quote</button>
         </div>
       </div>
 
@@ -109,6 +114,18 @@ function BillingPage() {
             )}
         </div>
       </div>
+      <JobQuoteModal
+        isOpen={isJobModalOpen}
+        onClose={() => setIsJobModalOpen(false)}
+        onSave={fetchBillingData}
+        type="job"
+      />
+      <JobQuoteModal
+        isOpen={isQuoteModalOpen}
+        onClose={() => setIsQuoteModalOpen(false)}
+        onSave={fetchBillingData}
+        type="quote"
+      />
     </div>
   );
 }

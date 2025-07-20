@@ -47,7 +47,7 @@ import { handleAdminAddNoteForUser } from './handlers/notes.js';
 import { handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate, handleAdminAddServiceToJob, handleAdminCompleteJob } from './handlers/jobs.js';
 import { handleAdminCreateQuote, handleAdminImportQuotes } from './handlers/admin/quotes.js';
 import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminImportInvoicesForUser } from './handlers/admin/invoices.js';
-import { handleGetJobsAndQuotes } from './handlers/admin/billing.js';
+import { handleGetJobsAndQuotes, handleAdminCreateJob, handleAdminCreateQuote as handleAdminCreateQuoteFromBilling } from './handlers/admin/billing.js';
 
 
 /* ========================================================================
@@ -183,6 +183,8 @@ adminApi.post('/import-contacts', handleAdminImportSelectedContacts);
 adminApi.post('/get-imported-contacts', handleGetImportedContacts);
 adminApi.get('/billing/jobs-and-quotes', handleGetJobsAndQuotes);
 adminApi.post('/jobs/:jobId/reassign', handleAdminReassignJob);
+adminApi.post('/billing/job', handleAdminCreateJob);
+adminApi.post('/billing/quote', handleAdminCreateQuoteFromBilling);
 
 
 /* ========================================================================

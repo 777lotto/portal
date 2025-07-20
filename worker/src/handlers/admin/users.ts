@@ -130,7 +130,7 @@ export async function handleAdminDeleteUser(c: Context<AppEnv>): Promise<Respons
 
     await db.batch(batch);
 
-    return successResponse({ message: `User ${userId} and all associated data deleted successfully.` });
+    return successResponse({ message: `User ${userId} and all their associated data deleted successfully.` });
   } catch (e: any) {
     console.error(`Failed to delete user ${userId}:`, e);
     return errorResponse("Failed to delete user. The user may have associated records that could not be deleted.", 500);
