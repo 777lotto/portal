@@ -1,7 +1,7 @@
 // 777lotto/portal/portal-bet/frontend/src/components/admin/AdminDashboard.tsx
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Link, useSearchParams } from 'react-router-dom'; // Import useSearchParams
-import { apiGet, deleteUser, adminImportInvoices, apiPost } from '../../lib/api.js';
+import { Link, useSearchParams } from 'react-router-dom';
+import { apiGet, deleteUser, adminImportInvoices, apiPost, getImportedContacts } from '../../lib/api.js';
 import { jwtDecode } from 'jwt-decode';
 import type { User } from '@portal/shared';
 import AddUserModal from './AddUserModal.js';
@@ -16,7 +16,7 @@ function AdminDashboard() {
   const [isImporting, setIsImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
-  const [searchParams, setSearchParams] = useSearchParams(); // For reading URL params
+  const [searchParams, setSearchParams] = useSearchParams();
   const [contactsToImport, setContactsToImport] = useState<any[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
 
@@ -34,34 +34,38 @@ function AdminDashboard() {
       }
     };
 
-
   useEffect(() => {
-    const contactsToken = searchParams.get('contacts_token');
-    if (contactsToken) {
+    const importToken = searchParams.get('import_token');
+
+    const processImportToken = async (token: string) => {
         try {
-            const decoded: { contacts: any[] } = jwtDecode(contactsToken);
-            setContactsToImport(decoded.contacts || []);
-            // Clear the token from the URL
-            searchParams.delete('contacts_token');
-            setSearchParams(searchParams);
-        } catch (e) {
-            setError('Could not decode contacts for import.');
+            const contacts = await getImportedContacts(token);
+            setContactsToImport(contacts || []);
+        } catch (e: any) {
+            setError(e.message || 'Could not retrieve contacts for import.');
+        } finally {
+            searchParams.delete('import_token');
+            setSearchParams(searchParams, { replace: true });
         }
+    };
+
+    if (importToken) {
+        processImportToken(importToken);
     }
-    // Check for import status from Google OAuth redirect
+
     const importStatus = searchParams.get('import_status');
     if (importStatus === 'success') {
       const count = searchParams.get('count');
       setImportMessage(`Successfully imported ${count} new contacts from Google.`);
-      setSearchParams({}, { replace: true }); // Clear URL params
+      setSearchParams({}, { replace: true });
     } else if (importStatus === 'error') {
       const errorMessage = searchParams.get('error_message');
       setError(`Google Contact import failed: ${errorMessage || 'An unknown error occurred.'}`);
-      setSearchParams({}, { replace: true }); // Clear URL params
+      setSearchParams({}, { replace: true });
     }
 
     fetchUsers();
-  }, [searchParams, setSearchParams]); // Add dependencies
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -97,7 +101,7 @@ function AdminDashboard() {
         setImportMessage(`Successfully imported ${result.importedCount} new contacts.`);
         setContactsToImport([]);
         setSelectedContacts(new Set());
-        fetchUsers(); // Refresh the user list
+        fetchUsers();
     } catch (err: any) {
         setError(`Import failed: ${err.message}`);
     } finally {
@@ -119,7 +123,6 @@ function AdminDashboard() {
   };
 
   const handleUserAdded = (newUser: User) => {
-    // Add the new user to the top of the list for immediate UI feedback
     setUsers(currentUsers => [newUser, ...currentUsers]);
   };
 
@@ -157,7 +160,6 @@ function AdminDashboard() {
   }, [users, searchQuery]);
 
   const handleGoogleImportClick = () => {
-    // This simply redirects the user to the backend endpoint to start the flow
     window.location.href = '/api/auth/google';
   };
 
@@ -230,7 +232,6 @@ function AdminDashboard() {
             style={{width: '40%'}}
           />
           <div className="flex items-center gap-2">
-            {/* ADD THIS BUTTON */}
             <button
                 onClick={handleGoogleImportClick}
                 className="btn btn-secondary"

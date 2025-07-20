@@ -132,6 +132,7 @@ export const adminFinalizeJob = (jobId: string) => {
 };
 export const adminImportInvoices = () => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>('/api/admin/invoices/import', {});
 export const adminImportInvoicesForUser = (userId: string) => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>(`/api/admin/users/${userId}/invoices/import`, {});
+export const getImportedContacts = (token: string) => apiPost<any[]>('/api/admin/get-imported-contacts', { token });
 
 /* ========================================================================
                             ADMIN INVOICE FUNCTIONS

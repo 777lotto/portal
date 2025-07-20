@@ -1,10 +1,7 @@
-// 777lotto/portal/portal-fold/worker/src/handlers/google.ts
-
+import { v4 as uuidv4 } from 'uuid';
 import { Context } from 'hono';
 import { AppEnv } from '../index.js';
-import { getJwtSecretKey } from '../auth.js';
 import { errorResponse, successResponse } from '../utils.js';
-import { SignJWT } from 'jose';
 
 
 interface GoogleTokenResponse {
@@ -41,9 +38,9 @@ export const handleGoogleLogin = async (c: Context<AppEnv>) => {
 // 2. MODIFIED: Handles the callback, fetches contacts, and returns them to the frontend
 export const handleGoogleCallback = async (c: Context<AppEnv>) => {
   const { code } = c.req.query();
-  const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI } = c.env;
-  const portalRedirectUrl = new URL(c.env.PORTAL_URL);
-  portalRedirectUrl.pathname = '/admin/users'; // Redirect back to the admin dashboard
+  const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, PORTAL_URL } = c.env;
+  const portalRedirectUrl = new URL(PORTAL_URL);
+  portalRedirectUrl.pathname = '/admin/users';
 
   if (!code) {
     portalRedirectUrl.searchParams.set('import_status', 'error');
@@ -78,16 +75,14 @@ export const handleGoogleCallback = async (c: Context<AppEnv>) => {
     const peopleData: { connections: GoogleContact[] } = await peopleResponse.json();
     const contacts = peopleData.connections || [];
 
-    // Create a short-lived JWT with the contacts payload
-    const contactsToken = await new SignJWT({ contacts })
-        .setProtectedHeader({ alg: 'HS256' })
-        .setIssuedAt()
-        .setExpirationTime('15m')
-        .sign(getJwtSecretKey(c.env.JWT_SECRET)); // Corrected Line
+    // 1. Generate a secure, random token
+    const importToken = uuidv4();
 
+    // 2. Store the contacts in KV with a 15-minute expiration (900 seconds)
+    await c.env.TEMP_STORAGE.put(importToken, JSON.stringify(contacts), { expirationTtl: 900 });
 
-    // Redirect to the frontend with the token
-    portalRedirectUrl.searchParams.set('contacts_token', contactsToken);
+    // 3. Redirect with the short token instead of the large JWT
+    portalRedirectUrl.searchParams.set('import_token', importToken);
     return c.redirect(portalRedirectUrl.toString());
 
   } catch (err: any) {
@@ -139,4 +134,23 @@ export const handleAdminImportSelectedContacts = async (c: Context<AppEnv>) => {
     }
 
     return successResponse({ importedCount });
+}
+
+export const handleGetImportedContacts = async (c: Context<AppEnv>) => {
+    const { token } = await c.req.json();
+    if (!token) {
+        return errorResponse("Missing import token.", 400);
+    }
+
+    const contactsJSON = await c.env.TEMP_STORAGE.get(token);
+
+    if (!contactsJSON) {
+        return errorResponse("Import session expired or is invalid.", 404);
+    }
+
+    // It's good practice to delete the token after it's been used once
+    await c.env.TEMP_STORAGE.delete(token);
+
+    // Return the JSON string directly
+    return new Response(contactsJSON, { headers: { 'Content-Type': 'application/json' } });
 }

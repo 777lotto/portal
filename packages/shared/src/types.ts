@@ -1,5 +1,5 @@
 // packages/shared/src/types.ts - THE SINGLE SOURCE OF TRUTH
-import type { D1Database, Fetcher } from '@cloudflare/workers-types';
+import type { D1Database, KVNamespace, Fetcher } from '@cloudflare/workers-types';
 import { z } from 'zod';
 
 
@@ -254,6 +254,7 @@ export interface Env {
   DB: D1Database;
   NOTIFICATION_SERVICE: Fetcher;
   NOTIFICATION_QUEUE: Queue;
+  TEMP_STORAGE: KVNamespace;
 
   // Secrets
   JWT_SECRET: string;
