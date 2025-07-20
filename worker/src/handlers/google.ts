@@ -155,13 +155,11 @@ export const handleAdminImportSelectedContacts = async (c: Context<AppEnv>) => {
     }
 
     for (const contact of contacts) {
-      // **FIX START**: Safely access and clean email and phone data
       const emailValue = contact.emailAddresses?.[0]?.value;
       const email = emailValue ? emailValue.toLowerCase() : null;
 
       const phoneValue = contact.phoneNumbers?.[0]?.value;
       const phone = phoneValue ? phoneValue.replace(/\D/g, '') : null;
-      // **FIX END**
 
       if (!email && !phone) {
         continue; // Skip contacts without email or phone

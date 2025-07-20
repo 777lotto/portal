@@ -19,6 +19,7 @@ function AdminDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [contactsToImport, setContactsToImport] = useState<any[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
+  const [contactSearchQuery, setContactSearchQuery] = useState('');
 
   const fetchUsers = async () => {
       try {
@@ -163,6 +164,17 @@ function AdminDashboard() {
     window.location.href = '/api/auth/google';
   };
 
+  const filteredContacts = useMemo(() => {
+    const lowercasedQuery = contactSearchQuery.toLowerCase();
+    if (!lowercasedQuery) return contactsToImport;
+
+    return contactsToImport.filter(contact =>
+      contact.names?.[0]?.displayName?.toLowerCase().includes(lowercasedQuery) ||
+      contact.emailAddresses?.[0]?.value?.toLowerCase().includes(lowercasedQuery) ||
+      contact.phoneNumbers?.[0]?.value?.toLowerCase().includes(lowercasedQuery)
+    );
+  }, [contactsToImport, contactSearchQuery]);
+
   if (isLoading) return <div className="text-center p-8">Loading users...</div>;
 
   return (
@@ -181,8 +193,17 @@ function AdminDashboard() {
                         <button type="button" className="btn-close" onClick={() => setContactsToImport([])}></button>
                     </div>
                     <div className="modal-body">
+                        <div className="mb-3">
+                          <input
+                            type="text"
+                            value={contactSearchQuery}
+                            onChange={(e) => setContactSearchQuery(e.target.value)}
+                            placeholder="Search by name, email, or phone..."
+                            className="form-control"
+                          />
+                        </div>
                         <ul className="list-group">
-                            {contactsToImport.map(contact => (
+                            {filteredContacts.map(contact => (
                                 <li key={contact.resourceName} className="list-group-item">
                                     <input
                                         className="form-check-input me-2"
