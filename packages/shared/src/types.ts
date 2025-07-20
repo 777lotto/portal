@@ -131,6 +131,7 @@ export type PhotoWithNotes = z.infer<typeof PhotoWithNotesSchema>;
   company_name: z.string().optional(),
   email: z.string().email().optional(),
   phone: z.string().optional(),
+  address: z.string().optional(),
   role: z.enum(['customer', 'admin', 'associate']).default('customer'),
 });
 export type AdminCreateUser = z.infer<typeof AdminCreateUserSchema>;

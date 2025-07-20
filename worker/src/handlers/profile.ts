@@ -12,6 +12,7 @@ const UpdateProfilePayload = UserSchema.pick({
     email: true,
     phone: true,
     company_name: true,
+    address: true,
     email_notifications_enabled: true,
     sms_notifications_enabled: true,
     preferred_contact_method: true
@@ -39,16 +40,17 @@ export const handleUpdateProfile = async (c: ProfileContext<ProfileAppEnv>) => {
         return profileErrorResponse("Invalid data", 400, parsed.error.flatten());
     }
 
-    const { name, email, phone, company_name, email_notifications_enabled, sms_notifications_enabled, preferred_contact_method } = parsed.data;
+    const { name, email, phone, company_name, address, email_notifications_enabled, sms_notifications_enabled, preferred_contact_method } = parsed.data;
 
     try {
         await c.env.DB.prepare(
-            `UPDATE users SET name = ?, email = ?, phone = ?, company_name = ?, email_notifications_enabled = ?, sms_notifications_enabled = ?, preferred_contact_method = ? WHERE id = ?`
+            `UPDATE users SET name = ?, email = ?, phone = ?, company_name = ?, address = ?, email_notifications_enabled = ?, sms_notifications_enabled = ?, preferred_contact_method = ? WHERE id = ?`
         ).bind(
             name ?? user.name,
             email ?? user.email,
             phone !== undefined ? phone : user.phone,
             company_name !== undefined ? company_name : user.company_name,
+            address !== undefined ? address : user.address,
             email_notifications_enabled,
             sms_notifications_enabled,
             preferred_contact_method ?? user.preferred_contact_method,

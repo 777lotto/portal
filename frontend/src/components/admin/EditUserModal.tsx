@@ -16,6 +16,7 @@ function EditUserModal({ isOpen, onClose, onUserUpdated, user }: Props) {
     company_name: '',
     email: '',
     phone: '',
+    address: '',
     role: 'customer'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -29,6 +30,7 @@ function EditUserModal({ isOpen, onClose, onUserUpdated, user }: Props) {
         company_name: user.company_name || '',
         email: user.email || '',
         phone: user.phone || '',
+        address: user.address || '',
         role: user.role || 'customer'
       });
     }
@@ -47,6 +49,7 @@ function EditUserModal({ isOpen, onClose, onUserUpdated, user }: Props) {
     if (formData.company_name) payload.company_name = formData.company_name;
     if (formData.email) payload.email = formData.email;
     if (formData.phone) payload.phone = formData.phone;
+    if (formData.address) payload.address = formData.address;
     if (formData.role) payload.role = formData.role;
 
     setIsSubmitting(true);
@@ -89,6 +92,10 @@ function EditUserModal({ isOpen, onClose, onUserUpdated, user }: Props) {
               <div className="mb-3">
                 <label htmlFor="phone" className="form-label">Phone Number</label>
                 <input type="tel" id="phone" name="phone" className="form-control" value={formData.phone} onChange={handleChange} />
+              </div>
+              <div className="mb-3">
+                <label htmlFor="address" className="form-label">Service Address</label>
+                <input type="text" id="address" name="address" className="form-control" value={formData.address} onChange={handleChange} />
               </div>
               <div className="mb-3">
                 <label htmlFor="role" className="form-label">Role</label>

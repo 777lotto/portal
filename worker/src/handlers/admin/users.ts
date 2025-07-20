@@ -114,7 +114,7 @@ export async function handleAdminCreateUser(c: Context<AppEnv>): Promise<Respons
         return errorResponse('Invalid user data', 400, parsed.error.flatten());
     }
 
-    const { name, company_name, email, phone, role } = parsed.data;
+    const { name, company_name, email, phone, address, role } = parsed.data;
     const db = c.env.DB;
 
     try {
@@ -126,12 +126,13 @@ export async function handleAdminCreateUser(c: Context<AppEnv>): Promise<Respons
         const cleanedPhone = phone?.replace(/\D/g, '');
 
         const { results } = await db.prepare(
-            `INSERT INTO users (name, company_name, email, phone, role) VALUES (?, ?, ?, ?, ?) RETURNING *`
+            `INSERT INTO users (name, company_name, email, phone, address, role) VALUES (?, ?, ?, ?, ?, ?)`
         ).bind(
             name || null,
             company_name || null,
             lowercasedEmail || null,
             cleanedPhone || null,
+            address || null,
             role
         ).all<User>();
 
@@ -165,7 +166,7 @@ export async function handleAdminUpdateUser(c: Context<AppEnv>): Promise<Respons
         return errorResponse('Invalid user data', 400, parsed.error.flatten());
     }
 
-    const { name, company_name, email, phone, role } = parsed.data;
+    const { name, company_name, email, phone, address, role } = parsed.data;
     const db = c.env.DB;
 
     try {
@@ -178,12 +179,13 @@ export async function handleAdminUpdateUser(c: Context<AppEnv>): Promise<Respons
         const cleanedPhone = phone?.replace(/\D/g, '');
 
         const updatedResult = await db.prepare(
-            `UPDATE users SET name = ?, company_name = ?, email = ?, phone = ?, role = ? WHERE id = ? RETURNING *`
+            `UPDATE users SET name = ?, company_name = ?, email = ?, phone = ?, address = ?, role = ? WHERE id = ? RETURNING *`
         ).bind(
             name ?? existingUser.name,
             company_name ?? existingUser.company_name,
             lowercasedEmail ?? existingUser.email,
             cleanedPhone ?? existingUser.phone,
+            address ?? existingUser.address,
             role ?? existingUser.role,
             userId
         ).first<User>();
