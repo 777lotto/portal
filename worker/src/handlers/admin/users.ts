@@ -5,14 +5,45 @@ import { Context } from 'hono';
 import type { AppEnv } from '../../index.js';
 import { getStripe, createStripeCustomer, createDraftStripeInvoice } from '../../stripe.js';
 import { createJob } from '../../calendar.js'
-// MODIFIED: 'AdminCreateUserSchema' is now a value import, and the others are explicit type imports.
 import { AdminCreateUserSchema, type User, type Job, type Service, type Env, type Note, type PhotoWithNotes } from '@portal/shared';
+
+/**
+ * Validates an address using the Google Geocoding API.
+ * @param address The address string to validate.
+ * @param env The worker environment containing the API key.
+ * @returns A formatted address string if valid, null if invalid, or the original address on API error.
+ */
+async function getValidatedAddress(address: string, env: AppEnv['Bindings']): Promise<string | null> {
+  const GOOGLE_API_KEY = env.GOOGLE_API_KEY;
+  if (!GOOGLE_API_KEY) {
+    console.error("GOOGLE_API_KEY is not configured. Skipping address validation.");
+    return address; // Fallback to the original address if the key is missing
+  }
+
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${GOOGLE_API_KEY}`;
+
+  try {
+    const response = await fetch(url);
+    const data: any = await response.json();
+
+    if (data.status === 'OK' && data.results[0]) {
+      // Return the nicely formatted address from Google
+      return data.results[0].formatted_address;
+    }
+    // Return null if the address is not found or invalid
+    return null;
+  } catch (e) {
+    console.error("Address validation API call failed:", e);
+    // Fallback to the original address on a network error
+    return address;
+  }
+}
 
 export async function handleGetAllUsers(c: Context<AppEnv>): Promise<Response> {
   const env = c.env;
   try {
     const dbResponse = await env.DB.prepare(
-      `SELECT id, email, name, phone, role, stripe_customer_id, company_name FROM users ORDER BY id DESC`
+      `SELECT id, email, name, phone, role, stripe_customer_id, company_name, address FROM users ORDER BY id DESC`
     ).all<User>();
     const users = dbResponse?.results || [];
     return successResponse(users);
@@ -114,12 +145,22 @@ export async function handleAdminCreateUser(c: Context<AppEnv>): Promise<Respons
         return errorResponse('Invalid user data', 400, parsed.error.flatten());
     }
 
-    const { name, company_name, email, phone, address, role } = parsed.data;
+    let { name, company_name, email, phone, address, role } = parsed.data;
     const db = c.env.DB;
 
     try {
         if (!email && !phone) {
             return errorResponse("An email or phone number is required to create a user.", 400);
+        }
+
+        // Validate the address if one was provided
+        if (address) {
+            const validatedAddress = await getValidatedAddress(address, c.env);
+            if (validatedAddress) {
+                address = validatedAddress; // Use the validated and formatted address
+            } else {
+                return errorResponse("The provided service address could not be validated. Please check it and try again.", 400);
+            }
         }
 
         const lowercasedEmail = email?.toLowerCase();
@@ -132,7 +173,7 @@ export async function handleAdminCreateUser(c: Context<AppEnv>): Promise<Respons
             company_name || null,
             lowercasedEmail || null,
             cleanedPhone || null,
-            address || null,
+            address || null, // Save the validated address
             role
         ).all<User>();
 
@@ -166,13 +207,23 @@ export async function handleAdminUpdateUser(c: Context<AppEnv>): Promise<Respons
         return errorResponse('Invalid user data', 400, parsed.error.flatten());
     }
 
-    const { name, company_name, email, phone, address, role } = parsed.data;
+    let { name, company_name, email, phone, address, role } = parsed.data;
     const db = c.env.DB;
 
     try {
         const existingUser = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(userId).first<User>();
         if (!existingUser) {
             return errorResponse("User not found", 404);
+        }
+
+        // Validate the address if a new one was provided
+        if (address && address !== existingUser.address) {
+            const validatedAddress = await getValidatedAddress(address, c.env);
+            if (validatedAddress) {
+                address = validatedAddress; // Use the validated and formatted address
+            } else {
+                return errorResponse("The provided service address could not be validated. Please check it and try again.", 400);
+            }
         }
 
         const lowercasedEmail = email?.toLowerCase();
@@ -185,7 +236,7 @@ export async function handleAdminUpdateUser(c: Context<AppEnv>): Promise<Respons
             company_name !== undefined ? (company_name || null) : existingUser.company_name,
             lowercasedEmail ?? existingUser.email,
             cleanedPhone ?? existingUser.phone,
-            address !== undefined ? (address || null) : existingUser.address,
+            address !== undefined ? (address || null) : existingUser.address, // Save the validated address
             role ?? existingUser.role,
             userId
         ).first<User>();

@@ -66,6 +66,9 @@ ENVIRONMENT = "production"
 API_VERSION = "1.0.0"
 PORTAL_URL = "https://portal.777.foo/dashboard"
 
+[env.production.secrets]
+GOOGLE_API_KEY = "GOOGLE_API_KEY"
+
 # Production KV binding (MOVED HERE)
 [[env.production.kv_namespaces]]
 binding = "TEMP_STORAGE"

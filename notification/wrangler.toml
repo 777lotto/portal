@@ -45,6 +45,7 @@ SMS_FROM_NUMBER = "7077769777"
 binding = "DB"
 database_name = "gutter_db"
 database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+migrations_dir = "../worker/migrations"
 
 # Production-specific Queue consumer
 [[env.production.queues.consumers]]

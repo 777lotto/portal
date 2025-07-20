@@ -197,10 +197,22 @@ function AdminUserDetail() {
   return (
     <>
       <div className="container max-w-7xl mx-auto mt-4">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center relative">
           <Link to="/admin/users">&larr; Back to Users</Link>
           <h2 className="mt-2 text-xl font-bold">Manage User: {user ? (user.name || user.company_name) : userId}</h2>
-          <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(true)}>Edit User</button>
+          <div className="relative">
+            <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(prev => !prev)}>Edit User</button>
+            {isEditModalOpen && user && (
+              <div className="absolute top-full right-0 z-10 mt-2">
+                <EditUserModal
+                  isOpen={isEditModalOpen}
+                  onClose={() => setIsEditModalOpen(false)}
+                  onUserUpdated={handleUserUpdated}
+                  user={user}
+                />
+              </div>
+            )}
+          </div>
         </div>
         {error && <div className="alert alert-danger">{error}</div>}
         {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}

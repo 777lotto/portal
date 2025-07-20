@@ -13,6 +13,9 @@ body {
   .form-control {
     @apply block w-full px-3 py-2 bg-white dark:bg-secondary-dark border border-border-light dark:border-border-dark rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-event-blue focus:border-event-blue sm:text-sm;
   }
+  .form-select-dark {
+    @apply bg-black text-white;
+  }
 
   /* Buttons */
   .btn {

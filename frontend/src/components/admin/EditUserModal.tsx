@@ -99,7 +99,7 @@ function EditUserModal({ isOpen, onClose, onUserUpdated, user }: Props) {
               </div>
               <div className="mb-3">
                 <label htmlFor="role" className="form-label">Role</label>
-                <select id="role" name="role" className="form-select" value={formData.role} onChange={handleChange}>
+                <select id="role" name="role" className="form-select form-select-dark" value={formData.role} onChange={handleChange}>
                   <option value="customer">Customer</option>
                   <option value="admin">Admin</option>
                   <option value="associate">Associate</option>
