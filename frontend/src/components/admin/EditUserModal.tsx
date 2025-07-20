@@ -102,6 +102,8 @@ function EditUserModal({ isOpen, onClose, onUserUpdated, user }: Props) {
                 <select id="role" name="role" className="form-select" value={formData.role} onChange={handleChange}>
                   <option value="customer">Customer</option>
                   <option value="admin">Admin</option>
+                  <option value="associate">Associate</option>
+                  <option value="guest">Guest</option>
                 </select>
               </div>
             </div>

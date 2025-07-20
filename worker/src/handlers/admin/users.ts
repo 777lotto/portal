@@ -182,10 +182,10 @@ export async function handleAdminUpdateUser(c: Context<AppEnv>): Promise<Respons
             `UPDATE users SET name = ?, company_name = ?, email = ?, phone = ?, address = ?, role = ? WHERE id = ? RETURNING *`
         ).bind(
             name ?? existingUser.name,
-            company_name ?? existingUser.company_name,
+            company_name !== undefined ? (company_name || null) : existingUser.company_name,
             lowercasedEmail ?? existingUser.email,
             cleanedPhone ?? existingUser.phone,
-            address ?? existingUser.address,
+            address !== undefined ? (address || null) : existingUser.address,
             role ?? existingUser.role,
             userId
         ).first<User>();
