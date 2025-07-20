@@ -155,6 +155,21 @@ export async function handleAdminImportQuotes(c: Context<AppEnv>) {
                     quote.id,
                     quote.amount_total
                 ).run();
+
+                const serviceInserts = quote.line_items.data.map(item => {
+                    return db.prepare(
+                        `INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents) VALUES (?, ?, ?, ?, ?, ?)`
+                    ).bind(
+                        user.id,
+                        newJobId,
+                        jobStartDate.toISOString(),
+                        'completed',
+                        item.description || 'Imported Service',
+                        item.price?.unit_amount || 0
+                    );
+                });
+
+                await db.batch(serviceInserts);
                 importedCount++;
             }
 

@@ -76,7 +76,25 @@ function BillingPage() {
       {importMessage && <div className="alert alert-info">{importMessage}</div>}
 
       <div className="card">
-        {/* ... Import buttons ... */}
+        <div className="card-header">
+          <h5 className="mb-0">Data Import</h5>
+        </div>
+        <div className="card-body flex gap-4">
+          <button
+            className="btn btn-secondary"
+            onClick={handleInvoiceImportClick}
+            disabled={isImporting}
+          >
+            {isImporting ? 'Importing...' : 'Import Stripe Invoices'}
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={handleQuoteImportClick}
+            disabled={isImporting}
+          >
+            {isImporting ? 'Importing...' : 'Import Stripe Quotes'}
+          </button>
+        </div>
       </div>
 
       <div className="card mt-6">

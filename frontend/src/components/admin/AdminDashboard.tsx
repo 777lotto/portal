@@ -260,13 +260,6 @@ function AdminDashboard() {
                 Import from Google
             </button>
             <button
-                onClick={handleImportClick}
-                className="btn btn-secondary"
-                disabled={isImporting}
-            >
-                {isImporting ? 'Importing...' : 'Import Stripe Invoices'}
-            </button>
-            <button
                 onClick={() => setIsAddUserModalOpen(true)}
                 className="btn btn-primary"
             >
