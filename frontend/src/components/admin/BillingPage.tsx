@@ -1,12 +1,31 @@
 // 777lotto/portal/portal-fold/frontend/src/components/admin/BillingPage.tsx
-
-import { useState } from 'react';
-import { adminImportInvoices, adminImportQuotes } from '../../lib/api';
+import { useState, useEffect } from 'react';
+import { adminImportInvoices, adminImportQuotes, adminGetJobsAndQuotes } from '../../lib/api';
+import JobsAndQuotesTable from './JobsAndQuotesTable';
+import type { JobWithDetails } from '@portal/shared';
 
 function BillingPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [billingData, setBillingData] = useState<JobWithDetails[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchBillingData = async () => {
+    setIsLoading(true);
+    try {
+      const data = await adminGetJobsAndQuotes();
+      setBillingData(data);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBillingData();
+  }, []);
 
   const handleInvoiceImportClick = async () => {
     if (!window.confirm("This will import paid Stripe invoices as jobs. This may take a moment. Continue?")) {
@@ -57,26 +76,19 @@ function BillingPage() {
       {importMessage && <div className="alert alert-info">{importMessage}</div>}
 
       <div className="card">
+        {/* ... Import buttons ... */}
+      </div>
+
+      <div className="card mt-6">
         <div className="card-header">
-          <h5 className="mb-0">Imports</h5>
+            <h5 className="mb-0">All Jobs and Quotes</h5>
         </div>
         <div className="card-body">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleInvoiceImportClick}
-              className="btn btn-secondary"
-              disabled={isImporting}
-            >
-              {isImporting ? 'Importing...' : 'Import Stripe Invoices'}
-            </button>
-            <button
-              onClick={handleQuoteImportClick}
-              className="btn btn-secondary"
-              disabled={isImporting}
-            >
-              {isImporting ? 'Importing...' : 'Import Stripe Quotes'}
-            </button>
-          </div>
+            {isLoading ? (
+                <p>Loading data...</p>
+            ) : (
+                <JobsAndQuotesTable data={billingData} />
+            )}
         </div>
       </div>
     </div>

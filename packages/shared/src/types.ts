@@ -73,6 +73,13 @@ export const JobSchema = z.object({
 });
 export type Job = z.infer<typeof JobSchema>;
 
+export const JobWithDetailsSchema = JobSchema.extend({
+  customerName: z.string().nullable(),
+  customerAddress: z.string().nullable(),
+  services: z.array(ServiceSchema),
+});
+export type JobWithDetails = z.infer<typeof JobWithDetailsSchema>;
+
 // ADD NEW SCHEMA for public booking requests
 export const PublicBookingRequestSchema = z.object({
   name: z.string().min(2),

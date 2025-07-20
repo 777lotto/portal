@@ -7,6 +7,7 @@ import type { Job, User, PhotoWithNotes, Note, StripeInvoice } from '@portal/sha
 import { InvoiceEditor } from './InvoiceEditor';
 import { QuoteManager } from './QuoteManager';
 import EditUserModal from './EditUserModal';
+import EditJobModal from './EditJobModal';
 
 function AdminUserDetail() {
   const { userId } = useParams<{ userId: string }>();
@@ -27,6 +28,7 @@ function AdminUserDetail() {
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [activeInvoice, setActiveInvoice] = useState<StripeInvoice | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingJob, setEditingJob] = useState<Job | null>(null);
 
 
   const fetchDataForUser = useCallback(async () => {
@@ -235,15 +237,18 @@ function AdminUserDetail() {
                                       <p className="mb-0"><small>Date: {new Date(job.start).toLocaleString()}</small></p>
                                       <p className="mb-0"><small>Status: <span className="badge bg-secondary">{job.status}</span></small></p>
                                   </div>
-                                  {['upcoming', 'confirmed'].includes(job.status) && (
-                                    <button
-                                      className="btn btn-success"
-                                      onClick={() => handleFinalizeJob(job.id)}
-                                      disabled={isSubmitting}
-                                    >
-                                      {isSubmitting ? 'Finalizing...' : 'Finalize Job'}
-                                    </button>
-                                  )}
+                                  <div>
+                                    <button className="btn btn-sm btn-outline-secondary me-2" onClick={() => setEditingJob(job)}>Edit Job</button>
+                                    {['upcoming', 'confirmed'].includes(job.status) && (
+                                      <button
+                                        className="btn btn-success"
+                                        onClick={() => handleFinalizeJob(job.id)}
+                                        disabled={isSubmitting}
+                                      >
+                                        {isSubmitting ? 'Finalizing...' : 'Finalize Job'}
+                                      </button>
+                                    )}
+                                  </div>
                               </div>
                               <div className="mt-3">
                                   <QuoteManager job={job} onQuoteCreated={fetchDataForUser} />
@@ -445,6 +450,18 @@ function AdminUserDetail() {
             </div>
         )}
       </div>
+      {/* New Edit Job Modal */}
+      {editingJob && (
+        <EditJobModal
+          isOpen={!!editingJob}
+          onClose={() => setEditingJob(null)}
+          onJobUpdated={() => {
+            fetchDataForUser(); // Refresh data after update
+            setEditingJob(null);
+          }}
+          job={editingJob}
+        />
+      )}
       {/* This is the single, correctly placed modal instance */}
       {isEditModalOpen && user && (
         <EditUserModal

@@ -35,7 +35,7 @@ import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed, h
 // --- Customer Handlers ---
 import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent, handleGetNotifications, handleMarkAllNotificationsRead } from './handlers/profile.js';
 import { handleListServices, handleGetService } from './handlers/services.js';
-import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl, handleGetServicesForJob } from './handlers/jobs.js';
+import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl, handleGetServicesForJob, handleAdminReassignJob } from './handlers/jobs.js';
 import { handleGetUserPhotos, handleGetPhotosForJob } from './handlers/photos.js';
 import { handleGetNotesForJob } from './handlers/notes.js';
 import { handlePortalSession } from './handlers/user.js';
@@ -47,6 +47,7 @@ import { handleAdminAddNoteForUser } from './handlers/notes.js';
 import { handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate, handleAdminAddServiceToJob, handleAdminCompleteJob } from './handlers/jobs.js';
 import { handleAdminCreateQuote, handleAdminImportQuotes } from './handlers/admin/quotes.js';
 import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminImportInvoicesForUser } from './handlers/admin/invoices.js';
+import { handleGetJobsAndQuotes } from './handlers/admin/billing.js';
 
 
 /* ========================================================================
@@ -180,6 +181,8 @@ adminApi.delete('/invoices/:invoiceId/items/:itemId', handleAdminDeleteInvoiceIt
 adminApi.post('/invoices/:invoiceId/finalize', handleAdminFinalizeInvoice);
 adminApi.post('/import-contacts', handleAdminImportSelectedContacts);
 adminApi.post('/get-imported-contacts', handleGetImportedContacts);
+adminApi.get('/billing/jobs-and-quotes', handleGetJobsAndQuotes);
+adminApi.post('/jobs/:jobId/reassign', handleAdminReassignJob);
 
 
 /* ========================================================================

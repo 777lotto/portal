@@ -1,9 +1,9 @@
 // worker/src/handlers/jobs.ts
-import { Context as HonoContext } from 'hono';
+import { Context as HonoContext, Context } from 'hono';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
-import { AppEnv as WorkerAppEnv } from '../index.js';
-import { errorResponse as workerErrorResponse, successResponse as workerSuccessResponse } from '../utils.js';
+import { AppEnv as WorkerAppEnv, AppEnv } from '../index.js';
+import { errorResponse as workerErrorResponse, successResponse as workerSuccessResponse, errorResponse, successResponse } from '../utils.js';
 import { generateCalendarFeed, createJob } from '../calendar.js';
 import type { Job, Service } from '@portal/shared';
 import { getStripe } from '../stripe.js';
@@ -117,6 +117,38 @@ export const handleGetJobById = async (c: HonoContext<WorkerAppEnv>) => {
         return workerSuccessResponse(job);
     } catch (e: any) {
         return workerErrorResponse("Failed to retrieve job", 500);
+    }
+};
+
+export const handleAdminReassignJob = async (c: Context<AppEnv>) => {
+    const { jobId } = c.req.param();
+    const { newCustomerId } = await c.req.json();
+
+    if (!newCustomerId) {
+        return errorResponse("New customer ID is required.", 400);
+    }
+
+    try {
+        const job = await c.env.DB.prepare(
+            `SELECT id FROM jobs WHERE id = ?`
+        ).bind(jobId).first();
+
+        if (!job) {
+            return errorResponse("Job not found.", 404);
+        }
+
+        await c.env.DB.prepare(
+            `UPDATE jobs SET customerId = ? WHERE id = ?`
+        ).bind(newCustomerId, jobId).run();
+
+        const updatedJob = await c.env.DB.prepare(
+            `SELECT * FROM jobs WHERE id = ?`
+        ).bind(jobId).first<Job>();
+
+        return successResponse(updatedJob);
+    } catch (e: any) {
+        console.error(`Failed to reassign job ${jobId}:`, e);
+        return errorResponse("Failed to reassign job.", 500);
     }
 };
 

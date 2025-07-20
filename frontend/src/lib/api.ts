@@ -12,7 +12,8 @@ import {
   type PhotoWithNotes,
   type BlockedDate,
   type StripeInvoice,
-  type UINotification
+  type UINotification,
+  type JobWithDetails
 } from "@portal/shared";
 import { fetchJson } from './fetchJson.js';
 
@@ -134,6 +135,10 @@ export const adminImportInvoices = () => apiPost<{ message: string, imported: nu
 export const adminImportQuotes = () => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>('/api/admin/quotes/import', {});
 export const adminImportInvoicesForUser = (userId: string) => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>(`/api/admin/users/${userId}/invoices/import`, {});
 export const getImportedContacts = (token: string) => apiPost<any[]>('/api/admin/get-imported-contacts', { token });
+export const adminGetJobsAndQuotes = () => apiGet<JobWithDetails[]>('/api/admin/billing/jobs-and-quotes');
+export const adminReassignJob = (jobId: string, newCustomerId: string) => {
+  return apiPost(`/api/admin/jobs/${jobId}/reassign`, { newCustomerId });
+};
 
 /* ========================================================================
                             ADMIN INVOICE FUNCTIONS
