@@ -35,7 +35,7 @@ import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed, h
 // --- Customer Handlers ---
 import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent, handleGetNotifications, handleMarkAllNotificationsRead } from './handlers/profile.js';
 import { handleListServices, handleGetService } from './handlers/services.js';
-import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl } from './handlers/jobs.js';
+import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl, handleGetServicesForJob } from './handlers/jobs.js';
 import { handleGetUserPhotos, handleGetPhotosForJob } from './handlers/photos.js';
 import { handleGetNotesForJob } from './handlers/notes.js';
 import { handlePortalSession } from './handlers/user.js';
@@ -131,6 +131,7 @@ customerApi.post('/jobs', handleCreateJob);
 customerApi.get('/jobs/:id', handleGetJobById);
 customerApi.get('/jobs/:id/photos', handleGetPhotosForJob);
 customerApi.get('/jobs/:id/notes', handleGetNotesForJob);
+customerApi.get('/jobs/:jobId/services', handleGetServicesForJob);
 customerApi.post('/portal', handlePortalSession);
 customerApi.post('/logout', handleLogout);
 customerApi.get('/calendar.ics', handleCalendarFeed);

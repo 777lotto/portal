@@ -13,6 +13,32 @@ const BlockDatePayload = z.object({
   reason: z.string().optional().nullable(),
 });
 
+export const handleGetServicesForJob = async (c: HonoContext<WorkerAppEnv>) => {
+    const user = c.get('user');
+    const { jobId } = c.req.param();
+
+    try {
+        // First, verify the user owns the job
+        const job = await c.env.DB.prepare(
+            `SELECT id FROM jobs WHERE id = ? AND customerId = ?`
+        ).bind(jobId, user.id.toString()).first<Job>();
+
+        if (!job && user.role !== 'admin') {
+            return workerErrorResponse("Job not found or access denied", 404);
+        }
+
+        // If ownership is confirmed, fetch the services
+        const { results } = await c.env.DB.prepare(
+            `SELECT * FROM services WHERE job_id = ? ORDER BY id ASC`
+        ).bind(jobId).all<Service>();
+
+        return workerSuccessResponse(results || []);
+    } catch (e: any) {
+        console.error(`Failed to get services for job ${jobId}:`, e);
+        return workerErrorResponse("Failed to retrieve services.", 500);
+    }
+}
+
 // --- NEW: Calendar URL Handlers ---
 
 export const handleGetSecretCalendarUrl = async (c: HonoContext<WorkerAppEnv>) => {

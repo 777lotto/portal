@@ -109,7 +109,7 @@ export const createInvoice = (serviceId: string) => apiPost<any>(`/api/services/
 
 export const getJobs = () => apiGet<Job[]>('/api/jobs');
 export const getJob = (id: string) => apiGet<Job>(`/api/jobs/${id}`);
-
+export const getServicesForJob = (jobId: string) => apiGet<Service[]>(`/api/jobs/${jobId}/services`);
 
 /* ========================================================================
                                   ADMIN API
