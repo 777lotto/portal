@@ -1,4 +1,5 @@
-// frontend/src/components/JobDetail.tsx - FINAL
+// frontend/src/components/JobDetail.tsx
+
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { apiGet, getServicesForJob } from '../lib/api.js';
@@ -63,8 +64,6 @@ function JobDetail() {
   if (error) return <div className="rounded-md bg-red-100 p-4 text-sm text-red-700">{error}</div>;
   if (!job) return <div className="text-center p-8"><h2>Job not found</h2></div>;
 
-  const totalCost = services.reduce((acc, service) => acc + (service.price_cents || 0), 0);
-
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Main Job Details Card */}
@@ -85,7 +84,7 @@ function JobDetail() {
               </div>
               <div className="sm:col-span-1">
                  <dt className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Total Cost</dt>
-                 <dd className="mt-1 text-sm font-semibold">${(totalCost / 100).toFixed(2)}</dd>
+                 <dd className="mt-1 text-sm font-semibold">${((job.total_amount_cents || 0) / 100).toFixed(2)}</dd>
               </div>
               {job.description && (
                 <div className="sm:col-span-2">
@@ -106,7 +105,7 @@ function JobDetail() {
                       {services.map(service => (
                           <li key={service.id} className="py-3 flex justify-between items-center">
                               <span>{service.notes}</span>
-                              <span className="font-medium">${(service.price_cents / 100).toFixed(2)}</span>
+                              <span className="font-medium">${((service.price_cents || 0) / 100).toFixed(2)}</span>
                           </li>
                       ))}
                   </ul>
@@ -151,3 +150,4 @@ function JobDetail() {
 }
 
 export default JobDetail;
+

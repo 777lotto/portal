@@ -1,25 +1,21 @@
 // frontend/src/components/Services.tsx
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { apiGet, apiPost } from '../lib/api.js'; // MODIFIED: import apiPost
-import type { Service, Job } from '@portal/shared';
+import { getJobs, apiPost } from '../lib/api.js';
+import type { Job } from '@portal/shared';
 
 function Services() {
-  const [services, setServices] = useState<Service[]>([]);
-  const [jobs, setJobs] = useState<Job[]>([]); // MODIFIED: Add state for jobs
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const fetchServicesAndJobs = async () => {
+  const fetchJobs = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        const [servicesData, jobsData] = await Promise.all([
-            getServices(),
-            apiGet<Job[]>('/api/jobs') // Assuming this endpoint exists for customers
-        ]);
-        setServices(servicesData);
+        // We only need to fetch jobs now. Services are details of a job.
+        const jobsData = await getJobs();
         setJobs(jobsData);
       } catch (err: any) {
         setError(err.message);
@@ -29,7 +25,7 @@ function Services() {
   };
 
   useEffect(() => {
-    fetchServicesAndJobs();
+    fetchJobs();
   }, []);
 
   const handleAcceptQuote = async (quoteId: string) => {
@@ -40,7 +36,7 @@ function Services() {
         // This endpoint will trigger the Stripe quote acceptance flow
         await apiPost(`/api/quotes/${quoteId}/accept`, {});
         setMessage("Quote accepted successfully! We will contact you shortly to schedule the job.");
-        fetchServicesAndJobs(); // Refresh data
+        fetchJobs(); // Refresh data
     } catch (err: any) {
         setError(err.message);
     }
@@ -54,7 +50,7 @@ function Services() {
 
   return (
     <div className="container mt-4">
-      <h2>Your Services & Quotes</h2>
+      <h2>Your Jobs & Quotes</h2>
       {message && <div className="alert alert-success">{message}</div>}
 
       {/* --- NEW: PENDING QUOTES SECTION --- */}

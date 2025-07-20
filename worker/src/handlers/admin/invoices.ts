@@ -1,6 +1,7 @@
 // worker/src/handlers/admin/invoices.ts
 import { Context } from 'hono';
 import { v4 as uuidv4 } from 'uuid';
+import Stripe from 'stripe';
 import type { AppEnv } from '../../index.js';
 import { errorResponse, successResponse } from '../../utils.js';
 import { getStripe } from '../../stripe.js';
@@ -33,13 +34,11 @@ export async function handleAdminAddInvoiceItem(c: Context<AppEnv>) {
             return errorResponse('Cannot add items to a finalized invoice.', 400);
         }
 
-        // FINAL FIX: Use top-level properties for creating a simple invoice item.
-        // The Stripe SDK types are very specific here.
         const invoiceItem = await stripe.invoiceItems.create({
             customer: invoice.customer as string,
             invoice: invoiceId,
             description: description,
-            amount: amount, // Using 'amount' (in cents) which is a valid property here
+            amount: amount,
             currency: 'usd',
         });
 
@@ -82,56 +81,86 @@ export async function handleAdminFinalizeInvoice(c: Context<AppEnv>) {
     }
 }
 
-// NEW: Handler to import paid Stripe invoices as historical jobs
+// Handler to import paid Stripe invoices as historical jobs
 export async function handleAdminImportInvoices(c: Context<AppEnv>) {
     const stripe = getStripe(c.env);
     const db = c.env.DB;
     let importedCount = 0;
     let skippedCount = 0;
     const errors: string[] = [];
+    let hasMore = true;
+    let startingAfter: string | undefined = undefined;
 
     try {
-        const invoices = await stripe.invoices.list({
-            status: 'paid',
-            limit: 100,
-            expand: ['data.customer', 'data.lines.data'],
-        });
+        while (hasMore) {
+            const invoices: Stripe.ApiList<Stripe.Invoice> = await stripe.invoices.list({
+                status: 'paid',
+                limit: 100,
+                starting_after: startingAfter,
+                expand: ['data.customer', 'data.lines.data'],
+            });
 
-        for (const invoice of invoices.data) {
-            if (!invoice.customer || typeof invoice.customer !== 'object' || invoice.customer.deleted) {
-                skippedCount++;
-                continue;
+            if (invoices.data.length === 0) {
+                hasMore = false;
+                break;
             }
 
-            const existingJob = await db.prepare(`SELECT id FROM jobs WHERE stripe_invoice_id = ?`).bind(invoice.id).first();
-            if (existingJob) {
-                skippedCount++;
-                continue;
+            for (const invoice of invoices.data) {
+                if (!invoice.lines.data || invoice.lines.data.length === 0) {
+                    skippedCount++;
+                    continue;
+                }
+
+                if (!invoice.customer || typeof invoice.customer !== 'object' || invoice.customer.deleted) {
+                    skippedCount++;
+                    continue;
+                }
+
+                const existingJob = await db.prepare(`SELECT id FROM jobs WHERE stripe_invoice_id = ?`).bind(invoice.id).first();
+                if (existingJob) {
+                    skippedCount++;
+                    continue;
+                }
+
+                const user = await db.prepare(`SELECT id FROM users WHERE stripe_customer_id = ?`).bind(invoice.customer.id).first<User>();
+                if (!user) {
+                    errors.push(`User not found for Stripe customer ${invoice.customer.id}`);
+                    skippedCount++;
+                    continue;
+                }
+
+                const jobStartDate = new Date((invoice.status_transitions.paid_at || invoice.created) * 1000);
+                const jobEndDate = new Date(jobStartDate.getTime() + 60 * 60 * 1000);
+                const jobTitle = invoice.lines.data[0]?.description || invoice.description || `Imported Job ${invoice.id}`;
+                const newJobId = uuidv4();
+
+                const jobInsertStmt = db.prepare(
+                    `INSERT INTO jobs (id, customerId, title, description, start, end, status, recurrence, stripe_invoice_id, invoice_created_at, total_amount_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                ).bind(
+                    newJobId,
+                    user.id.toString(),
+                    jobTitle,
+                    invoice.description || `Imported from Stripe Invoice #${invoice.number}`,
+                    jobStartDate.toISOString(),
+                    jobEndDate.toISOString(),
+                    'paid',
+                    'none',
+                    invoice.id,
+                    new Date(invoice.created * 1000).toISOString(),
+                    invoice.total // Use the total from the invoice
+                );
+
+                const serviceInserts: D1PreparedStatement[] = invoice.lines.data.map((item: Stripe.InvoiceLineItem) =>
+                    db.prepare(`INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents) VALUES (?, ?, ?, ?, ?, ?)`
+                    ).bind(user.id, newJobId, jobStartDate.toISOString(), 'completed', item.description || 'Imported Service', item.amount)
+                );
+
+                await db.batch([jobInsertStmt, ...serviceInserts]);
+                importedCount++;
             }
 
-            const user = await db.prepare(`SELECT id FROM users WHERE stripe_customer_id = ?`).bind(invoice.customer.id).first<User>();
-            if (!user) {
-                errors.push(`User not found for Stripe customer ${invoice.customer.id}`);
-                skippedCount++;
-                continue;
-            }
-
-            const jobStartDate = new Date((invoice.status_transitions.paid_at || invoice.created) * 1000);
-            const jobEndDate = new Date(jobStartDate.getTime() + 60 * 60 * 1000);
-            const jobTitle = invoice.lines.data[0]?.description || invoice.description || `Imported Job ${invoice.id}`;
-            const newJobId = uuidv4();
-
-            const jobInsertStmt = db.prepare(
-                `INSERT INTO jobs (id, customerId, title, description, start, end, status, recurrence, stripe_invoice_id, invoice_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-            ).bind(newJobId, user.id.toString(), jobTitle, invoice.description || `Imported from Stripe Invoice #${invoice.number}`, jobStartDate.toISOString(), jobEndDate.toISOString(), 'paid', 'none', invoice.id, new Date(invoice.created * 1000).toISOString());
-
-            const serviceInserts: D1PreparedStatement[] = invoice.lines.data.map(item =>
-                db.prepare(`INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents) VALUES (?, ?, ?, ?, ?, ?)`
-                ).bind(user.id, newJobId, jobStartDate.toISOString(), 'completed', item.description || 'Imported Service', item.amount)
-            );
-
-            await db.batch([jobInsertStmt, ...serviceInserts]);
-            importedCount++;
+            startingAfter = invoices.data[invoices.data.length - 1].id;
+            hasMore = invoices.has_more;
         }
 
         return successResponse({ message: `Import complete.`, imported: importedCount, skipped: skippedCount, errors });
@@ -149,6 +178,8 @@ export async function handleAdminImportInvoicesForUser(c: Context<AppEnv>) {
     let importedCount = 0;
     let skippedCount = 0;
     const errors: string[] = [];
+    let hasMore = true;
+    let startingAfter: string | undefined = undefined;
 
     try {
         const user = await db.prepare(`SELECT id, stripe_customer_id FROM users WHERE id = ?`).bind(userId).first<User>();
@@ -156,41 +187,69 @@ export async function handleAdminImportInvoicesForUser(c: Context<AppEnv>) {
             return errorResponse("User not found or does not have a Stripe customer ID.", 404);
         }
 
-        const invoices = await stripe.invoices.list({
-            customer: user.stripe_customer_id, // Filter by customer
-            status: 'paid',
-            limit: 100,
-            expand: ['data.lines.data'],
-        });
+        while (hasMore) {
+            const invoices: Stripe.ApiList<Stripe.Invoice> = await stripe.invoices.list({
+                customer: user.stripe_customer_id,
+                status: 'paid',
+                limit: 100,
+                starting_after: startingAfter,
+                expand: ['data.lines.data'],
+            });
 
-        for (const invoice of invoices.data) {
-            if (!invoice.customer || typeof invoice.customer !== 'string' || invoice.customer !== user.stripe_customer_id) {
-                skippedCount++;
-                continue;
+            if (invoices.data.length === 0) {
+                hasMore = false;
+                break;
             }
 
-            const existingJob = await db.prepare(`SELECT id FROM jobs WHERE stripe_invoice_id = ?`).bind(invoice.id).first();
-            if (existingJob) {
-                skippedCount++;
-                continue;
+            for (const invoice of invoices.data) {
+                if (!invoice.lines.data || invoice.lines.data.length === 0) {
+                    skippedCount++;
+                    continue;
+                }
+
+                if (!invoice.customer || typeof invoice.customer !== 'string' || invoice.customer !== user.stripe_customer_id) {
+                    skippedCount++;
+                    continue;
+                }
+
+                const existingJob = await db.prepare(`SELECT id FROM jobs WHERE stripe_invoice_id = ?`).bind(invoice.id).first();
+                if (existingJob) {
+                    skippedCount++;
+                    continue;
+                }
+
+                const jobStartDate = new Date((invoice.status_transitions.paid_at || invoice.created) * 1000);
+                const jobEndDate = new Date(jobStartDate.getTime() + 60 * 60 * 1000);
+                const jobTitle = invoice.lines.data[0]?.description || invoice.description || `Imported Job ${invoice.id}`;
+                const newJobId = uuidv4();
+
+                const jobInsertStmt = db.prepare(
+                    `INSERT INTO jobs (id, customerId, title, description, start, end, status, recurrence, stripe_invoice_id, invoice_created_at, total_amount_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                ).bind(
+                    newJobId,
+                    user.id.toString(),
+                    jobTitle,
+                    invoice.description || `Imported from Stripe Invoice #${invoice.number}`,
+                    jobStartDate.toISOString(),
+                    jobEndDate.toISOString(),
+                    'paid',
+                    'none',
+                    invoice.id,
+                    new Date(invoice.created * 1000).toISOString(),
+                    invoice.total
+                );
+
+                const serviceInserts: D1PreparedStatement[] = invoice.lines.data.map((item) =>
+                    db.prepare(`INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents) VALUES (?, ?, ?, ?, ?, ?)`
+                    ).bind(user.id, newJobId, jobStartDate.toISOString(), 'completed', item.description || 'Imported Service', item.amount)
+                );
+
+                await db.batch([jobInsertStmt, ...serviceInserts]);
+                importedCount++;
             }
 
-            const jobStartDate = new Date((invoice.status_transitions.paid_at || invoice.created) * 1000);
-            const jobEndDate = new Date(jobStartDate.getTime() + 60 * 60 * 1000); // Assume 1 hour duration
-            const jobTitle = invoice.lines.data[0]?.description || invoice.description || `Imported Job ${invoice.id}`;
-            const newJobId = uuidv4();
-
-            const jobInsertStmt = db.prepare(
-                `INSERT INTO jobs (id, customerId, title, description, start, end, status, recurrence, stripe_invoice_id, invoice_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-            ).bind(newJobId, user.id.toString(), jobTitle, invoice.description || `Imported from Stripe Invoice #${invoice.number}`, jobStartDate.toISOString(), jobEndDate.toISOString(), 'paid', 'none', invoice.id, new Date(invoice.created * 1000).toISOString());
-
-            const serviceInserts: D1PreparedStatement[] = invoice.lines.data.map(item =>
-                db.prepare(`INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents) VALUES (?, ?, ?, ?, ?, ?)`
-                ).bind(user.id, newJobId, jobStartDate.toISOString(), 'completed', item.description || 'Imported Service', item.amount)
-            );
-
-            await db.batch([jobInsertStmt, ...serviceInserts]);
-            importedCount++;
+            startingAfter = invoices.data[invoices.data.length - 1].id;
+            hasMore = invoices.has_more;
         }
 
         return successResponse({ message: `Import complete.`, imported: importedCount, skipped: skippedCount, errors });

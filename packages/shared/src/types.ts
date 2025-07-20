@@ -1,8 +1,7 @@
-// packages/shared/src/types.ts - THE SINGLE SOURCE OF TRUTH
+// packages/shared/src/types.ts
+
 import type { D1Database, KVNamespace, Fetcher } from '@cloudflare/workers-types';
 import { z } from 'zod';
-
-
 
 /* ========================================================================
                             DATABASE & CORE MODELS
@@ -21,10 +20,8 @@ export const UserSchema = z.object({
   email_notifications_enabled: z.boolean().default(true).optional(),
   sms_notifications_enabled: z.boolean().default(true).optional(),
   preferred_contact_method: z.enum(['email', 'sms']).default('email').optional(),
-  // ADDED_START
   calendar_reminders_enabled: z.boolean().default(true).optional(),
   calendar_reminder_minutes: z.number().default(60).optional(),
-  // ADDED_END
 });
 export type User = z.infer<typeof UserSchema>;
 
@@ -36,8 +33,7 @@ export const ServiceSchema = z.object({
   status: z.string(),
   notes: z.string().optional().nullable(),
   price_cents: z.number().optional().nullable(),
-  stripe_invoice_id: z.string().optional().nullable(),
-  job_id: z.number().optional().nullable(), // MODIFIED: Add job_id
+  job_id: z.string().optional().nullable(),
 });
 export type Service = z.infer<typeof ServiceSchema>;
 
@@ -50,7 +46,6 @@ export const JobStatusEnum = z.enum([
   'past_due',
   'cancelled',
   'pending_confirmation',
-  // --- NEW STATUSES ---
   'pending_quote',
   'quote_accepted',
   'paid'
@@ -72,8 +67,9 @@ export const JobSchema = z.object({
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
   stripe_invoice_id: z.string().optional().nullable(),
-  stripe_quote_id: z.string().optional().nullable(), // MODIFIED: Add stripe_quote_id
+  stripe_quote_id: z.string().optional().nullable(),
   invoice_created_at: z.string().optional().nullable(),
+  total_amount_cents: z.number().optional().nullable(), // New field
 });
 export type Job = z.infer<typeof JobSchema>;
 

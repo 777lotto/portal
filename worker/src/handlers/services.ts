@@ -4,6 +4,11 @@ import { AppEnv as ServiceAppEnv } from '../index.js';
 import { errorResponse as serviceErrorResponse, successResponse as serviceSuccessResponse } from '../utils.js';
 import { Service } from '@portal/shared';
 
+// DEPRECATION NOTE: With the refactor of Services to be line items of Jobs,
+// these top-level service handlers are no longer logical for the application's flow.
+// You should prefer using the getServicesForJob handler in `jobs.ts` to retrieve
+// services within the context of their parent job.
+
 export const handleListServices = async (c: ServiceContext<ServiceAppEnv>) => {
     const user = c.get('user');
     try {
