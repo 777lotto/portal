@@ -1,4 +1,5 @@
-// 777lotto/portal/portal-bet/worker/src/handlers/google.ts
+// 777lotto/portal/portal-fold/worker/src/handlers/google.ts
+
 import { Context } from 'hono';
 import { AppEnv } from '../index.js';
 import { getJwtSecretKey } from '../auth.js';
@@ -82,7 +83,7 @@ export const handleGoogleCallback = async (c: Context<AppEnv>) => {
         .setProtectedHeader({ alg: 'HS256' })
         .setIssuedAt()
         .setExpirationTime('15m')
-        .sign(getJwtSecretKey(c.env.JWT_SECRET));
+        .sign(getJwtSecretKey(c.env.JWT_SECRET)); // Corrected Line
 
 
     // Redirect to the frontend with the token
