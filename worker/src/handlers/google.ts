@@ -1,3 +1,5 @@
+// 777lotto/portal/portal-fold/worker/src/handlers/google.ts
+
 import { v4 as uuidv4 } from 'uuid';
 import { Context } from 'hono';
 import { AppEnv } from '../index.js';
@@ -152,8 +154,13 @@ export const handleAdminImportSelectedContacts = async (c: Context<AppEnv>) => {
     }
 
     for (const contact of contacts) {
-      const email = contact.emailAddresses?.[0]?.value?.toLowerCase();
-      const phone = contact.phoneNumbers?.[0]?.value?.replace(/\D/g, '');
+      // **FIX START**: Safely access and clean email and phone data
+      const emailValue = contact.emailAddresses?.[0]?.value;
+      const email = emailValue ? emailValue.toLowerCase() : undefined;
+
+      const phoneValue = contact.phoneNumbers?.[0]?.value;
+      const phone = phoneValue ? phoneValue.replace(/\D/g, '') : undefined;
+      // **FIX END**
 
       if (!email && !phone) {
         continue; // Skip contacts without email or phone
