@@ -1,10 +1,10 @@
 // File: 777lotto/portal/portal-bet/frontend/src/components/VerifyCodeForm.tsx
-// File: 777lotto/portal/portal-bet/frontend/src/components/VerifyCodeForm.tsx
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { verifyResetCode } from '../lib/api';
 import { ApiError } from '../lib/fetchJson';
+import StyledDigitInput from './StyledDigitInput'; // Make sure to import
 
 function VerifyCodeForm() {
   const [code, setCode] = useState('');
@@ -15,20 +15,17 @@ function VerifyCodeForm() {
   const location = useLocation();
   const identifier = location.state?.identifier;
 
-  // If the user lands here directly without an identifier, redirect them.
   if (!identifier) {
     navigate('/forgot-password', { replace: true });
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = useCallback(async (submittedCode: string) => {
     setError(null);
     setIsLoading(true);
 
     try {
-      const response = await verifyResetCode(identifier, code);
+      const response = await verifyResetCode(identifier, submittedCode);
       if (response.passwordSetToken) {
-        // On success, navigate to the final step, passing the special token.
         navigate('/set-password', { state: { passwordSetToken: response.passwordSetToken }, replace: true });
       } else {
         throw new Error("Verification failed: No token received.");
@@ -38,7 +35,7 @@ function VerifyCodeForm() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [identifier, navigate]);
 
   return (
     <div className="container mt-5">
@@ -48,18 +45,17 @@ function VerifyCodeForm() {
             <div className="card-body">
               <h3 className="card-title text-center">Enter Verification Code</h3>
               <p className="text-center text-muted mb-4">A 6-digit code was sent to {identifier}.</p>
-              <form onSubmit={handleSubmit}>
+              <form onSubmit={(e) => { e.preventDefault(); handleSubmit(code); }}>
                 <div className="mb-3">
-                  <label htmlFor="code">Verification Code</label>
-                  <input
-                    type="text"
+                  <StyledDigitInput
                     id="code"
+                    label="Verification Code"
                     value={code}
-                    onChange={e => setCode(e.target.value)}
-                    className="form-control"
-                    required
-                    minLength={6}
-                    maxLength={6}
+                    onChange={setCode}
+                    onComplete={handleSubmit}
+                    digitCount={6}
+                    autoComplete="one-time-code"
+                    format="code"
                   />
                 </div>
 

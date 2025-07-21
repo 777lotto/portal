@@ -71,6 +71,47 @@ async function handleSubscribe(request: Request, env: NotificationEnv): Promise<
     }
 }
 
+/**
+ * Generates the message and link for a UI notification based on its type.
+ * @param type The type of the notification (e.g., 'invoice_created').
+ * @param data The data associated with the notification.
+ * @returns An object with the message and link for the UI notification.
+ */
+function generateUINotificationDetails(type: string, data: Record<string, any>): { message: string; link: string } {
+    switch(type) {
+        case 'invoice_created':
+            return {
+                message: `A new invoice for $${(data.amount / 100).toFixed(2)} is ready.`,
+                link: `/jobs/${data.jobId}`
+            };
+        case 'invoice_paid':
+             return {
+                message: `Payment of $${(data.amount / 100).toFixed(2)} for invoice #${data.invoiceId} was successful.`,
+                link: `/account`
+            };
+        case 'quote_created':
+            return {
+                message: `A new quote is available for your review.`,
+                link: `/jobs` // Or a more specific link if available
+            };
+        case 'quote_accepted':
+            return {
+                message: `Quote #${data.quoteId} has been accepted by ${data.customerName}.`,
+                link: `/admin/users/${data.userId}` // Assuming admin notification
+            };
+        case 'service_reminder':
+            return {
+                message: `Reminder: You have a service appointment for "${data.serviceType}" tomorrow.`,
+                link: `/calendar`
+            };
+        default:
+            return {
+                message: `You have a new notification.`,
+                link: '/dashboard'
+            };
+    }
+}
+
 
 /* ========================================================================
                              WORKER ENTRYPOINT
@@ -148,6 +189,15 @@ export default {
 
         console.log(`Processing queued notification for user ${user.id}. Type: ${type}`);
         const notificationPromises = [];
+
+        // --- NEW LOGIC ---
+        // Always create a UI notification, regardless of user preferences for other channels
+        const { message: uiMessage, link: uiLink } = generateUINotificationDetails(type, data);
+        const uiNotificationPromise = env.DB.prepare(
+            `INSERT INTO ui_notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)`
+        ).bind(userId, type, uiMessage, uiLink).run();
+        notificationPromises.push(uiNotificationPromise);
+        // --- END NEW LOGIC ---
 
         // Send email if channel is selected and user has enabled email notifications
         if (channels.includes('email') && user.email && user.email_notifications_enabled) {

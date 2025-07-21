@@ -32,7 +32,6 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
                     try {
                         const message = `Payment of $${(invoice.amount_paid / 100).toFixed(2)} for invoice #${invoice.number} was successful.`;
                         const link = `/account`; // Link to their account/billing page
-                        // NOTE: This assumes a 'ui_notifications' table exists.
                         await c.env.DB.prepare(
                             `INSERT INTO ui_notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)`
                         ).bind(user.id, 'invoice_paid', message, link).run();
@@ -77,7 +76,7 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
                                     quoteId: quote.id,
                                     customerName: customerName
                                 },
-                                channels: ['email']
+                                channels: ['email'] // Admins typically prefer email
                             });
                         }
                     }

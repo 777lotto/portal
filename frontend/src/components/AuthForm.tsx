@@ -210,15 +210,14 @@ function AuthForm({ setToken }: Props) {
     }
   };
 
-  const handleVerifyCode = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleVerifyCode = async (code: string) => {
     clearMessages();
     setIsLoading(true);
     try {
         const identifier = flowContext === 'SIGNUP'
             ? (verificationChannel === 'email' ? formData.email : formData.phone)
             : formData.identifier;
-        const response = await verifyResetCode(identifier, formData.code);
+        const response = await verifyResetCode(identifier, code);
         if (response.passwordSetToken) {
             if (flowContext === 'LOGIN') {
                 const sessionResponse = await loginWithToken(response.passwordSetToken);
@@ -397,7 +396,7 @@ function AuthForm({ setToken }: Props) {
     const canSwitch = !!(availableMethods.email && availableMethods.phone);
 
     return (
-      <form onSubmit={handleVerifyCode} className="space-y-6">
+      <form onSubmit={(e) => { e.preventDefault(); handleVerifyCode(formData.code); }} className="space-y-6">
            <div className="text-center">
                 <h3 className="card-title">Enter Verification Code</h3>
                 {message && <div className="alert alert-info mt-4">{message}</div>}
@@ -407,6 +406,7 @@ function AuthForm({ setToken }: Props) {
             label="6-Digit Code"
             value={formData.code}
             onChange={(value) => setFormData(prev => ({ ...prev, code: value }))}
+            onComplete={handleVerifyCode}
             digitCount={6}
             autoComplete="one-time-code"
             format="code"

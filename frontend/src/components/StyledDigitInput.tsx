@@ -1,5 +1,5 @@
 // 777lotto/portal/portal-bet/frontend/src/components/StyledDigitInput.tsx
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 
 interface StyledDigitInputProps {
   value: string;
@@ -9,6 +9,7 @@ interface StyledDigitInputProps {
   id: string;
   autoComplete?: string;
   format?: 'phone' | 'code';
+  onComplete?: (value: string) => void;
 }
 
 const StyledDigitInput: React.FC<StyledDigitInputProps> = ({
@@ -19,17 +20,21 @@ const StyledDigitInput: React.FC<StyledDigitInputProps> = ({
   id,
   autoComplete = 'off',
   format = 'code',
+  onComplete,
 }) => {
+  useEffect(() => {
+    if (value.length === digitCount && onComplete) {
+      onComplete(value);
+    }
+  }, [value, digitCount, onComplete]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let cleaned = e.target.value.replace(/\D/g, '');
 
-    // If the number starts with '1' and is 11 digits long (country code + 10 digits),
-    // strip the leading '1' to handle US/Canada autofill correctly.
     if (cleaned.length === 11 && cleaned.startsWith('1')) {
       cleaned = cleaned.substring(1);
     }
 
-    // Ensure the final value does not exceed the specified digit count.
     const finalValue = cleaned.substring(0, digitCount);
     onChange(finalValue);
   };
