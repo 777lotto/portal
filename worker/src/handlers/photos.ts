@@ -98,10 +98,13 @@ export const handleGetPhotosForJob = async (c: PhotoContext<PhotoAppEnv>) => {
 };
 
 export const handleAdminUploadPhotoForUser = async (c: PhotoContext<PhotoAppEnv>) => {
-    const { userId } = c.req.param();
     const formData = await c.req.formData();
+    const userId = formData.get('userId') as string | null;
     const fileValue = formData.get('photo');
     const jobId = formData.get('job_id') as string | null;
+    const serviceId = formData.get('service_id') as string | null;
+    const notes = formData.get('notes') as string | null;
+
 
     if (!userId) {
         return photoErrorResponse("User ID is required.", 400);
@@ -120,7 +123,7 @@ export const handleAdminUploadPhotoForUser = async (c: PhotoContext<PhotoAppEnv>
     const cfUploadData = new FormData();
     cfUploadData.append('file', file);
     cfUploadData.append('requireSignedURLs', 'false');
-    cfUploadData.append('metadata', JSON.stringify({ userId, jobId }));
+    cfUploadData.append('metadata', JSON.stringify({ userId, jobId, serviceId }));
 
 
     try {
@@ -149,16 +152,24 @@ export const handleAdminUploadPhotoForUser = async (c: PhotoContext<PhotoAppEnv>
             url: cfResult.result.variants[0],
             user_id: parseInt(userId, 10),
             job_id: jobId || null,
+            service_id: serviceId ? parseInt(serviceId, 10) : null,
         };
 
         const { results: dbResults } = await c.env.DB.prepare(
-            `INSERT INTO photos (id, url, user_id, job_id) VALUES (?, ?, ?, ?) RETURNING *`
-        ).bind(newPhotoData.id, newPhotoData.url, newPhotoData.user_id, newPhotoData.job_id).all<Photo>();
+            `INSERT INTO photos (id, url, user_id, job_id, service_id) VALUES (?, ?, ?, ?, ?) RETURNING *`
+        ).bind(newPhotoData.id, newPhotoData.url, newPhotoData.user_id, newPhotoData.job_id, newPhotoData.service_id).all<Photo>();
 
         if (!dbResults || dbResults.length === 0) {
             console.error(`Failed to save photo record for Cloudflare image ${newPhotoData.id}`);
             return photoErrorResponse("Failed to save photo record after successful upload.", 500);
         }
+
+        if (notes) {
+            await c.env.DB.prepare(
+                `INSERT INTO notes (user_id, content, job_id, service_id, photo_id) VALUES (?, ?, ?, ?, ?)`
+            ).bind(newPhotoData.user_id, notes, newPhotoData.job_id, newPhotoData.service_id, newPhotoData.id).run();
+        }
+
 
         return photoSuccessResponse(dbResults[0], 201);
     } catch (e: any) {

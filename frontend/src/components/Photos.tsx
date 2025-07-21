@@ -1,9 +1,16 @@
 // frontend/src/components/Photos.tsx
-import { useState, useEffect } from 'react';
-import { getPhotos } from '../lib/api.js';
-import type { PhotoWithNotes } from '@portal/shared';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { getPhotos, apiGet } from '../lib/api.js';
+import type { PhotoWithNotes, User, Job, Service } from '@portal/shared';
+import { useDropzone } from 'react-dropzone';
+import { jwtDecode } from 'jwt-decode';
+import { apiPostFormData } from '../lib/api';
 
-function Photos() {
+interface UserPayload {
+  role: 'customer' | 'admin';
+}
+
+function CustomerPhotos() {
   const [photos, setPhotos] = useState<PhotoWithNotes[]>([]);
   const [filters, setFilters] = useState({
     created_at: '',
@@ -19,7 +26,6 @@ function Photos() {
       try {
         setIsLoading(true);
         setError(null);
-        // Create a clean filter object with only non-empty values
         const activeFilters = Object.fromEntries(
           Object.entries(filters).filter(([, value]) => value !== '')
         );
@@ -32,17 +38,18 @@ function Photos() {
       }
     };
     fetchPhotos();
-  }, [filters]); // Refetch when filters change
+  }, [filters]);
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
   };
 
+  if (isLoading) return <p>Loading photos...</p>;
+  if (error) return <div className="alert alert-danger">{error}</div>;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
       <h2 className="text-2xl font-bold mb-4">Your Photos</h2>
-
-      {/* Filter Section */}
       <div className="card mb-4">
         <div className="card-body">
           <h5 className="card-title">Filter Photos</h5>
@@ -66,46 +73,209 @@ function Photos() {
           </div>
         </div>
       </div>
-
-      {/* Display Section */}
-      {isLoading && <p>Loading photos...</p>}
-      {error && <div className="alert alert-danger">{error}</div>}
-      {!isLoading && !error && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {photos.length > 0 ? (
-            photos.map(photo => (
-              <div key={photo.id} className="card h-100">
-                  <a href={photo.url} target="_blank" rel="noopener noreferrer">
-                    <img src={photo.url} alt={`Photo from ${new Date(photo.created_at).toLocaleDateString()}`} className="card-img-top" style={{ aspectRatio: '16/9', objectFit: 'cover' }} />
-                  </a>
-                  <div className="card-body">
-                     <p className="card-text"><small className="text-muted">Uploaded: {new Date(photo.created_at).toLocaleString()}</small></p>
-                     {photo.job_id && <p className="card-text"><small className="text-muted">Job ID: {photo.job_id}</small></p>}
-                     {photo.service_id && <p className="card-text"><small className="text-muted">Service ID: {photo.service_id}</small></p>}
-                     {photo.invoice_id && <p className="card-text"><small className="text-muted">Invoice ID: {photo.invoice_id}</small></p>}
-                     {photo.notes && photo.notes.length > 0 && (
-                        <div className="mt-3">
-                            <h6>Notes:</h6>
-                            <ul className="list-unstyled">
-                                {photo.notes.map(note => (
-                                    <li key={note.id} className="mb-2">
-                                        <p className="mb-0">{note.content}</p>
-                                        <small className="text-muted">{new Date(note.created_at).toLocaleString()}</small>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                     )}
-                  </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {photos.length > 0 ? (
+          photos.map(photo => (
+            <div key={photo.id} className="card h-100">
+                <a href={photo.url} target="_blank" rel="noopener noreferrer">
+                  <img src={photo.url} alt={`Photo from ${new Date(photo.created_at).toLocaleDateString()}`} className="card-img-top" style={{ aspectRatio: '16/9', objectFit: 'cover' }} />
+                </a>
+                <div className="card-body">
+                   <p className="card-text"><small className="text-muted">Uploaded: {new Date(photo.created_at).toLocaleString()}</small></p>
+                   {photo.job_id && <p className="card-text"><small className="text-muted">Job ID: {photo.job_id}</small></p>}
+                   {photo.service_id && <p className="card-text"><small className="text-muted">Service ID: {photo.service_id}</small></p>}
+                   {photo.invoice_id && <p className="card-text"><small className="text-muted">Invoice ID: {photo.invoice_id}</small></p>}
+                   {photo.notes && photo.notes.length > 0 && (
+                      <div className="mt-3">
+                          <h6>Notes:</h6>
+                          <ul className="list-unstyled">
+                              {photo.notes.map(note => (
+                                  <li key={note.id} className="mb-2">
+                                      <p className="mb-0">{note.content}</p>
+                                      <small className="text-muted">{new Date(note.created_at).toLocaleString()}</small>
+                                  </li>
+                              ))}
+                          </ul>
+                      </div>
+                   )}
                 </div>
-            ))
-          ) : (
-            <p>No photos found matching your criteria.</p>
-          )}
-        </div>
-      )}
+              </div>
+          ))
+        ) : (
+          <p>No photos found matching your criteria.</p>
+        )}
+      </div>
     </div>
   );
+}
+
+function AdminPhotos() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [selectedUser, setSelectedUser] = useState<string>('');
+  const [selectedJob, setSelectedJob] = useState<string>('');
+  const [selectedService, setSelectedService] = useState<string>('');
+  const [notes, setNotes] = useState('');
+  const [userSearch, setUserSearch] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'danger', text: string } | null>(null);
+
+  useEffect(() => {
+    apiGet<User[]>('/api/admin/users').then(setUsers);
+  }, []);
+
+  useEffect(() => {
+    if (selectedUser) {
+      apiGet<Job[]>(`/api/admin/users/${selectedUser}/jobs`).then(setJobs);
+    } else {
+      setJobs([]);
+    }
+    setSelectedJob('');
+  }, [selectedUser]);
+
+  useEffect(() => {
+    if (selectedJob) {
+      apiGet<Service[]>(`/api/jobs/${selectedJob}/services`).then(setServices);
+    } else {
+      setServices([]);
+    }
+    setSelectedService('');
+  }, [selectedJob]);
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (!selectedUser) {
+      setMessage({ type: 'danger', text: 'Please select a user before uploading.' });
+      return;
+    }
+    setMessage(null);
+    setIsSubmitting(true);
+    try {
+      const uploadPromises = acceptedFiles.map(file => {
+        const formData = new FormData();
+        formData.append('photo', file);
+        formData.append('userId', selectedUser);
+        if (selectedJob) formData.append('job_id', selectedJob);
+        if (selectedService) formData.append('service_id', selectedService);
+        if (notes) formData.append('notes', notes);
+        return apiPostFormData(`/api/admin/users/${selectedUser}/photos`, formData);
+      });
+      await Promise.all(uploadPromises);
+      setMessage({ type: 'success', text: `${acceptedFiles.length} photo(s) uploaded successfully!` });
+      // Reset form
+      setSelectedJob('');
+      setSelectedService('');
+      setNotes('');
+    } catch (err: any) {
+      setMessage({ type: 'danger', text: `Upload failed: ${err.message}` });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [selectedUser, selectedJob, selectedService, notes]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: { 'image/*': [] } });
+
+  const filteredUsers = useMemo(() => {
+    const lowercasedQuery = userSearch.toLowerCase();
+    if (!lowercasedQuery) return users;
+    return users.filter(user =>
+      user.name?.toLowerCase().includes(lowercasedQuery) ||
+      user.email?.toLowerCase().includes(lowercasedQuery) ||
+      user.phone?.toLowerCase().includes(lowercasedQuery)
+    );
+  }, [users, userSearch]);
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+      <h2 className="text-2xl font-bold mb-4">Upload Photos for a User</h2>
+      {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
+      <div className="card">
+        <div className="card-body space-y-4">
+          <div>
+            <label htmlFor="userSearch" className="form-label">Search and Select a User</label>
+            <input
+              type="text"
+              id="userSearch"
+              className="form-control mb-2"
+              placeholder="Search by name, email, or phone..."
+              value={userSearch}
+              onChange={e => setUserSearch(e.target.value)}
+            />
+            <select
+              id="user"
+              className="form-control"
+              value={selectedUser}
+              onChange={e => setSelectedUser(e.target.value)}
+              required
+            >
+              <option value="">-- Select a User --</option>
+              {filteredUsers.map(user => (
+                <option key={user.id} value={user.id}>
+                  {user.name || user.company_name} ({user.email || user.phone})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="job" className="form-label">Associate with Job (Optional)</label>
+              <select id="job" className="form-control" value={selectedJob} onChange={e => setSelectedJob(e.target.value)} disabled={!selectedUser}>
+                <option value="">-- Select a Job --</option>
+                {jobs.map(job => (
+                  <option key={job.id} value={job.id}>{job.title} - {new Date(job.start).toLocaleDateString()}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="service" className="form-label">Associate with Service (Optional)</label>
+              <select id="service" className="form-control" value={selectedService} onChange={e => setSelectedService(e.target.value)} disabled={!selectedJob}>
+                <option value="">-- Select a Service --</option>
+                {services.map(service => (
+                  <option key={service.id} value={service.id}>{service.notes}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label htmlFor="notes" className="form-label">Notes (Optional)</label>
+            <textarea
+              id="notes"
+              className="form-control"
+              rows={3}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Add any relevant notes for these photos..."
+            ></textarea>
+          </div>
+          <div {...getRootProps()} className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:bg-light">
+            <input {...getInputProps()} />
+            {isDragActive ? <p>Drop the files here...</p> : <p>Drag 'n' drop photos here, or click to select files</p>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Photos() {
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      try {
+        const decoded = jwtDecode<UserPayload>(token);
+        setUserRole(decoded.role);
+      } catch (e) {
+        console.error("Invalid token:", e);
+      }
+    }
+  }, []);
+
+  if (userRole === 'admin') {
+    return <AdminPhotos />;
+  }
+  return <CustomerPhotos />;
 }
 
 export default Photos;
