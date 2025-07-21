@@ -58,22 +58,11 @@ export function generateHtml(data: WelcomeTemplateData): string {
 
 export function generateText(data: WelcomeTemplateData): string {
   return `
-Hello ${data.name},
+Hi ${data.name},
 
 Thank you for creating an account with 777 Solutions LLC. We're excited to have you on board!
 
-With your new account, you can:
-- Schedule gutter cleaning and maintenance services
-- View upcoming appointments
-- Pay invoices online
-- Access your service history
-
 To get started, visit your dashboard at:
 https://portal.777.foo/dashboard
-
-If you have any questions or need assistance, our support team is here to help.
-
-© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.
-You received this email because you created an account on 777 Solutions' online customer portal.
   `;
 }

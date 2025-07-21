@@ -53,20 +53,11 @@ export function generateConfirmationHtml(data: AppointmentTemplateData): string 
 
 export function generateConfirmationText(data: AppointmentTemplateData): string {
   return `
-Hello ${data.name},
-
-Your appointment for ${data.serviceType} has been confirmed.
+Confirmed appointment for ${data.serviceType}
 
 Date: ${data.date}
 Time: ${data.time}
 ${data.address ? `Address: ${data.address}` : ''}
-
-We look forward to serving you. If you need to reschedule or cancel your appointment,
-please log in to your account or contact us at least 24 hours in advance.
-
-Visit https://portal.777.foo/dashboard to manage your appointments.
-
-© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.
   `;
 }
 
@@ -116,16 +107,10 @@ export function generateReminderText(data: AppointmentTemplateData): string {
   return `
 Hello ${data.name},
 
-This is a friendly reminder about your upcoming appointment for ${data.serviceType}.
+Reminder for ${data.serviceType}.
 
 Date: ${data.date}
 Time: ${data.time}
 ${data.address ? `Address: ${data.address}` : ''}
-
-We're looking forward to seeing you. If you need to reschedule, please contact us as soon as possible.
-
-Visit https://portal.777.foo/dashboard to manage your appointments.
-
-© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.
   `;
 }

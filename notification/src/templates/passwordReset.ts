@@ -38,16 +38,11 @@ export function generatePasswordResetHtml(data: PasswordResetTemplateData): stri
 
 export function generatePasswordResetText(data: PasswordResetTemplateData): string {
   return `
-Hello ${data.name},
-
-We received a request to reset your password. Enter the code below to set a new password:
+Hi ${data.name},
 
 ${data.resetCode}
 
 This code will expire in 10 minutes.
 
-If you did not request this, please ignore this email.
-
-© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.
   `;
 }

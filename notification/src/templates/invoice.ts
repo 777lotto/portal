@@ -59,21 +59,12 @@ export function generateInvoiceCreatedHtml(data: InvoiceTemplateData): string {
 
 export function generateInvoiceCreatedText(data: InvoiceTemplateData): string {
   return `
-Hello ${data.name},
+New invoice for ${data.name}, from 777 Solutions.
 
-A new invoice from 777 Solutions LLC has been created for your recent service.
-
-Invoice #: ${data.invoiceId}
 Amount: $${data.amount}
 Due Date: ${data.dueDate}
 
-Please visit the following link to view and pay your invoice:
 ${data.invoiceUrl}
-
-If you have any questions about this invoice, please don't hesitate to contact our support team.
-
-© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.
-This is an automated email, please do not reply directly to this message.
   `;
 }
 
@@ -128,20 +119,13 @@ export function generateInvoicePaidHtml(data: InvoiceTemplateData): string {
 
 export function generateInvoicePaidText(data: InvoiceTemplateData): string {
   return `
-Hello ${data.name},
+Hi ${data.name},
 
-Thank you for your payment. We've received your payment for the following invoice:
-
-Invoice #: ${data.invoiceId}
 Amount Paid: $${data.amount}
-Payment Date: ${new Date().toLocaleDateString()}
 
-You can view your receipt and payment history here:
+You can view your receipt here:
 ${data.invoiceUrl}
 
 Thank you for your business!
-
-© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.
-This is an automated email, please do not reply directly to this message.
   `;
 }

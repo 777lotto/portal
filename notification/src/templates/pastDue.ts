@@ -51,13 +51,9 @@ Hello ${data.name},
 
 ACTION REQUIRED: INVOICE PAST DUE
 
-This is a reminder that your invoice #${data.invoiceId} is now past due. To avoid any interruption in service, please submit your payment as soon as possible.
-
+#${data.invoiceId} is now past due.
 You can view and pay the invoice here:
 ${data.invoiceUrl}
 
-If you have already made this payment, please disregard this email. If you have any questions, please don't hesitate to contact us.
-
-© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.
   `;
 }

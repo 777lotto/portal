@@ -1,158 +1,98 @@
-import { useState, useEffect } from 'react';
-import { apiGet, apiPost } from '../../lib/api';
-import type { User, Service } from '@portal/shared';
+// 777lotto/portal/portal-fold/frontend/src/components/admin/JobsAndQuotesTable.tsx
+import { useState } from 'react';
+import type { JobWithDetails, Service } from '@portal/shared';
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: () => void;
-  type: 'job' | 'quote';
+  data: JobWithDetails[];
 }
 
-function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
-  const [users, setUsers] = useState<User[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>('');
-  const [lineItems, setLineItems] = useState<Partial<Service>[]>([{ notes: '', price_cents: 0 }]);
-  const [title, setTitle] = useState('');
-  const [dueDateDays, setDueDateDays] = useState<number>(30);
-  const [expireDateDays, setExpireDateDays] = useState<number>(30);
-  const [contactMethod, setContactMethod] = useState<'default' | 'email' | 'sms' | 'push'>('default');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+function JobsAndQuotesTable({ data }: Props) {
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      const fetchUsers = async () => {
-        try {
-          const allUsers = await apiGet<User[]>('/api/admin/users');
-          setUsers(allUsers.filter(u => u.role === 'customer'));
-        } catch (err) {
-          setError('Failed to load users.');
-        }
-      };
-      fetchUsers();
-    }
-  }, [isOpen]);
-
-  const handleLineItemChange = (index: number, field: 'notes' | 'price_cents', value: string) => {
-    const newLineItems = [...lineItems];
-    if (field === 'price_cents') {
-      newLineItems[index][field] = parseInt(value, 10) * 100;
-    } else {
-      newLineItems[index][field] = value;
-    }
-    setLineItems(newLineItems);
+  const toggleRow = (id: string) => {
+    setExpandedRow(expandedRow === id ? null : id);
   };
 
-  const addLineItem = () => {
-    setLineItems([...lineItems, { notes: '', price_cents: 0 }]);
+  const getStatusClass = (status: string) => {
+    if (status.includes('quote')) return 'bg-purple-100 text-purple-800';
+    if (status.includes('pending')) return 'bg-yellow-100 text-yellow-800';
+    if (status === 'paid' || status === 'completed') return 'bg-green-100 text-green-800';
+    if (status === 'past_due') return 'bg-red-100 text-red-800';
+    return 'bg-gray-100 text-gray-800';
   };
-
-  const removeLineItem = (index: number) => {
-    const newLineItems = lineItems.filter((_, i) => i !== index);
-    setLineItems(newLineItems);
-  };
-
-  const handleSubmit = async (isDraft: boolean) => {
-    setError(null);
-    if (!selectedUserId) {
-      setError("Please select a user.");
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      const payload = {
-        userId: selectedUserId,
-        title,
-        lineItems,
-        isDraft,
-        contactMethod,
-        dueDateDays: type === 'job' ? dueDateDays : undefined,
-        expireDateDays: type === 'quote' ? expireDateDays : undefined,
-      };
-      await apiPost(`/api/admin/billing/${type}`, payload);
-      onSave();
-      onClose();
-    } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (!isOpen) return null;
 
   return (
-    <div className="absolute left-0 mt-2 w-[32rem] max-w-lg rounded-md shadow-lg z-20 card" tabIndex={-1}>
-      <div className="card-header flex justify-between items-center">
-        <h5 className="card-title text-xl">Add New {type === 'job' ? 'Job/Invoice' : 'Quote'}</h5>
-        <button type="button" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl font-bold" onClick={onClose}>&times;</button>
-      </div>
-      <div className="card-body">
-        {error && <div className="alert alert-danger">{error}</div>}
-        <div className="mb-3">
-          <label htmlFor="user" className="form-label">Customer</label>
-          <select id="user" className="form-control" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)}>
-            <option value="">Select a user</option>
-            {users.map(user => (
-              <option key={user.id} value={user.id}>
-                {user.name || user.company_name} ({user.email || user.phone})
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="mb-3">
-          <label htmlFor="title" className="form-label">Title</label>
-          <input type="text" id="title" className="form-control" value={title} onChange={(e) => setTitle(e.target.value)} />
-        </div>
-        <hr className="my-3 border-border-light dark:border-border-dark" />
-        <h6 className="font-semibold mb-2">Line Items</h6>
-        {lineItems.map((item, index) => (
-          <div key={index} className="flex items-center gap-2 mb-2">
-            <div className="flex-grow">
-              <input type="text" className="form-control" placeholder="Description" value={item.notes || ''} onChange={(e) => handleLineItemChange(index, 'notes', e.target.value)} />
-            </div>
-            <div className="w-28">
-              <input type="number" step="0.01" className="form-control" placeholder="Price ($)" value={(item.price_cents || 0) / 100} onChange={(e) => handleLineItemChange(index, 'price_cents', e.target.value)} />
-            </div>
-            <div>
-              <button className="btn btn-danger" onClick={() => removeLineItem(index)}>X</button>
-            </div>
-          </div>
-        ))}
-        <button className="btn btn-secondary mt-1" onClick={addLineItem}>Add Item</button>
-        <hr className="my-3 border-border-light dark:border-border-dark" />
-        {type === 'job' && (
-          <div className="mb-3">
-            <label htmlFor="dueDateDays" className="form-label">Payment Due In (days)</label>
-            <input type="number" id="dueDateDays" className="form-control" value={dueDateDays} onChange={(e) => setDueDateDays(parseInt(e.target.value, 10))} />
-          </div>
-        )}
-        {type === 'quote' && (
-          <div className="mb-3">
-            <label htmlFor="expireDateDays" className="form-label">Expires In (days)</label>
-            <input type="number" id="expireDateDays" className="form-control" value={expireDateDays} onChange={(e) => setExpireDateDays(parseInt(e.target.value, 10))} />
-          </div>
-        )}
-         <div className="mb-3">
-            <label htmlFor="contactMethod" className="form-label">Send Via</label>
-            <select id="contactMethod" className="form-control" value={contactMethod} onChange={(e) => setContactMethod(e.target.value as any)}>
-                <option value="default">Customer's Preference</option>
-                <option value="email">Email</option>
-                <option value="sms">SMS</option>
-                <option value="push">Web Push</option>
-            </select>
-        </div>
-      </div>
-      <div className="p-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2 bg-secondary-light/50 dark:bg-secondary-dark/50 rounded-b-lg">
-        <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-        <button type="button" className="btn btn-info" onClick={() => handleSubmit(true)} disabled={isSubmitting}>Save as Draft</button>
-        <button type="button" className="btn btn-primary" onClick={() => handleSubmit(false)} disabled={isSubmitting}>
-          {isSubmitting ? 'Sending...' : 'Save and Send'}
-        </button>
-      </div>
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-border-light dark:divide-border-dark">
+        <thead className="bg-secondary-light dark:bg-secondary-dark">
+          <tr>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider"></th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Customer</th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Job/Quote Title</th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Date</th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Status</th>
+            <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Total Amount</th>
+          </tr>
+        </thead>
+        <tbody className="bg-primary-light dark:bg-tertiary-dark divide-y divide-border-light dark:divide-border-dark">
+          {data.map((item) => (
+            <>
+              <tr key={item.id} className="hover:bg-secondary-light/50 dark:hover:bg-secondary-dark/50 cursor-pointer" onClick={() => toggleRow(item.id)}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  {item.services.length > 0 && (
+                    <span className="text-xl text-text-secondary-light dark:text-text-secondary-dark">{expandedRow === item.id ? '−' : '+'}</span>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">{item.customerName}</div>
+                  <div className="text-sm text-text-secondary-light dark:text-text-secondary-dark">{item.customerAddress}</div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-text-primary-light dark:text-text-primary-dark">{item.title}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary-light dark:text-text-secondary-dark">{new Date(item.createdAt || Date.now()).toLocaleDateString()}</td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(item.status)}`}>
+                    {item.status.replace(/_/g, ' ')}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
+                  ${((item.total_amount_cents || 0) / 100).toFixed(2)}
+                </td>
+              </tr>
+              {expandedRow === item.id && (
+                <tr className="bg-gray-50 dark:bg-black/20">
+                  <td colSpan={6} className="px-6 py-4">
+                    <div className="pl-8">
+                      <h4 className="text-md font-semibold mb-2 text-text-primary-light dark:text-text-primary-dark">Line Items</h4>
+                      {item.services.length > 0 ? (
+                        <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700">
+                           <thead className="bg-gray-100 dark:bg-secondary-dark">
+                              <tr>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Description</th>
+                                <th className="px-4 py-2 text-right text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Amount</th>
+                              </tr>
+                           </thead>
+                           <tbody className="bg-white dark:bg-tertiary-dark divide-y divide-gray-200 dark:divide-border-dark">
+                              {item.services.map((service: Service) => (
+                                <tr key={service.id}>
+                                  <td className="px-4 py-2 whitespace-nowrap text-sm text-text-secondary-light dark:text-text-secondary-dark">{service.notes}</td>
+                                  <td className="px-4 py-2 whitespace-nowrap text-right text-sm text-text-primary-light dark:text-text-primary-dark">${((service.price_cents || 0) / 100).toFixed(2)}</td>
+                                </tr>
+                              ))}
+                           </tbody>
+                        </table>
+                      ) : (
+                        <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">No line items for this entry.</p>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-export default JobQuoteModal;
+export default JobsAndQuotesTable;
