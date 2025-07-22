@@ -299,21 +299,23 @@ export const handleAdminGetAllOpenInvoices = async (c: Context<AppEnv>) => {
 
         const userMap = new Map(users.results.map(u => [u.stripe_customer_id, u]));
 
-        const enrichedInvoices: DashboardInvoice[] = invoices.data.map(inv => {
-            const user = userMap.get(inv.customer as string);
-            return {
-                id: inv.id,
-                object: 'invoice',
-                customer: inv.customer as string,
-                status: inv.status,
-                total: inv.total,
-                hosted_invoice_url: inv.hosted_invoice_url,
-                number: inv.number,
-                due_date: inv.due_date,
-                userId: user?.id,
-                customerName: user?.name,
-            };
-        });
+        const enrichedInvoices: DashboardInvoice[] = invoices.data
+            .filter((inv): inv is Stripe.Invoice & { id: string } => !!inv.id)
+            .map(inv => {
+                const user = userMap.get(inv.customer as string);
+                return {
+                    id: inv.id,
+                    object: 'invoice',
+                    customer: inv.customer as string,
+                    status: inv.status,
+                    total: inv.total,
+                    hosted_invoice_url: inv.hosted_invoice_url ?? null,
+                    number: inv.number,
+                    due_date: inv.due_date,
+                    userId: user?.id,
+                    customerName: user?.name,
+                };
+            });
 
         return successResponse(enrichedInvoices);
     } catch (e: any) {

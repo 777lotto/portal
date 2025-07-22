@@ -160,7 +160,7 @@ export const StripeInvoiceSchema = z.object({
     id: z.string(),
     object: z.literal('invoice'),
     customer: z.string(),
-    status: z.enum(['draft', 'open', 'paid', 'uncollectible', 'void']),
+    status: z.enum(['draft', 'open', 'paid', 'uncollectible', 'void']).nullable(),
     total: z.number(), // in cents
     hosted_invoice_url: z.string().nullable(),
     lines: z.object({
