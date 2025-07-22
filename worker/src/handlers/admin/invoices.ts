@@ -284,7 +284,19 @@ export const handleAdminGetAllOpenInvoices = async (c: Context<AppEnv>) => {
             status: 'open',
             limit: 100, // Adjust as needed
         });
-        return successResponse(invoices.data);
+
+        // Map to a simpler object to prevent serialization issues and reduce payload size
+        const simplifiedInvoices = invoices.data.map(inv => ({
+            id: inv.id,
+            customer: inv.customer,
+            hosted_invoice_url: inv.hosted_invoice_url,
+            number: inv.number,
+            status: inv.status,
+            total: inv.total,
+            due_date: inv.due_date,
+        }));
+
+        return successResponse(simplifiedInvoices);
     } catch (e: any) {
         console.error("Failed to get all open invoices:", e);
         return errorResponse("Failed to retrieve open invoices.", 500);

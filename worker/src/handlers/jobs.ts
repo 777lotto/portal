@@ -351,7 +351,7 @@ export const handleGetServicesForJob = async (c: HonoContext<WorkerAppEnv>) => {
         console.error(`Failed to get services for job ${jobId}:`, e);
         return workerErrorResponse("Failed to retrieve services.", 500);
     }
-};
+}
 
 export const handleGetOpenInvoicesForUser = async (c: HonoContext<WorkerAppEnv>) => {
     const user = c.get('user');
@@ -366,7 +366,19 @@ export const handleGetOpenInvoicesForUser = async (c: HonoContext<WorkerAppEnv>)
             customer: user.stripe_customer_id,
             status: 'open',
         });
-        return workerSuccessResponse(invoices.data);
+
+        // Map to a simpler object for consistency
+        const simplifiedInvoices = invoices.data.map(inv => ({
+            id: inv.id,
+            customer: inv.customer,
+            hosted_invoice_url: inv.hosted_invoice_url,
+            number: inv.number,
+            status: inv.status,
+            total: inv.total,
+            due_date: inv.due_date,
+        }));
+
+        return workerSuccessResponse(simplifiedInvoices);
     } catch (e: any) {
         console.error(`Failed to get open invoices for user ${user.id}:`, e);
         return workerErrorResponse("Failed to retrieve open invoices.", 500);

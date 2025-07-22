@@ -166,7 +166,9 @@ export const StripeInvoiceSchema = z.object({
     lines: z.object({
         object: z.literal('list'),
         data: z.array(StripeInvoiceItemSchema),
-    }),
+    }).optional(),
+    number: z.string().nullable(),
+    due_date: z.number().nullable(),
 });
 export type StripeInvoice = z.infer<typeof StripeInvoiceSchema>;
 
