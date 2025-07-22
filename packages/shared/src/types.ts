@@ -172,6 +172,12 @@ export const StripeInvoiceSchema = z.object({
 });
 export type StripeInvoice = z.infer<typeof StripeInvoiceSchema>;
 
+export const DashboardInvoiceSchema = StripeInvoiceSchema.extend({
+    userId: z.number().optional(),
+    customerName: z.string().optional(),
+});
+export type DashboardInvoice = z.infer<typeof DashboardInvoiceSchema>;
+
  /* ========================================================================
                             PAYMENT & BILLING
    ======================================================================== */

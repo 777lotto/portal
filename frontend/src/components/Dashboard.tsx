@@ -2,12 +2,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getProfile, getJobs, getOpenInvoices, adminGetAllJobs, adminGetAllOpenInvoices } from '../lib/api.js';
-import type { User, Job, StripeInvoice } from '@portal/shared'
+import type { User, Job, DashboardInvoice } from '@portal/shared';
 
 function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [upcomingJobs, setUpcomingJobs] = useState<Job[]>([]);
-  const [openInvoices, setOpenInvoices] = useState<StripeInvoice[]>([]);
+  const [openInvoices, setOpenInvoices] = useState<DashboardInvoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,15 +78,30 @@ function Dashboard() {
            </h3>
            <div className="space-y-3">
             {openInvoices.length > 0 ? (
-              openInvoices.map(invoice => (
-                <a key={invoice.id} href={invoice.hosted_invoice_url || '#'} target="_blank" rel="noopener noreferrer" className="block p-3 rounded-md transition text-text-secondary-light dark:text-text-secondary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark">
-                  <div className="flex justify-between">
-                    <span>Invoice #{invoice.number}</span>
-                    <span className="font-semibold">${((invoice.total || 0) / 100).toFixed(2)}</span>
-                  </div>
-                  <small>Due: {new Date(invoice.due_date * 1000).toLocaleDateString()}</small>
-                </a>
-               ))
+              openInvoices.map(invoice => {
+                const invoiceLink = user?.role === 'admin' && invoice.userId
+                  ? `/admin/users/${invoice.userId}`
+                  : invoice.hosted_invoice_url || '#';
+
+                const linkProps = user?.role === 'customer'
+                  ? { href: invoiceLink, target: "_blank", rel: "noopener noreferrer" }
+                  : {};
+
+                const Component = user?.role === 'admin' ? Link : 'a';
+
+                return (
+                  <Component key={invoice.id} to={invoiceLink} {...linkProps} className="block p-3 rounded-md transition text-text-secondary-light dark:text-text-secondary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark">
+                    <div className="flex justify-between">
+                      <span>
+                        {user?.role === 'admin' && invoice.customerName ? `${invoice.customerName} - ` : ''}
+                        Invoice #{invoice.number}
+                      </span>
+                      <span className="font-semibold">${((invoice.total || 0) / 100).toFixed(2)}</span>
+                    </div>
+                    {invoice.due_date && <small>Due: {new Date(invoice.due_date * 1000).toLocaleDateString()}</small>}
+                  </Component>
+                )
+              })
             ) : <p className="text-text-secondary-light dark:text-text-secondary-dark">No open invoices.</p>}
            </div>
          </div>

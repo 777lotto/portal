@@ -5,7 +5,7 @@ import Stripe from 'stripe';
 import type { AppEnv } from '../../index.js';
 import { errorResponse, successResponse } from '../../utils.js';
 import { getStripe } from '../../stripe.js';
-import type { User } from '@portal/shared';
+import type { User, DashboardInvoice } from '@portal/shared';
 
 // Handler to get a single invoice's details, including its line items
 export async function handleAdminGetInvoice(c: Context<AppEnv>) {
@@ -285,18 +285,37 @@ export const handleAdminGetAllOpenInvoices = async (c: Context<AppEnv>) => {
             limit: 100, // Adjust as needed
         });
 
-        // Map to a simpler object to prevent serialization issues and reduce payload size
-        const simplifiedInvoices = invoices.data.map(inv => ({
-            id: inv.id,
-            customer: inv.customer,
-            hosted_invoice_url: inv.hosted_invoice_url,
-            number: inv.number,
-            status: inv.status,
-            total: inv.total,
-            due_date: inv.due_date,
-        }));
+        const customerIds = invoices.data.map(inv => inv.customer).filter(c => typeof c === 'string');
+        const uniqueCustomerIds = [...new Set(customerIds)];
 
-        return successResponse(simplifiedInvoices);
+        if (uniqueCustomerIds.length === 0) {
+            return successResponse([]);
+        }
+
+        const placeholders = uniqueCustomerIds.map(() => '?').join(',');
+        const users = await c.env.DB.prepare(
+            `SELECT id, name, stripe_customer_id FROM users WHERE stripe_customer_id IN (${placeholders})`
+        ).bind(...uniqueCustomerIds).all<User>();
+
+        const userMap = new Map(users.results.map(u => [u.stripe_customer_id, u]));
+
+        const enrichedInvoices: DashboardInvoice[] = invoices.data.map(inv => {
+            const user = userMap.get(inv.customer as string);
+            return {
+                id: inv.id,
+                object: 'invoice',
+                customer: inv.customer as string,
+                status: inv.status,
+                total: inv.total,
+                hosted_invoice_url: inv.hosted_invoice_url,
+                number: inv.number,
+                due_date: inv.due_date,
+                userId: user?.id,
+                customerName: user?.name,
+            };
+        });
+
+        return successResponse(enrichedInvoices);
     } catch (e: any) {
         console.error("Failed to get all open invoices:", e);
         return errorResponse("Failed to retrieve open invoices.", 500);
