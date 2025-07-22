@@ -16,6 +16,7 @@ const PublicBookingPage = lazy(() => import("./components/PublicBookingPage.js")
 const Photos = lazy(() => import("./components/Photos.js"));
 const AccountPage = lazy(() => import("./components/AccountPage.js"));
 const AuthForm = lazy(() => import("./components/AuthForm.js"));
+const InvoicePaymentPage = lazy(() => import("./components/InvoicePaymentPage.js"));
 
 // --- Admin Page Components ---
 const AdminDashboard = lazy(() => import("./components/admin/AdminDashboard.js"));
@@ -117,6 +118,7 @@ function App() {
               <Route path="/jobs/:id" element={token ? <JobDetail /> : <Navigate to="/auth" replace />} />
               <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/auth" replace />} />
               <Route path="/account" element={token ? <AccountPage /> : <Navigate to="/auth" replace />} />
+              <Route path="/pay-invoice/:invoiceId" element={token ? <InvoicePaymentPage /> : <Navigate to="/auth" replace />} />
 
               {/* --- Admin Routes --- */}
               <Route

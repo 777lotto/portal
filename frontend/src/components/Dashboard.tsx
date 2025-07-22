@@ -80,8 +80,8 @@ function Dashboard() {
             {openInvoices.length > 0 ? (
               openInvoices.map(invoice => {
                 const invoiceLink = user?.role === 'admin' && invoice.userId
-                  ? `/admin/users/${invoice.userId}`
-                  : invoice.hosted_invoice_url || '#';
+  ? `/admin/users/${invoice.userId}`
+  : `/pay-invoice/${invoice.id}`;
 
                 const linkProps = user?.role === 'customer'
                   ? { href: invoiceLink, target: "_blank", rel: "noopener noreferrer" }
