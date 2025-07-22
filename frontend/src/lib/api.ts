@@ -111,6 +111,7 @@ export const createInvoice = (serviceId: string) => apiPost<any>(`/api/services/
 export const getJobs = () => apiGet<Job[]>('/api/jobs');
 export const getJob = (id: string) => apiGet<Job>(`/api/jobs/${id}`);
 export const getServicesForJob = (jobId: string) => apiGet<Service[]>(`/api/jobs/${jobId}/services`);
+export const getOpenInvoices = () => apiGet<StripeInvoice[]>('/api/invoices/open');
 
 /* ========================================================================
                                   ADMIN API
@@ -128,6 +129,7 @@ export const adminGetAllServices = () => apiGet<Service[]>('/api/admin/services'
 export const adminCreateJobForUser = (userId: string, data: { title: string; start: string; price_cents: number }) => {
   return apiPost<Job>(`/api/admin/users/${userId}/jobs`, data);
 };
+export const adminGetAllOpenInvoices = () => apiGet<StripeInvoice[]>('/api/admin/invoices/open');
 export const adminFinalizeJob = (jobId: string) => {
   return apiPost<{ invoiceId: string; invoiceUrl: string | null }>(`/api/admin/jobs/${jobId}/complete`, {});
 };

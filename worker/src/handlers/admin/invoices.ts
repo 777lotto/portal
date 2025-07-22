@@ -276,3 +276,17 @@ export async function handleAdminImportInvoicesForUser(c: Context<AppEnv>) {
         return errorResponse(`Failed to import invoices: ${e.message}`, 500);
     }
 }
+
+export const handleAdminGetAllOpenInvoices = async (c: Context<AppEnv>) => {
+    const stripe = getStripe(c.env);
+    try {
+        const invoices = await stripe.invoices.list({
+            status: 'open',
+            limit: 100, // Adjust as needed
+        });
+        return successResponse(invoices.data);
+    } catch (e: any) {
+        console.error("Failed to get all open invoices:", e);
+        return errorResponse("Failed to retrieve open invoices.", 500);
+    }
+};
