@@ -1,4 +1,4 @@
-// worker/src/handlers/photos.ts
+// 777lotto/portal/portal-fold/worker/src/handlers/photos.ts
 import { Context as PhotoContext } from 'hono';
 import { AppEnv as PhotoAppEnv } from '../index.js';
 import { errorResponse as photoErrorResponse, successResponse as photoSuccessResponse } from '../utils.js';
@@ -70,7 +70,7 @@ export const handleGetUserPhotos = async (c: PhotoContext<PhotoAppEnv>) => {
 
 export const handleGetPhotosForJob = async (c: PhotoContext<PhotoAppEnv>) => {
     const user = c.get('user');
-    const { jobId } = c.req.param();
+    const { id: jobId } = c.req.param(); // Correctly destructure 'id' and rename it to 'jobId'
     try {
         // First, get the job to verify ownership or admin status
         const job = await c.env.DB.prepare(

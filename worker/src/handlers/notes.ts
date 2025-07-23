@@ -1,11 +1,11 @@
-// worker/src/handlers/notes.ts - CORRECTED
+// 777lotto/portal/portal-fold/worker/src/handlers/notes.ts
 import { Context as NoteContext } from 'hono';
 import { AppEnv as NoteAppEnv } from '../index.js';
 import { errorResponse as noteErrorResponse, successResponse as noteSuccessResponse } from '../utils.js';
 
 export const handleGetNotesForJob = async (c: NoteContext<NoteAppEnv>) => {
     const user = c.get('user');
-    const { jobId } = c.req.param();
+    const { id: jobId } = c.req.param(); // Correctly destructure 'id' and rename it to 'jobId'
     try {
         // First, get the job to verify ownership or admin status
         const job = await c.env.DB.prepare(
