@@ -181,11 +181,13 @@ adminApi.post('/jobs/:jobId/complete', handleAdminCompleteJob);
 adminApi.post('/jobs/:jobId/services', handleAdminAddServiceToJob);
 adminApi.post('/invoices/import', handleAdminImportInvoices);
 adminApi.post('/users/:userId/invoices/import', handleAdminImportInvoicesForUser);
+
+adminApi.get('/invoices/open', handleAdminGetAllOpenInvoices);
 adminApi.get('/invoices/:invoiceId', handleAdminGetInvoice);
+
 adminApi.post('/invoices/:invoiceId/items', handleAdminAddInvoiceItem);
 adminApi.delete('/invoices/:invoiceId/items/:itemId', handleAdminDeleteInvoiceItem);
 adminApi.post('/invoices/:invoiceId/finalize', handleAdminFinalizeInvoice);
-adminApi.get('/invoices/open', handleAdminGetAllOpenInvoices);
 adminApi.post('/import-contacts', handleAdminImportSelectedContacts);
 adminApi.post('/get-imported-contacts', handleGetImportedContacts);
 adminApi.get('/billing/jobs-and-quotes', handleGetJobsAndQuotes);
