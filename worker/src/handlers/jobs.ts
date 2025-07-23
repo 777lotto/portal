@@ -86,9 +86,19 @@ export const handleCreateJob = async (c: HonoContext<WorkerAppEnv>) => {
 export const handleGetJobs = async (c: HonoContext<WorkerAppEnv>) => {
     const user = c.get('user');
     try {
-        const dbResponse = await c.env.DB.prepare(
-            `SELECT * FROM jobs WHERE customerId = ? ORDER BY start DESC`
-        ).bind(user.id.toString()).all<Job>();
+        let dbResponse;
+
+        if (user.role === 'admin') {
+            // Admin gets to see all jobs
+            dbResponse = await c.env.DB.prepare(
+                `SELECT * FROM jobs ORDER BY start DESC`
+            ).all<Job>();
+        } else {
+            // Customer only sees their own jobs
+            dbResponse = await c.env.DB.prepare(
+                `SELECT * FROM jobs WHERE customerId = ? ORDER BY start DESC`
+            ).bind(user.id.toString()).all<Job>();
+        }
 
         const jobs = dbResponse?.results || [];
         return workerSuccessResponse(jobs);
