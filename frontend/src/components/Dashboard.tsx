@@ -80,26 +80,37 @@ function Dashboard() {
             {openInvoices.length > 0 ? (
               openInvoices.map(invoice => {
                 const invoiceLink = user?.role === 'admin' && invoice.userId
-  ? `/admin/users/${invoice.userId}`
-  : `/pay-invoice/${invoice.id}`;
+                  ? `/admin/users/${invoice.userId}`
+                  : invoice.hosted_invoice_url;
 
                 const linkProps = user?.role === 'customer'
                   ? { href: invoiceLink, target: "_blank", rel: "noopener noreferrer" }
-                  : {};
+                  : { to: invoiceLink };
 
                 const Component = user?.role === 'admin' ? Link : 'a';
 
                 return (
-                  <Component key={invoice.id} to={invoiceLink} {...linkProps} className="block p-3 rounded-md transition text-text-secondary-light dark:text-text-secondary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark">
-                    <div className="flex justify-between">
-                      <span>
-                        {user?.role === 'admin' && invoice.customerName ? `${invoice.customerName} - ` : ''}
-                        Invoice #{invoice.number}
-                      </span>
-                      <span className="font-semibold">${((invoice.total || 0) / 100).toFixed(2)}</span>
-                    </div>
-                    {invoice.due_date && <small>Due: {new Date(invoice.due_date * 1000).toLocaleDateString()}</small>}
-                  </Component>
+                  <div key={invoice.id} className="flex justify-between items-center p-3 rounded-md transition hover:bg-secondary-light dark:hover:bg-secondary-dark">
+                    <Component {...linkProps} className="flex-grow">
+                      <div className="flex justify-between">
+                        <span>
+                          {user?.role === 'admin' && invoice.customerName ? `${invoice.customerName} - ` : ''}
+                          Invoice #{invoice.number}
+                        </span>
+                        <span className="font-semibold">${((invoice.total || 0) / 100).toFixed(2)}</span>
+                      </div>
+                      {invoice.due_date && <small className="text-text-secondary-light dark:text-text-secondary-dark">Due: {new Date(invoice.due_date * 1000).toLocaleDateString()}</small>}
+                    </Component>
+                    {user?.role === 'customer' && invoice.hosted_invoice_url && (
+                      <a
+                        href={`${invoice.hosted_invoice_url}/pdf`}
+                        download
+                        className="btn btn-secondary ml-4"
+                      >
+                        Download PDF
+                      </a>
+                    )}
+                  </div>
                 )
               })
             ) : <p className="text-text-secondary-light dark:text-text-secondary-dark">No open invoices.</p>}
