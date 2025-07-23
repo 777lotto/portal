@@ -225,8 +225,21 @@ function AdminDashboard() {
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === 'admin' ? 'bg-green-100 text-green-800' : user.role === 'guest' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>{user.role}</span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                           <Link to={`/admin/users/${user.id}`} className="btn btn-link" onClick={(e) => e.stopPropagation()}>Manage</Link>
-                           <button onClick={(e) => { e.stopPropagation(); handleDeleteUser(user); }} className="btn btn-link text-red-600">Delete</button>
+                           <div className="flex items-center gap-2">
+                             <Link
+                               to={`/admin/users/${user.id}`}
+                               className="btn btn-secondary !px-3 !py-1 !text-xs"
+                               onClick={(e) => e.stopPropagation()}
+                             >
+                               View
+                             </Link>
+                             <button
+                               onClick={(e) => { e.stopPropagation(); handleDeleteUser(user); }}
+                               className="btn !px-3 !py-1 !text-xs text-white bg-red-600 hover:bg-red-700 focus:ring-red-500"
+                             >
+                               Delete
+                             </button>
+                           </div>
                         </td>
                       </tr>
                       {expandedUserId === user.id && (
