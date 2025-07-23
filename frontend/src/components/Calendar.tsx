@@ -49,6 +49,7 @@ function JobSummaryModal({ job, onClose, onRecurrenceClick }: { job: Job; onClos
                     <button type="button" onClick={onClose} className="btn btn-secondary mr-2">
                         Close
                     </button>
+                    {/* This button was added */}
                     <button onClick={onRecurrenceClick} className="btn btn-info mr-2">
                         Request Recurrence
                     </button>

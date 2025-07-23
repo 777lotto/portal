@@ -48,6 +48,7 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
                 break;
 
             // --- NEW WEBHOOK HANDLER FOR QUOTES ---
+           // --- NEW WEBHOOK HANDLER FOR QUOTES ---
             case 'quote.finalized':
                 const quote = event.data.object as Stripe.Quote;
                 console.log(`Quote ${quote.id} was finalized.`);
