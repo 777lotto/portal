@@ -1,5 +1,4 @@
 // frontend/src/components/Calendar.tsx
-
 import { useMemo, useCallback, useState, useEffect } from 'react';
 import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
@@ -186,9 +185,11 @@ function JobCalendar() {
   }, [bookedDaysSet, adminBlockedDaysSet, user]);
 
   const handleSelectEvent = (event: CalendarEvent) => {
-      if (user?.role === 'customer' && 'id' in event.resource) {
-          setSelectedJob(event.resource);
-      }
+    // Show the job summary modal for both customers and admins,
+    // as long as the clicked event is a job (and not a blocked date).
+    if ('id' in event.resource) {
+      setSelectedJob(event.resource);
+    }
   };
 
 
