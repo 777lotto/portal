@@ -143,7 +143,18 @@ export const adminReassignJob = (jobId: string, newCustomerId: string) => {
 };
 export const adminCreateJob = (data: any) => apiPost('/api/admin/billing/job', data);
 export const adminCreateQuote = (data: any) => apiPost('/api/admin/billing/quote', data);
-
+export const adminUpdateJobDetails = (jobId: string, data: Partial<Job>) => {
+  return apiPost(`/api/admin/jobs/${jobId}/details`, data, 'PUT');
+};
+export const adminAddServiceToJob = (jobId: string, data: Partial<Service>) => {
+  return apiPost(`/api/admin/jobs/${jobId}/services`, data);
+};
+export const adminUpdateServiceInJob = (jobId: string, serviceId: number, data: Partial<Service>) => {
+  return apiPost(`/api/admin/jobs/${jobId}/services/${serviceId}`, data, 'PUT');
+};
+export const adminDeleteServiceFromJob = (jobId: string, serviceId: number) => {
+  return apiPost(`/api/admin/jobs/${jobId}/services/${serviceId}`, {}, 'DELETE');
+};
 
 /* ========================================================================
                             ADMIN INVOICE FUNCTIONS

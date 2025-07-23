@@ -35,7 +35,14 @@ import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed, h
 // --- Customer Handlers ---
 import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent, handleGetNotifications, handleMarkAllNotificationsRead } from './handlers/profile.js';
 import { handleListServices, handleGetService } from './handlers/services.js';
-import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl, handleGetServicesForJob, handleAdminReassignJob, handleGetOpenInvoicesForUser } from './handlers/jobs.js';
+import {
+    handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob,
+    handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl,
+    handleGetServicesForJob, handleAdminReassignJob, handleGetOpenInvoicesForUser,
+    handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate,
+    handleAdminAddServiceToJob, handleAdminCompleteJob, handleAdminUpdateJobDetails,
+    handleAdminUpdateServiceInJob, handleAdminDeleteServiceFromJob
+} from './handlers/jobs.js';
 import { handleGetUserPhotos, handleGetPhotosForJob } from './handlers/photos.js';
 import { handleGetNotesForJob } from './handlers/notes.js';
 import { handlePortalSession } from './handlers/user.js';
@@ -45,8 +52,7 @@ import { handleGetInvoiceForUser, handleCreatePaymentIntent, handleDownloadInvoi
 import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleAdminCreateInvoice, handleGetAllJobs, handleGetAllServices, handleAdminCreateJobForUser, handleAdminCreateUser, handleAdminUpdateUser } from './handlers/admin/users.js';
 import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleAdminAddNoteForUser } from './handlers/notes.js';
-import { handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate, handleAdminAddServiceToJob, handleAdminCompleteJob } from './handlers/jobs.js';
-import { handleAdminCreateQuote, handleAdminImportQuotes } from './handlers/admin/quotes.js'; // Corrected
+import { handleAdminCreateQuote, handleAdminImportQuotes } from './handlers/admin/quotes.js';
 import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminImportInvoicesForUser, handleAdminGetAllOpenInvoices } from './handlers/admin/invoices.js';
 import { handleGetJobsAndQuotes, handleAdminCreateJob, handleAdminCreateQuote as handleAdminCreateQuoteFromBilling } from './handlers/admin/billing.js';
 
@@ -127,7 +133,6 @@ customerApi.put('/profile', handleUpdateProfile);
 customerApi.post('/profile/change-password', handleChangePassword);
 customerApi.get('/services', handleListServices);
 customerApi.get('/services/:id', handleGetService);
-// customerApi.post('/services/:id/invoice', handleCreateInvoice); // DEPRECATED
 customerApi.get('/jobs', handleGetJobs);
 customerApi.post('/jobs', handleCreateJob);
 customerApi.get('/jobs/:id', handleGetJobById);
@@ -149,12 +154,8 @@ customerApi.get('/invoices/:invoiceId', handleGetInvoiceForUser);
 customerApi.post('/invoices/:invoiceId/create-payment-intent', handleCreatePaymentIntent);
 customerApi.get('/invoices/:invoiceId/pdf', handleDownloadInvoicePdf);
 
-
-// --- Proxied Routes ---
 customerApi.all('/sms/*', handleSmsProxy);
 customerApi.all('/notifications/*', handleNotificationProxy);
-
-
 
 /* ========================================================================
                          ADMIN API ROUTES (Admin-Only)
@@ -175,16 +176,17 @@ adminApi.get('/blocked-dates', handleGetBlockedDates);
 adminApi.post('/blocked-dates', handleAddBlockedDate);
 adminApi.delete('/blocked-dates/:date', handleRemoveBlockedDate);
 adminApi.get('/jobs', handleGetAllJobs);
+adminApi.post('/jobs/:jobId/complete', handleAdminCompleteJob);
+adminApi.put('/jobs/:jobId/details', handleAdminUpdateJobDetails);
+adminApi.post('/jobs/:jobId/services', handleAdminAddServiceToJob);
+adminApi.put('/jobs/:jobId/services/:serviceId', handleAdminUpdateServiceInJob);
+adminApi.delete('/jobs/:jobId/services/:serviceId', handleAdminDeleteServiceFromJob);
 adminApi.get('/services', handleGetAllServices);
 adminApi.post('/users/:userId/jobs', handleAdminCreateJobForUser);
-adminApi.post('/jobs/:jobId/complete', handleAdminCompleteJob);
-adminApi.post('/jobs/:jobId/services', handleAdminAddServiceToJob);
 adminApi.post('/invoices/import', handleAdminImportInvoices);
 adminApi.post('/users/:userId/invoices/import', handleAdminImportInvoicesForUser);
-
 adminApi.get('/invoices/open', handleAdminGetAllOpenInvoices);
 adminApi.get('/invoices/:invoiceId', handleAdminGetInvoice);
-
 adminApi.post('/invoices/:invoiceId/items', handleAdminAddInvoiceItem);
 adminApi.delete('/invoices/:invoiceId/items/:itemId', handleAdminDeleteInvoiceItem);
 adminApi.post('/invoices/:invoiceId/finalize', handleAdminFinalizeInvoice);
@@ -206,21 +208,12 @@ api.route('/admin', adminApi);
 
 app.route('/api', api);
 
-
 /* ========================================================================
                              STATIC SITE SERVING
    ======================================================================== */
 
-app.get('/*', serveStatic({
-    root: './',
-    manifest,
-}));
-
-app.get('*', serveStatic({
-    path: './index.html',
-    manifest,
-}));
-
+app.get('/*', serveStatic({ root: './', manifest }));
+app.get('*', serveStatic({ path: './index.html', manifest }));
 
 /* ========================================================================
                                    EXPORT
