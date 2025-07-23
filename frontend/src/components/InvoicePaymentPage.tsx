@@ -1,115 +1,206 @@
-import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { apiGet, apiPost } from '../lib/api';
-import type { StripeInvoice } from '@portal/shared';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+// 777lotto/portal/portal-fold/frontend/src/components/InvoicePaymentPage.tsx
 
+import { useState, useEffect } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { apiGet, apiPost } from '../lib/api';
+import type { StripeInvoice, StripeInvoiceItem } from '@portal/shared';
+import { loadStripe } from '@stripe/stripe-js';
+import {
+  Elements,
+  PaymentElement, // MODIFIED: Import PaymentElement instead of CardElement
+  useStripe,
+  useElements,
+} from '@stripe/react-stripe-js';
+
+// This promise should be defined outside of the component to avoid re-creating it on every render.
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PK);
 
+// --- NEW ---
+// A small component to show a payment status message after redirection.
+function PaymentStatus() {
+  const [searchParams] = useSearchParams();
+  const message = searchParams.get('redirect_status') === 'succeeded'
+    ? 'Payment successful! Thank you for your business.'
+    : 'Something went wrong with your payment. Please try again.';
+
+  return (
+    <div className={searchParams.get('redirect_status') === 'succeeded' ? 'alert alert-success' : 'alert alert-danger'}>
+      {message}
+    </div>
+  );
+}
+
+// MODIFIED: This is the updated CheckoutForm using the Payment Element
 const CheckoutForm = ({ invoice }: { invoice: StripeInvoice }) => {
-    const stripe = useStripe();
-    const elements = useElements();
-    const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const stripe = useStripe();
+  const elements = useElements();
+  const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-    useEffect(() => {
-        // Create a PaymentIntent as soon as the page loads
-        apiPost<{ clientSecret: string }>(`/api/invoices/${invoice.id}/create-payment-intent`, {})
-            .then(data => setClientSecret(data.clientSecret))
-            .catch(err => setError(err.message));
-    }, [invoice.id]);
-
-    const handleSubmit = async (event: React.FormEvent) => {
-        event.preventDefault();
-        if (!stripe || !elements || !clientSecret) {
-            return;
-        }
-        setIsProcessing(true);
-        const cardElement = elements.getElement(CardElement);
-        if (!cardElement) {
-             setError("Card element not found");
-             setIsProcessing(false);
-             return;
-        }
-
-        const { error: paymentError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-            payment_method: { card: cardElement },
-        });
-
-        if (paymentError) {
-            setError(paymentError.message || 'An unexpected error occurred.');
-            setIsProcessing(false);
-        } else {
-            setError(null);
-            setSuccess(`Payment for invoice #${invoice.number} successful!`);
-            setIsProcessing(false);
-        }
-    };
-
-    if (!clientSecret) {
-        return <div>Loading payment form...</div>;
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!stripe || !elements) {
+      return;
     }
+    setIsProcessing(true);
 
-    return (
-        <form onSubmit={handleSubmit}>
-            {error && <div className="alert alert-danger">{error}</div>}
-            {success && <div className="alert alert-success">{success}</div>}
-            <CardElement />
-            <button type="submit" className="btn btn-primary mt-4 w-full" disabled={isProcessing || !stripe || success}>
-                {isProcessing ? 'Processing...' : `Pay $${(invoice.total / 100).toFixed(2)}`}
-            </button>
-        </form>
-    );
+    const { error: submitError } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        // This is where Stripe will redirect the user after payment.
+        return_url: `${window.location.origin}/pay-invoice/${invoice.id}`,
+      },
+    });
+
+    // This point will only be reached if there is an immediate error.
+    if (submitError) {
+      setError(submitError.message || 'An unexpected error occurred.');
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      {error && <div className="alert alert-danger">{error}</div>}
+      <PaymentElement />
+      <button type="submit" className="btn btn-primary mt-4 w-full" disabled={isProcessing || !stripe}>
+        {isProcessing ? 'Processing...' : `Pay $${(invoice.total / 100).toFixed(2)}`}
+      </button>
+    </form>
+  );
 };
 
+
 function InvoicePaymentPage() {
-    const { invoiceId } = useParams<{ invoiceId: string }>();
-    const [invoice, setInvoice] = useState<StripeInvoice | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+  const { invoiceId } = useParams<{ invoiceId: string }>();
+  const [searchParams] = useSearchParams(); // To check for redirect status
 
-    useEffect(() => {
-        if (invoiceId) {
-            apiGet<StripeInvoice>(`/api/invoices/${invoiceId}`)
-                .then(setInvoice)
-                .catch(err => setError(err.message))
-                .finally(() => setIsLoading(false));
+  const [invoice, setInvoice] = useState<StripeInvoice | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false); // NEW: State for PDF download
+
+  useEffect(() => {
+    if (invoiceId) {
+      Promise.all([
+        apiGet<StripeInvoice>(`/api/invoices/${invoiceId}`),
+        apiPost<{ clientSecret: string }>(`/api/invoices/${invoiceId}/create-payment-intent`, {})
+      ])
+      .then(([invoiceData, intentData]) => {
+        setInvoice(invoiceData);
+        setClientSecret(intentData.clientSecret);
+      })
+      .catch(err => setError(err.message))
+      .finally(() => setIsLoading(false));
+    }
+  }, [invoiceId]);
+
+  // --- NEW ---
+  // This function handles the PDF download.
+  const handleDownloadPdf = async () => {
+    if (!invoiceId) return;
+    setIsDownloading(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/invoices/${invoiceId}/pdf`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
-    }, [invoiceId]);
+      });
 
-    if (isLoading) return <div>Loading invoice...</div>;
-    if (error) return <div className="alert alert-danger">{error}</div>;
-    if (!invoice) return <div>Invoice not found.</div>;
+      if (!response.ok) {
+        throw new Error('Failed to download invoice.');
+      }
 
-    return (
-        <div className="max-w-2xl mx-auto">
-            <div className="card">
-                <div className="card-header">
-                    <h2 className="card-title">Invoice #{invoice.number}</h2>
-                </div>
-                <div className="card-body">
-                    <div className="flex justify-between mb-4">
-                        <span>Status:</span>
-                        <span className="font-semibold">{invoice.status}</span>
-                    </div>
-                    <div className="flex justify-between mb-6">
-                        <span>Total Due:</span>
-                        <span className="font-semibold text-2xl">${(invoice.total / 100).toFixed(2)}</span>
-                    </div>
-                    {invoice.status === 'open' ? (
-                        <Elements stripe={stripePromise}>
-                            <CheckoutForm invoice={invoice} />
-                        </Elements>
-                    ) : (
-                        <p>This invoice is not open for payment.</p>
-                    )}
-                </div>
-            </div>
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `invoice-${invoice.number || invoiceId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  if (isLoading) return <div className="text-center p-8">Loading invoice...</div>;
+  if (error) return <div className="alert alert-danger">{error}</div>;
+  if (!invoice) return <div className="text-center p-8">Invoice not found.</div>;
+
+  const showPaymentStatus = searchParams.has('payment_intent');
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <div className="card">
+        <div className="card-header flex justify-between items-center">
+          <h2 className="card-title">Invoice #{invoice.number}</h2>
+          {/* --- NEW: PDF DOWNLOAD BUTTON --- */}
+          <button
+            onClick={handleDownloadPdf}
+            className="btn btn-secondary"
+            disabled={isDownloading}
+          >
+            {isDownloading ? 'Downloading...' : 'Download PDF'}
+          </button>
         </div>
-    );
+        <div className="card-body">
+          <div className="flex justify-between mb-2">
+            <span>Status:</span>
+            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+              invoice.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+            }`}>
+              {invoice.status}
+            </span>
+          </div>
+          <div className="flex justify-between mb-6">
+            <span>Total Due:</span>
+            <span className="font-semibold text-2xl">${(invoice.total / 100).toFixed(2)}</span>
+          </div>
+
+          {/* --- NEW: LINE ITEMS TABLE --- */}
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold mb-2">Invoice Details</h3>
+            <table className="min-w-full divide-y divide-border-light dark:divide-border-dark">
+              <thead className="bg-secondary-light dark:bg-secondary-dark">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider">Description</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-tertiary-dark divide-y divide-border-light dark:divide-border-dark">
+                {(invoice.lines?.data || []).map((item: StripeInvoiceItem) => (
+                  <tr key={item.id}>
+                    <td className="px-4 py-2 whitespace-nowrap">{item.description}</td>
+                    <td className="px-4 py-2 whitespace-nowrap text-right">${(item.amount / 100).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* --- MODIFIED: PAYMENT ELEMENT LOGIC --- */}
+          {showPaymentStatus ? (
+            <PaymentStatus />
+          ) : invoice.status === 'open' && clientSecret ? (
+            <Elements stripe={stripePromise} options={{ clientSecret }}>
+              <CheckoutForm invoice={invoice} />
+            </Elements>
+          ) : (
+            <p className="text-center p-4 bg-secondary-light dark:bg-secondary-dark rounded-md">
+              This invoice is not open for payment.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default InvoicePaymentPage;
