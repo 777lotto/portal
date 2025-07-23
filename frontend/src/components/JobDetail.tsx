@@ -1,7 +1,7 @@
 // frontend/src/components/JobDetail.tsx
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { apiGet, getServicesForJob } from '../lib/api.js';
 import type { Job, Service, Photo, Note } from '@portal/shared';
 
@@ -92,6 +92,32 @@ function JobDetail() {
                    <dd className="mt-1 text-sm">{job.description}</dd>
                 </div>
               )}
+               {job.recurrence && job.recurrence !== 'none' && (
+                <div className="sm:col-span-1">
+                   <dt className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Recurrence</dt>
+                   <dd className="mt-1 text-sm">{job.recurrence}</dd>
+                </div>
+              )}
+               {job.stripe_quote_id && (
+                <div className="sm:col-span-1">
+                   <dt className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Quote</dt>
+                   <dd className="mt-1 text-sm">
+                        <a href={`https://dashboard.stripe.com/quotes/${job.stripe_quote_id}`} target="_blank" rel="noopener noreferrer" className="text-event-blue hover:underline">
+                           View Quote
+                        </a>
+                   </dd>
+                </div>
+              )}
+               {job.stripe_invoice_id && (
+                <div className="sm:col-span-1">
+                   <dt className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Invoice</dt>
+                   <dd className="mt-1 text-sm">
+                       <Link to={`/pay-invoice/${job.stripe_invoice_id}`} className="text-event-blue hover:underline">
+                           View Invoice
+                       </Link>
+                   </dd>
+                </div>
+              )}
            </dl>
         </div>
       </div>
@@ -111,6 +137,9 @@ function JobDetail() {
                   </ul>
               ) : <p>No service items found for this job.</p>}
           </div>
+           <div className="card-footer bg-secondary-light dark:bg-secondary-dark p-4 flex justify-end">
+                <span className="text-lg font-bold">Total: ${((job.total_amount_cents || 0) / 100).toFixed(2)}</span>
+           </div>
       </div>
 
       {/* Photos Card */}
@@ -150,4 +179,3 @@ function JobDetail() {
 }
 
 export default JobDetail;
-

@@ -12,7 +12,7 @@ import AdminBlockDayModal from './AdminBlockDayModal';
 import AdminDayActionModal from './admin/AdminDayActionModal'; // Import the new modal
 import AddJobModal from './admin/AddJobModal'; // Import the Add Job modal
 import { jwtDecode } from 'jwt-decode';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const locales = {
   'en-US': enUS,
@@ -32,6 +32,33 @@ interface CalendarEvent {
   resource: Job | { type: 'blocked'; reason?: string | null };
 }
 
+// New component for the Job Summary Modal
+function JobSummaryModal({ job, onClose }: { job: Job; onClose: () => void }) {
+    const navigate = useNavigate();
+
+    const handleViewJob = () => {
+        navigate(`/jobs/${job.id}`);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white dark:bg-tertiary-dark rounded-lg p-6 w-full max-w-md">
+                <h2 className="text-xl font-bold mb-4">{job.title}</h2>
+                <p className="mb-2"><strong>Status:</strong> {job.status.replace(/_/g, ' ')}</p>
+                <div className="flex justify-end items-center mt-6">
+                    <button type="button" onClick={onClose} className="btn btn-secondary mr-2">
+                        Close
+                    </button>
+                    <button onClick={handleViewJob} className="btn btn-primary">
+                        View Job
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
 const getEventColor = (status: string) => {
   switch (status.toLowerCase()) {
     case 'upcoming': return '#ffc107'; // Yellow
@@ -50,6 +77,8 @@ interface UserPayload {
 
 function JobCalendar() {
   const [user, setUser] = useState<UserPayload | null>(null);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+
 
   // State management for all modals
   const [modalState, setModalState] = useState<{
@@ -156,6 +185,13 @@ function JobCalendar() {
     return props;
   }, [bookedDaysSet, adminBlockedDaysSet, user]);
 
+  const handleSelectEvent = (event: CalendarEvent) => {
+      if (user?.role === 'customer' && 'id' in event.resource) {
+          setSelectedJob(event.resource);
+      }
+  };
+
+
   // Updated handler to show the action choice modal first
   const handleSelectSlot = useCallback((slotInfo: { start: Date }) => {
     if (user?.role === 'admin') {
@@ -187,6 +223,7 @@ function JobCalendar() {
 
   return (
     <>
+      {selectedJob && <JobSummaryModal job={selectedJob} onClose={() => setSelectedJob(null)} />}
       {modalState.selectedDate && (
           <>
             {/* The new initial choice modal */}
@@ -233,6 +270,7 @@ function JobCalendar() {
           style={{ height: '100%' }}
           selectable={user?.role === 'admin'}
           onSelectSlot={handleSelectSlot}
+          onSelectEvent={handleSelectEvent}
         />
       </div>
 
