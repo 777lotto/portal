@@ -1,9 +1,14 @@
-// frontend/src/components/JobDetail.tsx
+// 777lotto/portal/portal-fold/frontend/src/components/JobDetail.tsx
 
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiGet, getServicesForJob } from '../lib/api.js';
 import type { Job, Service, Photo, Note } from '@portal/shared';
+import { jwtDecode } from 'jwt-decode';
+
+interface UserPayload {
+  role: 'customer' | 'admin';
+}
 
 function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -13,36 +18,50 @@ function JobDetail() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<UserPayload | null>(null);
 
   useEffect(() => {
-    const fetchJobDetails = async () => {
-      if (!id) return;
-
+    const token = localStorage.getItem("token");
+    if (token) {
       try {
-        setIsLoading(true);
-        setError(null);
-
-        // Fetch all data in parallel
-        const [jobData, servicesData, photosData, notesData] = await Promise.all([
-          apiGet<Job>(`/api/jobs/${id}`),
-          getServicesForJob(id),
-          apiGet<Photo[]>(`/api/jobs/${id}/photos`),
-          apiGet<Note[]>(`/api/jobs/${id}/notes`)
-        ]);
-
-        setJob(jobData);
-        setServices(servicesData);
-        setPhotos(photosData);
-        setNotes(notesData);
-
-      } catch (err: any) {
-        console.error("Error fetching job details:", err);
-        setError(err.message || 'An unknown error occurred.');
-      } finally {
-        setIsLoading(false);
+        const decodedUser = jwtDecode<UserPayload>(token);
+        setUser(decodedUser);
+      } catch (e) {
+        console.error("Invalid token:", e);
       }
-    };
+    }
+  }, []);
 
+
+  const fetchJobDetails = async () => {
+    if (!id) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Fetch all data in parallel
+      const [jobData, servicesData, photosData, notesData] = await Promise.all([
+        apiGet<Job>(`/api/jobs/${id}`),
+        getServicesForJob(id),
+        apiGet<Photo[]>(`/api/jobs/${id}/photos`),
+        apiGet<Note[]>(`/api/jobs/${id}/notes`)
+      ]);
+
+      setJob(jobData);
+      setServices(servicesData);
+      setPhotos(photosData);
+      setNotes(notesData);
+
+    } catch (err: any) {
+      console.error("Error fetching job details:", err);
+      setError(err.message || 'An unknown error occurred.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchJobDetails();
   }, [id]);
 
@@ -113,7 +132,7 @@ function JobDetail() {
                    <dt className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Invoice</dt>
                    <dd className="mt-1 text-sm">
                        <Link to={`/pay-invoice/${job.stripe_invoice_id}`} className="text-event-blue hover:underline">
-                           View Invoice
+                           Pay Invoice
                        </Link>
                    </dd>
                 </div>
