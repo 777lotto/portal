@@ -1,4 +1,4 @@
-// Create new file: 777lotto/portal/portal-bet/frontend/src/components/admin/EditUserModal.tsx
+// 777lotto/portal/portal-fold/frontend/src/components/admin/EditUserModal.tsx
 import { useState, useEffect } from 'react';
 import { adminUpdateUser } from '../../lib/api';
 import type { User } from '@portal/shared';
@@ -23,7 +23,6 @@ function EditUserModal({ isOpen, onClose, onUserUpdated, user }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // When the user prop is available, populate the form
     if (user) {
       setFormData({
         name: user.name || '',
@@ -67,54 +66,52 @@ function EditUserModal({ isOpen, onClose, onUserUpdated, user }: Props) {
   if (!isOpen) return null;
 
   return (
-    <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
-      <div className="modal-dialog">
-        <div className="modal-content">
-          <form onSubmit={handleSubmit}>
-            <div className="modal-header">
-              <h5 className="modal-title">Edit User: {user.name || user.company_name}</h5>
-              <button type="button" className="btn-close" onClick={onClose}></button>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white dark:bg-tertiary-dark rounded-lg shadow-xl w-full max-w-lg">
+        <form onSubmit={handleSubmit}>
+          <div className="p-4 border-b border-border-light dark:border-border-dark flex justify-between items-center">
+            <h5 className="text-xl font-bold">Edit User: {user.name || user.company_name}</h5>
+            <button type="button" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl font-bold" onClick={onClose}>&times;</button>
+          </div>
+          <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+            {error && <div className="alert alert-danger">{error}</div>}
+            <div>
+              <label htmlFor="name" className="form-label">Full Name</label>
+              <input type="text" id="name" name="name" className="form-control" value={formData.name} onChange={handleChange} />
             </div>
-            <div className="modal-body">
-              {error && <div className="alert alert-danger">{error}</div>}
-              <div className="mb-3">
-                <label htmlFor="name" className="form-label">Full Name</label>
-                <input type="text" id="name" name="name" className="form-control" value={formData.name} onChange={handleChange} />
-              </div>
-              <div className="mb-3">
-                <label htmlFor="company_name" className="form-label">Company/Community Name</label>
-                <input type="text" id="company_name" name="company_name" value={formData.company_name} className="form-control" onChange={handleChange} />
-              </div>
-              <div className="mb-3">
-                <label htmlFor="email" className="form-label">Email Address</label>
-                <input type="email" id="email" name="email" className="form-control" value={formData.email} onChange={handleChange} />
-              </div>
-              <div className="mb-3">
-                <label htmlFor="phone" className="form-label">Phone Number</label>
-                <input type="tel" id="phone" name="phone" className="form-control" value={formData.phone} onChange={handleChange} />
-              </div>
-              <div className="mb-3">
-                <label htmlFor="address" className="form-label">Service Address</label>
-                <input type="text" id="address" name="address" className="form-control" value={formData.address} onChange={handleChange} />
-              </div>
-              <div className="mb-3">
-                <label htmlFor="role" className="form-label">Role</label>
-                <select id="role" name="role" className="form-select form-select-dark" value={formData.role} onChange={handleChange}>
-                  <option value="customer">Customer</option>
-                  <option value="admin">Admin</option>
-                  <option value="associate">Associate</option>
-                  <option value="guest">Guest</option>
-                </select>
-              </div>
+            <div>
+              <label htmlFor="company_name" className="form-label">Company/Community Name</label>
+              <input type="text" id="company_name" name="company_name" value={formData.company_name} className="form-control" onChange={handleChange} />
             </div>
-            <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-              <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-                {isSubmitting ? 'Saving...' : 'Save Changes'}
-              </button>
+            <div>
+              <label htmlFor="email" className="form-label">Email Address</label>
+              <input type="email" id="email" name="email" className="form-control" value={formData.email} onChange={handleChange} />
             </div>
-          </form>
-        </div>
+            <div>
+              <label htmlFor="phone" className="form-label">Phone Number</label>
+              <input type="tel" id="phone" name="phone" className="form-control" value={formData.phone} onChange={handleChange} />
+            </div>
+            <div>
+              <label htmlFor="address" className="form-label">Service Address</label>
+              <input type="text" id="address" name="address" className="form-control" value={formData.address} onChange={handleChange} />
+            </div>
+            <div>
+              <label htmlFor="role" className="form-label">Role</label>
+              <select id="role" name="role" className="form-control" value={formData.role} onChange={handleChange}>
+                <option value="customer">Customer</option>
+                <option value="admin">Admin</option>
+                <option value="associate">Associate</option>
+                <option value="guest">Guest</option>
+              </select>
+            </div>
+          </div>
+          <div className="p-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2 bg-secondary-light/50 dark:bg-secondary-dark/50 rounded-b-lg">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

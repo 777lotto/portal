@@ -343,6 +343,7 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
       start: body.start,
       end: new Date(new Date(body.start).getTime() + 60 * 60 * 1000).toISOString(),
       status: 'upcoming',
+      recurrence: 'none', // FIX: Add this line
     };
     const newJob = await createJob(c.env, jobData, userId);
 

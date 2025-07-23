@@ -48,40 +48,38 @@ function EditJobModal({ isOpen, onClose, onJobUpdated, job }: Props) {
   if (!isOpen) return null;
 
   return (
-    <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
-      <div className="modal-dialog">
-        <div className="modal-content">
-          <form onSubmit={handleSubmit}>
-            <div className="modal-header">
-              <h5 className="modal-title">Edit Job: {job.title}</h5>
-              <button type="button" className="btn-close" onClick={onClose}></button>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white dark:bg-tertiary-dark rounded-lg shadow-xl w-full max-w-lg">
+        <form onSubmit={handleSubmit}>
+          <div className="p-4 border-b border-border-light dark:border-border-dark flex justify-between items-center">
+            <h5 className="text-xl font-bold">Edit Job: {job.title}</h5>
+            <button type="button" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl font-bold" onClick={onClose}>&times;</button>
+          </div>
+          <div className="p-6">
+            {error && <div className="alert alert-danger">{error}</div>}
+            <div className="mb-3">
+              <label htmlFor="customer" className="form-label">Reassign to Customer</label>
+              <select
+                id="customer"
+                className="form-control"
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+              >
+                {users.map(user => (
+                  <option key={user.id} value={user.id.toString()}>
+                    {user.name || user.company_name} ({user.email || user.phone})
+                  </option>
+                ))}
+              </select>
             </div>
-            <div className="modal-body">
-              {error && <div className="alert alert-danger">{error}</div>}
-              <div className="mb-3">
-                <label htmlFor="customer" className="form-label">Reassign to Customer</label>
-                <select
-                  id="customer"
-                  className="form-select"
-                  value={selectedUserId}
-                  onChange={(e) => setSelectedUserId(e.target.value)}
-                >
-                  {users.map(user => (
-                    <option key={user.id} value={user.id}>
-                      {user.name || user.company_name} ({user.email || user.phone})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-              <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-                {isSubmitting ? 'Saving...' : 'Save Changes'}
-              </button>
-            </div>
-          </form>
-        </div>
+          </div>
+          <div className="p-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2 bg-secondary-light/50 dark:bg-secondary-dark/50 rounded-b-lg">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
