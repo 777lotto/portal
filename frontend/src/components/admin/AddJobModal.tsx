@@ -1,6 +1,7 @@
 // frontend/src/components/admin/AddJobModal.tsx
 import { useState, useEffect } from 'react';
-import { apiGet, apiPost } from '../../lib/api';
+// MODIFICATION: Import adminCreateJobForUser instead of apiPost
+import { apiGet, adminCreateJobForUser } from '../../lib/api';
 import type { User, Service } from '@portal/shared';
 import { format } from 'date-fns';
 
@@ -21,16 +22,13 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
 
   useEffect(() => {
     if (isOpen) {
-      // Reset state on open
       setTitle('');
       setSelectedUserId('');
       setLineItems([{ notes: '', price_cents: 0 }]);
       setError(null);
-
       const fetchUsers = async () => {
         try {
           const allUsers = await apiGet<User[]>('/api/admin/users');
-          // Filter for users who can have jobs assigned to them
           setUsers(allUsers.filter(u => u.role === 'customer' || u.role === 'guest'));
         } catch (err) {
           setError('Failed to load users.');
@@ -43,8 +41,8 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
   const handleLineItemChange = (index: number, field: 'notes' | 'price_cents', value: string) => {
     const newLineItems = [...lineItems];
     if (field === 'price_cents') {
-        // Handle floating point numbers correctly
-        newLineItems[index][field] = Math.round(parseFloat(value) * 100);
+        const price = parseFloat(value);
+        newLineItems[index][field] = isNaN(price) ? 0 : Math.round(price * 100);
     } else {
       newLineItems[index][field] = value;
     }
@@ -62,26 +60,32 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
 
   const handleSubmit = async () => {
     setError(null);
-    if (!selectedUserId || !title || lineItems.some(item => !item.notes || !item.price_cents)) {
-      setError("Please select a customer, enter a title, and complete all line items.");
+    if (!selectedUserId || !title || lineItems.some(item => !item.notes)) {
+      setError("Please select a customer, enter a title, and provide a description for all line items.");
       return;
     }
     setIsSubmitting(true);
     try {
+      // MODIFICATION START: Use the correct API function and payload structure
       const payload = {
-        userId: selectedUserId,
         title,
-        lineItems,
-        isDraft: true, // This creates the job without an immediate invoice
-        start: selectedDate.toISOString() // Use the selected date
+        start: selectedDate.toISOString(),
+        services: lineItems.map(item => ({
+            notes: item.notes || '',
+            price_cents: item.price_cents || 0
+        }))
       };
-      // Note: This assumes you have a backend endpoint at `/api/admin/billing/job`
-      // that can handle this payload structure.
-      await apiPost(`/api/admin/billing/job`, payload);
+      await adminCreateJobForUser(selectedUserId, payload);
+      // MODIFICATION END
       onSave();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.');
+      // Use the error message from the log if available
+      if (err.message && err.message.includes('D1_ERROR')) {
+          setError('Failed to create job: The database operation timed out. Please try again.');
+      } else {
+          setError(err.message || 'An unknown error occurred.');
+      }
     } finally {
       setIsSubmitting(false);
     }

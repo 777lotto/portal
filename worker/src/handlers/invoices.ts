@@ -56,17 +56,20 @@ export const handleDownloadInvoicePdf = async (c: Context<AppEnv>) => {
             return errorResponse("Invoice not found.", 404);
         }
 
-        // 2. Fetch the PDF directly from Stripe's API
-        const pdfResponse = await fetch(`https://api.stripe.com/v1/invoices/${invoiceId}/pdf`, {
-            headers: {
-                'Authorization': `Bearer ${c.env.STRIPE_SECRET_KEY}`
-            }
-        });
+        // --- FIX START ---
+        // The invoice object contains a URL to the PDF.
+        if (!invoice.invoice_pdf) {
+            return errorResponse("A PDF is not available for this invoice.", 404);
+        }
+
+        // 2. Fetch the PDF from the URL provided by Stripe
+        const pdfResponse = await fetch(invoice.invoice_pdf);
 
         if (!pdfResponse.ok) {
-            console.error('Stripe PDF fetch error:', await pdfResponse.text());
-            throw new Error('Failed to fetch invoice PDF from Stripe.');
+            console.error('Stripe PDF download error:', await pdfResponse.text());
+            throw new Error('Failed to download invoice PDF from Stripe URL.');
         }
+        // --- FIX END ---
 
         // 3. Stream the PDF back to the client with appropriate headers to trigger a download
         const headers = new Headers();
