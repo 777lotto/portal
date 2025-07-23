@@ -111,23 +111,30 @@ export const handleUpdateRecurrenceRequest = async (c: Context<AppEnv>) => {
         ).bind(status, admin_notes, frequency ?? request.frequency, requested_day ?? request.requested_day, new Date().toISOString(), requestId).run();
 
         if (status === 'accepted') {
-            const rrule = `FREQ=DAILY;INTERVAL=${frequency ?? request.frequency}${ (requested_day ?? request.requested_day) ? ';BYDAY=' + ['SU','MO','TU','WE','TH','FR','SA'][requested_day ?? request.requested_day] : ''}`;
+            // FIX: Explicitly check if the day is not null/undefined to handle Sunday (day 0) correctly
+            const day = requested_day ?? request.requested_day;
+            const byDayRule = (day !== null && day !== undefined)
+                ? `;BYDAY=${['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][day]}`
+                : '';
+
+            const rrule = `FREQ=DAILY;INTERVAL=${frequency ?? request.frequency}${byDayRule}`;
+
             await c.env.DB.prepare(
                 `UPDATE jobs SET recurrence = 'custom', rrule = ? WHERE id = ?`
             ).bind(rrule, request.job_id).run();
         }
 
         // Notify customer
-        await c.env.NOTIFICATION_QUEUE.send({
-            type: 'recurrence_request_response',
-            userId: request.user_id,
-            data: {
-                jobId: request.job_id,
-                status: status,
-                adminNotes: admin_notes,
-            },
-            channels: ['push']
-        });
+        await c.env.DB.prepare(
+            `UPDATE job_recurrence_requests SET status = ?, admin_notes = ?, frequency = ?, requested_day = ?, updated_at = ? WHERE id = ?`
+        ).bind(
+            status,
+            admin_notes ?? request.admin_notes, // FIX: Use existing value if new one is not provided
+            frequency ?? request.frequency,
+            requested_day ?? request.requested_day,
+            new Date().toISOString(),
+            requestId
+        ).run();
 
         return successResponse({ message: `Request ${status} successfully.` });
     } catch (e: any) {
