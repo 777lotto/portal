@@ -30,7 +30,8 @@ export const handleRequestRecurrence = async (c: Context<AppEnv>) => {
     const { frequency, requested_day } = parsed.data;
 
     try {
-        const job = await c.env.DB.prepare(`SELECT * FROM jobs WHERE id = ? AND customerId = ?`).bind(jobId, user.id).first<Job>();
+        // --- FIX: Convert user.id to a string for the query ---
+        const job = await c.env.DB.prepare(`SELECT * FROM jobs WHERE id = ? AND customerId = ?`).bind(jobId, user.id.toString()).first<Job>();
         if (!job) {
             return errorResponse("Job not found or you don't have permission to modify it.", 404);
         }

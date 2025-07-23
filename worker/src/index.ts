@@ -137,6 +137,8 @@ customerApi.get('/services', handleListServices);
 customerApi.get('/services/:id', handleGetService);
 customerApi.get('/jobs', handleGetJobs);
 customerApi.post('/jobs', handleCreateJob);
+// --- FIX: Moved specific route before generic route ---
+customerApi.get('/jobs/unavailable-recurrence-days', handleGetUnavailableRecurrenceDays);
 customerApi.get('/jobs/:id', handleGetJobById);
 customerApi.get('/jobs/:id/photos', handleGetPhotosForJob);
 customerApi.get('/jobs/:id/notes', handleGetNotesForJob);
@@ -156,7 +158,6 @@ customerApi.get('/invoices/:invoiceId', handleGetInvoiceForUser);
 customerApi.post('/invoices/:invoiceId/create-payment-intent', handleCreatePaymentIntent);
 customerApi.get('/invoices/:invoiceId/pdf', handleDownloadInvoicePdf);
 customerApi.post('/jobs/:jobId/request-recurrence', handleRequestRecurrence);
-customerApi.get('/jobs/unavailable-recurrence-days', handleGetUnavailableRecurrenceDays);
 
 
 customerApi.all('/sms/*', handleSmsProxy);
