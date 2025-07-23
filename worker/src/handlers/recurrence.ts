@@ -108,7 +108,14 @@ export const handleUpdateRecurrenceRequest = async (c: Context<AppEnv>) => {
 
         await c.env.DB.prepare(
             `UPDATE job_recurrence_requests SET status = ?, admin_notes = ?, frequency = ?, requested_day = ?, updated_at = ? WHERE id = ?`
-        ).bind(status, admin_notes, frequency ?? request.frequency, requested_day ?? request.requested_day, new Date().toISOString(), requestId).run();
+        ).bind(
+            status,
+            admin_notes ?? request.admin_notes, // FIX: Use existing value if new one is not provided
+            frequency ?? request.frequency,
+            requested_day ?? request.requested_day,
+            new Date().toISOString(),
+            requestId
+        ).run();
 
         if (status === 'accepted') {
             // FIX: Explicitly check if the day is not null/undefined to handle Sunday (day 0) correctly
@@ -125,16 +132,16 @@ export const handleUpdateRecurrenceRequest = async (c: Context<AppEnv>) => {
         }
 
         // Notify customer
-        await c.env.DB.prepare(
-            `UPDATE job_recurrence_requests SET status = ?, admin_notes = ?, frequency = ?, requested_day = ?, updated_at = ? WHERE id = ?`
-        ).bind(
-            status,
-            admin_notes ?? request.admin_notes, // FIX: Use existing value if new one is not provided
-            frequency ?? request.frequency,
-            requested_day ?? request.requested_day,
-            new Date().toISOString(),
-            requestId
-        ).run();
+        await c.env.NOTIFICATION_QUEUE.send({
+            type: 'recurrence_request_response',
+            userId: request.user_id,
+            data: {
+                jobId: request.job_id,
+                status: status,
+                adminNotes: admin_notes,
+            },
+            channels: ['push']
+        });
 
         return successResponse({ message: `Request ${status} successfully.` });
     } catch (e: any) {
