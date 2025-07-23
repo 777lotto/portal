@@ -78,8 +78,11 @@ function RecurrenceRequestModal({ isOpen, onClose, job, onSuccess }: Props) {
             <select
               id="requested_day"
               className="form-control"
-              value={requestedDay}
-              onChange={e => setRequestedDay(parseInt(e.target.value, 10))}
+              value={requestedDay ?? ''}
+              onChange={e => {
+                const value = e.target.value;
+                setRequestedDay(value === '' ? undefined : parseInt(value, 10));
+              }}
             >
               <option value="">Any day</option>
               {weekDays.map(day => (
