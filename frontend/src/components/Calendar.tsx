@@ -6,13 +6,14 @@ import enUS from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import useSWR from 'swr';
 import { apiGet, getPublicAvailability, getBlockedDates } from '../lib/api';
-import type { Job, BlockedDate } from '@portal/shared';
+import type { Job, BlockedDate, JobRecurrenceRequest } from '@portal/shared';
 import AdminBlockDayModal from './AdminBlockDayModal';
-import AdminDayActionModal from './admin/AdminDayActionModal'; // Import the new modal
-import AddJobModal from './admin/AddJobModal'; // Import the Add Job modal
+import AdminDayActionModal from './admin/AdminDayActionModal';
+import AddJobModal from './admin/AddJobModal';
 import RecurrenceRequestModal from './RecurrenceRequestModal.js';
 import { jwtDecode } from 'jwt-decode';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import AdminRecurrenceRequestModal from './admin/AdminRecurrenceRequestModal';
 
 const locales = {
   'en-US': enUS,
@@ -92,6 +93,8 @@ function JobCalendar() {
   const [jobForRecurrence, setJobForRecurrence] = useState<Job | null>(null);
   const [isRecurrenceModalOpen, setIsRecurrenceModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [adminRecurrenceRequest, setAdminRecurrenceRequest] = useState<JobRecurrenceRequest | null>(null);
 
 
   // State management for all modals
@@ -128,6 +131,21 @@ function JobCalendar() {
     user?.role === 'admin' ? '/api/admin/blocked-dates' : null,
     apiGet<BlockedDate[]>
   );
+    const { data: recurrenceRequests, mutate: mutateRecurrenceRequests } = useSWR(
+    user?.role === 'admin' ? '/api/admin/recurrence-requests' : null,
+    apiGet<JobRecurrenceRequest[]>
+  );
+
+  const recurrenceRequestId = searchParams.get('recurrence_request_id');
+
+  useEffect(() => {
+    if (recurrenceRequestId && recurrenceRequests) {
+      const request = recurrenceRequests.find(r => r.id.toString() === recurrenceRequestId);
+      if (request) {
+        setAdminRecurrenceRequest(request);
+      }
+    }
+  }, [recurrenceRequestId, recurrenceRequests]);
 
   const adminBlockedDaysSet = useMemo(() => {
     return new Set(blockedDates?.map(d => d.date) || []);
@@ -232,6 +250,12 @@ function JobCalendar() {
           isBlocked: false,
           reason: null
       });
+      setSelectedJob(null);
+      setAdminRecurrenceRequest(null);
+      if (searchParams.has('recurrence_request_id')) {
+        searchParams.delete('recurrence_request_id');
+        setSearchParams(searchParams);
+      }
   }
 
   if (jobsLoading || availabilityLoading || blockedDatesLoading) return <div className="text-center p-8">Loading calendar...</div>;
@@ -297,7 +321,19 @@ function JobCalendar() {
             />
           </>
       )}
-
+    {adminRecurrenceRequest && user?.role === 'admin' && (
+          <AdminRecurrenceRequestModal
+              isOpen={!!adminRecurrenceRequest}
+              onClose={closeAllModals}
+              request={adminRecurrenceRequest}
+              onUpdate={() => {
+                  mutateRecurrenceRequests();
+                  closeAllModals();
+                  setSuccessMessage('Recurrence request has been updated.');
+                  setTimeout(() => setSuccessMessage(null), 5000);
+              }}
+          />
+      )}
       <div className="bg-white dark:bg-tertiary-dark p-4 rounded-lg shadow" style={{ height: '85vh' }}>
         <BigCalendar
           localizer={localizer}

@@ -107,7 +107,7 @@ function generateUINotificationDetails(type: string, data: Record<string, any>):
         case 'recurrence_request_new':
             return {
                 message: `${data.customerName} has requested recurrence for job "${data.jobTitle}".`,
-                link: `/admin/billing` // Or a more specific link if available
+                link: `/calendar?recurrence_request_id=${data.requestId}` // New link format
             };
         case 'recurrence_request_response':
             return {

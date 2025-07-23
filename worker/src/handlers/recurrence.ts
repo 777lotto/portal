@@ -37,9 +37,14 @@ export const handleRequestRecurrence = async (c: Context<AppEnv>) => {
         }
 
         // Create the recurrence request
-        await c.env.DB.prepare(
-            `INSERT INTO job_recurrence_requests (job_id, user_id, frequency, requested_day) VALUES (?, ?, ?, ?)`
-        ).bind(jobId, user.id, frequency, requested_day).run();
+        const { results } = await c.env.DB.prepare(
+            `INSERT INTO job_recurrence_requests (job_id, user_id, frequency, requested_day) VALUES (?, ?, ?, ?) RETURNING id`
+        ).bind(jobId, user.id, frequency, requested_day).all<{ id: number }>();
+
+        if (!results || results.length === 0) {
+            throw new Error("Failed to create recurrence request and get an ID.");
+        }
+        const requestId = results[0].id;
 
         // Notify admins
         const admins = await c.env.DB.prepare(`SELECT id FROM users WHERE role = 'admin'`).all<{ id: number }>();
@@ -49,11 +54,12 @@ export const handleRequestRecurrence = async (c: Context<AppEnv>) => {
                     type: 'recurrence_request_new',
                     userId: admin.id,
                     data: {
+                        requestId: requestId, // Pass the new ID
                         jobId: jobId,
                         jobTitle: job.title,
                         customerName: user.name,
                     },
-                    channels: ['push']
+                    channels: ['push', 'email']
                 });
             }
         }
