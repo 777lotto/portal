@@ -10,6 +10,42 @@ function Dashboard() {
   const [openInvoices, setOpenInvoices] = useState<DashboardInvoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // ADDED: State to handle download status
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
+
+
+  // --- ADD THIS HANDLER FUNCTION ---
+  const handleDownloadPdf = async (invoiceId: string, invoiceNumber: string | null) => {
+    setDownloadingInvoiceId(invoiceId);
+    setError(null);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/invoices/${invoiceId}/pdf`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download invoice. Please try again.');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `invoice-${invoiceNumber || invoiceId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setDownloadingInvoiceId(null);
+    }
+  };
+
 
   useEffect(() => {
     const loadDashboard = async () => {
@@ -101,15 +137,17 @@ function Dashboard() {
                       </div>
                       {invoice.due_date && <small className="text-text-secondary-light dark:text-text-secondary-dark">Due: {new Date(invoice.due_date * 1000).toLocaleDateString()}</small>}
                     </Component>
+                    {/* --- REPLACE THIS SECTION --- */}
                     {user?.role === 'customer' && invoice.hosted_invoice_url && (
-                      <a
-                        href={`/api/invoices/${invoice.id}/pdf`}
-                        download={`invoice-${invoice.number || invoice.id}.pdf`}
+                      <button
+                        onClick={() => handleDownloadPdf(invoice.id, invoice.number)}
                         className="btn btn-secondary ml-4"
+                        disabled={downloadingInvoiceId === invoice.id}
                       >
-                        Download PDF
-                      </a>
+                        {downloadingInvoiceId === invoice.id ? 'Downloading...' : 'Download PDF'}
+                      </button>
                     )}
+                    {/* --- END REPLACEMENT --- */}
                   </div>
                 )
               })
