@@ -1,4 +1,4 @@
-// 777lotto/portal/portal-bet/frontend/src/components/Dashboard.tsx
+// 777lotto/portal/portal-fold/frontend/src/components/Dashboard.tsx
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getProfile, getJobs, getOpenInvoices, adminGetAllJobs, adminGetAllOpenInvoices } from '../lib/api.js';
@@ -10,11 +10,9 @@ function Dashboard() {
   const [openInvoices, setOpenInvoices] = useState<DashboardInvoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // ADDED: State to handle download status
   const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
 
 
-  // --- ADD THIS HANDLER FUNCTION ---
   const handleDownloadPdf = async (invoiceId: string, invoiceNumber: string | null) => {
     setDownloadingInvoiceId(invoiceId);
     setError(null);
@@ -52,7 +50,6 @@ function Dashboard() {
       try {
         setIsLoading(true);
         setError(null);
-        // MODIFICATION: Logic now splits based on user role
         const profileData = await getProfile();
         setUser(profileData);
 
@@ -61,10 +58,9 @@ function Dashboard() {
             adminGetAllJobs(),
             adminGetAllOpenInvoices(),
           ]);
-          setUpcomingJobs(jobsData.filter((j: Job) => new Date(j.start) > new Date()).slice(0, 10)); // Show more for admin
+          setUpcomingJobs(jobsData.filter((j: Job) => new Date(j.start) > new Date()).slice(0, 10));
           setOpenInvoices(invoicesData);
         } else {
-          // Existing customer logic
           const [jobsData, invoicesData] = await Promise.all([
             getJobs(),
             getOpenInvoices(),
@@ -93,7 +89,6 @@ function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Upcoming Jobs Card */}
         <div className="bg-primary-light dark:bg-tertiary-dark shadow-sm rounded-lg p-6 border border-border-light dark:border-border-dark">
-          {/* MODIFICATION: Dynamic title */}
           <h3 className="text-xl font-semibold mb-4 text-text-primary-light dark:text-text-primary-dark">
             {user?.role === 'admin' ? "All Upcoming Jobs" : "Your Upcoming Jobs"}
           </h3>
@@ -115,19 +110,19 @@ function Dashboard() {
            <div className="space-y-3">
             {openInvoices.length > 0 ? (
               openInvoices.map(invoice => {
-                const invoiceLink = user?.role === 'admin' && invoice.userId
-                  ? `/admin/users/${invoice.userId}`
-                  : invoice.hosted_invoice_url;
+                // --- MODIFICATION START ---
+                // Determine the correct link based on user role.
+                const invoiceLink = user?.role === 'admin'
+                  ? `/admin/users/${invoice.userId}` // Admins go to the user detail page
+                  : `/pay-invoice/${invoice.id}`;     // Customers go to the internal payment page
 
-                const linkProps = user?.role === 'customer'
-                  ? { href: invoiceLink, target: "_blank", rel: "noopener noreferrer" }
-                  : { to: invoiceLink };
-
-                const Component = user?.role === 'admin' ? Link : 'a';
+                // Both admins and customers will use the internal Link component.
+                const linkProps = { to: invoiceLink };
+                // --- MODIFICATION END ---
 
                 return (
                   <div key={invoice.id} className="flex justify-between items-center p-3 rounded-md transition hover:bg-secondary-light dark:hover:bg-secondary-dark">
-                    <Component {...linkProps} className="flex-grow">
+                    <Link {...linkProps} className="flex-grow">
                       <div className="flex justify-between">
                         <span>
                           {user?.role === 'admin' && invoice.customerName ? `${invoice.customerName} - ` : ''}
@@ -136,9 +131,8 @@ function Dashboard() {
                         <span className="font-semibold">${((invoice.total || 0) / 100).toFixed(2)}</span>
                       </div>
                       {invoice.due_date && <small className="text-text-secondary-light dark:text-text-secondary-dark">Due: {new Date(invoice.due_date * 1000).toLocaleDateString()}</small>}
-                    </Component>
-                    {/* --- REPLACE THIS SECTION --- */}
-                    {user?.role === 'customer' && invoice.hosted_invoice_url && (
+                    </Link>
+                    {user?.role === 'customer' && (
                       <button
                         onClick={() => handleDownloadPdf(invoice.id, invoice.number)}
                         className="btn btn-secondary ml-4"
@@ -147,7 +141,6 @@ function Dashboard() {
                         {downloadingInvoiceId === invoice.id ? 'Downloading...' : 'Download PDF'}
                       </button>
                     )}
-                    {/* --- END REPLACEMENT --- */}
                   </div>
                 )
               })
