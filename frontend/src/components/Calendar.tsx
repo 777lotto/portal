@@ -33,7 +33,15 @@ interface CalendarEvent {
 }
 
 // New component for the Job Summary Modal
-function JobSummaryModal({ job, onClose, onRecurrenceClick }: { job: Job; onClose: () => void; onRecurrenceClick: () => void; }) {
+function JobSummaryModal({
+  job,
+  onClose,
+  onRecurrenceClick,
+}: {
+  job: Job;
+  onClose: () => void;
+  onRecurrenceClick: () => void;
+}) {
     const navigate = useNavigate();
 
     const handleViewJob = () => {
@@ -47,9 +55,8 @@ function JobSummaryModal({ job, onClose, onRecurrenceClick }: { job: Job; onClos
                 <p className="mb-2"><strong>Status:</strong> {job.status.replace(/_/g, ' ')}</p>
                 <div className="flex justify-end items-center mt-6">
                     <button type="button" onClick={onClose} className="btn btn-secondary mr-2">
-                        Close
+                      Close
                     </button>
-                    {/* This button was added */}
                     <button onClick={onRecurrenceClick} className="btn btn-info mr-2">
                         Request Recurrence
                     </button>
@@ -82,6 +89,7 @@ interface UserPayload {
 function JobCalendar() {
   const [user, setUser] = useState<UserPayload | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [jobForRecurrence, setJobForRecurrence] = useState<Job | null>(null);
   const [isRecurrenceModalOpen, setIsRecurrenceModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -231,13 +239,25 @@ function JobCalendar() {
 
   return (
     <>
-      {selectedJob && <JobSummaryModal job={selectedJob} onClose={() => setSelectedJob(null)} onRecurrenceClick={() => {setSelectedJob(null); setIsRecurrenceModalOpen(true)}} />}
-      {isRecurrenceModalOpen && selectedJob && (
+      {successMessage && <div className="alert alert-success fixed top-20 right-4 z-50">{successMessage}</div>}
+      {selectedJob && (
+        <JobSummaryModal
+          job={selectedJob}
+          onClose={() => setSelectedJob(null)}
+          onRecurrenceClick={() => {
+            setJobForRecurrence(selectedJob);
+            setSelectedJob(null);
+            setIsRecurrenceModalOpen(true);
+          }}
+        />
+      )}
+      {isRecurrenceModalOpen && jobForRecurrence && (
         <RecurrenceRequestModal
           isOpen={isRecurrenceModalOpen}
-          onClose={() => setIsRecurrenceModalOpen(false)}
-          job={selectedJob}
+          onClose={() => { setIsRecurrenceModalOpen(false); setJobForRecurrence(null); }}
+          job={jobForRecurrence}
           onSuccess={() => {
+            setIsRecurrenceModalOpen(false); setJobForRecurrence(null);
             setSuccessMessage('Your recurrence request has been submitted.');
             setTimeout(() => setSuccessMessage(null), 5000);
           }}
