@@ -13,7 +13,8 @@ import {
   type BlockedDate,
   type StripeInvoice,
   type UINotification,
-  type JobWithDetails
+  type JobWithDetails,
+  type JobRecurrenceRequest,
 } from "@portal/shared";
 import { fetchJson } from './fetchJson.js';
 
@@ -112,6 +113,8 @@ export const getJobs = () => apiGet<Job[]>('/api/jobs');
 export const getJob = (id: string) => apiGet<Job>(`/api/jobs/${id}`);
 export const getServicesForJob = (jobId: string) => apiGet<Service[]>(`/api/jobs/${jobId}/services`);
 export const getOpenInvoices = () => apiGet<StripeInvoice[]>('/api/invoices/open');
+export const requestRecurrence = (jobId: string, data: { frequency: number, requested_day?: number }) => apiPost(`/api/jobs/${jobId}/request-recurrence`, data);
+export const getUnavailableRecurrenceDays = () => apiGet<{ unavailableDays: number[] }>('/api/jobs/unavailable-recurrence-days');
 
 /* ========================================================================
                                   ADMIN API
@@ -155,6 +158,9 @@ export const adminUpdateServiceInJob = (jobId: string, serviceId: number, data: 
 export const adminDeleteServiceFromJob = (jobId: string, serviceId: number) => {
   return apiPost(`/api/admin/jobs/${jobId}/services/${serviceId}`, {}, 'DELETE');
 };
+export const getRecurrenceRequests = () => apiGet<JobRecurrenceRequest[]>('/api/admin/recurrence-requests');
+export const updateRecurrenceRequest = (requestId: number, data: { status: 'accepted' | 'declined' | 'countered', admin_notes?: string, frequency?: number, requested_day?: number }) => apiPost(`/api/admin/recurrence-requests/${requestId}`, data, 'PUT');
+
 
 /* ========================================================================
                             ADMIN INVOICE FUNCTIONS

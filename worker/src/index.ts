@@ -47,6 +47,8 @@ import { handleGetUserPhotos, handleGetPhotosForJob } from './handlers/photos.js
 import { handleGetNotesForJob } from './handlers/notes.js';
 import { handlePortalSession } from './handlers/user.js';
 import { handleGetInvoiceForUser, handleCreatePaymentIntent, handleDownloadInvoicePdf } from './handlers/invoices.js';
+import { handleRequestRecurrence, handleGetRecurrenceRequests, handleUpdateRecurrenceRequest, handleGetUnavailableRecurrenceDays } from './handlers/recurrence.js';
+
 
 // --- Admin Handlers ---
 import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleAdminCreateInvoice, handleGetAllJobs, handleGetAllServices, handleAdminCreateJobForUser, handleAdminCreateUser, handleAdminUpdateUser } from './handlers/admin/users.js';
@@ -153,6 +155,9 @@ customerApi.get('/invoices/open', handleGetOpenInvoicesForUser);
 customerApi.get('/invoices/:invoiceId', handleGetInvoiceForUser);
 customerApi.post('/invoices/:invoiceId/create-payment-intent', handleCreatePaymentIntent);
 customerApi.get('/invoices/:invoiceId/pdf', handleDownloadInvoicePdf);
+customerApi.post('/jobs/:jobId/request-recurrence', handleRequestRecurrence);
+customerApi.get('/jobs/unavailable-recurrence-days', handleGetUnavailableRecurrenceDays);
+
 
 customerApi.all('/sms/*', handleSmsProxy);
 customerApi.all('/notifications/*', handleNotificationProxy);
@@ -196,6 +201,8 @@ adminApi.get('/billing/jobs-and-quotes', handleGetJobsAndQuotes);
 adminApi.post('/jobs/:jobId/reassign', handleAdminReassignJob);
 adminApi.post('/billing/job', handleAdminCreateJob);
 adminApi.post('/billing/quote', handleAdminCreateQuoteFromBilling);
+adminApi.get('/recurrence-requests', handleGetRecurrenceRequests);
+adminApi.put('/recurrence-requests/:requestId', handleUpdateRecurrenceRequest);
 
 
 /* ========================================================================

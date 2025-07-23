@@ -104,6 +104,16 @@ function generateUINotificationDetails(type: string, data: Record<string, any>):
                 message: `Reminder: You have a service appointment for "${data.serviceType}" tomorrow.`,
                 link: `/calendar`
             };
+        case 'recurrence_request_new':
+            return {
+                message: `${data.customerName} has requested recurrence for job "${data.jobTitle}".`,
+                link: `/admin/billing` // Or a more specific link if available
+            };
+        case 'recurrence_request_response':
+            return {
+                message: `Your recurrence request for job has been ${data.status}.`,
+                link: `/jobs/${data.jobId}`
+            };
         default:
             return {
                 message: `You have a new notification.`,
@@ -175,7 +185,7 @@ export default {
           return;
         }
 
-        const { type, userId, data, channels = ['email', 'sms'] } = validation.data;
+        const { type, userId, data, channels = ['email', 'sms', 'push'] } = validation.data;
 
         const user = await env.DB.prepare(
             'SELECT id, email, name, phone, email_notifications_enabled, sms_notifications_enabled FROM users WHERE id = ?'
@@ -214,29 +224,31 @@ export default {
         }
 
         // Send Push Notification if user is subscribed
-        const pushSubResult = await env.DB.prepare(
-            `SELECT subscription_json FROM push_subscriptions WHERE user_id = ?`
-        ).bind(userId).first<{ subscription_json: string }>();
+        if(channels.includes('push')) {
+            const pushSubResult = await env.DB.prepare(
+                `SELECT subscription_json FROM push_subscriptions WHERE user_id = ?`
+            ).bind(userId).first<{ subscription_json: string }>();
 
-        if (pushSubResult?.subscription_json) {
-            try {
-                const subscription = JSON.parse(pushSubResult.subscription_json);
-                const payload = JSON.stringify({
-                    title: `Gutter Portal: ${type.replace(/_/g, ' ')}`,
-                    body: generateSMSMessage(type, data) // Re-use SMS text for push body
-                });
+            if (pushSubResult?.subscription_json) {
+                try {
+                    const subscription = JSON.parse(pushSubResult.subscription_json);
+                    const payload = JSON.stringify({
+                        title: `Gutter Portal: ${type.replace(/_/g, ' ')}`,
+                        body: uiMessage // Re-use UI message for push body
+                    });
 
-                notificationPromises.push(
-                    sendPushNotification(env, subscription, payload)
-                        .catch(async (e: any) => {
-                            if (e.statusCode === 410) {
-                                console.log(`Subscription for user ${userId} is expired/invalid. Deleting.`);
-                                await env.DB.prepare(`DELETE FROM push_subscriptions WHERE user_id = ?`).bind(userId).run();
-                            }
-                        })
-                );
-            } catch (e) {
-                console.error(`Could not parse or send push notification for user ${userId}`, e);
+                    notificationPromises.push(
+                        sendPushNotification(env, subscription, payload)
+                            .catch(async (e: any) => {
+                                if (e.statusCode === 410) {
+                                    console.log(`Subscription for user ${userId} is expired/invalid. Deleting.`);
+                                    await env.DB.prepare(`DELETE FROM push_subscriptions WHERE user_id = ?`).bind(userId).run();
+                                }
+                            })
+                    );
+                } catch (e) {
+                    console.error(`Could not parse or send push notification for user ${userId}`, e);
+                }
             }
         }
 

@@ -76,10 +76,25 @@ export const JobSchema = z.object({
 });
 export type Job = z.infer<typeof JobSchema>;
 
+// ADD NEW SCHEMA for job recurrence requests
+export const JobRecurrenceRequestSchema = z.object({
+    id: z.number(),
+    job_id: z.string(),
+    user_id: z.number(),
+    frequency: z.number(),
+    requested_day: z.number().optional(),
+    status: z.enum(['pending', 'accepted', 'declined', 'countered']),
+    admin_notes: z.string().optional().nullable(),
+    created_at: z.string(),
+    updated_at: z.string(),
+});
+export type JobRecurrenceRequest = z.infer<typeof JobRecurrenceRequestSchema>;
+
 export const JobWithDetailsSchema = JobSchema.extend({
   customerName: z.string().nullable(),
   customerAddress: z.string().nullable(),
   services: z.array(ServiceSchema),
+  recurrence_requests: z.array(JobRecurrenceRequestSchema).optional(), // Add recurrence requests
 });
 export type JobWithDetails = z.infer<typeof JobWithDetailsSchema>;
 
@@ -232,7 +247,7 @@ export const NotificationRequestSchema = z.object({
   type: z.string(),
   userId: z.union([z.string(), z.number()]),
   data: z.record(z.any()),
-  channels: z.array(z.enum(['email', 'sms'])).optional()
+  channels: z.array(z.enum(['email', 'sms', 'push'])).optional()
 });
 
 export const EmailParamsSchema = z.object({
