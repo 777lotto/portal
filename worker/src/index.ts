@@ -39,7 +39,7 @@ import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob, h
 import { handleGetUserPhotos, handleGetPhotosForJob } from './handlers/photos.js';
 import { handleGetNotesForJob } from './handlers/notes.js';
 import { handlePortalSession } from './handlers/user.js';
-import { handleGetInvoiceForUser, handleCreatePaymentIntent } from './handlers/invoices.js';
+import { handleGetInvoiceForUser, handleCreatePaymentIntent, handleDownloadInvoicePdf } from './handlers/invoices.js';
 
 // --- Admin Handlers ---
 import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleAdminCreateInvoice, handleGetAllJobs, handleGetAllServices, handleAdminCreateJobForUser, handleAdminCreateUser, handleAdminUpdateUser } from './handlers/admin/users.js';
@@ -147,6 +147,7 @@ customerApi.post('/notifications/read-all', handleMarkAllNotificationsRead);
 customerApi.get('/invoices/open', handleGetOpenInvoicesForUser);
 customerApi.get('/invoices/:invoiceId', handleGetInvoiceForUser);
 customerApi.post('/invoices/:invoiceId/create-payment-intent', handleCreatePaymentIntent);
+customerApi.get('/invoices/:invoiceId/pdf', handleDownloadInvoicePdf);
 
 
 // --- Proxied Routes ---

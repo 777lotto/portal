@@ -1,3 +1,4 @@
+// 777lotto/portal/portal-fold/worker/src/handlers/invoices.ts
 import { Context } from 'hono';
 import { AppEnv } from '../index.js';
 import { errorResponse, successResponse } from '../utils.js';
@@ -39,6 +40,51 @@ export const handleCreatePaymentIntent = async (c: Context<AppEnv>) => {
 
         return successResponse({ clientSecret: paymentIntent.client_secret });
     } catch (e: any) {
+        return errorResponse(e.message, 500);
+    }
+};
+
+export const handleDownloadInvoicePdf = async (c: Context<AppEnv>) => {
+    const user = c.get('user');
+    const { invoiceId } = c.req.param();
+    const stripe = getStripe(c.env);
+
+    try {
+        // 1. Verify the invoice belongs to the requesting user
+        const invoice = await stripe.invoices.retrieve(invoiceId);
+        if (invoice.customer !== user.stripe_customer_id) {
+            return errorResponse("Invoice not found.", 404);
+        }
+
+        // 2. Fetch the PDF directly from Stripe's API
+        const pdfResponse = await fetch(`https://api.stripe.com/v1/invoices/${invoiceId}/pdf`, {
+            headers: {
+                'Authorization': `Bearer ${c.env.STRIPE_SECRET_KEY}`
+            }
+        });
+
+        if (!pdfResponse.ok) {
+            console.error('Stripe PDF fetch error:', await pdfResponse.text());
+            throw new Error('Failed to fetch invoice PDF from Stripe.');
+        }
+
+        // 3. Stream the PDF back to the client with appropriate headers to trigger a download
+        const headers = new Headers();
+        headers.set('Content-Type', 'application/pdf');
+        headers.set('Content-Disposition', `attachment; filename="invoice-${invoice.number || invoice.id}.pdf"`);
+
+        const contentLength = pdfResponse.headers.get('content-length');
+        if (contentLength) {
+            headers.set('content-length', contentLength);
+        }
+
+        return new Response(pdfResponse.body, {
+            status: 200,
+            headers: headers
+        });
+
+    } catch (e: any) {
+        console.error(`Failed to download PDF for invoice ${invoiceId}:`, e);
         return errorResponse(e.message, 500);
     }
 };

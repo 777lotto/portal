@@ -103,8 +103,8 @@ function Dashboard() {
                     </Component>
                     {user?.role === 'customer' && invoice.hosted_invoice_url && (
                       <a
-                        href={`${invoice.hosted_invoice_url}/pdf`}
-                        download
+                        href={`/api/invoices/${invoice.id}/pdf`}
+                        download={`invoice-${invoice.number || invoice.id}.pdf`}
                         className="btn btn-secondary ml-4"
                       >
                         Download PDF
