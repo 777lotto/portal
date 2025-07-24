@@ -1,44 +1,56 @@
-import { Hono } from 'hono';
-import {
-  type Connection,
-  Server,
-  type WSMessage,
-} from "partyserver";
-import type { ChatMessage, Message, User } from '@portal/shared';
+// 777lotto/portal/portal-fold/packages/durable-chat/src/server/index.ts
+import type { ChatMessage, User } from '@portal/shared';
 import { jwtVerify } from 'jose';
+import { nanoid } from 'nanoid';
 
 interface Env {
-  DB: D1Database;
   CHAT_ROOM: DurableObjectNamespace;
   JWT_SECRET: string;
 }
 
-// The Hono app is now only used if you decide to add non-DO routes to this worker.
-const app = new Hono<{ Bindings: Env }>();
+interface ChatSession {
+  websocket: WebSocket;
+  user: User;
+}
 
-export class ChatRoom extends Server<Env> {
+export class ChatRoom {
+  state: DurableObjectState;
+  env: Env;
+  sessions: ChatSession[] = [];
   messages: ChatMessage[] = [];
 
   constructor(state: DurableObjectState, env: Env) {
-    super(state, env);
-    this.ctx.storage.get<ChatMessage[]>("messages").then(messages => {
+    this.state = state;
+    this.env = env;
+    this.state.storage.get<ChatMessage[]>("messages").then(messages => {
       this.messages = messages || [];
     });
   }
 
-  // --- NEW: Custom fetch handler to correctly manage WebSocket connections ---
   async fetch(request: Request): Promise<Response> {
     const upgradeHeader = request.headers.get('Upgrade');
     if (!upgradeHeader || upgradeHeader.toLowerCase() !== 'websocket') {
       return new Response('Expected WebSocket', { status: 426 });
     }
 
+    const token = new URL(request.url).searchParams.get('token');
+    if (!token) {
+      return new Response("Authentication failed: Missing token", { status: 401 });
+    }
+
+    let user: User;
+    try {
+      const secret = new TextEncoder().encode(this.env.JWT_SECRET);
+      const { payload } = await jwtVerify(token, secret);
+      user = payload as User;
+    } catch (e) {
+      console.error("JWT Verification failed:", e);
+      return new Response("Authentication failed: Invalid token", { status: 401 });
+    }
+
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
-
-    // This is the key part: we manually handle the WebSocket connection
-    // and then pass it to the partyserver library's connection manager.
-    await this.handleConnection(server, request);
+    this.handleSession(server, user);
 
     return new Response(null, {
       status: 101,
@@ -46,52 +58,63 @@ export class ChatRoom extends Server<Env> {
     });
   }
 
-  async onConnect(connection: Connection) {
-    // Authenticate the user
-    const token = new URL(connection.url).searchParams.get('token');
-    if (!token) {
-      connection.close(1002, "Authentication failed: Missing token");
-      return;
-    }
+  handleSession(websocket: WebSocket, user: User) {
+    websocket.accept();
+    const session: ChatSession = { websocket, user };
+    this.sessions.push(session);
 
-    try {
-      const secret = new TextEncoder().encode(this.env.JWT_SECRET);
-      const { payload } = await jwtVerify(token, secret);
-      connection.state = payload as User;
-    } catch (e) {
-      console.error("JWT Verification failed:", e);
-      connection.close(1002, "Authentication failed: Invalid token");
-      return;
-    }
+    websocket.send(JSON.stringify({ type: "all", messages: this.messages }));
 
-    connection.send(
-      JSON.stringify({
-        type: "all",
-        messages: this.messages,
-      } satisfies Message),
-    );
+    websocket.addEventListener("message", async (event) => {
+      try {
+        const parsed = JSON.parse(event.data as string);
+        if (parsed.content) {
+          const chatMessage: ChatMessage = {
+            id: nanoid(8),
+            content: parsed.content,
+            user: user.role === 'admin' ? 'Support' : (user.name || 'Customer'),
+            role: user.role === 'admin' ? "assistant" : "user",
+          };
+          this.messages.push(chatMessage);
+          this.broadcast(JSON.stringify({ type: "add", ...chatMessage }));
+          await this.state.storage.put("messages", this.messages);
+        }
+      } catch (e) {
+        console.error("Failed to process message:", e);
+      }
+    });
+
+    websocket.addEventListener("close", () => {
+      this.sessions = this.sessions.filter(s => s.websocket !== websocket);
+    });
+    websocket.addEventListener("error", () => {
+      this.sessions = this.sessions.filter(s => s.websocket !== websocket);
+    });
   }
 
-  async onMessage(connection: Connection, message: WSMessage) {
-    const parsed = JSON.parse(message as string) as Message;
-    const user = connection.state as User;
-
-    if (parsed.type === "add") {
-      const chatMessage: ChatMessage = {
-        id: parsed.id,
-        content: parsed.content,
-        user: user.role === 'admin' ? 'Support' : user.name, // Display 'Support' for admin users
-        role: user.role === 'admin' ? "assistant" : "user",
-      };
-      this.messages.push(chatMessage);
-      this.broadcast(JSON.stringify({ type: "add", ...chatMessage }));
-      await this.ctx.storage.put("messages", this.messages);
+  broadcast(message: string) {
+    for (const session of this.sessions) {
+      try {
+        session.websocket.send(message);
+      } catch (e) {
+        // Remove dead connections
+        this.sessions = this.sessions.filter(s => s !== session);
+      }
     }
   }
 }
 
-// The default export now includes the ChatRoom class itself
 export default {
-  fetch: app.fetch,
-  ChatRoom: ChatRoom
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+    const roomId = url.pathname.split('/').pop();
+
+    if (!roomId) {
+      return new Response('Room not specified', { status: 400 });
+    }
+
+    const id = env.CHAT_ROOM.idFromName(roomId);
+    const stub = env.CHAT_ROOM.get(id);
+    return stub.fetch(request);
+  }
 };
