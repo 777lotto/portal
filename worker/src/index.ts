@@ -137,7 +137,6 @@ customerApi.get('/services', handleListServices);
 customerApi.get('/services/:id', handleGetService);
 customerApi.get('/jobs', handleGetJobs);
 customerApi.post('/jobs', handleCreateJob);
-// --- FIX: Moved specific route before generic route ---
 customerApi.get('/jobs/unavailable-recurrence-days', handleGetUnavailableRecurrenceDays);
 customerApi.get('/jobs/:id', handleGetJobById);
 customerApi.get('/jobs/:id/photos', handleGetPhotosForJob);
@@ -158,7 +157,6 @@ customerApi.get('/invoices/:invoiceId', handleGetInvoiceForUser);
 customerApi.post('/invoices/:invoiceId/create-payment-intent', handleCreatePaymentIntent);
 customerApi.get('/invoices/:invoiceId/pdf', handleDownloadInvoicePdf);
 customerApi.post('/jobs/:jobId/request-recurrence', handleRequestRecurrence);
-
 customerApi.all('/sms/*', handleSmsProxy);
 customerApi.all('/notifications/*', handleNotificationProxy);
 
@@ -227,5 +225,4 @@ app.get('*', serveStatic({ path: './index.html', manifest }));
                                    EXPORT
    ======================================================================== */
 
-// REMOVED: No longer exporting CustomerSupportChat from this worker
 export default app;
