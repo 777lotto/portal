@@ -5,11 +5,11 @@
 
 import { Hono, Context } from 'hono';
 import { cors } from 'hono/cors';
-import { CustomerSupportChat } from './chat';
 import { serveStatic } from 'hono/cloudflare-workers';
 import manifest from '__STATIC_CONTENT_MANIFEST';
 import type { Env, User } from '@portal/shared';
 import { handleGoogleLogin, handleGoogleCallback, handleAdminImportSelectedContacts, handleGetImportedContacts } from './handlers/google.js';
+import { CustomerSupportChat } from './chat.js';
 
 /* ========================================================================
                            MIDDLEWARE & UTILITIES
@@ -247,4 +247,5 @@ api.get('/chat', async (c) => {
                                    EXPORT
    ======================================================================== */
 
+export { CustomerSupportChat };
 export default app;

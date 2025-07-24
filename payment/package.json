@@ -4,18 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-  "deploy": "wrangler deploy --env production",
-  "deploy:dev": "wrangler deploy",
-  "dev": "wrangler dev --port 8790 --inspector-port 9231 --env development",
-  "start": "wrangler dev",
-  "build": "tsc",
-  "typecheck": "tsc --noEmit"
-},
+    "deploy": "wrangler deploy --env production",
+    "deploy:dev": "wrangler deploy",
+    "dev": "wrangler dev --port 8790 --inspector-port 9231 --env development",
+    "start": "wrangler dev",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
     "@portal/shared": "workspace:*"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250528.0",
+    "@cloudflare/workers-types": "^4.20250724.0",
     "rimraf": "^5.0.10",
     "typescript": "^5.5.2",
     "wrangler": "^4.13.2"

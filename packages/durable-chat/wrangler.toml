@@ -3,23 +3,36 @@ main = "src/server/index.ts"
 compatibility_date = "2024-05-28"
 account_id = "67d3a6021370e7b666fff2023b2db359"
 
-[durable_objects]
-bindings = [
+# Migrations for Durable Objects are top-level
+[[migrations]]
+tag = "v1"
+new_classes = [ "ChatRoom" ]
+
+# ===============================================================
+#      DEVELOPMENT-SPECIFIC CONFIGURATION
+# ===============================================================
+[env.development]
+durable_objects.bindings = [
   { name = "CHAT_ROOM", class_name = "ChatRoom" }
 ]
-
-[env.development]
 [[env.development.d1_databases]]
 binding = "DB"
 database_name = "gutter_db"
 database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
 
+# ===============================================================
+#      PRODUCTION-SPECIFIC CONFIGURATION
+# ===============================================================
 [env.production]
+# Routes must be inside the environment block when you have one.
+routes = [
+  { pattern = "chat.777.foo/*", zone_name = "777.foo" }
+]
+
+durable_objects.bindings = [
+  { name = "CHAT_ROOM", class_name = "ChatRoom" }
+]
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "gutter_db"
 database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
-
-[env.production.routes]
-pattern = "chat.777.foo/*"
-zone_name = "777.foo"

@@ -1,6 +1,6 @@
 // packages/shared/src/types.ts
 
-import type { D1Database, KVNamespace, Fetcher } from '@cloudflare/workers-types';
+import type { D1Database, KVNamespace, Fetcher, Queue, DurableObjectNamespace } from '@cloudflare/workers-types';
 import { z } from 'zod';
 
 /* ========================================================================
@@ -278,13 +278,13 @@ export type PushSubscription = z.infer<typeof PushSubscriptionSchema>;
                     ENVIRONMENT & CLOUDFLARE TYPES
    ======================================================================== */
 
-// Consolidating and exporting all worker environment variables and types.
 export interface Env {
   // Bindings
   DB: D1Database;
   NOTIFICATION_SERVICE: Fetcher;
   NOTIFICATION_QUEUE: Queue;
   TEMP_STORAGE: KVNamespace;
+  CUSTOMER_SUPPORT_CHAT: DurableObjectNamespace;
 
   // Secrets
   JWT_SECRET: string;
@@ -312,7 +312,6 @@ export interface Env {
   VOIPMS_USERNAME?: string;
   VOIPMS_PASSWORD?: string;
 }
-
 
 /* ========================================================================
                             UI NOTIFICATIONS
