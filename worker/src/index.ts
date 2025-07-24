@@ -160,6 +160,23 @@ customerApi.post('/invoices/:invoiceId/create-payment-intent', handleCreatePayme
 customerApi.get('/invoices/:invoiceId/pdf', handleDownloadInvoicePdf);
 customerApi.post('/jobs/:jobId/request-recurrence', handleRequestRecurrence);
 
+customerApi.get('/chat', async (c) => {
+  const user = c.get('user');
+  const isAdmin = user.role === 'admin';
+  // For admins, the target userId is in the query. For customers, it's their own ID.
+  const userId = isAdmin ? c.req.query('userId') : user.id.toString();
+
+  if (!userId) {
+    return c.json({ error: "userId is required for chat" }, 400);
+  }
+
+  // Each user gets their own durable object chat room based on their ID
+  const durableObject = c.env.CUSTOMER_SUPPORT_CHAT.get(c.env.CUSTOMER_SUPPORT_CHAT.idFromName(userId));
+
+  // Forward the request to the Durable Object
+  return durableObject.fetch(c.req.raw);
+});
+
 
 customerApi.all('/sms/*', handleSmsProxy);
 customerApi.all('/notifications/*', handleNotificationProxy);
@@ -223,25 +240,7 @@ app.route('/api', api);
 
 app.get('/*', serveStatic({ root: './', manifest }));
 app.get('*', serveStatic({ path: './index.html', manifest }));
-api.get('/chat', async (c) => {
-  const user = c.get('user');
-  const isAdmin = user.role === 'admin';
-  const userId = isAdmin ? c.req.query('userId') : user.id.toString();
 
-  if (!userId) {
-    return c.json({ error: "userId is required for chat" }, 400);
-  }
-
-  // Each user gets their own durable object chat room
-  const durableObject = c.env.CUSTOMER_SUPPORT_CHAT.get(c.env.CUSTOMER_SUPPORT_CHAT.idFromName(userId));
-  const url = new URL(c.req.url);
-  url.searchParams.set('userId', userId);
-  if (isAdmin) {
-    url.searchParams.set('admin', 'true');
-  }
-
-  return durableObject.fetch(url.toString(), c.req.raw);
-});
 
 /* ========================================================================
                                    EXPORT

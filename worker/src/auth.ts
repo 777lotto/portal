@@ -11,14 +11,20 @@ export function getJwtSecretKey(secret: string): Uint8Array {
 
 // This middleware requires a valid JWT to proceed
 export const requireAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
-    const authHeader = c.req.header("Authorization") || "";
-    if (!authHeader.startsWith("Bearer ")) {
-        return c.json({ error: "Missing or invalid authorization header" }, 401);
+    let token: string | undefined;
+    const authHeader = c.req.header("Authorization");
+    const upgradeHeader = c.req.header("Upgrade");
+
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+        token = authHeader.substring(7);
+    } else if (upgradeHeader && upgradeHeader.toLowerCase() === 'websocket') {
+        token = c.req.query('token');
     }
-    const token = authHeader.substring(7);
+
     if (!token) {
-        return c.json({ error: "Invalid token format" }, 401);
+        return c.json({ error: "Missing or invalid authorization token" }, 401);
     }
+
     try {
         if (!c.env.JWT_SECRET) {
             throw new Error("JWT_SECRET is not configured in the environment.");
@@ -26,7 +32,6 @@ export const requireAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
         const secret = getJwtSecretKey(c.env.JWT_SECRET);
         const { payload } = await jwtVerify(token, secret);
         c.set('user', payload as User);
-        // FIXED: Added 'return' to pass control and the eventual response back up the chain.
         return await next();
     } catch (error) {
         console.error("Auth failed:", error);

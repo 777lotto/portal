@@ -8,6 +8,10 @@ account_id = "67d3a6021370e7b666fff2023b2db359"
 tag = "v1"
 new_classes = [ "ChatRoom" ]
 
+[observability.logs]
+enabled = true
+
+
 # ===============================================================
 #      DEVELOPMENT-SPECIFIC CONFIGURATION
 # ===============================================================
