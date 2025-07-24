@@ -1,3 +1,4 @@
+// frontend/src/components/SupportChatWidget.tsx
 import React, { useState, useEffect, useRef } from 'react';
 
 interface ChatMessage {
@@ -6,7 +7,12 @@ interface ChatMessage {
   timestamp: number;
 }
 
-const SupportChatWidget = () => {
+// Define the type for the user prop
+interface UserPayload {
+  role: 'customer' | 'admin';
+}
+
+const SupportChatWidget = ({ user }: { user: UserPayload }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -16,7 +22,12 @@ const SupportChatWidget = () => {
     if (isOpen && !ws.current) {
       const token = localStorage.getItem("token");
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const socket = new WebSocket(`${protocol}//${window.location.host}/api/chat?token=${token}`);
+
+      // MODIFICATION: Add admin=true to the URL if the user is an admin
+      const isAdmin = user.role === 'admin';
+      const url = `${protocol}//${window.location.host}/api/chat?token=${token}${isAdmin ? '&admin=true' : ''}`;
+
+      const socket = new WebSocket(url);
 
       socket.onopen = () => console.log("Chat connected");
       socket.onmessage = (event) => {
@@ -32,7 +43,7 @@ const SupportChatWidget = () => {
       ws.current.close();
       ws.current = null;
     }
-  }, [isOpen]);
+  }, [isOpen, user]); // Add user to dependency array
 
   const sendMessage = () => {
     if (input.trim() && ws.current) {

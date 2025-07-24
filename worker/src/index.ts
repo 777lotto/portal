@@ -1,4 +1,4 @@
-// 777lotto/portal/portal-bet/worker/src/index.ts
+// 777lotto/portal/portal-fold/worker/src/index.ts
 /* ========================================================================
                         IMPORTS & INITIALIZATION
    ======================================================================== */
@@ -161,20 +161,22 @@ customerApi.get('/invoices/:invoiceId/pdf', handleDownloadInvoicePdf);
 customerApi.post('/jobs/:jobId/request-recurrence', handleRequestRecurrence);
 
 customerApi.get('/chat', async (c) => {
-  const user = c.get('user');
-  const isAdmin = user.role === 'admin';
-  // For admins, the target userId is in the query. For customers, it's their own ID.
-  const userId = isAdmin ? c.req.query('userId') : user.id.toString();
+    const user = c.get('user');
+    const isAdmin = user.role === 'admin';
 
-  if (!userId) {
-    return c.json({ error: "userId is required for chat" }, 400);
-  }
+    // If an admin provides a specific userId (from the AdminChat tool), use that.
+    // Otherwise, the chat room is for the logged-in user themselves (customer or admin).
+    const targetUserId = isAdmin && c.req.query('userId')
+        ? c.req.query('userId')
+        : user.id.toString();
 
-  // Each user gets their own durable object chat room based on their ID
-  const durableObject = c.env.CUSTOMER_SUPPORT_CHAT.get(c.env.CUSTOMER_SUPPORT_CHAT.idFromName(userId));
+    if (!targetUserId) {
+        // This safeguard prevents errors if the user ID can't be determined.
+        return c.json({ error: "Could not determine user for chat" }, 400);
+    }
 
-  // Forward the request to the Durable Object
-  return durableObject.fetch(c.req.raw);
+    const durableObject = c.env.CUSTOMER_SUPPORT_CHAT.get(c.env.CUSTOMER_SUPPORT_CHAT.idFromName(targetUserId));
+    return durableObject.fetch(c.req.raw);
 });
 
 

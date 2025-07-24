@@ -101,6 +101,10 @@ function App() {
     return <LoadingFallback />;
   }
 
+  if (!isReady) {
+    return <LoadingFallback />;
+  }
+
   return (
     <div className="min-h-screen bg-primary-light dark:bg-secondary-dark">
       <Navbar token={token} user={user} setToken={handleSetToken} />
@@ -108,6 +112,7 @@ function App() {
         <Elements stripe={stripePromise}>
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
+              {/* --- Routes remain the same --- */}
               {/* --- Public Routes --- */}
               <Route path="/booking" element={<PublicBookingPage />} />
               <Route path="/auth" element={token ? <Navigate to="/dashboard" replace /> : <AuthForm setToken={handleSetToken} />} />
@@ -143,7 +148,8 @@ function App() {
           </Suspense>
         </Elements>
       </main>
-      {token && <SupportChatWidget />}
+      {/* MODIFICATION: Pass the user object to the widget */}
+      {token && user && <SupportChatWidget user={user} />}
     </div>
   );
 }
