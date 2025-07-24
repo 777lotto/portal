@@ -93,3 +93,11 @@ service = "payment-production"
 [[env.production.queues.producers]]
 queue = "notifications"
 binding = "NOTIFICATION_QUEUE"
+
+[[durable_objects.bindings]]
+name = "CUSTOMER_SUPPORT_CHAT"
+class_name = "CustomerSupportChat"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["CustomerSupportChat"]

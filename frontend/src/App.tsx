@@ -4,6 +4,7 @@ import { useEffect, useState, lazy, Suspense } from "react"; // Import lazy and 
 import { jwtDecode } from 'jwt-decode';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
+import SupportChatWidget from './components/SupportChatWidget';
 
 // --- Page Components ---
 import Navbar from "./components/Navbar.js";
@@ -22,6 +23,7 @@ const InvoicePaymentPage = lazy(() => import("./components/InvoicePaymentPage.js
 const AdminDashboard = lazy(() => import("./components/admin/AdminDashboard.js"));
 const AdminUserDetail = lazy(() => import("./components/admin/AdminUserDetail.js"));
 const BillingPage = lazy(() => import("./components/admin/BillingPage.js"));
+const AdminChat = lazy(() => import("./components/admin/AdminChat.js"));
 
 
 interface UserPayload {
@@ -119,6 +121,7 @@ function App() {
               <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/auth" replace />} />
               <Route path="/account" element={token ? <AccountPage /> : <Navigate to="/auth" replace />} />
               <Route path="/pay-invoice/:invoiceId" element={token ? <InvoicePaymentPage /> : <Navigate to="/auth" replace />} />
+              <Route path="/admin/chat" element={user?.role === 'admin' ? <AdminChat /> : <Navigate to="/dashboard" replace />} />
 
               {/* --- Admin Routes --- */}
               <Route
@@ -140,6 +143,7 @@ function App() {
           </Suspense>
         </Elements>
       </main>
+      {token && <SupportChatWidget />}
     </div>
   );
 }

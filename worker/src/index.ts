@@ -5,6 +5,7 @@
 
 import { Hono, Context } from 'hono';
 import { cors } from 'hono/cors';
+import { CustomerSupportChat } from './chat';
 import { serveStatic } from 'hono/cloudflare-workers';
 import manifest from '__STATIC_CONTENT_MANIFEST';
 import type { Env, User } from '@portal/shared';
@@ -222,6 +223,25 @@ app.route('/api', api);
 
 app.get('/*', serveStatic({ root: './', manifest }));
 app.get('*', serveStatic({ path: './index.html', manifest }));
+api.get('/chat', async (c) => {
+  const user = c.get('user');
+  const isAdmin = user.role === 'admin';
+  const userId = isAdmin ? c.req.query('userId') : user.id.toString();
+
+  if (!userId) {
+    return c.json({ error: "userId is required for chat" }, 400);
+  }
+
+  // Each user gets their own durable object chat room
+  const durableObject = c.env.CUSTOMER_SUPPORT_CHAT.get(c.env.CUSTOMER_SUPPORT_CHAT.idFromName(userId));
+  const url = new URL(c.req.url);
+  url.searchParams.set('userId', userId);
+  if (isAdmin) {
+    url.searchParams.set('admin', 'true');
+  }
+
+  return durableObject.fetch(url.toString(), c.req.raw);
+});
 
 /* ========================================================================
                                    EXPORT

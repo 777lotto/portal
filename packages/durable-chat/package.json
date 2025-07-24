@@ -1,0 +1,29 @@
+{
+  "name": "@portal/durable-chat",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/server/index.ts",
+  "scripts": {
+    "deploy": "wrangler deploy --env production",
+    "dev": "wrangler dev --port 8788 --inspector-port 9232 --env development",
+    "start": "wrangler dev"
+  },
+  "dependencies": {
+    "@portal/shared": "workspace:*",
+    "hono": "^4.7.10",
+    "nanoid": "5.1.5",
+    "partyserver": "0.0.66",
+    "partysocket": "1.1.3",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-router": "7.6.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240528.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "esbuild": "0.25.2",
+    "typescript": "5.8.3",
+    "wrangler": "4.21.x"
+  }
+}
