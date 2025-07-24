@@ -13,6 +13,46 @@ interface UserPayload {
   role: 'customer' | 'admin';
 }
 
+// --- NEW: Helper function to parse RRULE string ---
+const parseRRule = (rrule: string | null | undefined): string => {
+    if (!rrule) return 'Not set';
+
+    const parts = rrule.split(';');
+    const rules: Record<string, string> = {};
+    parts.forEach(part => {
+        const [key, value] = part.split('=');
+        if (key && value) {
+            rules[key] = value;
+        }
+    });
+
+    const frequency = rules.FREQ;
+    const interval = rules.INTERVAL ? parseInt(rules.INTERVAL, 10) : 1;
+    const byDay = rules.BYDAY;
+
+    let description = 'Recurs';
+
+    if (frequency === 'DAILY') {
+        description += interval > 1 ? ` every ${interval} days` : ' daily';
+    } else if (frequency === 'WEEKLY') {
+        description += interval > 1 ? ` every ${interval} weeks` : ' weekly';
+    } else if (frequency === 'MONTHLY') {
+        description += interval > 1 ? ` every ${interval} months` : ' monthly';
+    }
+
+    if (byDay) {
+        const dayMap: Record<string, string> = {
+            SU: 'Sunday', MO: 'Monday', TU: 'Tuesday', WE: 'Wednesday',
+            TH: 'Thursday', FR: 'Friday', SA: 'Saturday'
+        };
+        const days = byDay.split(',').map(d => dayMap[d]).join(', ');
+        description += ` on ${days}`;
+    }
+
+    return description;
+};
+
+
 function JobDetail() {
   const { id: jobId } = useParams<{ id: string }>();
   const [job, setJob] = useState<Job | null>(null);
@@ -171,6 +211,8 @@ function JobDetail() {
   if (error && !job) return <div className="rounded-md bg-red-100 p-4 text-sm text-red-700">{error}</div>;
   if (!job) return <div className="text-center p-8"><h2>Job not found</h2></div>;
 
+  const hasRecurrence = job.recurrence && job.recurrence !== 'none';
+
   return (
     <>
       {isRecurrenceModalOpen && (
@@ -179,8 +221,9 @@ function JobDetail() {
           onClose={() => setIsRecurrenceModalOpen(false)}
           job={job}
           onSuccess={() => {
-            setSuccessMessage('Your recurrence request has been submitted.');
+            setSuccessMessage(`Your recurrence ${hasRecurrence ? 'update' : 'request'} has been submitted.`);
             setTimeout(() => setSuccessMessage(null), 5000);
+            fetchJobDetails(); // Refresh job details to show new recurrence info
           }}
         />
       )}
@@ -202,12 +245,16 @@ function JobDetail() {
               )}
               <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">{new Date(job.start).toLocaleString()}</p>
             </div>
-            {user?.role === 'admin' && !isEditingJob && (
-              <button className="btn btn-secondary" onClick={() => setIsEditingJob(true)}>Edit Job</button>
-            )}
-            {user?.role === 'customer' && (
-              <button className="btn btn-primary" onClick={() => setIsRecurrenceModalOpen(true)}>Request Recurrence</button>
-            )}
+            <div className="flex items-center gap-2">
+                {user?.role === 'customer' && (
+                    <button className="btn btn-primary" onClick={() => setIsRecurrenceModalOpen(true)}>
+                        {hasRecurrence ? 'Alter Recurrence' : 'Request Recurrence'}
+                    </button>
+                )}
+                {user?.role === 'admin' && !isEditingJob && (
+                    <button className="btn btn-secondary" onClick={() => setIsEditingJob(true)}>Edit Job</button>
+                )}
+            </div>
           </div>
           <div className="card-body">
               {isEditingJob ? (
@@ -220,20 +267,6 @@ function JobDetail() {
                               className="form-control"
                               rows={3}
                           />
-                      </div>
-                      <div>
-                          <label className="form-label">Recurrence</label>
-                           <select
-                              value={editedJobData.recurrence || 'none'}
-                              onChange={(e) => setEditedJobData({...editedJobData, recurrence: e.target.value})}
-                              className="form-control"
-                          >
-                              <option value="none">None</option>
-                              <option value="daily">Daily</option>
-                              <option value="weekly">Weekly</option>
-                              <option value="monthly">Monthly</option>
-                              <option value="yearly">Yearly</option>
-                          </select>
                       </div>
                       <div className="flex justify-end gap-2">
                           <button className="btn btn-secondary" onClick={() => { setIsEditingJob(false); setEditedJobData(job); }}>Cancel</button>
@@ -260,10 +293,11 @@ function JobDetail() {
                            <dd className="mt-1 text-sm">{job.description}</dd>
                         </div>
                       )}
-                       {job.recurrence && job.recurrence !== 'none' && (
+                       {hasRecurrence && (
                         <div className="sm:col-span-1">
                            <dt className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Recurrence</dt>
-                           <dd className="mt-1 text-sm">{job.recurrence}</dd>
+                           {/* --- MODIFIED: Display parsed rrule --- */}
+                           <dd className="mt-1 text-sm font-semibold">{parseRRule(job.rrule)}</dd>
                         </div>
                       )}
                        {job.stripe_quote_id && (
