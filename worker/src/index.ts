@@ -9,7 +9,6 @@ import { serveStatic } from 'hono/cloudflare-workers';
 import manifest from '__STATIC_CONTENT_MANIFEST';
 import type { Env, User } from '@portal/shared';
 import { handleGoogleLogin, handleGoogleCallback, handleAdminImportSelectedContacts, handleGetImportedContacts } from './handlers/google.js';
-import { CustomerSupportChat } from './chat.js';
 
 /* ========================================================================
                            MIDDLEWARE & UTILITIES
@@ -160,26 +159,6 @@ customerApi.post('/invoices/:invoiceId/create-payment-intent', handleCreatePayme
 customerApi.get('/invoices/:invoiceId/pdf', handleDownloadInvoicePdf);
 customerApi.post('/jobs/:jobId/request-recurrence', handleRequestRecurrence);
 
-customerApi.get('/chat', async (c) => {
-    const user = c.get('user');
-    const isAdmin = user.role === 'admin';
-
-    // If an admin provides a specific userId (from the AdminChat tool), use that.
-    // Otherwise, the chat room is for the logged-in user themselves (customer or admin).
-    const targetUserId = isAdmin && c.req.query('userId')
-        ? c.req.query('userId')
-        : user.id.toString();
-
-    if (!targetUserId) {
-        // This safeguard prevents errors if the user ID can't be determined.
-        return c.json({ error: "Could not determine user for chat" }, 400);
-    }
-
-    const durableObject = c.env.CUSTOMER_SUPPORT_CHAT.get(c.env.CUSTOMER_SUPPORT_CHAT.idFromName(targetUserId));
-    return durableObject.fetch(c.req.raw);
-});
-
-
 customerApi.all('/sms/*', handleSmsProxy);
 customerApi.all('/notifications/*', handleNotificationProxy);
 
@@ -248,5 +227,5 @@ app.get('*', serveStatic({ path: './index.html', manifest }));
                                    EXPORT
    ======================================================================== */
 
-export { CustomerSupportChat };
+// REMOVED: No longer exporting CustomerSupportChat from this worker
 export default app;

@@ -9,6 +9,7 @@ interface ChatMessage {
 
 // Define the type for the user prop
 interface UserPayload {
+  id: number;
   role: 'customer' | 'admin';
 }
 
@@ -23,19 +24,21 @@ const SupportChatWidget = ({ user }: { user: UserPayload }) => {
       const token = localStorage.getItem("token");
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 
-      // MODIFICATION: Add admin=true to the URL if the user is an admin
-      const isAdmin = user.role === 'admin';
-      const url = `${protocol}//${window.location.host}/api/chat?token=${token}${isAdmin ? '&admin=true' : ''}`;
+      // MODIFICATION: Point to the dedicated chat service
+      const chatHost = 'chat.777.foo';
+      const roomId = user.id; // The room is unique to the logged-in user
+      const url = `${protocol}//${chatHost}/api/chat/${roomId}?token=${token}`;
 
       const socket = new WebSocket(url);
 
       socket.onopen = () => console.log("Chat connected");
       socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        if (data.type === 'history') {
+        if (data.type === 'history' || data.type === 'all') { // The durable-chat worker uses 'all'
           setMessages(data.messages);
-        } else if (data.type === 'message') {
-          setMessages(prev => [...prev, data.message]);
+        } else if (data.type === 'message' || data.type === 'add') { // The durable-chat worker uses 'add'
+          const newMessage = data.type === 'add' ? data : data.message;
+          setMessages(prev => [...prev, newMessage]);
         }
       };
       ws.current = socket;
@@ -47,7 +50,8 @@ const SupportChatWidget = ({ user }: { user: UserPayload }) => {
 
   const sendMessage = () => {
     if (input.trim() && ws.current) {
-      ws.current.send(JSON.stringify({ message: input }));
+      // The durable-chat worker expects an object with a `content` property
+      ws.current.send(JSON.stringify({ type: 'add', content: input }));
       setInput('');
     }
   };
@@ -67,8 +71,8 @@ const SupportChatWidget = ({ user }: { user: UserPayload }) => {
           <div className="card-body" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column-reverse' }}>
             <div>
               {messages.map((msg, index) => (
-                <div key={index} className={`chat-message ${msg.user === 'Admin' ? 'text-right' : ''}`}>
-                  <p><strong>{msg.user}:</strong> {msg.message}</p>
+                <div key={msg.id || index} className={`chat-message ${msg.user === 'You' ? 'text-right' : ''}`}>
+                  <p><strong>{msg.user}:</strong> {msg.content}</p>
                 </div>
               ))}
             </div>

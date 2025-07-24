@@ -1,11 +1,12 @@
+// frontend/src/components/admin/AdminChat.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { apiGet } from '../../lib/api';
 import { User } from '@portal/shared';
 
 interface ChatMessage {
   user: string;
-  message: string;
-  timestamp: number;
+  content: string; // The durable-chat worker uses 'content'
+  id?: string;
 }
 
 const AdminChat = () => {
@@ -26,15 +27,21 @@ const AdminChat = () => {
       }
       const token = localStorage.getItem("token");
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const socket = new WebSocket(`${protocol}//${window.location.host}/api/chat?token=${token}&userId=${selectedUser.id}&admin=true`);
 
-      socket.onopen = () => console.log(`Chat connected to user ${selectedUser.id}`);
+      // MODIFICATION: Point to the dedicated chat service
+      const chatHost = 'chat.777.foo';
+      const roomId = selectedUser.id; // Room is the customer's ID
+      const url = `${protocol}//${chatHost}/api/chat/${roomId}?token=${token}`;
+
+      const socket = new WebSocket(url);
+
+      socket.onopen = () => console.log(`Admin chat connected to user ${selectedUser.id}`);
       socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        if (data.type === 'history') {
+        if (data.type === 'all') {
           setMessages(data.messages);
-        } else if (data.type === 'message') {
-          setMessages(prev => [...prev, data.message]);
+        } else if (data.type === 'add') {
+          setMessages(prev => [...prev, data]);
         }
       };
       ws.current = socket;
@@ -43,7 +50,8 @@ const AdminChat = () => {
 
   const sendMessage = () => {
     if (input.trim() && ws.current) {
-      ws.current.send(JSON.stringify({ message: input }));
+      // The durable-chat worker expects an object with a `content` property
+      ws.current.send(JSON.stringify({ type: 'add', content: input }));
       setInput('');
     }
   };
@@ -67,8 +75,8 @@ const AdminChat = () => {
               <div className="card-header">Chat with {selectedUser.name || selectedUser.email}</div>
               <div className="card-body" style={{ height: '500px', overflowY: 'auto' }}>
                 {messages.map((msg, index) => (
-                  <div key={index} className={`chat-message ${msg.user === 'Admin' ? 'text-right' : ''}`}>
-                    <p><strong>{msg.user}:</strong> {msg.message}</p>
+                  <div key={msg.id || index} className={`chat-message ${msg.user === 'You' ? 'text-right' : ''}`}>
+                    <p><strong>{msg.user}:</strong> {msg.content}</p>
                   </div>
                 ))}
               </div>

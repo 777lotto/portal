@@ -1,6 +1,6 @@
-// frontend/src/App.tsx - MODIFIED
+// frontend/src/App.tsx
 import { Routes, Route, Navigate } from "react-router-dom";
-import { useEffect, useState, lazy, Suspense } from "react"; // Import lazy and Suspense
+import { useEffect, useState, lazy, Suspense } from "react";
 import { jwtDecode } from 'jwt-decode';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
@@ -9,7 +9,6 @@ import SupportChatWidget from './components/SupportChatWidget';
 // --- Page Components ---
 import Navbar from "./components/Navbar.js";
 import Dashboard from "./components/Dashboard.js";
-// Lazily load components that aren't needed on the initial page load
 const JobCalendar = lazy(() => import("./components/Calendar.js"));
 const JobDetail = lazy(() => import("./components/JobDetail.js"));
 const CalendarSync = lazy(() => import("./components/CalendarSync.js"));
@@ -25,7 +24,6 @@ const AdminUserDetail = lazy(() => import("./components/admin/AdminUserDetail.js
 const BillingPage = lazy(() => import("./components/admin/BillingPage.js"));
 const AdminChat = lazy(() => import("./components/admin/AdminChat.js"));
 
-
 interface UserPayload {
   id: number;
   email: string;
@@ -33,13 +31,11 @@ interface UserPayload {
   role: 'customer' | 'admin';
 }
 
-// A simple fallback component to show while a lazy component is loading
 function LoadingFallback() {
   return <div className="p-8 text-center">Loading...</div>;
 }
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PK);
-
 
 function App() {
   const [token, setToken] = useState<string | null>(null);
@@ -101,10 +97,6 @@ function App() {
     return <LoadingFallback />;
   }
 
-  if (!isReady) {
-    return <LoadingFallback />;
-  }
-
   return (
     <div className="min-h-screen bg-primary-light dark:bg-secondary-dark">
       <Navbar token={token} user={user} setToken={handleSetToken} />
@@ -112,7 +104,6 @@ function App() {
         <Elements stripe={stripePromise}>
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
-              {/* --- Routes remain the same --- */}
               {/* --- Public Routes --- */}
               <Route path="/booking" element={<PublicBookingPage />} />
               <Route path="/auth" element={token ? <Navigate to="/dashboard" replace /> : <AuthForm setToken={handleSetToken} />} />
@@ -126,9 +117,9 @@ function App() {
               <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/auth" replace />} />
               <Route path="/account" element={token ? <AccountPage /> : <Navigate to="/auth" replace />} />
               <Route path="/pay-invoice/:invoiceId" element={token ? <InvoicePaymentPage /> : <Navigate to="/auth" replace />} />
-              <Route path="/admin/chat" element={user?.role === 'admin' ? <AdminChat /> : <Navigate to="/dashboard" replace />} />
 
               {/* --- Admin Routes --- */}
+              <Route path="/admin/chat" element={user?.role === 'admin' ? <AdminChat /> : <Navigate to="/dashboard" replace />} />
               <Route
                 path="/admin/users"
                 element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/dashboard" replace />}
@@ -148,7 +139,6 @@ function App() {
           </Suspense>
         </Elements>
       </main>
-      {/* MODIFICATION: Pass the user object to the widget */}
       {token && user && <SupportChatWidget user={user} />}
     </div>
   );
