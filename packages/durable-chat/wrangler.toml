@@ -28,7 +28,6 @@ database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
 #      PRODUCTION-SPECIFIC CONFIGURATION
 # ===============================================================
 [env.production]
-# Routes must be inside the environment block when you have one.
 routes = [
   { pattern = "chat.777.foo/*", zone_name = "777.foo" }
 ]

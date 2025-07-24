@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { upgradeWebSocket } from 'hono/cloudflare-workers';
 import {
   type Connection,
   Server,
@@ -14,13 +13,8 @@ interface Env {
   JWT_SECRET: string;
 }
 
+// The Hono app is now only used if you decide to add non-DO routes to this worker.
 const app = new Hono<{ Bindings: Env }>();
-
-app.get('/api/chat/:room', upgradeWebSocket(async (c) => {
-  const room = c.req.param('room');
-  const durableObject = c.env.CHAT_ROOM.get(c.env.CHAT_ROOM.idFromName(room));
-  return durableObject.fetch(c.req.raw);
-}));
 
 export class ChatRoom extends Server<Env> {
   messages: ChatMessage[] = [];
@@ -32,11 +26,31 @@ export class ChatRoom extends Server<Env> {
     });
   }
 
+  // --- NEW: Custom fetch handler to correctly manage WebSocket connections ---
+  async fetch(request: Request): Promise<Response> {
+    const upgradeHeader = request.headers.get('Upgrade');
+    if (!upgradeHeader || upgradeHeader.toLowerCase() !== 'websocket') {
+      return new Response('Expected WebSocket', { status: 426 });
+    }
+
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair);
+
+    // This is the key part: we manually handle the WebSocket connection
+    // and then pass it to the partyserver library's connection manager.
+    await this.handleConnection(server, request);
+
+    return new Response(null, {
+      status: 101,
+      webSocket: client,
+    });
+  }
+
   async onConnect(connection: Connection) {
     // Authenticate the user
     const token = new URL(connection.url).searchParams.get('token');
     if (!token) {
-      connection.close(1002, "Authentication failed");
+      connection.close(1002, "Authentication failed: Missing token");
       return;
     }
 
@@ -45,7 +59,8 @@ export class ChatRoom extends Server<Env> {
       const { payload } = await jwtVerify(token, secret);
       connection.state = payload as User;
     } catch (e) {
-      connection.close(1002, "Authentication failed");
+      console.error("JWT Verification failed:", e);
+      connection.close(1002, "Authentication failed: Invalid token");
       return;
     }
 
@@ -65,8 +80,8 @@ export class ChatRoom extends Server<Env> {
       const chatMessage: ChatMessage = {
         id: parsed.id,
         content: parsed.content,
-        user: user.name,
-        role: "user",
+        user: user.role === 'admin' ? 'Support' : user.name, // Display 'Support' for admin users
+        role: user.role === 'admin' ? "assistant" : "user",
       };
       this.messages.push(chatMessage);
       this.broadcast(JSON.stringify({ type: "add", ...chatMessage }));
@@ -75,6 +90,8 @@ export class ChatRoom extends Server<Env> {
   }
 }
 
+// The default export now includes the ChatRoom class itself
 export default {
   fetch: app.fetch,
+  ChatRoom: ChatRoom
 };
