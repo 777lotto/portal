@@ -139,8 +139,8 @@ function JobsAndQuotesTable({ data, onUpdate }: Props) {
         <tbody className="bg-primary-light dark:bg-tertiary-dark divide-y divide-border-light dark:divide-border-dark">
           {filteredData.map((item) => (
             <>
-              <tr key={item.id} className="hover:bg-secondary-light/50 dark:hover:bg-secondary-dark/50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium cursor-pointer" onClick={() => toggleRow(item.id)}>
+              <tr key={item.id} className="hover:bg-secondary-light/50 dark:hover:bg-secondary-dark/50 cursor-pointer" onClick={() => toggleRow(item.id)}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   {item.services.length > 0 && (
                     <span className="text-xl text-text-secondary-light dark:text-text-secondary-dark">{expandedRow === item.id ? '−' : '+'}</span>
                   )}

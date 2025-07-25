@@ -1,23 +1,23 @@
-// 777lotto/portal/portal-fold/frontend/src/components/admin/BillingPage.tsx
 import { useState, useEffect } from 'react';
 import { adminImportInvoices, adminImportQuotes, adminGetJobsAndQuotes } from '../../lib/api';
 import JobsAndQuotesTable from './JobsAndQuotesTable';
 import type { JobWithDetails } from '@portal/shared';
-import NewAddJobModal from './NewAddJobModal';
+import JobQuoteModal from './JobQuoteModal.js';
 
-function BillingPage() {
+function JobsPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [billingData, setBillingData] = useState<JobWithDetails[]>([]);
+  const [jobsData, setJobsData] = useState<JobWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
+  const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
 
-  const fetchBillingData = async () => {
+  const fetchJobsData = async () => {
     setIsLoading(true);
     try {
       const data = await adminGetJobsAndQuotes();
-      setBillingData(data);
+      setJobsData(data);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -26,7 +26,7 @@ function BillingPage() {
   };
 
   useEffect(() => {
-    fetchBillingData();
+    fetchJobsData();
   }, []);
 
   const handleInvoiceImportClick = async () => {
@@ -73,7 +73,7 @@ function BillingPage() {
 
   return (
     <div className="w-full p-4">
-      <h1 className="text-2xl font-bold mb-4">Billing</h1>
+      <h1 className="text-2xl font-bold mb-4">Jobs</h1>
       {error && <div className="alert alert-danger">{error}</div>}
       {importMessage && <div className="alert alert-info">{importMessage}</div>}
 
@@ -99,11 +99,20 @@ function BillingPage() {
 
           <div className="relative">
             <button className="btn btn-primary" onClick={() => setIsJobModalOpen(true)}>Add Job</button>
-            <NewAddJobModal
+            <JobQuoteModal
               isOpen={isJobModalOpen}
               onClose={() => setIsJobModalOpen(false)}
-              onSave={fetchBillingData}
-              selectedDate={null}
+              onSave={fetchJobsData}
+              type="job"
+            />
+          </div>
+          <div className="relative">
+            <button className="btn btn-primary" onClick={() => setIsQuoteModalOpen(true)}>Add Quote</button>
+            <JobQuoteModal
+              isOpen={isQuoteModalOpen}
+              onClose={() => setIsQuoteModalOpen(false)}
+              onSave={fetchJobsData}
+              type="quote"
             />
           </div>
         </div>
@@ -117,7 +126,7 @@ function BillingPage() {
             {isLoading ? (
                 <p>Loading data...</p>
             ) : (
-                <JobsAndQuotesTable data={billingData} onUpdate={fetchBillingData} />
+                <JobsAndQuotesTable data={jobsData} onUpdate={fetchJobsData} />
             )}
         </div>
       </div>
@@ -125,4 +134,4 @@ function BillingPage() {
   );
 }
 
-export default BillingPage;
+export default JobsPage;

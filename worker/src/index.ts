@@ -40,7 +40,7 @@ import { handleListServices, handleGetService } from './handlers/services.js';
 import {
     handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob,
     handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl,
-    handleGetServicesForJob, handleAdminReassignJob, handleGetOpenInvoicesForUser,
+    handleGetServicesForJob, handleGetOpenInvoicesForUser,
     handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate,
     handleAdminAddServiceToJob, handleAdminCompleteJob, handleAdminUpdateJobDetails,
     handleAdminUpdateServiceInJob, handleAdminDeleteServiceFromJob
@@ -58,7 +58,7 @@ import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleAdminAddNoteForUser } from './handlers/notes.js';
 import { handleAdminCreateQuote, handleAdminImportQuotes, handleAdminSendQuote } from './handlers/admin/quotes.js';
 import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminImportInvoicesForUser, handleAdminGetAllOpenInvoices, handleAdminMarkInvoiceAsPaid } from './handlers/admin/invoices.js';
-import { handleGetJobsAndQuotes, handleAdminCreateJob, handleAdminCreateQuote as handleAdminCreateQuoteFromBilling } from './handlers/admin/billing.js';
+import { handleGetJobsAndQuotes, handleAdminCreateJob, handleAdminCreateQuote as handleAdminCreateQuoteFromJobs } from './handlers/admin/jobs.js';
 import { handleGetDrafts } from './handlers/admin/drafts.js';
 
 
@@ -204,10 +204,9 @@ adminApi.post('/invoices/:invoiceId/finalize', handleAdminFinalizeInvoice);
 adminApi.post('/invoices/:invoiceId/mark-as-paid', handleAdminMarkInvoiceAsPaid);
 adminApi.post('/import-contacts', handleAdminImportSelectedContacts);
 adminApi.post('/get-imported-contacts', handleGetImportedContacts);
-adminApi.get('/billing/jobs-and-quotes', handleGetJobsAndQuotes);
-adminApi.post('/jobs/:jobId/reassign', handleAdminReassignJob);
-adminApi.post('/billing/job', handleAdminCreateJob);
-adminApi.post('/billing/quote', handleAdminCreateQuoteFromBilling);
+adminApi.get('/jobs-and-quotes', handleGetJobsAndQuotes);
+adminApi.post('/jobs/job', handleAdminCreateJob);
+adminApi.post('/jobs/quote', handleAdminCreateQuoteFromJobs);
 adminApi.get('/recurrence-requests', handleGetRecurrenceRequests);
 adminApi.put('/recurrence-requests/:requestId', handleUpdateRecurrenceRequest);
 adminApi.get('/drafts', handleGetDrafts);

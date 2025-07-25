@@ -164,7 +164,7 @@ export default function Navbar({ token, setToken, user }: Props) {
       {user?.role === 'admin' && (
         <>
             <NavLink to="/admin/users" className={({ isActive }) => (isActive ? activeLinkStyle : linkStyle) + ' text-cyan-400'}>Users</NavLink>
-            <NavLink to="/admin/billing" className={({ isActive }) => (isActive ? activeLinkStyle : linkStyle) + ' text-cyan-400'}>Billing</NavLink>
+            <NavLink to="/admin/jobs" className={({ isActive }) => (isActive ? activeLinkStyle : linkStyle) + ' text-cyan-400'}>Jobs</NavLink>
         </>
       )}
     </>
@@ -178,7 +178,7 @@ export default function Navbar({ token, setToken, user }: Props) {
         {user?.role === 'admin' && (
            <>
             <NavLink to="/admin/users" onClick={closeMobileMenu} className={({isActive}) => (isActive ? mobileActiveLinkStyle : mobileLinkStyle) + ' text-cyan-400'}>Admin Users</NavLink>
-            <NavLink to="/admin/billing" onClick={closeMobileMenu} className={({isActive}) => (isActive ? mobileActiveLinkStyle : mobileLinkStyle) + ' text-cyan-400'}>Billing</NavLink>
+            <NavLink to="/admin/jobs" onClick={closeMobileMenu} className={({isActive}) => (isActive ? mobileActiveLinkStyle : mobileLinkStyle) + ' text-cyan-400'}>Jobs</NavLink>
            </>
         )}
       </>

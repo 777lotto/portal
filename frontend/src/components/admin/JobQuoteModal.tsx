@@ -70,7 +70,7 @@ function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
         dueDateDays: type === 'job' ? dueDateDays : undefined,
         expireDateDays: type === 'quote' ? expireDateDays : undefined,
       };
-      await apiPost(`/api/admin/billing/${type}`, payload);
+      await apiPost(`/api/admin/jobs/${type}`, payload);
       onSave();
       onClose();
     } catch (err: any) {

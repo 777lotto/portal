@@ -143,12 +143,12 @@ export const adminImportInvoices = () => apiPost<{ message: string, imported: nu
 export const adminImportQuotes = () => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>('/api/admin/quotes/import', {});
 export const adminImportInvoicesForUser = (userId: string) => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>(`/api/admin/users/${userId}/invoices/import`, {});
 export const getImportedContacts = (token: string) => apiPost<any[]>('/api/admin/get-imported-contacts', { token });
-export const adminGetJobsAndQuotes = () => apiGet<JobWithDetails[]>('/api/admin/billing/jobs-and-quotes');
+export const adminGetJobsAndQuotes = () => apiGet<JobWithDetails[]>('/api/admin/jobs-and-quotes');
 export const adminReassignJob = (jobId: string, newCustomerId: string) => {
   return apiPost(`/api/admin/jobs/${jobId}/reassign`, { newCustomerId });
 };
-export const adminCreateJob = (data: any) => apiPost('/api/admin/billing/job', data);
-export const adminCreateQuote = (data: any) => apiPost('/api/admin/billing/quote', data);
+export const adminCreateJob = (data: any) => apiPost('/api/admin/jobs/job', data);
+export const adminCreateQuote = (data: any) => apiPost('/api/admin/jobs/quote', data);
 export const adminUpdateJobDetails = (jobId: string, data: Partial<Job>) => {
   return apiPost(`/api/admin/jobs/${jobId}/details`, data, 'PUT');
 };

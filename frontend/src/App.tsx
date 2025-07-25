@@ -21,7 +21,7 @@ const InvoicePaymentPage = lazy(() => import("./components/InvoicePaymentPage.js
 // --- Admin Page Components ---
 const AdminDashboard = lazy(() => import("./components/admin/AdminDashboard.js"));
 const AdminUserDetail = lazy(() => import("./components/admin/AdminUserDetail.js"));
-const BillingPage = lazy(() => import("./components/admin/BillingPage.js"));
+const JobsPage = lazy(() => import("./components/admin/JobsPage.js"));
 const AdminChat = lazy(() => import("./components/admin/AdminChat.js"));
 const CustomerBookingPage = lazy(() => import("./components/CustomerBookingPage.js"));
 
@@ -131,8 +131,8 @@ function App() {
                 element={user?.role === 'admin' ? <AdminUserDetail /> : <Navigate to="/dashboard" replace />}
               />
               <Route
-                path="/admin/billing"
-                element={user?.role === 'admin' ? <BillingPage /> : <Navigate to="/dashboard" replace />}
+                path="/admin/jobs"
+                element={user?.role === 'admin' ? <JobsPage /> : <Navigate to="/dashboard" replace />}
               />
 
               {/* --- Catch-all redirect --- */}
