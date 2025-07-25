@@ -338,6 +338,9 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
   }
 
   try {
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + (body.days_until_expiry || 7));
+
     const jobData = {
       title: body.title,
       description: `Created by admin on ${new Date().toLocaleDateString()}`,
@@ -345,6 +348,7 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
       end: new Date(new Date(body.start).getTime() + 60 * 60 * 1000).toISOString(),
       status: 'upcoming',
       recurrence: 'none', // FIX: Add this line
+      expires_at: expiresAt.toISOString(),
     };
     const newJob = await createJob(c.env, jobData, userId);
 

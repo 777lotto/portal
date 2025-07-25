@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import type { JobWithDetails, Service } from '@portal/shared';
 import { markInvoiceAsPaid, apiPost } from '../../lib/api';
 import QuoteProposalModal from '../QuoteProposalModal';
@@ -160,6 +161,9 @@ function JobsAndQuotesTable({ data, onUpdate }: Props) {
                   ${((item.total_amount_cents || 0) / 100).toFixed(2)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <Link to={`/admin/jobs/${item.id}`} className="btn btn-sm btn-secondary mr-2">
+                    View
+                  </Link>
                   {item.status === 'pending_quote' && (
                     <button
                       onClick={() => openQuoteModal(item)}

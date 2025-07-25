@@ -60,7 +60,7 @@ export const handleGetJobsAndQuotes = async (c: Context<AppEnv>) => {
 };
 
 export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
-    const { customerId, title, services, start } = await c.req.json();
+    const { customerId, title, services, start, isDraft } = await c.req.json();
     const db = c.env.DB;
     const stripe = getStripe(c.env);
 
@@ -72,50 +72,80 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
         const newJobId = uuidv4();
         const totalAmountCents = services.reduce((acc: number, item: any) => acc + (item.price_cents || 0), 0);
 
-        const draftInvoice = await stripe.invoices.create({
-            customer: user.stripe_customer_id,
-            collection_method: 'send_invoice',
-            description: `Invoice for: ${title}`,
-            auto_advance: false,
-        });
-        if (!draftInvoice.id) {
-            return errorResponse("Failed to create a draft invoice.", 500);
-        }
-
-        for (const item of services) {
-            await stripe.invoiceItems.create({
+        if (isDraft) {
+            await db.prepare(
+                `INSERT INTO jobs (id, customerId, title, description, start, end, status, recurrence, total_amount_cents, createdAt, updatedAt)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            ).bind(
+                newJobId,
+                user.id.toString(),
+                title,
+                `Draft created by admin`,
+                start,
+                start,
+                'invoice_draft',
+                'none',
+                totalAmountCents,
+                new Date().toISOString(),
+                new Date().toISOString()
+            ).run();
+        } else {
+            const draftInvoice = await stripe.invoices.create({
                 customer: user.stripe_customer_id,
-                invoice: draftInvoice.id,
-                description: item.notes || 'Service',
-                amount: item.price_cents || 0,
-                currency: 'usd',
+                collection_method: 'send_invoice',
+                description: `Invoice for: ${title}`,
+                auto_advance: false,
+            });
+            if (!draftInvoice.id) {
+                return errorResponse("Failed to create a draft invoice.", 500);
+            }
+
+            for (const item of services) {
+                await stripe.invoiceItems.create({
+                    customer: user.stripe_customer_id,
+                    invoice: draftInvoice.id,
+                    description: item.notes || 'Service',
+                    amount: item.price_cents || 0,
+                    currency: 'usd',
+                });
+            }
+
+            const finalInvoice = await stripe.invoices.finalizeInvoice(draftInvoice.id);
+            if (!finalInvoice?.id) {
+                throw new Error('Failed to finalize invoice: No ID returned from Stripe.');
+            }
+            const sentInvoice = await stripe.invoices.sendInvoice(finalInvoice.id);
+
+            await db.prepare(
+                `INSERT INTO jobs (id, customerId, title, description, start, end, status, recurrence, total_amount_cents, stripe_invoice_id, invoice_created_at, createdAt, updatedAt)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            ).bind(
+                newJobId,
+                user.id.toString(),
+                title,
+                `Invoice created by admin`,
+                start,
+                start,
+                'payment_pending',
+                'none',
+                totalAmountCents,
+                sentInvoice.id,
+                new Date().toISOString(),
+                new Date().toISOString(),
+                new Date().toISOString()
+            ).run();
+
+            await c.env.NOTIFICATION_QUEUE.send({
+                type: 'invoice_created',
+                userId: user.id,
+                data: {
+                    invoiceId: sentInvoice.id,
+                    amount: sentInvoice.amount_due,
+                    dueDate: sentInvoice.due_date ? new Date(sentInvoice.due_date * 1000).toISOString() : new Date().toISOString(),
+                    invoiceUrl: sentInvoice.hosted_invoice_url,
+                },
             });
         }
-
-        const finalInvoice = await stripe.invoices.finalizeInvoice(draftInvoice.id);
-        if (!finalInvoice?.id) {
-            throw new Error('Failed to finalize invoice: No ID returned from Stripe.');
-        }
-        const sentInvoice = await stripe.invoices.sendInvoice(finalInvoice.id);
-
-        await db.prepare(
-            `INSERT INTO jobs (id, customerId, title, description, start, end, status, recurrence, total_amount_cents, stripe_invoice_id, invoice_created_at, createdAt, updatedAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        ).bind(
-            newJobId,
-            user.id.toString(),
-            title,
-            `Invoice created by admin`,
-            start,
-            start,
-            'payment_pending',
-            'none',
-            totalAmountCents,
-            sentInvoice.id,
-            new Date().toISOString(),
-            new Date().toISOString(),
-            new Date().toISOString()
-        ).run();
 
         const serviceInserts = services.map((item: any) =>
             db.prepare(`INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents) VALUES (?, ?, ?, ?, ?, ?)`)
@@ -123,20 +153,7 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
         );
         await db.batch(serviceInserts);
 
-
-        await c.env.NOTIFICATION_QUEUE.send({
-            type: 'invoice_created',
-            userId: user.id,
-            data: {
-                invoiceId: sentInvoice.id,
-                amount: sentInvoice.amount_due,
-                dueDate: sentInvoice.due_date ? new Date(sentInvoice.due_date * 1000).toISOString() : new Date().toISOString(),
-                invoiceUrl: sentInvoice.hosted_invoice_url,
-            },
-        });
-
-
-        return successResponse({ message: `Job successfully created and sent.`, jobId: newJobId });
+        return successResponse({ message: `Job successfully ${isDraft ? 'saved as draft' : 'created and sent'}.`, jobId: newJobId });
     } catch (e: any) {
         console.error(`Failed to create job for user ${customerId}:`, e);
         return errorResponse(`Failed to create job: ${e.message}`, 500);

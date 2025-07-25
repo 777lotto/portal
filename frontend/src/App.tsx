@@ -134,6 +134,10 @@ function App() {
                 path="/admin/jobs"
                 element={user?.role === 'admin' ? <JobsPage /> : <Navigate to="/dashboard" replace />}
               />
+              <Route
+                path="/admin/jobs/:id"
+                element={user?.role === 'admin' ? <JobDetail /> : <Navigate to="/dashboard" replace />}
+              />
 
               {/* --- Catch-all redirect --- */}
               <Route path="*" element={<Navigate to="/" replace />} />

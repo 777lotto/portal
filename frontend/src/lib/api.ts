@@ -147,7 +147,7 @@ export const adminGetJobsAndQuotes = () => apiGet<JobWithDetails[]>('/api/admin/
 export const adminReassignJob = (jobId: string, newCustomerId: string) => {
   return apiPost(`/api/admin/jobs/${jobId}/reassign`, { newCustomerId });
 };
-export const adminCreateJob = (data: any) => apiPost('/api/admin/jobs/job', data);
+export const adminCreateJob = (data: any, isDraft: boolean = false) => apiPost('/api/admin/jobs/job', { ...data, isDraft });
 export const adminCreateQuote = (data: any) => apiPost('/api/admin/jobs/quote', data);
 export const adminUpdateJobDetails = (jobId: string, data: Partial<Job>) => {
   return apiPost(`/api/admin/jobs/${jobId}/details`, data, 'PUT');

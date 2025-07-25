@@ -124,6 +124,23 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
     }
   }
 
+  const handleSaveAsDraft = async () => {
+    setError(null);
+    const payload = getJobPayload();
+    if (!payload) return;
+
+    setIsSubmitting(true);
+    try {
+      await adminCreateJob({ ...payload, customerId: selectedUserId }, true);
+      onSave();
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'An unknown error occurred.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -173,6 +190,9 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button type="button" className="btn btn-primary" onClick={handleSaveJob} disabled={isSubmitting}>
             {isSubmitting ? 'Saving...' : 'Save Job'}
+          </button>
+          <button type="button" className="btn btn-primary" onClick={handleSaveAsDraft} disabled={isSubmitting}>
+            {isSubmitting ? 'Saving...' : 'Save as Draft'}
           </button>
           <button type="button" className="btn btn-primary" onClick={handleMakeQuote} disabled={isSubmitting}>
             {isSubmitting ? 'Saving...' : 'Make Quote'}

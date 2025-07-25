@@ -22,19 +22,19 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
         // Handle the event
         switch (event.type) {
             case 'invoice.paid':
-                const invoice = event.data.object as Stripe.Invoice;
-                console.log(`Invoice ${invoice.id} was paid successfully.`);
+                const invoicePaid = event.data.object as Stripe.Invoice;
+                console.log(`Invoice ${invoicePaid.id} was paid successfully.`);
 
                 // Add UI notification for the customer
-                const user = await c.env.DB.prepare(`SELECT id FROM users WHERE stripe_customer_id = ?`).bind(invoice.customer as string).first<{id: number}>();
+                const userPaid = await c.env.DB.prepare(`SELECT id FROM users WHERE stripe_customer_id = ?`).bind(invoicePaid.customer as string).first<{id: number}>();
 
-                if (user) {
+                if (userPaid) {
                     try {
-                        const message = `Payment of $${(invoice.amount_paid / 100).toFixed(2)} for invoice #${invoice.number} was successful.`;
+                        const message = `Payment of ${(invoicePaid.amount_paid / 100).toFixed(2)} for invoice #${invoicePaid.number} was successful.`;
                         const link = `/account`; // Link to their account/billing page
                         await c.env.DB.prepare(
                             `INSERT INTO ui_notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)`
-                        ).bind(user.id, 'invoice_paid', message, link).run();
+                        ).bind(userPaid.id, 'invoice_paid', message, link).run();
                     } catch (e) {
                         console.error("Failed to create UI notification for invoice.paid event", e);
                         // Do not block the main flow if UI notification fails
@@ -44,7 +44,25 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
                 // Update the job's status to 'paid'
                 await c.env.DB.prepare(
                     `UPDATE jobs SET status = 'paid' WHERE stripe_invoice_id = ?`
-                ).bind(invoice.id).run();
+                ).bind(invoicePaid.id).run();
+                break;
+
+            case 'invoice.created':
+                const invoiceCreated = event.data.object as any;
+                console.log(`Invoice ${invoiceCreated.id} was created.`);
+                if (invoiceCreated.quote) {
+                    await c.env.DB.prepare(
+                        `UPDATE jobs SET stripe_invoice_id = ?, status = 'payment_pending' WHERE stripe_quote_id = ?`
+                    ).bind(invoiceCreated.id, invoiceCreated.quote).run();
+                }
+                break;
+
+            case 'quote.accepted':
+                const quoteAccepted = event.data.object as Stripe.Quote;
+                console.log(`Quote ${quoteAccepted.id} was accepted.`);
+                await c.env.DB.prepare(
+                    `UPDATE jobs SET status = 'upcoming' WHERE stripe_quote_id = ?`
+                ).bind(quoteAccepted.id).run();
                 break;
 
             // --- NEW WEBHOOK HANDLER FOR QUOTES ---

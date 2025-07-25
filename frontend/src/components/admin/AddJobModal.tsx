@@ -17,6 +17,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [lineItems, setLineItems] = useState<Partial<Service>[]>([{ notes: '', price_cents: 0 }]);
   const [title, setTitle] = useState('');
+  const [daysUntilExpiry, setDaysUntilExpiry] = useState<number>(7);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,6 +27,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
       setSelectedUserId('');
       setLineItems([{ notes: '', price_cents: 0 }]);
       setError(null);
+      setDaysUntilExpiry(7);
       const fetchUsers = async () => {
         try {
           const allUsers = await apiGet<User[]>('/api/admin/users');
@@ -73,7 +75,8 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
         services: lineItems.map(item => ({
             notes: item.notes || '',
             price_cents: item.price_cents || 0
-        }))
+        })),
+        days_until_expiry: daysUntilExpiry
       };
       await adminCreateJobForUser(selectedUserId, payload);
       // MODIFICATION END
@@ -103,20 +106,26 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
 
         <div className="flex-grow overflow-y-auto pr-2">
             {error && <div className="alert alert-danger">{error}</div>}
-            <div className="mb-3">
-              <label htmlFor="user" className="form-label">Customer</label>
-              <select id="user" className="form-control" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)}>
-                <option value="">Select a user</option>
-                {users.map(user => (
-                  <option key={user.id} value={user.id}>
-                    {user.name || user.company_name} ({user.email || user.phone})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="mb-3">
-              <label htmlFor="title" className="form-label">Job Title</label>
-              <input type="text" id="title" className="form-control" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="mb-3">
+                <label htmlFor="user" className="form-label">Customer</label>
+                <select id="user" className="form-control" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)}>
+                  <option value="">Select a user</option>
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>
+                      {user.name || user.company_name} ({user.email || user.phone})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="mb-3">
+                <label htmlFor="title" className="form-label">Job Title</label>
+                <input type="text" id="title" className="form-control" value={title} onChange={(e) => setTitle(e.target.value)} />
+              </div>
+              <div className="mb-3">
+                <label htmlFor="daysUntilExpiry" className="form-label">Days Until Due/Expiry</label>
+                <input type="number" id="daysUntilExpiry" className="form-control" value={daysUntilExpiry} onChange={(e) => setDaysUntilExpiry(parseInt(e.target.value, 10))} />
+              </div>
             </div>
             <hr className="my-3 border-border-light dark:border-border-dark" />
             <h6 className="font-semibold mb-2">Line Items</h6>

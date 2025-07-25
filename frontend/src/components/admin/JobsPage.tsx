@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { adminImportInvoices, adminImportQuotes, adminGetJobsAndQuotes } from '../../lib/api';
 import JobsAndQuotesTable from './JobsAndQuotesTable';
 import type { JobWithDetails } from '@portal/shared';
-import JobQuoteModal from './JobQuoteModal.js';
+import NewAddJobModal from './NewAddJobModal';
 
 function JobsPage() {
   const [isImporting, setIsImporting] = useState(false);
@@ -11,7 +11,6 @@ function JobsPage() {
   const [jobsData, setJobsData] = useState<JobWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
-  const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
 
   const fetchJobsData = async () => {
     setIsLoading(true);
@@ -99,20 +98,11 @@ function JobsPage() {
 
           <div className="relative">
             <button className="btn btn-primary" onClick={() => setIsJobModalOpen(true)}>Add Job</button>
-            <JobQuoteModal
+            <NewAddJobModal
               isOpen={isJobModalOpen}
               onClose={() => setIsJobModalOpen(false)}
               onSave={fetchJobsData}
-              type="job"
-            />
-          </div>
-          <div className="relative">
-            <button className="btn btn-primary" onClick={() => setIsQuoteModalOpen(true)}>Add Quote</button>
-            <JobQuoteModal
-              isOpen={isQuoteModalOpen}
-              onClose={() => setIsQuoteModalOpen(false)}
-              onSave={fetchJobsData}
-              type="quote"
+              selectedDate={null}
             />
           </div>
         </div>

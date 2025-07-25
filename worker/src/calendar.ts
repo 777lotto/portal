@@ -65,9 +65,9 @@ export async function createJob(env: Env, jobData: any, customerId: string): Pro
   await env.DB.prepare(`
     INSERT INTO jobs (
       id, customerId, title, description, start, end,
-      recurrence, rrule, status, crewId, createdAt, updatedAt
+      recurrence, rrule, status, crewId, createdAt, updatedAt, expires_at
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     )
   `).bind(
     parsedJob.id,
@@ -81,7 +81,8 @@ export async function createJob(env: Env, jobData: any, customerId: string): Pro
     parsedJob.status,
     parsedJob.crewId || null,
     parsedJob.createdAt,
-    parsedJob.updatedAt
+    parsedJob.updatedAt,
+    parsedJob.expires_at || null
   ).run();
 
   return parsedJob as JobRecord;

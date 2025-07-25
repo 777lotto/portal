@@ -59,12 +59,12 @@ export const handlePublicCalendarFeed = async (c: Context<AppEnv>) => {
 // Handler to get day availability
 export const handleGetAvailability = async (c: Context<AppEnv>) => {
   try {
-    // We only need the start date and can remove the status filter to include all non-cancelled jobs
+    // Fetch all jobs that aren't cancelled, drafts, or expired quotes
     const { results: jobResults } = await c.env.DB.prepare(
-      `SELECT start FROM jobs WHERE status != 'cancelled'`
+      `SELECT start FROM jobs WHERE status NOT IN ('cancelled', 'quote_draft', 'invoice_draft', 'quote_expired')`
     ).all<{ start: string }>();
 
-    // NEW: Also fetch manually blocked dates
+    // Fetch all manually blocked dates
     const { results: blockedDateResults } = await c.env.DB.prepare(
       `SELECT date FROM blocked_dates`
     ).all<{ date: string }>();
@@ -78,7 +78,7 @@ export const handleGetAvailability = async (c: Context<AppEnv>) => {
       bookedDays.add(day);
     });
 
-    // NEW: Add manually blocked dates to the set
+    // Add manually blocked dates to the set
     blockedDateResults?.forEach((blocked: { date: string }) => {
         bookedDays.add(blocked.date);
     });

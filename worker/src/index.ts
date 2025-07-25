@@ -234,4 +234,9 @@ app.get('*', serveStatic({ path: './index.html', manifest }));
                                    EXPORT
    ======================================================================== */
 
-export default app;
+import { handleScheduled } from './handlers/cron.js';
+
+export default {
+  fetch: app.fetch,
+  scheduled: handleScheduled,
+};

@@ -7,9 +7,9 @@ export const handleGetCustomerAvailability = async (c: Context<AppEnv>) => {
   const user = c.get('user');
 
   try {
-    // Fetch all jobs for the user
+    // Fetch all jobs for the user that aren't cancelled or drafts
     const { results: jobResults } = await c.env.DB.prepare(
-      `SELECT start, status FROM jobs WHERE user_id = ? AND status != 'cancelled'`
+      `SELECT start, status FROM jobs WHERE user_id = ? AND status NOT IN ('cancelled', 'quote_draft', 'invoice_draft')`
     ).bind(user.id).all<{ start: string, status: string }>();
 
     // Fetch all manually blocked dates
@@ -22,9 +22,12 @@ export const handleGetCustomerAvailability = async (c: Context<AppEnv>) => {
 
     jobResults?.forEach((job) => {
       const day = new Date(job.start).toISOString().split('T')[0];
-      if (job.status === 'pending_confirmation' || job.status === 'quote_sent') {
+      // Quotes awaiting acceptance are 'pending'
+      if (job.status === 'pending_quote') {
         pendingDays.add(day);
-      } else {
+      } 
+      // All other non-cancelled/draft statuses are considered 'booked'
+      else {
         bookedDays.add(day);
       }
     });
