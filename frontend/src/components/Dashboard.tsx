@@ -64,14 +64,14 @@ function Dashboard() {
             adminGetAllJobs(),
             adminGetAllOpenInvoices(),
           ]);
-          setUpcomingJobs(jobsData.filter((j: Job) => new Date(j.start) > new Date()).slice(0, 10));
+          setUpcomingJobs(jobsData.slice(0, 10));
           setOpenInvoices(invoicesData);
         } else {
           const [jobsData, invoicesData] = await Promise.all([
             getJobs(),
             getOpenInvoices(),
           ]);
-          setUpcomingJobs(jobsData.filter((j: Job) => new Date(j.start) > new Date()).slice(0, 5));
+          setUpcomingJobs(jobsData.slice(0, 5));
           setOpenInvoices(invoicesData);
         }
 

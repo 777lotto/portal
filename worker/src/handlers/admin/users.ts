@@ -255,9 +255,10 @@ export async function handleAdminUpdateUser(c: Context<AppEnv>): Promise<Respons
 
 export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
     try {
+        const now = new Date().toISOString();
         const dbResponse = await c.env.DB.prepare(
-            `SELECT * FROM jobs ORDER BY start DESC`
-        ).all<Job>();
+            `SELECT * FROM jobs WHERE start >= ? ORDER BY start ASC`
+        ).bind(now).all<Job>();
         const jobs = dbResponse?.results || [];
         return successResponse(jobs);
     } catch (e: any) {

@@ -5,7 +5,6 @@ import { useDropzone } from 'react-dropzone';
 import { apiGet, apiPost, apiPostFormData, adminCreateJobForUser, adminFinalizeJob, adminImportInvoicesForUser, adminCreateInvoice } from '../../lib/api';
 import type { Job, User, PhotoWithNotes, Note, StripeInvoice } from '@portal/shared';
 import { InvoiceEditor } from './InvoiceEditor';
-import { QuoteManager } from './QuoteManager';
 import EditUserModal from './EditUserModal';
 import EditJobModal from './EditJobModal';
 
@@ -250,9 +249,7 @@ function AdminUserDetail() {
                                     )}
                                   </div>
                               </div>
-                              <div className="mt-3">
-                                  <QuoteManager job={job} onQuoteCreated={fetchDataForUser} />
-                              </div>
+                              
                           </li>
                       ))}
                   </ul>

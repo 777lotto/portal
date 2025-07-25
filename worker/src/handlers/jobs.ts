@@ -85,15 +85,16 @@ export const handleGetJobs = async (c: HonoContext<WorkerAppEnv>) => {
     const user = c.get('user');
     try {
         let dbResponse;
+        const now = new Date().toISOString();
 
         if (user.role === 'admin') {
             dbResponse = await c.env.DB.prepare(
-                `SELECT * FROM jobs ORDER BY start DESC`
-            ).all<Job>();
+                `SELECT * FROM jobs WHERE start >= ? ORDER BY start ASC`
+            ).bind(now).all<Job>();
         } else {
             dbResponse = await c.env.DB.prepare(
-                `SELECT * FROM jobs WHERE customerId = ? ORDER BY start DESC`
-            ).bind(user.id.toString()).all<Job>();
+                `SELECT * FROM jobs WHERE customerId = ? AND start >= ? ORDER BY start ASC`
+            ).bind(user.id.toString(), now).all<Job>();
         }
 
         const jobs = dbResponse?.results || [];
