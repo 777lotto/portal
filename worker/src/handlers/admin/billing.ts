@@ -158,13 +158,18 @@ export const handleAdminCreateQuote = async (c: Context<AppEnv>) => {
         if (!user) return errorResponse("User not found.", 404);
         if (!user.stripe_customer_id) return errorResponse("This user does not have a Stripe customer ID.", 400);
 
-        const line_items = lineItems.map((item: Service) => ({
-            price_data: {
+        const price_promises = lineItems.map((item: Service) => {
+            return stripe.prices.create({
                 currency: 'usd',
-                product_data: { name: item.notes || 'Unnamed Service' },
                 unit_amount: item.price_cents || 0,
-            },
-        }));
+                product_data: {
+                    name: item.notes || 'Unnamed Service',
+                },
+            });
+        });
+
+        const prices = await Promise.all(price_promises);
+        const line_items = prices.map(price => ({ price: price.id, quantity: 1 }));
 
         const quoteData = await stripe.quotes.create({
             customer: user.stripe_customer_id,
