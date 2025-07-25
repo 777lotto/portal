@@ -31,6 +31,8 @@ import { handleSmsProxy } from './sms.js';
 import { handleInitializeSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './handlers/auth.js';
 import { handleStripeWebhook } from './handlers/stripe.js';
 import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed, handleAcceptQuote } from './handlers/public.js';
+import { handleGetCustomerAvailability } from './handlers/availability.js';
+import { getPendingQuotes } from './handlers/quotes.js';
 
 // --- Customer Handlers ---
 import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent, handleGetNotifications, handleMarkAllNotificationsRead } from './handlers/profile.js';
@@ -46,7 +48,7 @@ import {
 import { handleGetUserPhotos, handleGetPhotosForJob } from './handlers/photos.js';
 import { handleGetNotesForJob } from './handlers/notes.js';
 import { handlePortalSession } from './handlers/user.js';
-import { handleGetInvoiceForUser, handleCreatePaymentIntent, handleDownloadInvoicePdf, handleMarkInvoiceAsPaid } from './handlers/invoices.js';
+import { handleGetInvoiceForUser, handleCreatePaymentIntent, handleDownloadInvoicePdf } from './handlers/invoices.js';
 import { handleRequestRecurrence, handleGetRecurrenceRequests, handleUpdateRecurrenceRequest, handleGetUnavailableRecurrenceDays } from './handlers/recurrence.js';
 
 
@@ -55,7 +57,7 @@ import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUs
 import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleAdminAddNoteForUser } from './handlers/notes.js';
 import { handleAdminCreateQuote, handleAdminImportQuotes } from './handlers/admin/quotes.js';
-import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminImportInvoicesForUser, handleAdminGetAllOpenInvoices } from './handlers/admin/invoices.js';
+import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminImportInvoicesForUser, handleAdminGetAllOpenInvoices, handleAdminMarkInvoiceAsPaid } from './handlers/admin/invoices.js';
 import { handleGetJobsAndQuotes, handleAdminCreateJob, handleAdminCreateQuote as handleAdminCreateQuoteFromBilling } from './handlers/admin/billing.js';
 
 
@@ -130,6 +132,7 @@ publicApi.post('/quotes/:quoteId/accept', handleAcceptQuote);
                        CUSTOMER API ROUTES (Authenticated)
    ======================================================================== */
 
+customerApi.get('/availability', handleGetCustomerAvailability);
 customerApi.get('/profile', handleGetProfile);
 customerApi.put('/profile', handleUpdateProfile);
 customerApi.post('/profile/change-password', handleChangePassword);
@@ -159,6 +162,7 @@ customerApi.get('/invoices/:invoiceId/pdf', handleDownloadInvoicePdf);
 customerApi.post('/jobs/:jobId/request-recurrence', handleRequestRecurrence);
 customerApi.all('/sms/*', handleSmsProxy);
 customerApi.all('/notifications/*', handleNotificationProxy);
+customerApi.get('/quotes/pending', getPendingQuotes);
 
 /* ========================================================================
                          ADMIN API ROUTES (Admin-Only)
@@ -193,7 +197,7 @@ adminApi.get('/invoices/:invoiceId', handleAdminGetInvoice);
 adminApi.post('/invoices/:invoiceId/items', handleAdminAddInvoiceItem);
 adminApi.delete('/invoices/:invoiceId/items/:itemId', handleAdminDeleteInvoiceItem);
 adminApi.post('/invoices/:invoiceId/finalize', handleAdminFinalizeInvoice);
-adminApi.post('/invoices/:invoiceId/mark-as-paid', handleMarkInvoiceAsPaid);
+adminApi.post('/invoices/:invoiceId/mark-as-paid', handleAdminMarkInvoiceAsPaid);
 adminApi.post('/import-contacts', handleAdminImportSelectedContacts);
 adminApi.post('/get-imported-contacts', handleGetImportedContacts);
 adminApi.get('/billing/jobs-and-quotes', handleGetJobsAndQuotes);

@@ -1,63 +1,68 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { createPublicBooking } from '../lib/api';
+import { createPublicBooking, getServices, createJob } from '../lib/api';
 import { ApiError } from '../lib/fetchJson';
 import { format } from 'date-fns';
 import StyledDigitInput from './StyledDigitInput';
+import type { User, Service } from '@portal/shared';
 
-// Add the global window type definition for the Turnstile callback
-// This should match the working implementation in your other forms.
 declare global {
   interface Window {
     onTurnstileSuccess?: (token: string) => void;
   }
 }
 
-interface ServiceOption {
-  id: string;
-  name: string;
-  duration: number; // in hours
-}
-
-const serviceOptions: ServiceOption[] = [
-    { id: 'gc-res', name: 'Gutter Cleaning (Residential)', duration: 2 },
-    { id: 'gc-com', name: 'Gutter Cleaning (Commercial)', duration: 8 },
-    { id: 'pw-res', name: 'Pressure Washing (Residential)', duration: 4 },
-    { id: 'pw-com', name: 'Pressure Washing (Commercial)', duration: 8 },
-    { id: 'rg-res', name: 'Roof or Gutter Repair (Residential)', duration: 3 },
-    { id: 'rg-com', name: 'Roof or Gutter Repair (Commercial)', duration: 4 },
-    { id: 'gi-res', name: 'Gutter Install (Residential)', duration: 8 },
-    { id: 'gi-com', name: 'Gutter Install (Commercial)', duration: 8 },
-];
-
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   selectedDate: Date;
+  user?: User | null;
 }
 
-function BookingModal({ isOpen, onClose, selectedDate }: Props) {
+function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', address: '' });
-  const [selectedServices, setSelectedServices] = useState<ServiceOption[]>([]);
+  const [serviceOptions, setServiceOptions] = useState<Service[]>([]);
+  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [turnstileToken, setTurnstileToken] = useState('');
   const [error, setError] = useState<React.ReactNode>('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // This hook creates the callback function that your Zaraz script calls
   useEffect(() => {
     if (isOpen) {
-      window.onTurnstileSuccess = (token: string) => {
-        setTurnstileToken(token);
-      };
-    }
-    // Cleanup the function when the component unmounts or the modal closes
-    return () => {
-      delete window.onTurnstileSuccess;
-    };
-  }, [isOpen]); // Re-run the effect if the modal is opened
+      if (user) {
+        setFormData({
+          name: user.name || '',
+          email: user.email || '',
+          phone: user.phone || '',
+          address: user.address || '',
+        });
+      }
 
-  const handleServiceChange = (service: ServiceOption) => {
+      const fetchServices = async () => {
+        try {
+          const services = await getServices();
+          setServiceOptions(services);
+        } catch (err) {
+          setError('Failed to load services. Please try again.');
+        }
+      };
+      fetchServices();
+
+      if (!user) {
+        window.onTurnstileSuccess = (token: string) => {
+          setTurnstileToken(token);
+        };
+      }
+    }
+    return () => {
+      if (!user) {
+        delete window.onTurnstileSuccess;
+      }
+    };
+  }, [isOpen, user]);
+
+  const handleServiceChange = (service: Service) => {
     setSelectedServices(prev =>
       prev.some(s => s.id === service.id)
         ? prev.filter(s => s.id !== service.id)
@@ -75,41 +80,49 @@ function BookingModal({ isOpen, onClose, selectedDate }: Props) {
       setError('Please select at least one service.');
       return;
     }
-    if (!turnstileToken) {
+    if (!user && !turnstileToken) {
       setError("Please wait for the security check to complete.");
       return;
     }
-
-    // The cleaning logic is now handled by the component's onChange
 
     setError('');
     setSuccess('');
     setIsSubmitting(true);
 
     try {
-      await createPublicBooking({
-        ...formData,
-        date: format(selectedDate, 'yyyy-MM-dd'),
-        services: selectedServices.map(({name, duration}) => ({name, duration})),
-        'cf-turnstile-response': turnstileToken,
-      });
-      setSuccess('Your booking request has been sent! We will contact you shortly to confirm.');
+      if (user) {
+        // Logic for existing customer
+        await createJob({
+          title: selectedServices.map(s => s.name).join(', '),
+          start: format(selectedDate, 'yyyy-MM-dd') + 'T09:00:00', // Placeholder time
+          services: selectedServices.map(s => ({ id: s.id, notes: '', price_cents: s.price_cents || 0 })),
+        });
+        setSuccess('Your booking has been scheduled!');
+      } else {
+        // Logic for public booking
+        await createPublicBooking({
+          ...formData,
+          date: format(selectedDate, 'yyyy-MM-dd'),
+          services: selectedServices.map(({name, duration_hours}) => ({name, duration: duration_hours})),
+          'cf-turnstile-response': turnstileToken,
+        });
+        setSuccess('Your booking request has been sent! We will contact you shortly to confirm.');
+      }
+
       setTimeout(() => {
         onClose();
         setSuccess('');
-        setTurnstileToken('');
+        if(!user) setTurnstileToken('');
       }, 3000);
     } catch (err: any) {
-      // MODIFIED: Intelligent error handling
       if (err instanceof ApiError && err.details?.code) {
         if (err.details.code === 'LOGIN_REQUIRED') {
           setError(
             <span>
-              An account already exists. Please <Link to="/login" className="text-primary font-bold">log in</Link> to book.
+              An account already exists. Please <Link to="/auth" className="text-primary font-bold">log in</Link> to book.
             </span>
           );
         } else {
-          // For PASSWORD_SET_REQUIRED or other coded errors
           setError(err.message);
         }
       } else {
@@ -130,23 +143,21 @@ function BookingModal({ isOpen, onClose, selectedDate }: Props) {
         {success && <div className="alert alert-success">{success}</div>}
 
         <form onSubmit={handleSubmit}>
-          {/* Services Selection */}
           <div className="mb-4">
             <label className="font-bold">Services</label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
               {serviceOptions.map(service => (
                 <label key={service.id} className="flex items-center space-x-2 p-2 border rounded-md">
                   <input type="checkbox" onChange={() => handleServiceChange(service)} />
-                  <span>{service.name} ({service.duration} hrs)</span>
+                  <span>{service.name} ({service.duration_hours} hrs)</span>
                 </label>
               ))}
             </div>
           </div>
 
-          {/* User Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <input name="name" placeholder="Full Name" onChange={handleChange} className="form-control" required />
-            <input name="email" type="email" placeholder="Email Address" onChange={handleChange} className="form-control" required />
+            <input name="name" placeholder="Full Name" value={formData.name} onChange={handleChange} className="form-control" required readOnly={!!user} />
+            <input name="email" type="email" placeholder="Email Address" value={formData.email} onChange={handleChange} className="form-control" required readOnly={!!user} />
 
             <div className="md:col-span-2">
               <StyledDigitInput
@@ -157,21 +168,21 @@ function BookingModal({ isOpen, onClose, selectedDate }: Props) {
                 digitCount={10}
                 format="phone"
                 autoComplete="tel"
+                readOnly={!!user}
               />
             </div>
 
-            <input name="address" placeholder="Service Address" onChange={handleChange} className="form-control md:col-span-2" required />
+            <input name="address" placeholder="Service Address" value={formData.address} onChange={handleChange} className="form-control md:col-span-2" required readOnly={!!user} />
           </div>
 
-
-          {/* This container will be populated by your Zaraz script */}
-          <div className="mb-3 d-flex justify-content-center" id="turnstile-container"></div>
+          {!user && (
+            <div className="mb-3 d-flex justify-content-center" id="turnstile-container"></div>
+          )}
 
           <div className="flex justify-end space-x-4">
             <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
-            {/* The button is disabled until the turnstile token is received */}
-            <button type="submit" className="btn btn-primary" disabled={isSubmitting || !turnstileToken}>
-              {isSubmitting ? 'Submitting...' : 'Request Booking'}
+            <button type="submit" className="btn btn-primary" disabled={isSubmitting || (!user && !turnstileToken)}>
+              {isSubmitting ? 'Submitting...' : (user ? 'Schedule Booking' : 'Request Booking')}
             </button>
           </div>
         </form>

@@ -92,6 +92,10 @@ body {
     @apply text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20;
   }
 
+  .bg-stripes-blue {
+    background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, theme('colors.blue.500/0.1') 10px, theme('colors.blue.500/0.1') 20px);
+  }
+
 @layer base {
   .rbc-day-bg.lighter-day {
       @apply bg-primary-light dark:bg-primary-dark;

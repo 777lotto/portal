@@ -323,3 +323,28 @@ export const handleAdminGetAllOpenInvoices = async (c: Context<AppEnv>) => {
         return errorResponse("Failed to retrieve open invoices.", 500);
     }
 };
+
+export const handleAdminMarkInvoiceAsPaid = async (c: Context<AppEnv>) => {
+    const { invoiceId } = c.req.param();
+    const stripe = getStripe(c.env);
+
+    try {
+        const invoice = await stripe.invoices.retrieve(invoiceId);
+        if (!invoice) {
+            return errorResponse("Invoice not found.", 404);
+        }
+
+        if (invoice.status === 'paid') {
+            return errorResponse("Invoice is already paid.", 400);
+        }
+
+        const updatedInvoice = await stripe.invoices.pay(invoiceId, {
+            paid_out_of_band: true,
+        });
+
+        return successResponse(updatedInvoice);
+    } catch (e: any) {
+        console.error(`Failed to mark invoice ${invoiceId} as paid:`, e);
+        return errorResponse(e.message, 500);
+    }
+};

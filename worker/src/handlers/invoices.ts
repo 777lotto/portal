@@ -92,58 +92,5 @@ export const handleDownloadInvoicePdf = async (c: Context<AppEnv>) => {
     }
 };
 
-export const handleMarkInvoiceAsPaid = async (c: Context<AppEnv>) => {
-    const { invoiceId } = c.req.param();
-    const stripe = getStripe(c.env);
 
-    try {
-        const invoice = await stripe.invoices.retrieve(invoiceId);
-        if (!invoice) {
-            return errorResponse("Invoice not found.", 404);
-        }
-
-        if (invoice.status === 'paid') {
-            return errorResponse("Invoice is already paid.", 400);
-        }
-
-        const updatedInvoice = await stripe.invoices.pay(invoiceId, {
-            paid_out_of_band: true,
-        });
-
-        return successResponse(updatedInvoice);
-    } catch (e: any) {
-        console.error(`Failed to mark invoice ${invoiceId} as paid:`, e);
-        return errorResponse(e.message, 500);
-    }
-};
-
-export const handleGetInvoicesForUser = async (c: Context<AppEnv>) => {
-    const user = c.get('user');
-    const stripe = getStripe(c.env);
-
-    try {
-        const invoices = await stripe.invoices.list({
-            customer: user.stripe_customer_id,
-            limit: 100, // You can adjust the limit as needed
-        });
-        return successResponse(invoices.data);
-    } catch (e: any) {
-        return errorResponse(e.message, 500);
-    }
-};
-
-export const handleGetInvoicesForAdmin = async (c: Context<AppEnv>) => {
-    const stripe = getStripe(c.env);
-    const { customerId } = c.req.query();
-
-    try {
-        const invoices = await stripe.invoices.list({
-            customer: customerId,
-            limit: 100,
-        });
-        return successResponse(invoices.data);
-    } catch (e: any) {
-        return errorResponse(e.message, 500);
-    }
-};
 

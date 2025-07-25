@@ -49,6 +49,7 @@ export const apiPostFormData = <T>(path: string, formData: FormData): Promise<T>
    ======================================================================== */
 
 export const getPublicAvailability = () => apiGet<{ bookedDays: string[] }>('/api/public/availability');
+export const getCustomerAvailability = () => apiGet<{ bookedDays: string[], pendingDays: string[], blockedDates: string[] }>('/api/availability');
 export const createPublicBooking = (data: unknown) => apiPost('/api/public/booking', data);
 export const checkUser = (identifier: string) => apiPost<{ status: string }>('/api/check-user', { identifier });
 export const initializeSignup = (data: unknown) => apiPost<any>('/api/signup/initialize', data);
@@ -111,10 +112,12 @@ export const createInvoice = (serviceId: string) => apiPost<any>(`/api/services/
 
 export const getJobs = () => apiGet<Job[]>('/api/jobs');
 export const getJob = (id: string) => apiGet<Job>(`/api/jobs/${id}`);
+export const createJob = (data: { title: string; start: string; services: { id: number; notes: string; price_cents: number }[] }) => apiPost<Job>('/api/jobs', data);
 export const getServicesForJob = (jobId: string) => apiGet<Service[]>(`/api/jobs/${jobId}/services`);
 export const getOpenInvoices = () => apiGet<StripeInvoice[]>('/api/invoices/open');
 export const requestRecurrence = (jobId: string, data: { frequency: number, requested_day?: number }) => apiPost(`/api/jobs/${jobId}/request-recurrence`, data);
 export const getUnavailableRecurrenceDays = () => apiGet<{ unavailableDays: number[] }>('/api/jobs/unavailable-recurrence-days');
+export const getPendingQuotes = () => apiGet<Job[]>('/api/quotes/pending');
 
 /* ========================================================================
                                   ADMIN API

@@ -1,13 +1,14 @@
 // 777lotto/portal/portal-fold/frontend/src/components/Dashboard.tsx
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getProfile, getJobs, getOpenInvoices, adminGetAllJobs, adminGetAllOpenInvoices } from '../lib/api.js';
+import { getProfile, getJobs, getOpenInvoices, adminGetAllJobs, adminGetAllOpenInvoices, getPendingQuotes } from '../lib/api.js';
 import type { User, Job, DashboardInvoice } from '@portal/shared';
 
 function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [upcomingJobs, setUpcomingJobs] = useState<Job[]>([]);
   const [openInvoices, setOpenInvoices] = useState<DashboardInvoice[]>([]);
+  const [pendingQuotes, setPendingQuotes] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
@@ -53,6 +54,11 @@ function Dashboard() {
         const profileData = await getProfile();
         setUser(profileData);
 
+        const [quotesData] = await Promise.all([
+            getPendingQuotes()
+        ]);
+        setPendingQuotes(quotesData);
+
         if (profileData.role === 'admin') {
           const [jobsData, invoicesData] = await Promise.all([
             adminGetAllJobs(),
@@ -83,8 +89,13 @@ function Dashboard() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <header>
-        {user && <h1 className="text-3xl font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark mb-6">Welcome, {user.name}!</h1>}
+      <header className="flex justify-between items-center mb-6">
+        {user && <h1 className="text-3xl font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark">Welcome, {user.name}!</h1>}
+        {user?.role !== 'admin' && (
+          <Link to="/schedule" className="btn btn-primary">
+            Schedule Next Service
+          </Link>
+        )}
       </header>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Upcoming Jobs Card */}
@@ -102,6 +113,24 @@ function Dashboard() {
             ) : <p className="text-text-secondary-light dark:text-text-secondary-dark">No upcoming jobs.</p>}
           </div>
         </div>
+
+        {/* Pending Quotes Card */}
+        <div className="bg-primary-light dark:bg-tertiary-dark shadow-sm rounded-lg p-6 border border-border-light dark:border-border-dark">
+            <h3 className="text-xl font-semibold mb-4 text-text-primary-light dark:text-text-primary-dark">
+                Pending Quotes
+            </h3>
+            <div className="space-y-3">
+                {pendingQuotes.length > 0 ? (
+                    pendingQuotes.map(quote => (
+                        <Link key={quote.id} to={`/jobs/${quote.id}`} className="block p-3 rounded-md transition text-text-secondary-light dark:text-text-secondary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark">
+                            {user?.role === 'admin' && `${(quote as any).customerName} - `}
+                            {quote.title} - {quote.status === 'pending_quote' ? 'Awaiting your approval' : 'Pending admin review'}
+                        </Link>
+                    ))
+                ) : <p className="text-text-secondary-light dark:text-text-secondary-dark">No pending quotes.</p>}
+            </div>
+        </div>
+
         {/* Open Invoices Card */}
          <div className="bg-primary-light dark:bg-tertiary-dark shadow-sm rounded-lg p-6 border border-border-light dark:border-border-dark">
            <h3 className="text-xl font-semibold mb-4 text-text-primary-light dark:text-text-primary-dark">

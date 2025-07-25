@@ -4,27 +4,31 @@ import { format, parse, startOfWeek, getDay } from 'date-fns';
 import enUS from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import useSWR from 'swr';
-import { getPublicAvailability } from '../lib/api';
+import { getPublicAvailability, getCustomerAvailability } from '../lib/api';
 
 const locales = { 'en-US': enUS };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
 
 interface Props {
   onSelectSlot: (slotInfo: { start: Date }) => void;
+  isCustomer?: boolean;
 }
 
-function BookingCalendar({ onSelectSlot }: Props) {
-  const { data, error, isLoading } = useSWR('/api/public/availability', getPublicAvailability);
+function BookingCalendar({ onSelectSlot, isCustomer = false }: Props) {
+  const swrKey = isCustomer ? '/api/availability' : '/api/public/availability';
+  const fetcher = isCustomer ? getCustomerAvailability : getPublicAvailability;
+  const { data, error, isLoading } = useSWR(swrKey, fetcher);
 
-  // UPDATED: Memoize the set of booked days from the new data structure
-  const bookedDaysSet = useMemo(() => {
-    return new Set(data?.bookedDays || []);
-  }, [data]);
+  const { bookedDaysSet, pendingDaysSet, blockedDatesSet } = useMemo(() => {
+    const bookedDaysSet = new Set(data?.bookedDays || []);
+    const pendingDaysSet = new Set(isCustomer ? (data as any)?.pendingDays || [] : []);
+    const blockedDatesSet = new Set(isCustomer ? (data as any)?.blockedDates || [] : []);
+    return { bookedDaysSet, pendingDaysSet, blockedDatesSet };
+  }, [data, isCustomer]);
 
-  // UPDATED: Add dayPropGetter to apply styles and disable booked days
   const dayPropGetter = useCallback((date: Date) => {
     const day = format(date, 'yyyy-MM-dd');
-    if (bookedDaysSet.has(day)) {
+    if (blockedDatesSet.has(day) || bookedDaysSet.has(day)) {
       return {
         className: 'darker-day',
         style: {
@@ -33,8 +37,13 @@ function BookingCalendar({ onSelectSlot }: Props) {
         },
       };
     }
+    if (pendingDaysSet.has(day)) {
+      return {
+        className: 'bg-stripes-blue',
+      };
+    }
     return { className: 'lighter-day' };
-  }, [bookedDaysSet]);
+  }, [bookedDaysSet, pendingDaysSet, blockedDatesSet]);
 
   if (isLoading) return <div>Loading availability...</div>;
   if (error) return <div className="alert alert-danger">Could not load calendar.</div>;
@@ -47,7 +56,7 @@ function BookingCalendar({ onSelectSlot }: Props) {
         startAccessor="start"
         endAccessor="end"
         style={{ height: '100%' }}
-        views={[Views.MONTH, Views.WEEK]} // User wanted month and week view
+        views={[Views.MONTH, Views.WEEK]}
         selectable
         onSelectSlot={onSelectSlot}
         dayPropGetter={dayPropGetter}

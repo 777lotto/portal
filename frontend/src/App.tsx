@@ -23,6 +23,7 @@ const AdminDashboard = lazy(() => import("./components/admin/AdminDashboard.js")
 const AdminUserDetail = lazy(() => import("./components/admin/AdminUserDetail.js"));
 const BillingPage = lazy(() => import("./components/admin/BillingPage.js"));
 const AdminChat = lazy(() => import("./components/admin/AdminChat.js"));
+const CustomerBookingPage = lazy(() => import("./components/CustomerBookingPage.js"));
 
 interface UserPayload {
   id: number;
@@ -117,6 +118,7 @@ function App() {
               <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/auth" replace />} />
               <Route path="/account" element={token ? <AccountPage /> : <Navigate to="/auth" replace />} />
               <Route path="/pay-invoice/:invoiceId" element={token ? <InvoicePaymentPage /> : <Navigate to="/auth" replace />} />
+              <Route path="/schedule" element={token ? <CustomerBookingPage /> : <Navigate to="/auth" replace />} />
 
               {/* --- Admin Routes --- */}
               <Route path="/admin/chat" element={user?.role === 'admin' ? <AdminChat /> : <Navigate to="/dashboard" replace />} />
