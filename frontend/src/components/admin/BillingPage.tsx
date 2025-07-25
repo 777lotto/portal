@@ -127,7 +127,7 @@ function BillingPage() {
             {isLoading ? (
                 <p>Loading data...</p>
             ) : (
-                <JobsAndQuotesTable data={billingData} />
+                <JobsAndQuotesTable data={billingData} onUpdate={fetchBillingData} />
             )}
         </div>
       </div>

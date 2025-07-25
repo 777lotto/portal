@@ -1,9 +1,7 @@
-// 777lotto/portal/portal-fold/frontend/src/components/JobDetail.tsx
-
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
-import { apiGet, getServicesForJob, apiPost, apiPostFormData, adminFinalizeJob } from '../lib/api.js';
+import { apiGet, getServicesForJob, apiPost, apiPostFormData, adminFinalizeJob, markInvoiceAsPaid } from '../lib/api.js';
 import type { Job, Service, Photo, Note } from '@portal/shared';
 import { jwtDecode } from 'jwt-decode';
 import RecurrenceRequestModal from './RecurrenceRequestModal.js';
@@ -64,6 +62,7 @@ function JobDetail() {
   const [user, setUser] = useState<UserPayload | null>(null);
   const [isRecurrenceModalOpen, setIsRecurrenceModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
 
   // Editing States
@@ -190,6 +189,19 @@ function JobDetail() {
         fetchJobDetails();
     } catch (err: any) {
         setError(`Failed to finalize job: ${err.message}`);
+    }
+  };
+
+  const handleMarkAsPaid = async () => {
+    if (!jobId || !job?.stripe_invoice_id || !window.confirm("Are you sure you want to mark this invoice as paid?")) return;
+    setIsUpdating(true);
+    try {
+        await markInvoiceAsPaid(job.stripe_invoice_id);
+        fetchJobDetails();
+    } catch (err: any) {
+        setError(`Failed to mark as paid: ${err.message}`);
+    } finally {
+        setIsUpdating(false);
     }
   };
 
@@ -320,6 +332,20 @@ function JobDetail() {
                            </dd>
                         </div>
                       )}
+                       {job.stripe_invoice_id && user?.role === 'admin' && job.status !== 'paid' && job.status !== 'completed' && (
+                        <div className="sm:col-span-1">
+                            <dt className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Admin Actions</dt>
+                            <dd className="mt-1 text-sm">
+                                <button
+                                    onClick={handleMarkAsPaid}
+                                    className="btn btn-sm btn-success"
+                                    disabled={isUpdating}
+                                >
+                                    {isUpdating ? 'Updating...' : 'Mark Paid'}
+                                </button>
+                            </dd>
+                        </div>
+                       )}
                    </dl>
               )}
           </div>

@@ -180,6 +180,11 @@ export const finalizeInvoice = (invoiceId: string) => {
   return apiPost<StripeInvoice>(`/api/admin/invoices/${invoiceId}/finalize`, {});
 };
 
+export const markInvoiceAsPaid = (invoiceId: string) => {
+    return apiPost<StripeInvoice>(`/api/admin/invoices/${invoiceId}/mark-as-paid`, {});
+};
+
+
 
 /* ========================================================================
                                 PHOTOS & NOTES
