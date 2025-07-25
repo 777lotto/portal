@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { adminImportInvoices, adminImportQuotes, adminGetJobsAndQuotes } from '../../lib/api';
 import JobsAndQuotesTable from './JobsAndQuotesTable';
 import type { JobWithDetails } from '@portal/shared';
-import JobQuoteModal from './JobQuoteModal';
+import JobQuoteModal from './JobQuoteModal.js';
 
 function BillingPage() {
   const [isImporting, setIsImporting] = useState(false);
@@ -73,7 +73,7 @@ function BillingPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="w-full p-4">
       <h1 className="text-2xl font-bold mb-4">Billing</h1>
       {error && <div className="alert alert-danger">{error}</div>}
       {importMessage && <div className="alert alert-info">{importMessage}</div>}

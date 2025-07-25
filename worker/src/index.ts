@@ -32,7 +32,7 @@ import { handleInitializeSignup, handleLogin, handleRequestPasswordReset, handle
 import { handleStripeWebhook } from './handlers/stripe.js';
 import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed, handleAcceptQuote } from './handlers/public.js';
 import { handleGetCustomerAvailability } from './handlers/availability.js';
-import { getPendingQuotes } from './handlers/quotes.js';
+import { getPendingQuotes, handleDeclineQuote, handleReviseQuote } from './handlers/quotes.js';
 
 // --- Customer Handlers ---
 import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent, handleGetNotifications, handleMarkAllNotificationsRead } from './handlers/profile.js';
@@ -56,9 +56,10 @@ import { handleRequestRecurrence, handleGetRecurrenceRequests, handleUpdateRecur
 import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleAdminCreateInvoice, handleGetAllJobs, handleGetAllServices, handleAdminCreateJobForUser, handleAdminCreateUser, handleAdminUpdateUser } from './handlers/admin/users.js';
 import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleAdminAddNoteForUser } from './handlers/notes.js';
-import { handleAdminCreateQuote, handleAdminImportQuotes } from './handlers/admin/quotes.js';
+import { handleAdminCreateQuote, handleAdminImportQuotes, handleAdminSendQuote } from './handlers/admin/quotes.js';
 import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminImportInvoicesForUser, handleAdminGetAllOpenInvoices, handleAdminMarkInvoiceAsPaid } from './handlers/admin/invoices.js';
 import { handleGetJobsAndQuotes, handleAdminCreateJob, handleAdminCreateQuote as handleAdminCreateQuoteFromBilling } from './handlers/admin/billing.js';
+import { handleGetDrafts } from './handlers/admin/drafts.js';
 
 
 /* ========================================================================
@@ -163,6 +164,8 @@ customerApi.post('/jobs/:jobId/request-recurrence', handleRequestRecurrence);
 customerApi.all('/sms/*', handleSmsProxy);
 customerApi.all('/notifications/*', handleNotificationProxy);
 customerApi.get('/quotes/pending', getPendingQuotes);
+customerApi.post('/quotes/:quoteId/decline', handleDeclineQuote);
+customerApi.post('/quotes/:quoteId/revise', handleReviseQuote);
 
 /* ========================================================================
                          ADMIN API ROUTES (Admin-Only)
@@ -172,6 +175,7 @@ adminApi.get('/users', handleGetAllUsers);
 adminApi.post('/users', handleAdminCreateUser);
 adminApi.put('/users/:userId', handleAdminUpdateUser);
 adminApi.post('/jobs/:jobId/quote', handleAdminCreateQuote);
+adminApi.post('/jobs/:jobId/quote/send', handleAdminSendQuote);
 adminApi.post('/quotes/import', handleAdminImportQuotes);
 adminApi.get('/users/:userId/jobs', handleAdminGetJobsForUser);
 adminApi.get('/users/:userId/photos', handleAdminGetPhotosForUser);
@@ -206,6 +210,7 @@ adminApi.post('/billing/job', handleAdminCreateJob);
 adminApi.post('/billing/quote', handleAdminCreateQuoteFromBilling);
 adminApi.get('/recurrence-requests', handleGetRecurrenceRequests);
 adminApi.put('/recurrence-requests/:requestId', handleUpdateRecurrenceRequest);
+adminApi.get('/drafts', handleGetDrafts);
 
 
 /* ========================================================================

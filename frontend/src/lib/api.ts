@@ -163,6 +163,8 @@ export const adminDeleteServiceFromJob = (jobId: string, serviceId: number) => {
 };
 export const getRecurrenceRequests = () => apiGet<JobRecurrenceRequest[]>('/api/admin/recurrence-requests');
 export const updateRecurrenceRequest = (requestId: number, data: { status: 'accepted' | 'declined' | 'countered', admin_notes?: string, frequency?: number, requested_day?: number }) => apiPost(`/api/admin/recurrence-requests/${requestId}`, data, 'PUT');
+export const adminGetDrafts = () => apiGet<any[]>('/api/admin/drafts');
+
 
 
 /* ========================================================================

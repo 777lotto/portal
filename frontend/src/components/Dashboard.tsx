@@ -1,7 +1,7 @@
 // 777lotto/portal/portal-fold/frontend/src/components/Dashboard.tsx
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getProfile, getJobs, getOpenInvoices, adminGetAllJobs, adminGetAllOpenInvoices, getPendingQuotes } from '../lib/api.js';
+import { getProfile, getJobs, getOpenInvoices, adminGetAllJobs, adminGetAllOpenInvoices, getPendingQuotes, adminGetDrafts } from '../lib/api.js';
 import type { User, Job, DashboardInvoice } from '@portal/shared';
 
 function Dashboard() {
@@ -9,6 +9,7 @@ function Dashboard() {
   const [upcomingJobs, setUpcomingJobs] = useState<Job[]>([]);
   const [openInvoices, setOpenInvoices] = useState<DashboardInvoice[]>([]);
   const [pendingQuotes, setPendingQuotes] = useState<Job[]>([]);
+  const [drafts, setDrafts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
@@ -60,12 +61,14 @@ function Dashboard() {
         setPendingQuotes(quotesData);
 
         if (profileData.role === 'admin') {
-          const [jobsData, invoicesData] = await Promise.all([
+          const [jobsData, invoicesData, draftsData] = await Promise.all([
             adminGetAllJobs(),
             adminGetAllOpenInvoices(),
+            adminGetDrafts(),
           ]);
           setUpcomingJobs(jobsData.slice(0, 10));
           setOpenInvoices(invoicesData);
+          setDrafts(draftsData);
         } else {
           const [jobsData, invoicesData] = await Promise.all([
             getJobs(),
@@ -130,6 +133,25 @@ function Dashboard() {
                 ) : <p className="text-text-secondary-light dark:text-text-secondary-dark">No pending quotes.</p>}
             </div>
         </div>
+
+        {/* Drafts Card */}
+        {user?.role === 'admin' && (
+          <div className="bg-primary-light dark:bg-tertiary-dark shadow-sm rounded-lg p-6 border border-border-light dark:border-border-dark">
+            <h3 className="text-xl font-semibold mb-4 text-text-primary-light dark:text-text-primary-dark">
+              Drafts
+            </h3>
+            <div className="space-y-3">
+              {drafts.length > 0 ? (
+                drafts.map(draft => (
+                  <Link key={draft.id} to={`/jobs/${draft.id}`} className="block p-3 rounded-md transition text-text-secondary-light dark:text-text-secondary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark">
+                    {`${draft.customerName} - `}
+                    {draft.title} - {draft.status}
+                  </Link>
+                ))
+              ) : <p className="text-text-secondary-light dark:text-text-secondary-dark">No drafts.</p>}
+            </div>
+          </div>
+        )}
 
         {/* Open Invoices Card */}
          <div className="bg-primary-light dark:bg-tertiary-dark shadow-sm rounded-lg p-6 border border-border-light dark:border-border-dark">

@@ -45,25 +45,11 @@ export async function handleAdminCreateQuote(c: Context<AppEnv>) {
             expires_at: Math.floor(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).getTime() / 1000),
         });
 
-        // FIX 2: Explicitly cast the result to the correct Stripe.Quote type
-        const finalizedQuote = await stripe.quotes.finalizeQuote(quoteData.id) as Stripe.Quote;
-
-        await db.prepare(`UPDATE jobs SET stripe_quote_id = ?, status = 'pending_quote' WHERE id = ?`)
-            .bind(finalizedQuote.id, jobId)
+        await db.prepare(`UPDATE jobs SET stripe_quote_id = ?, status = 'quote_draft' WHERE id = ?`)
+            .bind(quoteData.id, jobId)
             .run();
 
-        await c.env.NOTIFICATION_QUEUE.send({
-          type: 'quote_created',
-          userId: customer.id,
-          data: {
-              quoteId: finalizedQuote.id,
-              quoteUrl: (finalizedQuote as any).hosted_details_url,
-              customerName: customer.name,
-          },
-          channels: ['email']
-        });
-
-        return successResponse({ quoteId: finalizedQuote.id });
+        return successResponse({ quoteId: quoteData.id });
 
     } catch (e: any) {
         console.error(`Failed to create quote for job ${jobId}:`, e);
@@ -183,5 +169,50 @@ export async function handleAdminImportQuotes(c: Context<AppEnv>) {
     } catch (e: any) {
         console.error("Failed to import Stripe quotes:", e);
         return errorResponse(`Failed to import quotes: ${e.message}`, 500);
+    }
+}
+
+export async function handleAdminSendQuote(c: Context<AppEnv>) {
+    const { jobId } = c.req.param();
+    const db = c.env.DB;
+    const stripe = getStripe(c.env);
+
+    try {
+        const job = await db.prepare(`SELECT * FROM jobs WHERE id = ?`).bind(jobId).first<Job>();
+        if (!job) return errorResponse("Job not found.", 404);
+
+        if (job.status !== 'quote_draft') {
+            return errorResponse("This job does not have a draft quote.", 400);
+        }
+
+        if (!job.stripe_quote_id) {
+            return errorResponse("This job does not have a quote associated with it.", 400);
+        }
+
+        const customer = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(job.customerId).first<User>();
+        if (!customer) return errorResponse("Customer for this job not found.", 404);
+
+        const finalizedQuote = await stripe.quotes.finalizeQuote(job.stripe_quote_id) as Stripe.Quote;
+
+        await db.prepare(`UPDATE jobs SET status = 'pending_quote' WHERE id = ?`)
+            .bind(jobId)
+            .run();
+
+        await c.env.NOTIFICATION_QUEUE.send({
+          type: 'quote_created',
+          userId: customer.id,
+          data: {
+              quoteId: finalizedQuote.id,
+              quoteUrl: (finalizedQuote as any).hosted_details_url,
+              customerName: customer.name,
+          },
+          channels: ['email']
+        });
+
+        return successResponse({ quoteId: finalizedQuote.id });
+
+    } catch (e: any) {
+        console.error(`Failed to send quote for job ${jobId}:`, e);
+        return errorResponse(`Failed to send quote: ${e.message}`, 500);
     }
 }

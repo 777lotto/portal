@@ -5,6 +5,7 @@ import { apiGet, getServicesForJob, apiPost, apiPostFormData, adminFinalizeJob, 
 import type { Job, Service, Photo, Note } from '@portal/shared';
 import { jwtDecode } from 'jwt-decode';
 import RecurrenceRequestModal from './RecurrenceRequestModal.js';
+import QuoteProposalModal from './QuoteProposalModal.js';
 
 interface UserPayload {
   id: number;
@@ -61,6 +62,7 @@ function JobDetail() {
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<UserPayload | null>(null);
   const [isRecurrenceModalOpen, setIsRecurrenceModalOpen] = useState(false);
+  const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -205,6 +207,39 @@ function JobDetail() {
     }
   };
 
+  const handleDeclineQuote = async () => {
+    if (!job?.stripe_quote_id) return;
+    try {
+        await apiPost(`/api/quotes/${job.stripe_quote_id}/decline`, {});
+        fetchJobDetails();
+        setIsQuoteModalOpen(false);
+    } catch (err: any) {
+        setError(`Failed to decline quote: ${err.message}`);
+    }
+  };
+
+  const handleReviseQuote = async (revisionReason: string) => {
+      if (!job?.stripe_quote_id) return;
+      try {
+          await apiPost(`/api/quotes/${job.stripe_quote_id}/revise`, { revisionReason });
+          fetchJobDetails();
+          setIsQuoteModalOpen(false);
+      } catch (err: any) {
+          setError(`Failed to revise quote: ${err.message}`);
+      }
+  };
+
+  const handleAcceptQuote = async () => {
+      if (!job?.stripe_quote_id) return;
+      try {
+          await apiPost(`/api/quotes/${job.stripe_quote_id}/accept`, {});
+          fetchJobDetails();
+          setIsQuoteModalOpen(false);
+      } catch (err: any) {
+          setError(`Failed to accept quote: ${err.message}`);
+      }
+  };
+
   const statusStyle = (status: string) => {
       switch (status.toLowerCase()) {
         case 'upcoming': return 'bg-yellow-100 text-yellow-800';
@@ -239,6 +274,14 @@ function JobDetail() {
           }}
         />
       )}
+      <QuoteProposalModal
+          isOpen={isQuoteModalOpen}
+          onClose={() => setIsQuoteModalOpen(false)}
+          onConfirm={handleAcceptQuote}
+          onDecline={handleDeclineQuote}
+          onRevise={handleReviseQuote}
+          jobId={jobId!}
+      />
       <div className="max-w-7xl mx-auto space-y-6">
         {error && <div className="alert alert-danger mb-4">{error}</div>}
         {successMessage && <div className="alert alert-success mb-4">{successMessage}</div>}
@@ -258,6 +301,11 @@ function JobDetail() {
               <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">{new Date(job.start).toLocaleString()}</p>
             </div>
             <div className="flex items-center gap-2">
+                {job.status === 'pending_quote' && (
+                    <button className="btn btn-primary" onClick={() => setIsQuoteModalOpen(true)}>
+                        Respond to Quote
+                    </button>
+                )}
                 {user?.role === 'customer' && (
                     <button className="btn btn-primary" onClick={() => setIsRecurrenceModalOpen(true)}>
                         {hasRecurrence ? 'Alter Recurrence' : 'Request Recurrence'}

@@ -48,7 +48,11 @@ export const JobStatusEnum = z.enum([
   'pending_confirmation',
   'pending_quote',
   'quote_accepted',
-  'paid'
+  'paid',
+  'quote_draft',
+  'invoice_draft',
+  'quote_declined',
+  'quote_revised'
 ]);
 export type JobStatus = z.infer<typeof JobStatusEnum>;
 
