@@ -345,17 +345,16 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
     let status = 'upcoming'; // Default status
     switch (jobType) {
       case 'quote':
-        if (action === 'draft') status = 'draft_quote';
-        if (action === 'send_proposal') status = 'proposal_sent';
+        if (action === 'draft') status = 'quote_draft';
+        if (action === 'send_proposal') status = 'pending_quote';
         if (action === 'send_finalized') status = 'finalized_quote';
         break;
       case 'job':
-        if (action === 'draft') status = 'draft_job';
         if (action === 'post') status = 'upcoming';
         break;
       case 'invoice':
-        if (action === 'draft') status = 'draft_invoice';
-        if (action === 'send_invoice') status = 'sent_invoice';
+        if (action === 'draft') status = 'invoice_draft';
+        if (action === 'send_invoice') status = 'payment_pending';
         break;
     }
 
