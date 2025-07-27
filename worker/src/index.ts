@@ -56,7 +56,7 @@ import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUs
 import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleAdminAddNoteForUser } from './handlers/notes.js';
 import { handleAdminImportQuotes, handleAdminSendQuote } from './handlers/admin/quotes.js';
-import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminImportInvoicesForUser, handleAdminGetAllOpenInvoices, handleAdminMarkInvoiceAsPaid } from './handlers/admin/invoices.js';
+import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminGetAllOpenInvoices, handleAdminMarkInvoiceAsPaid } from './handlers/admin/invoices.js';
 import { handleGetJobsAndQuotes, handleAdminCreateJob } from './handlers/admin/jobs.js'; // CORRECTED IMPORT
 import { handleGetDrafts } from './handlers/admin/drafts.js';
 
@@ -190,7 +190,7 @@ adminApi.put('/jobs/:jobId/services/:serviceId', handleAdminUpdateServiceInJob);
 adminApi.delete('/jobs/:jobId/services/:serviceId', handleAdminDeleteServiceFromJob);
 adminApi.get('/services', handleGetAllServices);
 adminApi.post('/invoices/import', handleAdminImportInvoices);
-adminApi.post('/users/:userId/invoices/import', handleAdminImportInvoicesForUser);
+adminApi.post('/users/:userId/invoices/import', handleAdminImportInvoices);
 adminApi.get('/invoices/open', handleAdminGetAllOpenInvoices);
 adminApi.get('/invoices/:invoiceId', handleAdminGetInvoice);
 adminApi.post('/invoices/:invoiceId/items', handleAdminAddInvoiceItem);
