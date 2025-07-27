@@ -62,7 +62,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
     setLineItems(newLineItems);
   };
 
-  const handleSubmit = async (action: 'draft' | 'send_proposal' | 'send_finalized' | 'send_invoice' | 'post') => {
+  const handleSubmit = async (action: 'draft' | 'send_proposal' | 'send_invoice' | 'post') => {
     setError(null);
     if (!selectedUserId || !title || lineItems.some(item => !item.notes)) {
       setError("Please select a customer, enter a title, and provide a description for all line items.");
@@ -70,29 +70,23 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
     }
     setIsSubmitting(true);
     try {
-      const payload = {
+      // Use the new, unified adminCreateJob function
+      await adminCreateJob({
+        customerId: selectedUserId,
+        jobType, // This comes from the component's props
         title,
         start: selectedDate.toISOString(),
         services: lineItems.map(item => ({
             notes: item.notes || '',
             price_cents: item.price_cents || 0
         })),
-        days_until_expiry: daysUntilExpiry,
-        jobType,
-        action,
-      };
-      await adminCreateJobForUser(selectedUserId, payload);
+        isDraft: action === 'draft',
+        action: action, // Pass the action for the backend to use
+      });
       onSave();
       onClose();
-      if (jobType === 'quote' && action === 'send_proposal') {
-        navigate('/dashboard');
-      }
     } catch (err: any) {
-      if (err.message && err.message.includes('D1_ERROR')) {
-          setError('Failed to create job: The database operation timed out. Please try again.');
-      } else {
-          setError(err.message || 'An unknown error occurred.');
-      }
+      setError(err.message || 'An unknown error occurred.');
     } finally {
       setIsSubmitting(false);
     }

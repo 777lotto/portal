@@ -376,10 +376,9 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
 
     const serviceInserts = services.map((service: { notes: string, price_cents: number }) => {
       return c.env.DB.prepare(
-        `INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents)
-         VALUES (?, ?, ?, 'pending', ?, ?)`
+        `INSERT INTO services (job_id, service_date, status, notes, price_cents)
+         VALUES (?, ?, 'pending', ?, ?)`
       ).bind(
-        parseInt(userId, 10),
         newJob.id,
         newJob.start,
         service.notes,

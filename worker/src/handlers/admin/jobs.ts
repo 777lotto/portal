@@ -2,22 +2,15 @@
 import { Context } from 'hono';
 import { AppEnv } from '../../index.js';
 import { errorResponse, successResponse } from '../../utils.js';
-import type { Job, Service, User } from '@portal/shared';
-import { getStripe } from '../../stripe.js';
+import type { Job, Service, User, JobStatus, JobWithDetails } from '@portal/shared';
+import { getStripe, createStripeCustomer, createDraftStripeInvoice } from '../../stripe.js';
+import { createJob } from '../../calendar.js';
 import Stripe from 'stripe';
-import { v4 as uuidv4 } from 'uuid';
 
-// Define the shape of our combined data
-interface JobWithDetails extends Job {
-  customerName: string;
-  customerAddress: string;
-  services: Service[];
-}
-
+// This function remains as it was, used for fetching and displaying data.
 export const handleGetJobsAndQuotes = async (c: Context<AppEnv>) => {
   const db = c.env.DB;
   try {
-    // 1. Fetch all jobs with customer info
     const { results: jobs } = await db.prepare(
       `SELECT
          j.*,
@@ -32,7 +25,6 @@ export const handleGetJobsAndQuotes = async (c: Context<AppEnv>) => {
       return successResponse([]);
     }
 
-    // 2. Fetch all services and map them by job_id for efficient lookup
     const { results: services } = await db.prepare(`SELECT * FROM services`).all<Service>();
     const servicesByJobId = new Map<string, Service[]>();
     if (services) {
@@ -46,7 +38,6 @@ export const handleGetJobsAndQuotes = async (c: Context<AppEnv>) => {
       }
     }
 
-    // 3. Combine jobs with their services
     const jobsWithDetails: JobWithDetails[] = jobs.map(job => ({
       ...job,
       services: servicesByJobId.get(job.id) || []
@@ -59,175 +50,104 @@ export const handleGetJobsAndQuotes = async (c: Context<AppEnv>) => {
   }
 };
 
+
+// REVISED AND CONSOLIDATED FUNCTION
 export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
-    const { customerId, title, services, start, isDraft } = await c.req.json();
+    const { customerId, title, services, start, isDraft, jobType } = await c.req.json();
     const db = c.env.DB;
     const stripe = getStripe(c.env);
+
+    if (!customerId || !title || !start || !services) {
+        return errorResponse("Missing required fields: customerId, title, start, services.", 400);
+    }
 
     try {
         const user = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(customerId).first<User>();
         if (!user) return errorResponse("User not found.", 404);
-        if (!user.stripe_customer_id) return errorResponse("This user does not have a Stripe customer ID.", 400);
 
-        const newJobId = uuidv4();
-        const totalAmountCents = services.reduce((acc: number, item: any) => acc + (item.price_cents || 0), 0);
-
+        let status: JobStatus;
         if (isDraft) {
-            await db.prepare(
-                `INSERT INTO jobs (id, customerId, title, description, start, end, status, recurrence, total_amount_cents, createdAt, updatedAt)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-            ).bind(
-                newJobId,
-                user.id.toString(),
-                title,
-                `Draft created by admin`,
-                start,
-                start,
-                'invoice_draft',
-                'none',
-                totalAmountCents,
-                new Date().toISOString(),
-                new Date().toISOString()
-            ).run();
+            status = jobType === 'quote' ? 'quote_draft' : 'invoice_draft';
         } else {
-            const draftInvoice = await stripe.invoices.create({
-                customer: user.stripe_customer_id,
-                collection_method: 'send_invoice',
-                description: `Invoice for: ${title}`,
-                auto_advance: false,
-            });
-            if (!draftInvoice.id) {
-                return errorResponse("Failed to create a draft invoice.", 500);
+             switch (jobType) {
+                case 'quote': status = 'pending'; break;
+                case 'invoice': status = 'payment_needed'; break;
+                default: status = 'upcoming';
             }
-
-            for (const item of services) {
-                await stripe.invoiceItems.create({
-                    customer: user.stripe_customer_id,
-                    invoice: draftInvoice.id,
-                    description: item.notes || 'Service',
-                    amount: item.price_cents || 0,
-                    currency: 'usd',
-                });
-            }
-
-            const finalInvoice = await stripe.invoices.finalizeInvoice(draftInvoice.id);
-            if (!finalInvoice?.id) {
-                throw new Error('Failed to finalize invoice: No ID returned from Stripe.');
-            }
-            const sentInvoice = await stripe.invoices.sendInvoice(finalInvoice.id);
-
-            await db.prepare(
-                `INSERT INTO jobs (id, customerId, title, description, start, end, status, recurrence, total_amount_cents, stripe_invoice_id, invoice_created_at, createdAt, updatedAt)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-            ).bind(
-                newJobId,
-                user.id.toString(),
-                title,
-                `Invoice created by admin`,
-                start,
-                start,
-                'payment_pending',
-                'none',
-                totalAmountCents,
-                sentInvoice.id,
-                new Date().toISOString(),
-                new Date().toISOString(),
-                new Date().toISOString()
-            ).run();
-
-            await c.env.NOTIFICATION_QUEUE.send({
-                type: 'invoice_created',
-                userId: user.id,
-                data: {
-                    invoiceId: sentInvoice.id,
-                    amount: sentInvoice.amount_due,
-                    dueDate: sentInvoice.due_date ? new Date(sentInvoice.due_date * 1000).toISOString() : new Date().toISOString(),
-                    invoiceUrl: sentInvoice.hosted_invoice_url,
-                },
-            });
         }
 
-        const serviceInserts = services.map((item: any) =>
-            db.prepare(`INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents) VALUES (?, ?, ?, ?, ?, ?)`)
-              .bind(user.id, newJobId, start, 'completed', item.notes, item.price_cents)
-        );
-        await db.batch(serviceInserts);
-
-        return successResponse({ message: `Job successfully ${isDraft ? 'saved as draft' : 'created and sent'}.`, jobId: newJobId });
-    } catch (e: any) {
-        console.error(`Failed to create job for user ${customerId}:`, e);
-        return errorResponse(`Failed to create job: ${e.message}`, 500);
-    }
-}
-
-export const handleAdminCreateQuote = async (c: Context<AppEnv>) => {
-    const { customerId, title, services, start } = await c.req.json();
-    const db = c.env.DB;
-    const stripe = getStripe(c.env);
-     try {
-        const user = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(customerId).first<User>();
-        if (!user) return errorResponse("User not found.", 404);
-        if (!user.stripe_customer_id) return errorResponse("This user does not have a Stripe customer ID.", 400);
-
-        const newJobId = uuidv4();
-        const totalAmountCents = services.reduce((acc: number, item: any) => acc + (item.price_cents || 0), 0);
-
-        const quote = await stripe.quotes.create({
-            customer: user.stripe_customer_id,
-            description: title,
-            line_items: services.map((item: any) => ({
-                price_data: {
-                    currency: 'usd',
-                    unit_amount: item.price_cents || 0,
-                    product_data: {
-                        name: item.notes || 'Unnamed Service',
-                    },
-                },
-                quantity: 1,
-            })),
-        });
-
-        await db.prepare(
-            `INSERT INTO jobs (id, customerId, title, description, start, end, status, recurrence, total_amount_cents, stripe_quote_id, createdAt, updatedAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        ).bind(
-            newJobId,
-            user.id.toString(),
+        const jobData = {
             title,
-            `Quote created by admin`,
+            description: `Created via admin panel on ${new Date().toLocaleDateString()}`,
             start,
-            start,
-            'pending_quote',
-            'none',
-            totalAmountCents,
-            quote.id,
-            new Date().toISOString(),
-            new Date().toISOString()
-        ).run();
+            end: new Date(new Date(start).getTime() + 60 * 60 * 1000).toISOString(),
+            status,
+            recurrence: 'none'
+        };
+        const newJob = await createJob(c.env, jobData, customerId);
 
-        const serviceInserts = services.map((item: any) =>
-            db.prepare(`INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents) VALUES (?, ?, ?, ?, ?, ?)`)
-              .bind(user.id, newJobId, start, 'pending', item.notes, item.price_cents)
+        const serviceInserts = services.map((service: any) =>
+            db.prepare(`INSERT INTO services (job_id, service_date, status, notes, price_cents) VALUES (?, ?, ?, ?, ?)`)
+              .bind(newJob.id, start, 'pending', service.notes, service.price_cents)
         );
         await db.batch(serviceInserts);
 
-        const finalizedQuote = await stripe.quotes.finalizeQuote(quote.id) as Stripe.Quote;
+        let stripeObject = null;
 
-        await c.env.NOTIFICATION_QUEUE.send({
-            type: 'quote_created',
-            userId: user.id,
-            data: {
-                quoteId: finalizedQuote.id,
-                quoteUrl: (finalizedQuote as any).hosted_details_url,
-                customerName: user.name,
-            },
-        });
+        if (!isDraft) {
+            if (!user.stripe_customer_id) {
+                const stripeCustomer = await createStripeCustomer(stripe, user);
+                await db.prepare(`UPDATE users SET stripe_customer_id = ? WHERE id = ?`).bind(stripeCustomer.id, user.id).run();
+                user.stripe_customer_id = stripeCustomer.id;
+            }
 
+            if (jobType === 'invoice') {
+                const draftInvoice = await createDraftStripeInvoice(stripe, user.stripe_customer_id);
+                if (!draftInvoice || !draftInvoice.id) {
+                    return errorResponse("Failed to create a valid draft invoice in Stripe.", 500);
+                }
 
-        return successResponse({ quoteId: quote.id, jobId: newJobId });
+                for (const service of services) {
+                    await stripe.invoiceItems.create({
+                        customer: user.stripe_customer_id,
+                        invoice: draftInvoice.id,
+                        description: service.notes,
+                        amount: service.price_cents,
+                        currency: 'usd',
+                    });
+                }
+                const finalInvoice = await stripe.invoices.sendInvoice(draftInvoice.id);
+                await db.prepare(`UPDATE jobs SET stripe_invoice_id = ? WHERE id = ?`).bind(finalInvoice.id, newJob.id).run();
+                stripeObject = finalInvoice;
+
+            } else if (jobType === 'quote') {
+                const quote = await stripe.quotes.create({
+                    customer: user.stripe_customer_id,
+                    description: title,
+                    line_items: services.map((item: any) => ({
+                        price_data: { currency: 'usd', unit_amount: item.price_cents || 0, product_data: { name: item.notes || 'Unnamed Service' } },
+                        quantity: 1,
+                    })),
+                });
+                const finalizedQuote = await stripe.quotes.finalizeQuote(quote.id) as Stripe.Quote;
+                await db.prepare(`UPDATE jobs SET stripe_quote_id = ? WHERE id = ?`).bind(finalizedQuote.id, newJob.id).run();
+                 await c.env.NOTIFICATION_QUEUE.send({
+                    type: 'quote_created',
+                    userId: user.id,
+                    data: { quoteUrl: (finalizedQuote as any).hosted_details_url, customerName: user.name, },
+                });
+                stripeObject = finalizedQuote;
+            }
+        }
+
+        return successResponse({
+            message: `${jobType} successfully created.`,
+            job: newJob,
+            ...(stripeObject && { [jobType]: stripeObject })
+        }, 201);
 
     } catch (e: any) {
-        console.error(`Failed to create quote for user ${customerId}:`, e);
-        return errorResponse(`Failed to create quote: ${e.message}`, 500);
+        console.error(`Failed to create ${jobType} for user ${customerId}:`, e);
+        return errorResponse(`Failed to create ${jobType}: ${e.message}`, 500);
     }
-}
+};

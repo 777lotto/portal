@@ -52,12 +52,12 @@ import { handleRequestRecurrence, handleGetRecurrenceRequests, handleUpdateRecur
 
 
 // --- Admin Handlers ---
-import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleAdminCreateInvoice, handleGetAllJobs, handleGetAllServices, handleAdminCreateJobForUser, handleAdminCreateUser, handleAdminUpdateUser } from './handlers/admin/users.js';
+import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleGetAllJobs, handleGetAllServices, handleAdminCreateUser, handleAdminUpdateUser } from './handlers/admin/users.js';
 import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleAdminAddNoteForUser } from './handlers/notes.js';
-import { handleAdminCreateQuote, handleAdminImportQuotes, handleAdminSendQuote } from './handlers/admin/quotes.js';
+import { handleAdminImportQuotes, handleAdminSendQuote } from './handlers/admin/quotes.js';
 import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminImportInvoicesForUser, handleAdminGetAllOpenInvoices, handleAdminMarkInvoiceAsPaid } from './handlers/admin/invoices.js';
-import { handleGetJobsAndQuotes, handleAdminCreateJob, handleAdminCreateQuote as handleAdminCreateQuoteFromJobs } from './handlers/admin/jobs.js';
+import { handleGetJobsAndQuotes, handleAdminCreateJob } from './handlers/admin/jobs.js'; // CORRECTED IMPORT
 import { handleGetDrafts } from './handlers/admin/drafts.js';
 
 
@@ -172,7 +172,6 @@ customerApi.post('/quotes/:quoteId/revise', handleReviseQuote);
 adminApi.get('/users', handleGetAllUsers);
 adminApi.post('/users', handleAdminCreateUser);
 adminApi.put('/users/:userId', handleAdminUpdateUser);
-adminApi.post('/jobs/:jobId/quote', handleAdminCreateQuote);
 adminApi.post('/jobs/:jobId/quote/send', handleAdminSendQuote);
 adminApi.post('/quotes/import', handleAdminImportQuotes);
 adminApi.get('/users/:userId/jobs', handleAdminGetJobsForUser);
@@ -180,7 +179,6 @@ adminApi.get('/users/:userId/photos', handleAdminGetPhotosForUser);
 adminApi.post('/users/:userId/photos', handleAdminUploadPhotoForUser);
 adminApi.post('/users/:userId/notes', handleAdminAddNoteForUser);
 adminApi.delete('/users/:userId', handleAdminDeleteUser);
-adminApi.post('/users/:userId/invoice', handleAdminCreateInvoice);
 adminApi.get('/blocked-dates', handleGetBlockedDates);
 adminApi.post('/blocked-dates', handleAddBlockedDate);
 adminApi.delete('/blocked-dates/:date', handleRemoveBlockedDate);
@@ -191,7 +189,6 @@ adminApi.post('/jobs/:jobId/services', handleAdminAddServiceToJob);
 adminApi.put('/jobs/:jobId/services/:serviceId', handleAdminUpdateServiceInJob);
 adminApi.delete('/jobs/:jobId/services/:serviceId', handleAdminDeleteServiceFromJob);
 adminApi.get('/services', handleGetAllServices);
-adminApi.post('/users/:userId/jobs', handleAdminCreateJobForUser);
 adminApi.post('/invoices/import', handleAdminImportInvoices);
 adminApi.post('/users/:userId/invoices/import', handleAdminImportInvoicesForUser);
 adminApi.get('/invoices/open', handleAdminGetAllOpenInvoices);
@@ -203,11 +200,12 @@ adminApi.post('/invoices/:invoiceId/mark-as-paid', handleAdminMarkInvoiceAsPaid)
 adminApi.post('/import-contacts', handleAdminImportSelectedContacts);
 adminApi.post('/get-imported-contacts', handleGetImportedContacts);
 adminApi.get('/jobs-and-quotes', handleGetJobsAndQuotes);
-adminApi.post('/jobs/job', handleAdminCreateJob);
-adminApi.post('/jobs/quote', handleAdminCreateQuoteFromJobs);
 adminApi.get('/recurrence-requests', handleGetRecurrenceRequests);
 adminApi.put('/recurrence-requests/:requestId', handleUpdateRecurrenceRequest);
 adminApi.get('/drafts', handleGetDrafts);
+
+// CORRECTED: A single route for creating jobs, quotes, and invoices
+adminApi.post('/jobs', handleAdminCreateJob);
 
 
 /* ========================================================================

@@ -1,6 +1,6 @@
 // frontend/src/components/admin/NewAddJobModal.tsx
 import { useState, useEffect } from 'react';
-import { apiGet, adminCreateJobForUser, adminCreateQuote, adminCreateJob } from '../../lib/api';
+import { apiGet, adminCreateJob } from '../../lib/api';
 import type { User, Service } from '@portal/shared';
 import { format } from 'date-fns';
 
@@ -19,12 +19,16 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // NEW: State to manage what is being created
+  const [creationType, setCreationType] = useState<'job' | 'quote' | 'invoice'>('job');
+
   useEffect(() => {
     if (isOpen) {
       setTitle('');
       setSelectedUserId('');
       setLineItems([{ notes: '', price_cents: 0 }]);
       setError(null);
+      setCreationType('job'); // Reset to default on open
       const fetchUsers = async () => {
         try {
           const allUsers = await apiGet<User[]>('/api/admin/users');
@@ -57,29 +61,27 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
     setLineItems(newLineItems);
   };
 
-  const getJobPayload = () => {
+  // NEW: Consolidated submit handler
+  const handleSubmit = async (isDraft: boolean) => {
+    setError(null);
     if (!selectedUserId || !title || lineItems.some(item => !item.notes)) {
       setError("Please select a customer, enter a title, and provide a description for all line items.");
-      return null;
+      return;
     }
-    return {
-      title,
-      start: selectedDate ? selectedDate.toISOString() : new Date().toISOString(),
-      services: lineItems.map(item => ({
-          notes: item.notes || '',
-          price_cents: item.price_cents || 0
-      }))
-    };
-  }
-
-  const handleSaveJob = async () => {
-    setError(null);
-    const payload = getJobPayload();
-    if (!payload) return;
 
     setIsSubmitting(true);
     try {
-      await adminCreateJobForUser(selectedUserId, payload);
+      await adminCreateJob({
+        customerId: selectedUserId,
+        jobType: creationType,
+        title,
+        start: selectedDate ? selectedDate.toISOString() : new Date().toISOString(),
+        services: lineItems.map(item => ({
+            notes: item.notes || '',
+            price_cents: item.price_cents || 0
+        })),
+        isDraft: isDraft,
+      });
       onSave();
       onClose();
     } catch (err: any) {
@@ -89,57 +91,6 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
     }
   };
 
-  const handleMakeQuote = async () => {
-    setError(null);
-    const payload = getJobPayload();
-    if (!payload) return;
-
-    setIsSubmitting(true);
-    try {
-      await adminCreateQuote({ ...payload, customerId: selectedUserId });
-      onSave();
-      onClose();
-    } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  const handleMakeInvoice = async () => {
-    setError(null);
-    const payload = getJobPayload();
-    if (!payload) return;
-
-    setIsSubmitting(true);
-    try {
-      await adminCreateJob({ ...payload, customerId: selectedUserId });
-      onSave();
-      onClose();
-    } catch (err: any)
-     {
-      setError(err.message || 'An unknown error occurred.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  const handleSaveAsDraft = async () => {
-    setError(null);
-    const payload = getJobPayload();
-    if (!payload) return;
-
-    setIsSubmitting(true);
-    try {
-      await adminCreateJob({ ...payload, customerId: selectedUserId }, true);
-      onSave();
-      onClose();
-    } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   if (!isOpen) return null;
 
@@ -153,19 +104,30 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
 
         <div className="flex-grow overflow-y-auto pr-2">
             {error && <div className="alert alert-danger">{error}</div>}
+
+            {/* NEW: Radio buttons to select creation type */}
+            <div className="mb-4">
+              <label className="form-label font-semibold">Creation Type</label>
+              <div className="flex items-center space-x-4">
+                <label><input type="radio" name="creationType" value="job" checked={creationType === 'job'} onChange={() => setCreationType('job')} className="mr-1" /> Job</label>
+                <label><input type="radio" name="creationType" value="quote" checked={creationType === 'quote'} onChange={() => setCreationType('quote')} className="mr-1" /> Quote</label>
+                <label><input type="radio" name="creationType" value="invoice" checked={creationType === 'invoice'} onChange={() => setCreationType('invoice')} className="mr-1" /> Invoice</label>
+              </div>
+            </div>
+
             <div className="mb-3">
               <label htmlFor="user" className="form-label">Customer</label>
               <select id="user" className="form-control" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)}>
                 <option value="">Select a user</option>
                 {users.map(user => (
-                  <option key={user.id} value={user.id}>
+                  <option key={user.id} value={user.id.toString()}>
                     {user.name || user.company_name} ({user.email || user.phone})
                   </option>
                 ))}
               </select>
             </div>
             <div className="mb-3">
-              <label htmlFor="title" className="form-label">Job Title</label>
+              <label htmlFor="title" className="form-label">Title</label>
               <input type="text" id="title" className="form-control" value={title} onChange={(e) => setTitle(e.target.value)} />
             </div>
             <hr className="my-3 border-border-light dark:border-border-dark" />
@@ -188,17 +150,13 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
 
         <div className="pt-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn-primary" onClick={handleSaveJob} disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : 'Save Job'}
-          </button>
-          <button type="button" className="btn btn-primary" onClick={handleSaveAsDraft} disabled={isSubmitting}>
+
+          {/* NEW: Simplified action buttons */}
+          <button type="button" className="btn btn-info" onClick={() => handleSubmit(true)} disabled={isSubmitting}>
             {isSubmitting ? 'Saving...' : 'Save as Draft'}
           </button>
-          <button type="button" className="btn btn-primary" onClick={handleMakeQuote} disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : 'Make Quote'}
-          </button>
-          <button type="button" className="btn btn-primary" onClick={handleMakeInvoice} disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : 'Make Invoice'}
+          <button type="button" className="btn btn-primary" onClick={() => handleSubmit(false)} disabled={isSubmitting}>
+            {isSubmitting ? 'Sending...' : `Create & Send ${creationType}`}
           </button>
         </div>
       </div>

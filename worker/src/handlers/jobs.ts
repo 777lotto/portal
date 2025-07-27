@@ -262,9 +262,9 @@ export const handleAdminAddServiceToJob = async (c: HonoContext<WorkerAppEnv>) =
         if (!job) return errorResponse("Job not found.", 404);
 
         const { results } = await c.env.DB.prepare(
-            `INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents)
-             VALUES (?, ?, ?, ?, ?, ?) RETURNING *`
-        ).bind(job.customerId, jobId, job.start, 'pending', body.notes, body.price_cents).all<Service>();
+            `INSERT INTO services (job_id, service_date, status, notes, price_cents)
+             VALUES (?, ?, ?, ?, ?) RETURNING *`
+        ).bind(jobId, job.start, 'pending', body.notes, body.price_cents).all<Service>();
 
         return successResponse(results[0], 201);
     } catch (e: any) {
