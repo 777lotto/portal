@@ -194,7 +194,7 @@ export async function handleAdminSendQuote(c: Context<AppEnv>) {
 
         const finalizedQuote = await stripe.quotes.finalizeQuote(job.stripe_quote_id) as Stripe.Quote;
 
-        await db.prepare(`UPDATE jobs SET status = 'pending_quote' WHERE id = ?`)
+        await db.prepare(`UPDATE jobs SET status = 'pending' WHERE id = ?`)
             .bind(jobId)
             .run();
 

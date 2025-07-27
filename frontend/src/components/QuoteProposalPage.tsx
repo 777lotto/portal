@@ -71,7 +71,7 @@ function QuoteProposalPage() {
 
     const total = quote.services.reduce((acc, service) => acc + (service.price_cents || 0), 0);
 
-    const isActionable = quote.status === 'pending_quote';
+    const isActionable = quote.status === 'pending';
 
     return (
         <div className="max-w-4xl mx-auto bg-white dark:bg-tertiary-dark shadow-lg rounded-lg p-8">

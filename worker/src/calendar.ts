@@ -190,16 +190,16 @@ export async function generateCalendarFeed(env: Env, feedOwnerId: string): Promi
     const formatDate = (date: Date) => date.toISOString().replace(/[-:]/g, '').replace(/\.\d+/g, '');
 
     const eventId = job.id.replace(/-/g, '');
-    let description = `Status: ${job.status}\\n\\n`;
+    let description = `Status: ${job.status}\n\n`;
     let eventUrl = '';
 
     // Create role-specific content
     if (feedOwner.role === 'admin') {
-        description += `Customer: ${customer.name} (${customer.email})\\n`;
+        description += `Customer: ${customer.name} (${customer.email})\n`;
         description += `View User Profile: ${portalBaseUrl}/admin/users/${customer.id}`;
         eventUrl = `${portalBaseUrl}/admin/users/${customer.id}`;
     } else { // Customer view
-        description += `Service Details: ${job.description || job.title}\\n`;
+        description += `Service Details: ${job.description || job.title}\n`;
         description += `View Job in Portal: ${portalBaseUrl}/jobs/${job.id}`;
         eventUrl = `${portalBaseUrl}/jobs/${job.id}`;
     }

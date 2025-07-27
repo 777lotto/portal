@@ -120,3 +120,27 @@ export async function createSetupIntent(stripe: Stripe, customerId: string): Pro
     });
 }
 // ADDED_END
+
+export async function createStripeQuote(stripe: Stripe, customerId: string, services: Service[]): Promise<Stripe.Quote> {
+    console.log(`Creating new Stripe quote for customer: ${customerId}`);
+
+    const line_items = services.map(service => ({
+        price_data: {
+            currency: 'usd',
+            product_data: {
+                name: service.notes || 'General Service',
+            },
+            unit_amount: service.price_cents || 0,
+        },
+        quantity: 1,
+    }));
+
+    const quote = await stripe.quotes.create({
+        customer: customerId,
+        collection_method: 'send_invoice',
+        line_items: line_items as any,
+    });
+
+    return quote;
+}
+
