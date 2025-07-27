@@ -1,5 +1,6 @@
 // frontend/src/components/admin/AddJobModal.tsx
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiGet, adminCreateJobForUser } from '../../lib/api';
 import type { User, Service } from '@portal/shared';
 import { format } from 'date-fns';
@@ -13,6 +14,7 @@ interface Props {
 }
 
 function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [lineItems, setLineItems] = useState<Partial<Service>[]>([{ notes: '', price_cents: 0 }]);
@@ -82,6 +84,9 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
       await adminCreateJobForUser(selectedUserId, payload);
       onSave();
       onClose();
+      if (jobType === 'quote' && action === 'send_proposal') {
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       if (err.message && err.message.includes('D1_ERROR')) {
           setError('Failed to create job: The database operation timed out. Please try again.');

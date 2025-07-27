@@ -32,7 +32,7 @@ import { handleInitializeSignup, handleLogin, handleRequestPasswordReset, handle
 import { handleStripeWebhook } from './handlers/stripe.js';
 import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed, handleAcceptQuote } from './handlers/public.js';
 import { handleGetCustomerAvailability } from './handlers/availability.js';
-import { getPendingQuotes, handleDeclineQuote, handleReviseQuote } from './handlers/quotes.js';
+import { getPendingQuotes, handleDeclineQuote, handleReviseQuote, getQuoteById } from './handlers/quotes.js';
 
 // --- Customer Handlers ---
 import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent, handleGetNotifications, handleMarkAllNotificationsRead } from './handlers/profile.js';
@@ -164,6 +164,7 @@ customerApi.post('/jobs/:jobId/request-recurrence', handleRequestRecurrence);
 customerApi.all('/sms/*', handleSmsProxy);
 customerApi.all('/notifications/*', handleNotificationProxy);
 customerApi.get('/quotes/pending', getPendingQuotes);
+customerApi.get('/quotes/:quoteId', getQuoteById);
 customerApi.post('/quotes/:quoteId/decline', handleDeclineQuote);
 customerApi.post('/quotes/:quoteId/revise', handleReviseQuote);
 

@@ -39,22 +39,15 @@ export type Service = z.infer<typeof ServiceSchema>;
 
 // Define the new, stricter set of statuses for a Job
 export const JobStatusEnum = z.enum([
+  'pending',
   'upcoming',
-  'confirmed',
-  'completed',
-  'payment_pending',
-  'past_due',
-  'cancelled',
-  'pending_confirmation',
-  'pending_quote',
-  'quote_accepted',
-  'paid',
+  'payment_needed',
+  'payment_overdue',
+  'complete',
+  'canceled',
   'quote_draft',
   'invoice_draft',
-  'quote_declined',
-  'quote_revised',
-  'quote_expired',
-  'finalized_quote'
+  'job_draft'
 ]);
 export type JobStatus = z.infer<typeof JobStatusEnum>;
 

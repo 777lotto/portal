@@ -66,7 +66,7 @@ function Dashboard() {
             adminGetAllOpenInvoices(),
             adminGetDrafts(),
           ]);
-          setUpcomingJobs(jobsData.slice(0, 10));
+          setUpcomingJobs(jobsData.filter(j => j.status !== 'pending' && j.status !== 'draft').slice(0, 10));
           setOpenInvoices(invoicesData);
           setDrafts(draftsData);
         } else {
@@ -74,7 +74,7 @@ function Dashboard() {
             getJobs(),
             getOpenInvoices(),
           ]);
-          setUpcomingJobs(jobsData.slice(0, 5));
+          setUpcomingJobs(jobsData.filter(j => j.status !== 'pending' && j.status !== 'draft').slice(0, 5));
           setOpenInvoices(invoicesData);
         }
 
@@ -125,7 +125,7 @@ function Dashboard() {
             <div className="space-y-3">
                 {pendingQuotes.length > 0 ? (
                     pendingQuotes.map(quote => (
-                        <Link key={quote.id} to={`/jobs/${quote.id}`} className="block p-3 rounded-md transition text-text-secondary-light dark:text-text-secondary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark">
+                        <Link key={quote.id} to={`/quotes/${quote.id}`} className="block p-3 rounded-md transition text-text-secondary-light dark:text-text-secondary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark">
                             {user?.role === 'admin' && `${(quote as any).customerName} - `}
                             {quote.title} - {quote.status === 'pending_quote' ? 'Awaiting your approval' : 'Pending admin review'}
                         </Link>

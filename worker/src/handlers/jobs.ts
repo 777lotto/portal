@@ -89,11 +89,11 @@ export const handleGetJobs = async (c: HonoContext<WorkerAppEnv>) => {
 
         if (user.role === 'admin') {
             dbResponse = await c.env.DB.prepare(
-                `SELECT * FROM jobs WHERE start >= ? ORDER BY start ASC`
+                `SELECT * FROM jobs WHERE status = 'upcoming' AND start >= ? ORDER BY start ASC`
             ).bind(now).all<Job>();
         } else {
             dbResponse = await c.env.DB.prepare(
-                `SELECT * FROM jobs WHERE customerId = ? AND start >= ? ORDER BY start ASC`
+                `SELECT * FROM jobs WHERE customerId = ? AND status = 'upcoming' AND start >= ? ORDER BY start ASC`
             ).bind(user.id.toString(), now).all<Job>();
         }
 
@@ -346,7 +346,7 @@ export const handleAdminCompleteJob = async (c: HonoContext<WorkerAppEnv>) => {
 
         await stripe.invoices.sendInvoice(finalInvoice.id);
 
-        await db.prepare(`UPDATE jobs SET status = 'completed', stripe_invoice_id = ? WHERE id = ?`)
+        await db.prepare(`UPDATE jobs SET status = 'payment_needed', stripe_invoice_id = ? WHERE id = ?`)
             .bind(finalInvoice.id, jobId)
             .run();
 

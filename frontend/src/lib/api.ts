@@ -131,6 +131,10 @@ export const getOpenInvoices = () => apiGet<StripeInvoice[]>('/api/invoices/open
 export const requestRecurrence = (jobId: string, data: { frequency: number, requested_day?: number }) => apiPost(`/api/jobs/${jobId}/request-recurrence`, data);
 export const getUnavailableRecurrenceDays = () => apiGet<{ unavailableDays: number[] }>('/api/jobs/unavailable-recurrence-days');
 export const getPendingQuotes = () => apiGet<Job[]>('/api/quotes/pending');
+export const getQuote = (quoteId: string) => apiGet<Job>(`/api/quotes/${quoteId}`);
+export const acceptQuote = (quoteId: string) => apiPost(`/api/quotes/${quoteId}/accept`, {});
+export const declineQuote = (quoteId: string) => apiPost(`/api/quotes/${quoteId}/decline`, {});
+export const reviseQuote = (quoteId: string, revisionReason: string) => apiPost(`/api/quotes/${quoteId}/revise`, { revisionReason });
 
 /* ========================================================================
                                   ADMIN API

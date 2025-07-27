@@ -10,25 +10,59 @@ export async function getPendingQuotes(c: Context<AppEnv>) {
     let jobs;
     if (user.role === 'admin') {
         jobs = await env.DB.prepare(
-            `SELECT j.*, u.name as customerName FROM jobs j JOIN users u ON j.customerId = u.id WHERE j.status IN ('pending_quote', 'pending_confirmation')`
+            `SELECT j.*, u.name as customerName FROM jobs j JOIN users u ON j.customerId = u.id WHERE j.status = 'pending'`
         ).all();
     } else {
         jobs = await env.DB.prepare(
-            `SELECT * FROM jobs WHERE customerId = ? AND status IN ('pending_quote', 'pending_confirmation')`
+            `SELECT * FROM jobs WHERE customerId = ? AND status = 'pending'`
         ).bind(user.id).all();
     }
 
     return c.json(jobs.results);
 }
 
+export async function getQuoteById(c: Context<AppEnv>) {
+    const { quoteId } = c.req.param();
+    const user = c.get('user');
+    const env = c.env;
+
+    let job;
+    if (user.role === 'admin') {
+        // Admins can view any job/quote regardless of status
+        job = await env.DB.prepare(
+            `SELECT j.*, u.name as customerName FROM jobs j JOIN users u ON j.customerId = u.id WHERE j.id = ?`
+        ).bind(quoteId).first();
+    } else {
+        // Customers can only view jobs that are pending quotes
+        job = await env.DB.prepare(
+            `SELECT * FROM jobs WHERE id = ? AND customerId = ? AND status = 'pending'`
+        ).bind(quoteId, user.id).first();
+    }
+
+    if (!job) {
+        return errorResponse("Quote not found.", 404);
+    }
+
+    const services = await env.DB.prepare(
+        `SELECT * FROM services WHERE job_id = ?`
+    ).bind(quoteId).all();
+
+    return successResponse({ ...job, services: services.results });
+}
+
 export async function handleDeclineQuote(c: Context<AppEnv>) {
     const { quoteId } = c.req.param();
     const db = c.env.DB;
+    const user = c.get('user');
 
     try {
-        const job = await db.prepare(`SELECT * FROM jobs WHERE stripe_quote_id = ?`).bind(quoteId).first<Job>();
+        const job = await db.prepare(`SELECT * FROM jobs WHERE id = ?`).bind(quoteId).first<Job>();
         if (!job) {
             return errorResponse("Job with this quote not found.", 404);
+        }
+
+        if (parseInt(job.customerId, 10) !== user.id && user.role !== 'admin') {
+            return errorResponse("You are not authorized to decline this quote.", 403);
         }
 
         await db.prepare(`UPDATE jobs SET status = 'quote_declined' WHERE id = ?`).bind(job.id).run();
@@ -51,9 +85,13 @@ export async function handleReviseQuote(c: Context<AppEnv>) {
     }
 
     try {
-        const job = await db.prepare(`SELECT * FROM jobs WHERE stripe_quote_id = ?`).bind(quoteId).first<Job>();
+        const job = await db.prepare(`SELECT * FROM jobs WHERE id = ?`).bind(quoteId).first<Job>();
         if (!job) {
             return errorResponse("Job with this quote not found.", 404);
+        }
+
+        if (parseInt(job.customerId, 10) !== user.id && user.role !== 'admin') {
+            return errorResponse("You are not authorized to revise this quote.", 403);
         }
 
         await db.prepare(`UPDATE jobs SET status = 'quote_revised' WHERE id = ?`).bind(job.id).run();

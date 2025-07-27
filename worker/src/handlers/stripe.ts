@@ -41,9 +41,9 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
                     }
                 }
 
-                // Update the job's status to 'paid'
+                // Update the job's status to 'complete'
                 await c.env.DB.prepare(
-                    `UPDATE jobs SET status = 'paid' WHERE stripe_invoice_id = ?`
+                    `UPDATE jobs SET status = 'complete' WHERE stripe_invoice_id = ?`
                 ).bind(invoicePaid.id).run();
                 break;
 
@@ -52,7 +52,7 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
                 console.log(`Invoice ${invoiceCreated.id} was created.`);
                 if (invoiceCreated.quote) {
                     await c.env.DB.prepare(
-                        `UPDATE jobs SET stripe_invoice_id = ?, status = 'payment_pending' WHERE stripe_quote_id = ?`
+                        `UPDATE jobs SET stripe_invoice_id = ?, status = 'payment_needed' WHERE stripe_quote_id = ?`
                     ).bind(invoiceCreated.id, invoiceCreated.quote).run();
                 }
                 break;
@@ -75,9 +75,9 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
                 const customer = await stripe.customers.retrieve(quote.customer as string);
                 const customerName = (customer as Stripe.Customer).name || 'A customer';
 
-                // Update job status to 'quote_accepted'
+                // Update job status to 'upcoming'
                 const jobUpdate = await c.env.DB.prepare(
-                    `UPDATE jobs SET status = 'quote_accepted' WHERE stripe_quote_id = ?`
+                    `UPDATE jobs SET status = 'upcoming' WHERE stripe_quote_id = ?`
                 ).bind(quote.id).run();
 
                 // Notify admin that quote was accepted

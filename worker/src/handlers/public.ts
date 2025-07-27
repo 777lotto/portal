@@ -61,7 +61,7 @@ export const handleGetAvailability = async (c: Context<AppEnv>) => {
   try {
     // Fetch all jobs that aren't cancelled, drafts, or expired quotes
     const { results: jobResults } = await c.env.DB.prepare(
-      `SELECT start FROM jobs WHERE status NOT IN ('cancelled', 'quote_draft', 'invoice_draft', 'quote_expired')`
+      `SELECT start FROM jobs WHERE status NOT IN ('canceled', 'quote_draft', 'invoice_draft', 'job_draft')`
     ).all<{ start: string }>();
 
     // Fetch all manually blocked dates
@@ -173,7 +173,7 @@ export const handleCreateBooking = async (c: Context<AppEnv>) => {
         description: `New booking for ${name}. Address: ${address}`,
         start: currentStartTime.toISOString(),
         end: endTime.toISOString(),
-        status: 'pending_confirmation',
+        status: 'pending',
         recurrence: 'none',
       };
       await createJob(c.env, jobData, userId.toString());

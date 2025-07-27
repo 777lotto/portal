@@ -5,7 +5,7 @@ import { Context } from 'hono';
 import type { AppEnv } from '../../index.js';
 import { getStripe, createStripeCustomer, createDraftStripeInvoice } from '../../stripe.js';
 import { createJob } from '../../calendar.js'
-import { AdminCreateUserSchema, type User, type Job, type Service, type Env, type Note, type PhotoWithNotes } from '@portal/shared';
+import { AdminCreateUserSchema, type User, type Job, type Service, type Env, type Note, type PhotoWithNotes, type JobStatus } from '@portal/shared';
 
 /**
  * Validates an address using the Google Geocoding API.
@@ -342,20 +342,25 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + (days_until_expiry || 7));
 
-    let status = 'upcoming'; // Default status
+    let status: JobStatus;
     switch (jobType) {
       case 'quote':
         if (action === 'draft') status = 'quote_draft';
-        if (action === 'send_proposal') status = 'pending_quote';
-        if (action === 'send_finalized') status = 'finalized_quote';
+        else if (action === 'send_proposal') status = 'pending';
+        else status = 'pending'; // Default for quote
         break;
       case 'job':
         if (action === 'post') status = 'upcoming';
+        else if (action === 'draft') status = 'job_draft';
+        else status = 'upcoming'; // Default for job
         break;
       case 'invoice':
         if (action === 'draft') status = 'invoice_draft';
-        if (action === 'send_invoice') status = 'payment_pending';
+        else if (action === 'send_invoice') status = 'payment_needed';
+        else status = 'payment_needed'; // Default for invoice
         break;
+      default:
+        status = 'upcoming';
     }
 
     const jobData = {
@@ -383,6 +388,18 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
     });
 
     await c.env.DB.batch(serviceInserts);
+
+    if (jobType === 'quote' && action === 'send_proposal') {
+      const notificationMessage = `You have a new quote proposal for "${title}".`;
+      await c.env.DB.prepare(
+        `INSERT INTO ui_notifications (user_id, type, message, link)
+         VALUES (?, 'new_quote', ?, ?)`
+      ).bind(
+        parseInt(userId, 10),
+        notificationMessage,
+        `/quotes/${newJob.id}`
+      ).run();
+    }
 
     if (jobType === 'invoice' && action === 'send_invoice') {
       const user = await c.env.DB.prepare(
