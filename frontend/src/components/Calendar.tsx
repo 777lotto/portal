@@ -8,7 +8,7 @@ import useSWR from 'swr';
 import { apiGet, getPublicAvailability, getBlockedDates } from '../lib/api';
 import type { Job, BlockedDate, JobRecurrenceRequest } from '@portal/shared';
 import AdminBlockDayModal from './AdminBlockDayModal';
-import AdminDayActionModal from './admin/AdminDayActionModal';
+import InitialJobTypeModal from './admin/InitialJobTypeModal';
 import AddJobModal from './admin/AddJobModal';
 import RecurrenceRequestModal from './RecurrenceRequestModal.js';
 import { jwtDecode } from 'jwt-decode';
@@ -46,9 +46,25 @@ function JobSummaryModal({
 }) {
     const navigate = useNavigate();
 
-    const handleViewJob = () => {
-        navigate(`/jobs/${job.id}`);
+    const handleView = () => {
+        if (job.status.includes('quote')) {
+            navigate(`/quotes/${job.id}`);
+        } else if (job.status.includes('invoice')) {
+            navigate(`/invoices/${job.id}`);
+        } else {
+            navigate(`/jobs/${job.id}`);
+        }
     };
+
+    const viewButtonText = () => {
+        if (job.status.includes('quote')) {
+            return 'View Quote';
+        } else if (job.status.includes('invoice')) {
+            return 'View Invoice';
+        } else {
+            return 'View Job';
+        }
+    }
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -62,8 +78,8 @@ function JobSummaryModal({
                     <button onClick={onRecurrenceClick} className="btn btn-info mr-2">
                         Request Recurrence
                     </button>
-                    <button onClick={handleViewJob} className="btn btn-primary">
-                        View Job
+                    <button onClick={handleView} className="btn btn-primary">
+                        {viewButtonText()}
                     </button>
                 </div>
             </div>
@@ -80,6 +96,12 @@ const getEventColor = (status: string) => {
     case 'payment_pending': return '#fd7e14'; // Orange
     case 'past_due': return '#dc3545'; // Red
     case 'cancelled': return '#6c757d'; // Grey
+    case 'draft_quote': return '#a9a9a9'; // Dark Grey
+    case 'proposal_sent': return '#add8e6'; // Light Blue
+    case 'finalized_quote': return '#90ee90'; // Light Green
+    case 'draft_job': return '#d3d3d3'; // Light Grey
+    case 'draft_invoice': return '#d3d3d3'; // Light Grey
+    case 'sent_invoice': return '#ffa500'; // Orange
     default: return '#6c757d';
   }
 };
@@ -91,6 +113,12 @@ const legendItems = [
     { status: 'Payment Pending', color: '#fd7e14' },
     { status: 'Past Due', color: '#dc3545' },
     { status: 'Cancelled', color: '#6c757d' },
+    { status: 'Draft Quote', color: '#a9a9a9' },
+    { status: 'Proposal Sent', color: '#add8e6' },
+    { status: 'Finalized Quote', color: '#90ee90' },
+    { status: 'Draft Job', color: '#d3d3d3' },
+    { status: 'Draft Invoice', color: '#d3d3d3' },
+    { status: 'Sent Invoice', color: '#ffa500' },
   ];
 
   const availabilityItems = [
@@ -147,18 +175,20 @@ function JobCalendar() {
 
   // State management for all modals
   const [modalState, setModalState] = useState<{
-    actionModalOpen: boolean;
+    initialJobTypeModalOpen: boolean;
     blockModalOpen: boolean;
     addJobModalOpen: boolean;
     selectedDate: Date | null;
     isBlocked: boolean;
     reason?: string | null;
+    jobType: 'quote' | 'job' | 'invoice' | null;
   }>({
-    actionModalOpen: false,
+    initialJobTypeModalOpen: false,
     blockModalOpen: false,
     addJobModalOpen: false,
     selectedDate: null,
     isBlocked: false,
+    jobType: null,
   });
 
   useEffect(() => {
@@ -282,7 +312,7 @@ function JobCalendar() {
       const existingBlock = blockedDates?.find(d => d.date === dateStr);
       setModalState({
         ...modalState,
-        actionModalOpen: true, // Open the new action modal
+        initialJobTypeModalOpen: true, // Open the new initial job type modal
         selectedDate: slotInfo.start,
         isBlocked: !!existingBlock,
         reason: existingBlock?.reason,
@@ -290,14 +320,24 @@ function JobCalendar() {
     }
   }, [user, blockedDates, modalState]);
 
+  const handleJobTypeSelect = (type: 'quote' | 'job' | 'invoice') => {
+    setModalState({
+      ...modalState,
+      initialJobTypeModalOpen: false,
+      addJobModalOpen: true,
+      jobType: type,
+    });
+  };
+
   const closeAllModals = () => {
       setModalState({
-          actionModalOpen: false,
+          initialJobTypeModalOpen: false,
           blockModalOpen: false,
           addJobModalOpen: false,
           selectedDate: null,
           isBlocked: false,
-          reason: null
+          reason: null,
+          jobType: null,
       });
       setSelectedJob(null);
       setAdminRecurrenceRequest(null);
@@ -339,12 +379,11 @@ function JobCalendar() {
       {modalState.selectedDate && (
           <>
             {/* The new initial choice modal */}
-            <AdminDayActionModal
-              isOpen={modalState.actionModalOpen}
+            <InitialJobTypeModal
+              isOpen={modalState.initialJobTypeModalOpen}
               onClose={closeAllModals}
               selectedDate={modalState.selectedDate}
-              onBlockDate={() => setModalState({ ...modalState, actionModalOpen: false, blockModalOpen: true })}
-              onAddJob={() => setModalState({ ...modalState, actionModalOpen: false, addJobModalOpen: true })}
+              onSelectType={handleJobTypeSelect}
             />
             {/* The existing block date modal */}
             <AdminBlockDayModal
@@ -359,15 +398,18 @@ function JobCalendar() {
               }}
             />
             {/* The new add job modal */}
-            <AddJobModal
-              isOpen={modalState.addJobModalOpen}
-              onClose={closeAllModals}
-              selectedDate={modalState.selectedDate}
-              onSave={() => {
-                mutateJobs(); // Re-fetch jobs after adding a new one
-                closeAllModals();
-              }}
-            />
+            {modalState.jobType && (
+              <AddJobModal
+                isOpen={modalState.addJobModalOpen}
+                onClose={closeAllModals}
+                selectedDate={modalState.selectedDate}
+                jobType={modalState.jobType}
+                onSave={() => {
+                  mutateJobs(); // Re-fetch jobs after adding a new one
+                  closeAllModals();
+                }}
+              />
+            )}
           </>
       )}
     {adminRecurrenceRequest && user?.role === 'admin' && (

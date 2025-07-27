@@ -1,6 +1,5 @@
 // frontend/src/components/admin/AddJobModal.tsx
 import { useState, useEffect } from 'react';
-// MODIFICATION: Import adminCreateJobForUser instead of apiPost
 import { apiGet, adminCreateJobForUser } from '../../lib/api';
 import type { User, Service } from '@portal/shared';
 import { format } from 'date-fns';
@@ -10,9 +9,10 @@ interface Props {
   onClose: () => void;
   onSave: () => void;
   selectedDate: Date;
+  jobType: 'quote' | 'job' | 'invoice';
 }
 
-function AddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
+function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) {
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [lineItems, setLineItems] = useState<Partial<Service>[]>([{ notes: '', price_cents: 0 }]);
@@ -60,7 +60,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
     setLineItems(newLineItems);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (action: 'draft' | 'send_proposal' | 'send_finalized' | 'send_invoice' | 'post') => {
     setError(null);
     if (!selectedUserId || !title || lineItems.some(item => !item.notes)) {
       setError("Please select a customer, enter a title, and provide a description for all line items.");
@@ -68,7 +68,6 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
     }
     setIsSubmitting(true);
     try {
-      // MODIFICATION START: Use the correct API function and payload structure
       const payload = {
         title,
         start: selectedDate.toISOString(),
@@ -76,14 +75,14 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
             notes: item.notes || '',
             price_cents: item.price_cents || 0
         })),
-        days_until_expiry: daysUntilExpiry
+        days_until_expiry: daysUntilExpiry,
+        jobType,
+        action,
       };
       await adminCreateJobForUser(selectedUserId, payload);
-      // MODIFICATION END
       onSave();
       onClose();
     } catch (err: any) {
-      // Use the error message from the log if available
       if (err.message && err.message.includes('D1_ERROR')) {
           setError('Failed to create job: The database operation timed out. Please try again.');
       } else {
@@ -96,11 +95,17 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
 
   if (!isOpen) return null;
 
+  const modalTitle = {
+    quote: 'New Quote',
+    job: 'New Job',
+    invoice: 'New Invoice',
+  }[jobType];
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-tertiary-dark rounded-lg p-6 w-full max-w-2xl max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold">Add Job for {format(selectedDate, 'MMMM do, yyyy')}</h2>
+            <h2 className="text-xl font-bold">{modalTitle} for {format(selectedDate, 'MMMM do, yyyy')}</h2>
             <button type="button" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl font-bold" onClick={onClose}>&times;</button>
         </div>
 
@@ -119,7 +124,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
                 </select>
               </div>
               <div className="mb-3">
-                <label htmlFor="title" className="form-label">Job Title</label>
+                <label htmlFor="title" className="form-label">{jobType === 'quote' ? 'Quote' : 'Job'} Title</label>
                 <input type="text" id="title" className="form-control" value={title} onChange={(e) => setTitle(e.target.value)} />
               </div>
               <div className="mb-3">
@@ -147,9 +152,25 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
 
         <div className="pt-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : 'Save Job'}
-          </button>
+          {jobType === 'quote' && (
+            <>
+              <button type="button" className="btn btn-secondary" onClick={() => handleSubmit('draft')} disabled={isSubmitting}>Save as Draft</button>
+              <button type="button" className="btn btn-info" onClick={() => handleSubmit('send_proposal')} disabled={isSubmitting}>Send Proposal</button>
+              <button type="button" className="btn btn-primary" onClick={() => handleSubmit('send_finalized')} disabled={isSubmitting}>Send Finalized</button>
+            </>
+          )}
+          {jobType === 'invoice' && (
+            <>
+              <button type="button" className="btn btn-secondary" onClick={() => handleSubmit('draft')} disabled={isSubmitting}>Save as Draft</button>
+              <button type="button" className="btn btn-primary" onClick={() => handleSubmit('send_invoice')} disabled={isSubmitting}>Send Invoice</button>
+            </>
+          )}
+          {jobType === 'job' && (
+            <>
+              <button type="button" className="btn btn-secondary" onClick={() => handleSubmit('draft')} disabled={isSubmitting}>Save as Draft</button>
+              <button type="button" className="btn btn-primary" onClick={() => handleSubmit('post')} disabled={isSubmitting}>Post</button>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -332,27 +332,45 @@ export async function handleAdminCreateInvoice(c: Context<AppEnv>): Promise<Resp
 export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<Response> {
   const { userId } = c.req.param();
   const body = await c.req.json();
+  const { title, start, services, days_until_expiry, jobType, action } = body;
 
-  if (!body.title || !body.start || !Array.isArray(body.services) || body.services.length === 0) {
+  if (!title || !start || !Array.isArray(services) || services.length === 0) {
     return errorResponse("Job title, start date, and at least one service are required.", 400);
   }
 
   try {
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + (body.days_until_expiry || 7));
+    expiresAt.setDate(expiresAt.getDate() + (days_until_expiry || 7));
+
+    let status = 'upcoming'; // Default status
+    switch (jobType) {
+      case 'quote':
+        if (action === 'draft') status = 'draft_quote';
+        if (action === 'send_proposal') status = 'proposal_sent';
+        if (action === 'send_finalized') status = 'finalized_quote';
+        break;
+      case 'job':
+        if (action === 'draft') status = 'draft_job';
+        if (action === 'post') status = 'upcoming';
+        break;
+      case 'invoice':
+        if (action === 'draft') status = 'draft_invoice';
+        if (action === 'send_invoice') status = 'sent_invoice';
+        break;
+    }
 
     const jobData = {
-      title: body.title,
+      title: title,
       description: `Created by admin on ${new Date().toLocaleDateString()}`,
-      start: body.start,
-      end: new Date(new Date(body.start).getTime() + 60 * 60 * 1000).toISOString(),
-      status: 'upcoming',
-      recurrence: 'none', // FIX: Add this line
+      start: start,
+      end: new Date(new Date(start).getTime() + 60 * 60 * 1000).toISOString(),
+      status: status,
+      recurrence: 'none',
       expires_at: expiresAt.toISOString(),
     };
     const newJob = await createJob(c.env, jobData, userId);
 
-    const serviceInserts = body.services.map((service: { notes: string, price_cents: number }) => {
+    const serviceInserts = services.map((service: { notes: string, price_cents: number }) => {
       return c.env.DB.prepare(
         `INSERT INTO services (user_id, job_id, service_date, status, notes, price_cents)
          VALUES (?, ?, ?, 'pending', ?, ?)`
@@ -367,9 +385,56 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
 
     await c.env.DB.batch(serviceInserts);
 
+    if (jobType === 'invoice' && action === 'send_invoice') {
+      const user = await c.env.DB.prepare(
+        `SELECT id, name, email, phone, stripe_customer_id, role FROM users WHERE id = ?`
+      ).bind(parseInt(userId, 10)).first<User>();
+
+      if (!user) {
+        return errorResponse("User not found.", 404);
+      }
+
+      const stripe = getStripe(c.env as Env);
+      let stripeCustomerId = user.stripe_customer_id;
+
+      if (!stripeCustomerId) {
+        const customer = await createStripeCustomer(stripe, user);
+        stripeCustomerId = customer.id;
+        await c.env.DB.prepare(
+          `UPDATE users SET stripe_customer_id = ? WHERE id = ?`
+        ).bind(stripeCustomerId, user.id).run();
+      }
+
+      if (!stripeCustomerId) {
+          return errorResponse("Could not create or find Stripe customer.", 500);
+      }
+
+      const draftInvoice = await createDraftStripeInvoice(stripe, stripeCustomerId);
+
+      if (!draftInvoice || !draftInvoice.id) {
+          return errorResponse("Failed to create a valid draft invoice in Stripe.", 500);
+      }
+
+      for (const service of services) {
+        await stripe.invoiceItems.create({
+          customer: stripeCustomerId,
+          invoice: draftInvoice.id,
+          description: service.notes,
+          amount: service.price_cents,
+          currency: 'usd',
+        });
+      }
+
+      const finalInvoice = await stripe.invoices.sendInvoice(draftInvoice.id);
+      await c.env.DB.prepare(
+        `UPDATE jobs SET stripe_invoice_id = ? WHERE id = ?`
+      ).bind(finalInvoice.id, newJob.id).run();
+    }
+
     return successResponse(newJob, 201);
   } catch (e: any) {
     console.error(`Failed to create job for user ${userId}:`, e);
     return errorResponse("Failed to create job.", 500);
   }
 }
+
