@@ -108,7 +108,6 @@ function App() {
             <Routes>
               {/* --- Public Routes --- */}
               <Route path="/booking" element={<BookingPage />} />
-              <Route path="/schedule" element={<Navigate to="/booking" replace />} />
               <Route path="/auth" element={token ? <Navigate to="/dashboard" replace /> : <AuthForm setToken={handleSetToken} />} />
               <Route path="/" element={<Navigate to={token ? "/dashboard" : "/auth"} replace />} />
 

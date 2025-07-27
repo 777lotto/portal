@@ -36,7 +36,6 @@ import { getPendingQuotes, handleDeclineQuote, handleReviseQuote, getQuoteById }
 
 // --- Customer Handlers ---
 import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent, handleGetNotifications, handleMarkAllNotificationsRead } from './handlers/profile.js';
-import { handleListServices, handleGetService } from './handlers/services.js';
 import {
     handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob,
     handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl,
@@ -137,8 +136,6 @@ customerApi.get('/availability', handleGetCustomerAvailability);
 customerApi.get('/profile', handleGetProfile);
 customerApi.put('/profile', handleUpdateProfile);
 customerApi.post('/profile/change-password', handleChangePassword);
-customerApi.get('/services', handleListServices);
-customerApi.get('/services/:id', handleGetService);
 customerApi.get('/jobs', handleGetJobs);
 customerApi.post('/jobs', handleCreateJob);
 customerApi.get('/jobs/unavailable-recurrence-days', handleGetUnavailableRecurrenceDays);
