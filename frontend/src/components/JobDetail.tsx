@@ -207,38 +207,41 @@ function JobDetail() {
     }
   };
 
-  const handleDeclineQuote = async () => {
-    if (!job?.stripe_quote_id) return;
+  const handleAcceptQuote = async () => {
+    if (!job?.id) return;
     try {
-        await apiPost(`/api/quotes/${job.stripe_quote_id}/decline`, {});
+        // Change this from /api/quotes/... to /api/jobs/...
+        await apiPost(`/api/jobs/${job.id}/accept`, {});
+        fetchJobDetails();
+        setIsQuoteModalOpen(false);
+    } catch (err: any) {
+        setError(`Failed to accept quote: ${err.message}`);
+    }
+};
+
+// Update handleDeclineQuote similarly
+const handleDeclineQuote = async () => {
+    if (!job?.id) return;
+    try {
+        await apiPost(`/api/jobs/${job.id}/decline`, {});
         fetchJobDetails();
         setIsQuoteModalOpen(false);
     } catch (err: any) {
         setError(`Failed to decline quote: ${err.message}`);
     }
-  };
+};
 
-  const handleReviseQuote = async (revisionReason: string) => {
-      if (!job?.stripe_quote_id) return;
-      try {
-          await apiPost(`/api/quotes/${job.stripe_quote_id}/revise`, { revisionReason });
-          fetchJobDetails();
-          setIsQuoteModalOpen(false);
-      } catch (err: any) {
-          setError(`Failed to revise quote: ${err.message}`);
-      }
-  };
-
-  const handleAcceptQuote = async () => {
-      if (!job?.stripe_quote_id) return;
-      try {
-          await apiPost(`/api/quotes/${job.stripe_quote_id}/accept`, {});
-          fetchJobDetails();
-          setIsQuoteModalOpen(false);
-      } catch (err: any) {
-          setError(`Failed to accept quote: ${err.message}`);
-      }
-  };
+// Update handleReviseQuote similarly
+const handleReviseQuote = async (revisionReason: string) => {
+    if (!job?.id) return;
+    try {
+        await apiPost(`/api/jobs/${job.id}/revise`, { revisionReason });
+        fetchJobDetails();
+        setIsQuoteModalOpen(false);
+    } catch (err: any) {
+        setError(`Failed to revise quote: ${err.message}`);
+    }
+};
 
   const statusStyle = (status: string) => {
       switch (status.toLowerCase()) {
@@ -301,7 +304,7 @@ function JobDetail() {
               <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">{new Date(job.start).toLocaleString()}</p>
             </div>
             <div className="flex items-center gap-2">
-                {job.status === 'pending_quote' && (
+                    {job.status === 'pending' && user?.role === 'customer' && (
                     <button className="btn btn-primary" onClick={() => setIsQuoteModalOpen(true)}>
                         Respond to Quote
                     </button>

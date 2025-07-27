@@ -11,7 +11,6 @@ import Navbar from "./components/Navbar.js";
 import Dashboard from "./components/Dashboard.js";
 const JobCalendar = lazy(() => import("./components/Calendar.js"));
 const JobDetail = lazy(() => import("./components/JobDetail.js"));
-const JobOrQuoteDetail = lazy(() => import("./components/JobOrQuoteDetail.js"));
 const QuoteProposalPage = lazy(() => import("./components/QuoteProposalPage.js"));
 const CalendarSync = lazy(() => import("./components/CalendarSync.js"));
 const BookingPage = lazy(() => import("./components/BookingPage.js"));
@@ -117,7 +116,7 @@ function App() {
               <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/auth" replace />} />
               <Route path="/calendar" element={token ? <JobCalendar /> : <Navigate to="/auth" replace />} />
               <Route path="/photos" element={token ? <Photos /> : <Navigate to="/auth" replace />} />
-              <Route path="/jobs/:id" element={token ? <JobOrQuoteDetail /> : <Navigate to="/auth" replace />} />
+              <Route path="/jobs/:id" element={token ? <JobDetail /> : <Navigate to="/auth" replace />} />
               <Route path="/quotes/:quoteId" element={token ? <QuoteProposalPage /> : <Navigate to="/auth" replace />} />
               <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/auth" replace />} />
               <Route path="/account" element={token ? <AccountPage /> : <Navigate to="/auth" replace />} />
