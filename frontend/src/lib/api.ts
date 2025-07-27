@@ -48,8 +48,21 @@ export const apiPostFormData = <T>(path: string, formData: FormData): Promise<T>
                                   PUBLIC API
    ======================================================================== */
 
-export const getPublicAvailability = () => apiGet<{ bookedDays: string[] }>('/api/public/availability');
-export const getCustomerAvailability = () => apiGet<{ bookedDays: string[], pendingDays: string[], blockedDates: string[] }>('/api/availability');
+export const getPublicAvailability = async () => {
+  try {
+    return await apiGet<{ bookedDays: string[] }>('/api/public/availability');
+  } catch (error: any) {
+    throw new Error(error.message);
+  }
+};
+
+export const getCustomerAvailability = async () => {
+  try {
+    return await apiGet<{ bookedDays: string[], pendingDays: string[], blockedDates: string[] }>('/api/availability');
+  } catch (error: any) {
+    throw new Error(error.message);
+  }
+};
 export const createPublicBooking = (data: unknown) => apiPost('/api/public/booking', data);
 export const checkUser = (identifier: string) => apiPost<{ status: string }>('/api/check-user', { identifier });
 export const initializeSignup = (data: unknown) => apiPost<any>('/api/signup/initialize', data);

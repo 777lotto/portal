@@ -55,6 +55,11 @@ function AuthForm({ setToken }: Props) {
   useEffect(() => {
     window.onTurnstileSuccess = (token: string) => setTurnstileToken(token);
 
+    // Mock Turnstile in development if a site key is not provided
+    if (import.meta.env.DEV && !import.meta.env.VITE_TURNSTILE_SITE_KEY) {
+      setTimeout(() => window.onTurnstileSuccess?.('mock-token-for-dev'), 100);
+    }
+
     // MODIFIED: Also render turnstile on the details step, since it now calls an API
     if (step === 'LOGIN_PASSWORD' || step === 'SET_PASSWORD' || step === 'SIGNUP_DETAILS') {
         setTimeout(() => {

@@ -86,7 +86,7 @@ export const handleGetAvailability = async (c: Context<AppEnv>) => {
     // Return the array of unique booked days
     return successResponse({ bookedDays: Array.from(bookedDays) });
   } catch (e: any) {
-    console.error("Failed to get availability:", e);
+    console.error("Failed to get availability:", e.message, e.stack);
     return errorResponse("Failed to retrieve availability", 500);
   }
 };

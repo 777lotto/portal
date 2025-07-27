@@ -12,7 +12,7 @@ import Dashboard from "./components/Dashboard.js";
 const JobCalendar = lazy(() => import("./components/Calendar.js"));
 const JobDetail = lazy(() => import("./components/JobDetail.js"));
 const CalendarSync = lazy(() => import("./components/CalendarSync.js"));
-const PublicBookingPage = lazy(() => import("./components/PublicBookingPage.js"));
+const BookingPage = lazy(() => import("./components/BookingPage.js"));
 const Photos = lazy(() => import("./components/Photos.js"));
 const AccountPage = lazy(() => import("./components/AccountPage.js"));
 const AuthForm = lazy(() => import("./components/AuthForm.js"));
@@ -23,7 +23,7 @@ const AdminDashboard = lazy(() => import("./components/admin/AdminDashboard.js")
 const AdminUserDetail = lazy(() => import("./components/admin/AdminUserDetail.js"));
 const JobsPage = lazy(() => import("./components/admin/JobsPage.js"));
 const AdminChat = lazy(() => import("./components/admin/AdminChat.js"));
-const CustomerBookingPage = lazy(() => import("./components/CustomerBookingPage.js"));
+
 
 interface UserPayload {
   id: number;
@@ -106,7 +106,8 @@ function App() {
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
               {/* --- Public Routes --- */}
-              <Route path="/booking" element={<PublicBookingPage />} />
+              <Route path="/booking" element={<BookingPage />} />
+              <Route path="/schedule" element={<Navigate to="/booking" replace />} />
               <Route path="/auth" element={token ? <Navigate to="/dashboard" replace /> : <AuthForm setToken={handleSetToken} />} />
               <Route path="/" element={<Navigate to={token ? "/dashboard" : "/auth"} replace />} />
 
@@ -118,7 +119,7 @@ function App() {
               <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/auth" replace />} />
               <Route path="/account" element={token ? <AccountPage /> : <Navigate to="/auth" replace />} />
               <Route path="/pay-invoice/:invoiceId" element={token ? <InvoicePaymentPage /> : <Navigate to="/auth" replace />} />
-              <Route path="/schedule" element={token ? <CustomerBookingPage /> : <Navigate to="/auth" replace />} />
+              
 
               {/* --- Admin Routes --- */}
               <Route path="/admin/chat" element={user?.role === 'admin' ? <AdminChat /> : <Navigate to="/dashboard" replace />} />

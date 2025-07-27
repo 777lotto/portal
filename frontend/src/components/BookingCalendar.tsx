@@ -46,7 +46,7 @@ function BookingCalendar({ onSelectSlot, isCustomer = false }: Props) {
   }, [bookedDaysSet, pendingDaysSet, blockedDatesSet]);
 
   if (isLoading) return <div>Loading availability...</div>;
-  if (error) return <div className="alert alert-danger">Could not load calendar.</div>;
+  if (error) return <div className="alert alert-danger">{error.message}</div>;
 
   return (
     <div className="bg-white dark:bg-tertiary-dark p-4 rounded-lg shadow" style={{ height: '85vh' }}>

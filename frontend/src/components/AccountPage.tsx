@@ -46,7 +46,7 @@ const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
         },
     }), [isDarkMode]);
 
-    const handleSubmit = async (event: React.FormEvent) => {
+    const handleSubmit = async (event: React.SyntheticEvent) => {
         event.preventDefault();
 
         if (!stripe || !elements) {
@@ -81,15 +81,15 @@ const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
     };
 
     return (
-        <form onSubmit={handleSubmit}>
+        <div>
             <div className="p-3 border rounded-md border-border-light dark:border-border-dark bg-white dark:bg-secondary-dark">
                  <CardElement options={cardElementOptions} />
             </div>
-            <button type="submit" className="btn btn-primary mt-4" disabled={!stripe || isProcessing}>
+            <button type="button" onClick={handleSubmit} className="btn btn-primary mt-4" disabled={!stripe || isProcessing}>
                 {isProcessing ? 'Saving...' : 'Save Card'}
             </button>
             {error && <div className="alert alert-danger mt-2">{error}</div>}
-        </form>
+        </div>
     );
 };
 
@@ -215,7 +215,7 @@ function AccountPage() {
     setPasswordData({ ...passwordData, [e.target.name]: e.target.value });
   };
 
-  const handlePasswordSubmit = async (e: React.FormEvent) => {
+  const handlePasswordSubmit = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       setPasswordMessage({type: 'danger', text: "New passwords do not match."});
@@ -405,7 +405,7 @@ function AccountPage() {
                <div className="card">
                 <div className="card-header"><h2 className="card-title text-xl">Security</h2></div>
                 <div className="card-body">
-                   <form onSubmit={handlePasswordSubmit}>
+                   <div>
                       <div className="space-y-4">
                           {passwordMessage && <div className={`alert alert-${passwordMessage.type}`}>{passwordMessage.text}</div>}
                           <div>
@@ -421,8 +421,8 @@ function AccountPage() {
                               <input type="password" id="confirmPassword" name="confirmPassword" value={passwordData.confirmPassword} onChange={handlePasswordChange} className="form-control" required autoComplete="new-password"/>
                           </div>
                       </div>
-                      <button type="submit" className="btn btn-secondary mt-6">Change Password</button>
-                  </form>
+                      <button type="button" onClick={handlePasswordSubmit} className="btn btn-secondary mt-6">Change Password</button>
+                  </div>
                   <hr className="my-6 border-border-light dark:border-border-dark" />
                   <div className="space-y-4">
                       <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">If you've forgotten your current password, you can request a one-time code to reset it.</p>

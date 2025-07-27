@@ -1,7 +1,7 @@
 // frontend/src/components/Calendar.tsx
 import { useMemo, useCallback, useState, useEffect } from 'react';
 import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar';
-import { format, parse, startOfWeek, getDay } from 'date-fns';
+import { format, parse, startOfWeek, getDay, parseISO } from 'date-fns';
 import enUS from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import useSWR from 'swr';
@@ -30,6 +30,7 @@ interface CalendarEvent {
   title: string;
   start: Date;
   end: Date;
+  allDay?: boolean;
   resource: Job | { type: 'blocked'; reason?: string | null };
 }
 
@@ -82,6 +83,53 @@ const getEventColor = (status: string) => {
     default: return '#6c757d';
   }
 };
+
+const legendItems = [
+    { status: 'Upcoming', color: '#ffc107' },
+    { status: 'Confirmed', color: '#0d6efd' },
+    { status: 'Completed', color: '#198754' },
+    { status: 'Payment Pending', color: '#fd7e14' },
+    { status: 'Past Due', color: '#dc3545' },
+    { status: 'Cancelled', color: '#6c757d' },
+  ];
+
+  const availabilityItems = [
+      { label: 'High Availability', className: 'lighter-day' },
+      { label: 'Low Availability', className: 'darker-day' },
+      { label: 'Admin Blocked', className: 'admin-blocked-day' },
+  ]
+
+function CalendarLegend() {
+    return (
+      <div className="p-4 rounded-lg shadow bg-white dark:bg-tertiary-dark mt-6">
+        <h3 className="text-lg font-bold mb-4">Calendar Legend</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <h4 className="font-semibold mb-3 text-text-primary-light dark:text-text-primary-dark">Job Status</h4>
+            <div className="flex flex-col space-y-2">
+              {legendItems.map(item => (
+                <div key={item.status} className="flex items-center">
+                  <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: item.color }}></div>
+                  <span className="text-sm text-text-secondary-light dark:text-text-secondary-dark">{item.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <h4 className="font-semibold mb-3 text-text-primary-light dark:text-text-primary-dark">Day Availability</h4>
+            <div className="flex flex-col space-y-2">
+              {availabilityItems.map(item => (
+                <div key={item.label} className="flex items-center">
+                  <div className={`w-4 h-4 rounded-sm mr-3 border border-gray-300 dark:border-gray-600 ${item.className}`}></div>
+                  <span className="text-sm text-text-secondary-light dark:text-text-secondary-dark">{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
 interface UserPayload {
   role: 'customer' | 'admin';
@@ -151,19 +199,20 @@ function JobCalendar() {
     return new Set(blockedDates?.map(d => d.date) || []);
   }, [blockedDates]);
 
-  const events = useMemo(() => {
-    const jobEvents = (jobs || []).map(job => ({
+  const events: CalendarEvent[] = useMemo(() => {
+    const jobEvents = (jobs || []).map((job): CalendarEvent => ({
       title: job.title,
-      start: new Date(job.start),
-      end: new Date(job.end),
+      start: parseISO(job.start),
+      end: parseISO(job.end),
+      allDay: false,
       resource: job,
     }));
 
     if (user?.role === 'admin') {
-      const blockedEvents = (blockedDates || []).map(blocked => ({
+      const blockedEvents = (blockedDates || []).map((blocked): CalendarEvent => ({
         title: `BLOCKED: ${blocked.reason || 'No reason'}`,
-        start: new Date(blocked.date + 'T00:00:00'),
-        end: new Date(blocked.date + 'T23:59:59'),
+        start: parseISO(blocked.date + 'T00:00:00'),
+        end: parseISO(blocked.date + 'T23:59:59'),
         allDay: true,
         resource: { type: 'blocked', reason: blocked.reason },
       }));
@@ -360,6 +409,7 @@ function JobCalendar() {
           Click here to get a unique URL to subscribe to your jobs in an external calendar app.
         </p>
       </div>
+      <CalendarLegend />
     </>
   );
 }
