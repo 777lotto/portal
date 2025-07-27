@@ -16,7 +16,7 @@ interface CloudflareImageResponse {
 
 export const handleGetUserPhotos = async (c: PhotoContext<PhotoAppEnv>) => {
     const user = c.get('user');
-    const { created_at, job_id, service_id, invoice_id } = c.req.query();
+    const { created_at, job_id, service_id } = c.req.query();
 
     try {
         let query = `
@@ -26,7 +26,6 @@ export const handleGetUserPhotos = async (c: PhotoContext<PhotoAppEnv>) => {
                 p.created_at,
                 p.job_id,
                 p.service_id,
-                p.invoice_id,
                 (SELECT JSON_GROUP_ARRAY(JSON_OBJECT('id', n.id, 'content', n.content, 'created_at', n.created_at))
                  FROM notes n WHERE n.photo_id = p.id) as notes
             FROM photos p
@@ -45,10 +44,6 @@ export const handleGetUserPhotos = async (c: PhotoContext<PhotoAppEnv>) => {
         if (service_id) {
             query += ` AND p.service_id = ?`;
             queryParams.push(service_id);
-        }
-        if (invoice_id) {
-            query += ` AND p.invoice_id = ?`;
-            queryParams.push(invoice_id);
         }
 
         query += ` ORDER BY p.created_at DESC`;

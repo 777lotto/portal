@@ -119,7 +119,6 @@ export const PhotoSchema = z.object({
     created_at: z.string(),
     job_id: z.string().optional().nullable(),
     service_id: z.number().optional().nullable(),
-    invoice_id: z.string().optional().nullable(),
 });
 export type Photo = z.infer<typeof PhotoSchema>;
 
