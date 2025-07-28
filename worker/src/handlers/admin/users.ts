@@ -270,7 +270,7 @@ export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
 export async function handleGetAllServices(c: Context<AppEnv>): Promise<Response> {
     try {
         const dbResponse = await c.env.DB.prepare(
-            `SELECT * FROM services ORDER BY service_date DESC`
+            `SELECT * FROM services ORDER BY id DESC`
         ).all<Service>();
         const services = dbResponse?.results || [];
         return successResponse(services);
@@ -376,7 +376,7 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
 
     const serviceInserts = services.map((service: { notes: string, price_cents: number }) => {
       return c.env.DB.prepare(
-        `INSERT INTO services (job_id, service_date, status, notes, price_cents)
+        `INSERT INTO services (job_id, status, notes, price_cents)
          VALUES (?, ?, 'pending', ?, ?)`
       ).bind(
         newJob.id,

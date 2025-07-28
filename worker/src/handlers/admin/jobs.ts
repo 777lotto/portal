@@ -87,7 +87,7 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
         const newJob = await createJob(c.env, jobData, customerId);
 
         const serviceInserts = services.map((service: any) =>
-            db.prepare(`INSERT INTO services (job_id, service_date, status, notes, price_cents) VALUES (?, ?, ?, ?, ?)`)
+            db.prepare(`INSERT INTO services (job_id, notes, price_cents) VALUES (?, ?, ?, ?, ?)`)
               .bind(newJob.id, start, 'pending', service.notes, service.price_cents)
         );
         await db.batch(serviceInserts);

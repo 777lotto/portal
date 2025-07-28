@@ -145,7 +145,7 @@ export async function handleAdminImportQuotes(c: Context<AppEnv>) {
 
                 const serviceInserts = quote.line_items.data.map(item => {
                     return db.prepare(
-                        `INSERT INTO services (job_id, service_date, status, notes, price_cents) VALUES (?, ?, ?, ?, ?, ?)`
+                        `INSERT INTO services (job_id, createdAt, status, notes, price_cents) VALUES (?, ?, ?, ?, ?, ?)`
                     ).bind(
                         user.id,
                         newJobId,
