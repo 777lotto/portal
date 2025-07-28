@@ -5,7 +5,7 @@ import { Context } from 'hono';
 import type { AppEnv } from '../../index.js';
 import { getStripe, createStripeCustomer, createDraftStripeInvoice } from '../../stripe.js';
 import { createJob } from '../../calendar.js'
-import { AdminCreateUserSchema, type User, type Job, type LineItem, type Env, type Note, type PhotoWithNotes, type JobStatus } from '@portal/shared';
+import { AdminCreateUserSchema, type User, type Job, type Env, type Note, type PhotoWithNotes, type JobStatus } from '@portal/shared';
 
 /**
  * Validates an address using the Google Geocoding API.
@@ -365,7 +365,7 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
       recurrence: 'none',
       due: due.toISOString(),
     };
-    const newJob = await createJob(c.env, jobData, userId);
+    const newJob = await createJob(c.env, jobData, parseInt(userId, 10));
 
     const lineItemInserts = lineItems.map((item: { description: string, quantity: number, unit_price_cents: number }) => {
       return c.env.DB.prepare(
@@ -429,7 +429,7 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
           invoice: draftInvoice.id,
           description: item.description,
           quantity: item.quantity,
-          unit_price: item.unit_price_cents,
+          amount: item.unit_price_cents,
           currency: 'usd',
         });
       }

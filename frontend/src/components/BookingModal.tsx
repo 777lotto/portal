@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { createPublicBooking, getServices, createJob } from '../lib/api';
+import { createPublicBooking, getLineItems, createJob } from '../lib/api';
 import { ApiError } from '../lib/fetchJson';
 import { format } from 'date-fns';
 import StyledDigitInput from './StyledDigitInput';
-import type { User, Service } from '@portal/shared';
+import type { User, LineItem } from '@portal/shared';
 
 declare global {
   interface Window {
@@ -21,8 +21,8 @@ interface Props {
 
 function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', address: '' });
-  const [serviceOptions, setServiceOptions] = useState<Service[]>([]);
-  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
+  const [lineItemOptions, setLineItemOptions] = useState<LineItem[]>([]);
+  const [selectedLineItems, setSelectedLineItems] = useState<LineItem[]>([]);
   const [turnstileToken, setTurnstileToken] = useState('');
   const [error, setError] = useState<React.ReactNode>('');
   const [success, setSuccess] = useState('');
@@ -39,15 +39,15 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
         });
       }
 
-      const fetchServices = async () => {
+      const fetchLineItems = async () => {
         try {
-          const services = await getServices();
-          setServiceOptions(services);
+          const lineItems = await getLineItems();
+          setLineItemOptions(lineItems);
         } catch (err) {
           setError('Failed to load services. Please try again.');
         }
       };
-      fetchServices();
+      fetchLineItems();
 
       if (!user) {
         window.onTurnstileSuccess = (token: string) => {
@@ -62,11 +62,11 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
     };
   }, [isOpen, user]);
 
-  const handleServiceChange = (service: Service) => {
-    setSelectedServices(prev =>
-      prev.some(s => s.id === service.id)
-        ? prev.filter(s => s.id !== service.id)
-        : [...prev, service]
+  const handleLineItemChange = (lineItem: LineItem) => {
+    setSelectedLineItems(prev =>
+      prev.some(s => s.id === lineItem.id)
+        ? prev.filter(s => s.id !== lineItem.id)
+        : [...prev, lineItem]
     );
   };
 
@@ -76,7 +76,7 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedServices.length === 0) {
+    if (selectedLineItems.length === 0) {
       setError('Please select at least one service.');
       return;
     }
@@ -93,9 +93,8 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
       if (user) {
         // Logic for existing customer
         await createJob({
-          title: selectedServices.map(s => s.name).join(', '),
-          start: format(selectedDate, 'yyyy-MM-dd') + 'T09:00:00', // Placeholder time
-          services: selectedServices.map(s => ({ id: s.id, notes: '', price_cents: s.price_cents || 0 })),
+          title: selectedLineItems.map(s => s.description).join(', '),
+          lineItems: selectedLineItems.map(s => ({ id: s.id, description: s.description, quantity: s.quantity, unit_price_cents: s.unit_price_cents })),
         });
         setSuccess('Your booking has been scheduled!');
       } else {
@@ -103,7 +102,7 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
         await createPublicBooking({
           ...formData,
           date: format(selectedDate, 'yyyy-MM-dd'),
-          services: selectedServices.map(({name, duration_hours}) => ({name, duration: duration_hours})),
+          services: selectedLineItems.map(({description}) => ({name: description, duration: 1})),
           'cf-turnstile-response': turnstileToken,
         });
         setSuccess('Your booking request has been sent! We will contact you shortly to confirm.');
@@ -146,10 +145,10 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
           <div className="mb-4">
             <label className="font-bold">Services</label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-              {serviceOptions.map(service => (
-                <label key={service.id} className="flex items-center space-x-2 p-2 border rounded-md">
-                  <input type="checkbox" onChange={() => handleServiceChange(service)} />
-                  <span>{service.name} ({service.duration_hours} hrs)</span>
+              {lineItemOptions.map(lineItem => (
+                <label key={lineItem.id} className="flex items-center space-x-2 p-2 border rounded-md">
+                  <input type="checkbox" onChange={() => handleLineItemChange(lineItem)} />
+                  <span>{lineItem.description}</span>
                 </label>
               ))}
             </div>

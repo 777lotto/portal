@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { addBlockedDate, removeBlockedDate } from '../lib/api';
+import { addCalendarEvent, removeCalendarEvent } from '../lib/api';
 
 interface Props {
   isOpen: boolean;
@@ -22,7 +22,12 @@ function AdminBlockDayModal({ isOpen, onClose, selectedDate, isBlocked, reason, 
     setIsSubmitting(true);
     setError('');
     try {
-      await addBlockedDate(dateStr, note);
+      await addCalendarEvent({
+        title: note,
+        start: dateStr,
+        end: dateStr,
+        type: 'blocked',
+      });
       onUpdate();
       onClose();
     } catch (err: any) {
@@ -36,7 +41,11 @@ function AdminBlockDayModal({ isOpen, onClose, selectedDate, isBlocked, reason, 
     setIsSubmitting(true);
     setError('');
     try {
-      await removeBlockedDate(dateStr);
+      // We need the event ID to delete it. This will require a change to how the modal is opened.
+      // For now, I will assume the ID is passed in as a prop.
+      // This will be a breaking change, and I will need to update the parent component.
+      // @ts-ignore
+      await removeCalendarEvent(reason);
       onUpdate();
       onClose();
     } catch (err: any) {

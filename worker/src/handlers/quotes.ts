@@ -10,11 +10,11 @@ export async function getPendingQuotes(c: Context<AppEnv>) {
     let jobs;
     if (user.role === 'admin') {
         jobs = await env.DB.prepare(
-            `SELECT j.*, u.name as customerName FROM jobs j JOIN users u ON j.customerId = u.id WHERE j.status = 'pending'`
+            `SELECT j.*, u.name as customerName FROM jobs j JOIN users u ON j.user_id = u.id WHERE j.status = 'pending'`
         ).all();
     } else {
         jobs = await env.DB.prepare(
-            `SELECT * FROM jobs WHERE customerId = ? AND status = 'pending'`
+            `SELECT * FROM jobs WHERE user_id = ? AND status = 'pending'`
         ).bind(user.id).all();
     }
 
@@ -30,12 +30,12 @@ export async function getQuoteById(c: Context<AppEnv>) {
     if (user.role === 'admin') {
         // Admins can view any job/quote regardless of status
         job = await env.DB.prepare(
-            `SELECT j.*, u.name as customerName FROM jobs j JOIN users u ON j.customerId = u.id WHERE j.id = ?`
+            `SELECT j.*, u.name as customerName FROM jobs j JOIN users u ON j.user_id = u.id WHERE j.id = ?`
         ).bind(quoteId).first();
     } else {
         // Customers can only view jobs that are pending quotes
         job = await env.DB.prepare(
-            `SELECT * FROM jobs WHERE id = ? AND customerId = ? AND status = 'pending'`
+            `SELECT * FROM jobs WHERE id = ? AND user_id = ? AND status = 'pending'`
         ).bind(quoteId, user.id).first();
     }
 
@@ -61,7 +61,7 @@ export async function handleDeclineQuote(c: Context<AppEnv>) {
             return errorResponse("Job with this quote not found.", 404);
         }
 
-        if (parseInt(job.customerId, 10) !== user.id && user.role !== 'admin') {
+        if (job.user_id.toString() !== user.id.toString() && user.role !== 'admin') {
             return errorResponse("You are not authorized to decline this quote.", 403);
         }
 
@@ -90,7 +90,7 @@ export async function handleReviseQuote(c: Context<AppEnv>) {
             return errorResponse("Job with this quote not found.", 404);
         }
 
-        if (parseInt(job.customerId, 10) !== user.id && user.role !== 'admin') {
+        if (job.user_id.toString() !== user.id.toString() && user.role !== 'admin') {
             return errorResponse("You are not authorized to revise this quote.", 403);
         }
 

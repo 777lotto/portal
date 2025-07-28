@@ -111,7 +111,7 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
                         invoice: draftInvoice.id,
                         description: item.description,
                         quantity: item.quantity,
-                        unit_price: item.unit_price_cents,
+                        amount: item.unit_price_cents,
                         currency: 'usd',
                     });
                 }

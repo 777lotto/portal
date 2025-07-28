@@ -165,7 +165,7 @@ export const handleCreateBooking = async (c: Context<AppEnv>) => {
         status: 'pending',
         recurrence: 'none',
       };
-      await createJob(c.env, jobData, userId.toString());
+      await createJob(c.env, jobData, userId);
       currentStartTime = endTime;
     }
 

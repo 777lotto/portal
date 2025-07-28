@@ -8,6 +8,9 @@ import { generateCalendarFeed, createJob } from '../calendar.js';
 import type { Job, LineItem, User, CalendarEvent } from '@portal/shared'; 
 import { CalendarEventSchema } from '@portal/shared';
 
+import { getStripe } from '../stripe.js';
+import Stripe from 'stripe';
+
 // --- Calendar URL Handlers ---
 
 export const handleGetSecretCalendarUrl = async (c: HonoContext<WorkerAppEnv>) => {
@@ -325,7 +328,7 @@ export const handleAdminCompleteJob = async (c: HonoContext<WorkerAppEnv>) => {
                 invoice: draftInvoice.id,
                 description: item.description,
                 quantity: item.quantity,
-                unit_price: item.unit_price_cents,
+                amount: item.unit_price_cents,
                 currency: 'usd',
             });
         }
@@ -386,38 +389,7 @@ export const handleGetOpenInvoicesForUser = async (c: HonoContext<WorkerAppEnv>)
             status: 'open',
         });
 
-        const simplifiedInvoices = invoices.data.map(inv => ({
-            id: inv.id,
-            customer: inv.customer,
-            hosted_invoice_url: inv.hosted_invoice_url,
-            number: inv.number,
-            status: inv.status,
-            total: inv.total,
-            due_date: inv.due_date,
-        }));
-
-        return successResponse(simplifiedInvoices);
-    } catch (e: any) {
-        return errorResponse("Failed to retrieve open invoices.", 500);
-    }
-};
-
-
-export const handleGetOpenInvoicesForUser = async (c: HonoContext<WorkerAppEnv>) => {
-    const user = c.get('user');
-    const stripe = getStripe(c.env);
-
-    if (!user.stripe_customer_id) {
-        return successResponse([]);
-    }
-
-    try {
-        const invoices = await stripe.invoices.list({
-            customer: user.stripe_customer_id,
-            status: 'open',
-        });
-
-        const simplifiedInvoices = invoices.data.map(inv => ({
+        const simplifiedInvoices = invoices.data.map((inv: Stripe.Invoice) => ({
             id: inv.id,
             customer: inv.customer,
             hosted_invoice_url: inv.hosted_invoice_url,

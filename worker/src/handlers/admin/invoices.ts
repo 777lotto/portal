@@ -156,7 +156,6 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
                     continue;
                 }
 
-                const jobStartDate = new Date((invoice.status_transitions.paid_at || invoice.created) * 1000);
                 const jobTitle = invoice.lines.data[0]?.description || invoice.description || `Imported Job ${invoice.id}`;
                 const newJobId = uuidv4();
 

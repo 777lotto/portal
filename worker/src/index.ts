@@ -36,14 +36,7 @@ import { getPendingQuotes, handleDeclineQuote, handleReviseQuote, getQuoteById }
 
 // --- Customer Handlers ---
 import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent, handleGetNotifications, handleMarkAllNotificationsRead } from './handlers/profile.js';
-import {
-    handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob,
-    handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl,
-    handleGetServicesForJob, handleGetOpenInvoicesForUser,
-    handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate,
-    handleAdminAddServiceToJob, handleAdminCompleteJob, handleAdminUpdateJobDetails,
-    handleAdminUpdateServiceInJob, handleAdminDeleteServiceFromJob
-} from './handlers/jobs.js';
+import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleGetCalendarEvents, handleAddCalendarEvent, handleRemoveCalendarEvent, handleAdminUpdateJobDetails, handleAdminAddLineItemToJob, handleAdminUpdateLineItemInJob, handleAdminDeleteLineItemFromJob, handleAdminCompleteJob, handleGetLineItemsForJob, handleGetOpenInvoicesForUser, handleCreateJob, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl } from './handlers/jobs.js';
 import { handleGetUserPhotos, handleGetPhotosForJob } from './handlers/photos.js';
 import { handleGetNotesForJob } from './handlers/notes.js';
 import { handlePortalSession } from './handlers/user.js';
@@ -52,7 +45,7 @@ import { handleRequestRecurrence, handleGetRecurrenceRequests, handleUpdateRecur
 
 
 // --- Admin Handlers ---
-import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleGetAllJobs, handleGetAllServices, handleAdminCreateUser, handleAdminUpdateUser } from './handlers/admin/users.js';
+import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleGetAllJobs, handleAdminCreateUser, handleAdminUpdateUser } from './handlers/admin/users.js';
 import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleAdminAddNoteForUser } from './handlers/notes.js';
 import { handleAdminImportQuotes, handleAdminSendQuote } from './handlers/admin/quotes.js';
@@ -142,7 +135,7 @@ customerApi.get('/jobs/unavailable-recurrence-days', handleGetUnavailableRecurre
 customerApi.get('/jobs/:id', handleGetJobById);
 customerApi.get('/jobs/:id/photos', handleGetPhotosForJob);
 customerApi.get('/jobs/:id/notes', handleGetNotesForJob);
-customerApi.get('/jobs/:jobId/services', handleGetServicesForJob);
+customerApi.get('/jobs/:jobId/line-items', handleGetLineItemsForJob);
 customerApi.post('/portal', handlePortalSession);
 customerApi.post('/logout', handleLogout);
 customerApi.get('/calendar.ics', handleCalendarFeed);
@@ -179,16 +172,15 @@ adminApi.get('/users/:userId/photos', handleAdminGetPhotosForUser);
 adminApi.post('/users/:userId/photos', handleAdminUploadPhotoForUser);
 adminApi.post('/users/:userId/notes', handleAdminAddNoteForUser);
 adminApi.delete('/users/:userId', handleAdminDeleteUser);
-adminApi.get('/blocked-dates', handleGetBlockedDates);
-adminApi.post('/blocked-dates', handleAddBlockedDate);
-adminApi.delete('/blocked-dates/:date', handleRemoveBlockedDate);
+adminApi.get('/calendar-events', handleGetCalendarEvents);
+adminApi.post('/calendar-events', handleAddCalendarEvent);
+adminApi.delete('/calendar-events/:eventId', handleRemoveCalendarEvent);
 adminApi.get('/jobs', handleGetAllJobs);
 adminApi.post('/jobs/:jobId/complete', handleAdminCompleteJob);
 adminApi.put('/jobs/:jobId/details', handleAdminUpdateJobDetails);
-adminApi.post('/jobs/:jobId/services', handleAdminAddServiceToJob);
-adminApi.put('/jobs/:jobId/services/:serviceId', handleAdminUpdateServiceInJob);
-adminApi.delete('/jobs/:jobId/services/:serviceId', handleAdminDeleteServiceFromJob);
-adminApi.get('/services', handleGetAllServices);
+adminApi.post('/jobs/:jobId/line-items', handleAdminAddLineItemToJob);
+adminApi.put('/jobs/:jobId/line-items/:lineItemId', handleAdminUpdateLineItemInJob);
+adminApi.delete('/jobs/:jobId/line-items/:lineItemId', handleAdminDeleteLineItemFromJob);
 adminApi.post('/invoices/import', handleAdminImportInvoices);
 adminApi.post('/users/:userId/invoices/import', handleAdminImportInvoices);
 adminApi.get('/invoices/open', handleAdminGetAllOpenInvoices);

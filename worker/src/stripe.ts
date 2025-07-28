@@ -65,7 +65,7 @@ export async function createStripeInvoice(c: Context<AppEnv>, lineItems: LineIte
       await stripe.invoiceItems.create({
         customer: user.stripe_customer_id,
         invoice: invoice.id,
-        unit_price: item.unit_price_cents,
+        amount: item.unit_price_cents,
         quantity: item.quantity,
         description: item.description,
         currency: 'usd',
@@ -73,7 +73,9 @@ export async function createStripeInvoice(c: Context<AppEnv>, lineItems: LineIte
     }
 
     const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoice.id);
-    await stripe.invoices.sendInvoice(finalizedInvoice.id);
+    if (finalizedInvoice.id) {
+      await stripe.invoices.sendInvoice(finalizedInvoice.id);
+    }
 
 
     return finalizedInvoice;
@@ -137,7 +139,7 @@ export async function createStripeQuote(stripe: Stripe, customerId: string, line
             product_data: {
                 name: item.description,
             },
-            unit_amount: item.unit_price_cents,
+            amount: item.unit_price_cents,
         },
         quantity: item.quantity,
     }));
