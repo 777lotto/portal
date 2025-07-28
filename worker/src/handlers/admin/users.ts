@@ -5,7 +5,7 @@ import { Context } from 'hono';
 import type { AppEnv } from '../../index.js';
 import { getStripe, createStripeCustomer, createDraftStripeInvoice } from '../../stripe.js';
 import { createJob } from '../../calendar.js'
-import { AdminCreateUserSchema, type User, type Job, type Service, type Env, type Note, type PhotoWithNotes, type JobStatus } from '@portal/shared';
+import { AdminCreateUserSchema, type User, type Job, type LineItem, type Env, type Note, type PhotoWithNotes, type JobStatus } from '@portal/shared';
 
 /**
  * Validates an address using the Google Geocoding API.
@@ -57,7 +57,7 @@ export async function handleAdminGetJobsForUser(c: Context<AppEnv>): Promise<Res
     const { userId } = c.req.param();
     try {
         const dbResponse = await c.env.DB.prepare(
-            `SELECT * FROM jobs WHERE customerId = ? ORDER BY start DESC`
+            `SELECT * FROM jobs WHERE user_id = ? ORDER BY created_at DESC`
         ).bind(userId).all<Job>();
         const jobs = dbResponse?.results || [];
         return successResponse(jobs);
@@ -75,7 +75,7 @@ export async function handleAdminGetPhotosForUser(c: Context<AppEnv>): Promise<R
     try {
         const query = `
             SELECT
-                p.id, p.url, p.created_at, p.job_id, p.service_id, p.invoice_id,
+                p.id, p.url, p.created_at, p.job_id,
                 (SELECT JSON_GROUP_ARRAY(JSON_OBJECT('id', n.id, 'content', n.content, 'created_at', n.created_at))
                  FROM notes n WHERE n.photo_id = p.id) as notes
             FROM photos p
@@ -113,22 +113,31 @@ export async function handleAdminDeleteUser(c: Context<AppEnv>): Promise<Respons
   const db = c.env.DB;
 
   try {
-    const stmts = [
-      db.prepare("DELETE FROM notes WHERE user_id = ?"),
-      db.prepare("DELETE FROM photos WHERE user_id = ?"),
-      db.prepare("DELETE FROM services WHERE user_id = ?"),
-      db.prepare("DELETE FROM sms_messages WHERE user_id = ?"),
-      db.prepare("DELETE FROM notifications WHERE user_id = ?"),
-      db.prepare("DELETE FROM blocked_dates WHERE user_id = ?"),
-      db.prepare("DELETE FROM jobs WHERE customerId = ?"),
-      db.prepare("DELETE FROM users WHERE id = ?"),
-    ];
+    // First, get all job_ids for the user
+    const jobIdsResult = await db.prepare("SELECT id FROM jobs WHERE user_id = ?").bind(Number(userId)).all<{ id: string }>();
+    const jobIds = jobIdsResult.results?.map(row => row.id) ?? [];
 
-    const batch = stmts.map((stmt, index) =>
-        index === 6 ? stmt.bind(userId) : stmt.bind(Number(userId))
-    );
+    const stmts = [];
 
-    await db.batch(batch);
+    // Delete related data that has a direct user_id foreign key
+    stmts.push(db.prepare("DELETE FROM notes WHERE user_id = ?").bind(Number(userId)));
+    stmts.push(db.prepare("DELETE FROM photos WHERE user_id = ?").bind(Number(userId)));
+    stmts.push(db.prepare("DELETE FROM notifications WHERE user_id = ?").bind(Number(userId)));
+    stmts.push(db.prepare("DELETE FROM calendar_events WHERE user_id = ?").bind(Number(userId)));
+
+    // Delete line_items for all jobs associated with the user
+    if (jobIds.length > 0) {
+      const placeholders = jobIds.map(() => '?').join(',');
+      stmts.push(db.prepare(`DELETE FROM line_items WHERE job_id IN (${placeholders})`).bind(...jobIds));
+    }
+
+    // Now delete the jobs associated with the user
+    stmts.push(db.prepare("DELETE FROM jobs WHERE user_id = ?").bind(Number(userId)));
+    
+    // Finally, delete the user
+    stmts.push(db.prepare("DELETE FROM users WHERE id = ?").bind(Number(userId)));
+
+    await db.batch(stmts);
 
     return successResponse({ message: `User ${userId} and all their associated data deleted successfully.` });
   } catch (e: any) {
@@ -255,28 +264,14 @@ export async function handleAdminUpdateUser(c: Context<AppEnv>): Promise<Respons
 
 export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
     try {
-        const now = new Date().toISOString();
         const dbResponse = await c.env.DB.prepare(
-            `SELECT * FROM jobs WHERE start >= ? ORDER BY start ASC`
-        ).bind(now).all<Job>();
+            `SELECT * FROM jobs ORDER BY created_at ASC`
+        ).all<Job>();
         const jobs = dbResponse?.results || [];
         return successResponse(jobs);
     } catch (e: any) {
         console.error(`Failed to get all jobs:`, e);
         return errorResponse("Failed to retrieve all jobs.", 500);
-    }
-}
-
-export async function handleGetAllServices(c: Context<AppEnv>): Promise<Response> {
-    try {
-        const dbResponse = await c.env.DB.prepare(
-            `SELECT * FROM services ORDER BY id DESC`
-        ).all<Service>();
-        const services = dbResponse?.results || [];
-        return successResponse(services);
-    } catch (e: any) {
-        console.error(`Failed to get all services:`, e);
-        return errorResponse("Failed to retrieve all services.", 500);
     }
 }
 
@@ -332,15 +327,15 @@ export async function handleAdminCreateInvoice(c: Context<AppEnv>): Promise<Resp
 export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<Response> {
   const { userId } = c.req.param();
   const body = await c.req.json();
-  const { title, start, services, days_until_expiry, jobType, action } = body;
+  const { title, lineItems, days_until_expiry, jobType, action } = body;
 
-  if (!title || !start || !Array.isArray(services) || services.length === 0) {
-    return errorResponse("Job title, start date, and at least one service are required.", 400);
+  if (!title || !Array.isArray(lineItems) || lineItems.length === 0) {
+    return errorResponse("Job title and at least one line item are required.", 400);
   }
 
   try {
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + (days_until_expiry || 7));
+    const due = new Date();
+    due.setDate(due.getDate() + (days_until_expiry || 7));
 
     let status: JobStatus;
     switch (jobType) {
@@ -366,32 +361,30 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
     const jobData = {
       title: title,
       description: `Created by admin on ${new Date().toLocaleDateString()}`,
-      start: start,
-      end: new Date(new Date(start).getTime() + 60 * 60 * 1000).toISOString(),
-      status: status,
+      job_status: status,
       recurrence: 'none',
-      expires_at: expiresAt.toISOString(),
+      due: due.toISOString(),
     };
     const newJob = await createJob(c.env, jobData, userId);
 
-    const serviceInserts = services.map((service: { notes: string, price_cents: number }) => {
+    const lineItemInserts = lineItems.map((item: { description: string, quantity: number, unit_price_cents: number }) => {
       return c.env.DB.prepare(
-        `INSERT INTO services (job_id, status, notes, price_cents)
-         VALUES (?, ?, 'pending', ?, ?)`
+        `INSERT INTO line_items (job_id, description, quantity, unit_price_cents)
+         VALUES (?, ?, ?, ?)`
       ).bind(
         newJob.id,
-        newJob.start,
-        service.notes,
-        service.price_cents
+        item.description,
+        item.quantity,
+        item.unit_price_cents
       );
     });
 
-    await c.env.DB.batch(serviceInserts);
+    await c.env.DB.batch(lineItemInserts);
 
     if (jobType === 'quote' && action === 'send_proposal') {
       const notificationMessage = `You have a new quote proposal for "${title}".`;
       await c.env.DB.prepare(
-        `INSERT INTO ui_notifications (user_id, type, message, link)
+        `INSERT INTO notifications (user_id, type, message, link)
          VALUES (?, 'new_quote', ?, ?)`
       ).bind(
         parseInt(userId, 10),
@@ -430,12 +423,13 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
           return errorResponse("Failed to create a valid draft invoice in Stripe.", 500);
       }
 
-      for (const service of services) {
+      for (const item of lineItems) {
         await stripe.invoiceItems.create({
           customer: stripeCustomerId,
           invoice: draftInvoice.id,
-          description: service.notes,
-          amount: service.price_cents,
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unit_price_cents,
           currency: 'usd',
         });
       }

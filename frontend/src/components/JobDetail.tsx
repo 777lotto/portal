@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
-import { apiGet, getServicesForJob, apiPost, apiPostFormData, adminFinalizeJob, markInvoiceAsPaid } from '../lib/api.js';
-import type { Job, Service, Photo, Note } from '@portal/shared';
+import { apiGet, getLineItemsForJob, apiPost, apiPostFormData, adminFinalizeJob, markInvoiceAsPaid } from '../lib/api.js';
+import type { Job, LineItem, Photo, Note } from '@portal/shared';
 import { jwtDecode } from 'jwt-decode';
 import RecurrenceRequestModal from './RecurrenceRequestModal.js';
 import QuoteProposalModal from './QuoteProposalModal.js';
@@ -55,7 +55,7 @@ const parseRRule = (rrule: string | null | undefined): string => {
 function JobDetail() {
   const { id: jobId } = useParams<{ id: string }>();
   const [job, setJob] = useState<Job | null>(null);
-  const [services, setServices] = useState<Service[]>([]);
+  const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -69,7 +69,7 @@ function JobDetail() {
 
   // Editing States
   const [isEditingJob, setIsEditingJob] = useState(false);
-  const [editingService, setEditingService] = useState<Partial<Service> | null>(null);
+  const [editingLineItem, setEditingLineItem] = useState<Partial<LineItem> | null>(null);
   const [newNote, setNewNote] = useState('');
   const [editedJobData, setEditedJobData] = useState<Partial<Job>>({});
 
@@ -89,14 +89,14 @@ function JobDetail() {
     if (!jobId) return;
     try {
       setError(null);
-      const [jobData, servicesData, photosData, notesData] = await Promise.all([
+      const [jobData, lineItemsData, photosData, notesData] = await Promise.all([
         apiGet<Job>(`/api/jobs/${jobId}`),
-        getServicesForJob(jobId),
+        getLineItemsForJob(jobId),
         apiGet<Photo[]>(`/api/jobs/${jobId}/photos`),
         apiGet<Note[]>(`/api/jobs/${jobId}/notes`)
       ]);
       setJob(jobData);
-      setServices(servicesData);
+      setLineItems(lineItemsData);
       setPhotos(photosData);
       setNotes(notesData);
       setEditedJobData(jobData);
@@ -158,31 +158,31 @@ function JobDetail() {
     }
   };
 
-  const handleServiceUpdate = async () => {
-    if (!editingService || !jobId || user?.role !== 'admin') return;
+  const handleLineItemUpdate = async () => {
+    if (!editingLineItem || !jobId || user?.role !== 'admin') return;
     try {
-      const url = editingService.id ? `/api/admin/jobs/${jobId}/services/${editingService.id}` : `/api/admin/jobs/${jobId}/services`;
-      const method = editingService.id ? 'PUT' : 'POST';
+      const url = editingLineItem.id ? `/api/admin/jobs/${jobId}/line-items/${editingLineItem.id}` : `/api/admin/jobs/${jobId}/line-items`;
+      const method = editingLineItem.id ? 'PUT' : 'POST';
       await apiPost(url, {
-        ...editingService,
-        price_cents: Math.round(Number(editingService.price_cents || 0) * 100)
+        ...editingLineItem,
+        unit_price_cents: Math.round(Number(editingLineItem.unit_price_cents || 0))
       }, method);
-      setEditingService(null);
+      setEditingLineItem(null);
       fetchJobDetails();
     } catch (err: any) {
-      setError(`Failed to save service: ${err.message}`);
+      setError(`Failed to save line item: ${err.message}`);
     }
   };
 
-    const handleServiceDelete = async (serviceId: number) => {
-        if (!jobId || user?.role !== 'admin' || !window.confirm("Are you sure you want to delete this line item?")) return;
-        try {
-            await apiPost(`/api/admin/jobs/${jobId}/services/${serviceId}`, {}, 'DELETE');
-            fetchJobDetails();
-        } catch (err: any) {
-            setError(`Failed to delete service: ${err.message}`);
-        }
-    };
+  const handleLineItemDelete = async (lineItemId: number) => {
+    if (!jobId || user?.role !== 'admin' || !window.confirm("Are you sure you want to delete this line item?")) return;
+    try {
+        await apiPost(`/api/admin/jobs/${jobId}/line-items/${lineItemId}`, {}, 'DELETE');
+        fetchJobDetails();
+    } catch (err: any) {
+        setError(`Failed to delete line item: ${err.message}`);
+    }
+  };
 
   const handleFinalizeJob = async () => {
     if (!jobId || !window.confirm("This will finalize the job and send an invoice to the customer. This action cannot be undone. Continue?")) return;
@@ -410,22 +410,22 @@ const handleReviseQuote = async (revisionReason: string) => {
         <div className="card">
             <div className="card-header flex justify-between items-center">
               <h3 className="card-title text-xl">Service Line Items</h3>
-              {user?.role === 'admin' && !editingService && (
-                  <button className="btn btn-primary" onClick={() => setEditingService({})}>Add Item</button>
+              {user?.role === 'admin' && !editingLineItem && (
+                  <button className="btn btn-primary" onClick={() => setEditingLineItem({})}>Add Item</button>
               )}
             </div>
             <div className="card-body">
-                {services.length > 0 ? (
+                {lineItems.length > 0 ? (
                     <ul className="divide-y divide-border-light dark:divide-border-dark">
-                        {services.map(service => (
-                            <li key={service.id} className="py-3 flex justify-between items-center">
-                                <span>{service.notes}</span>
+                        {lineItems.map(item => (
+                            <li key={item.id} className="py-3 flex justify-between items-center">
+                                <span>{item.description}</span>
                                 <div className="flex items-center gap-4">
-                                  <span className="font-medium">${((service.price_cents || 0) / 100).toFixed(2)}</span>
+                                  <span className="font-medium">${((item.unit_price_cents || 0) / 100).toFixed(2)} x {item.quantity}</span>
                                   {user?.role === 'admin' && (
                                       <div className="flex gap-2">
-                                          <button className="btn btn-sm btn-secondary" onClick={() => setEditingService(service)}>Edit</button>
-                                          <button className="btn btn-sm btn-danger" onClick={() => handleServiceDelete(service.id)}>Del</button>
+                                          <button className="btn btn-sm btn-secondary" onClick={() => setEditingLineItem(item)}>Edit</button>
+                                          <button className="btn btn-sm btn-danger" onClick={() => handleLineItemDelete(item.id)}>Del</button>
                                       </div>
                                   )}
                                 </div>
@@ -433,27 +433,34 @@ const handleReviseQuote = async (revisionReason: string) => {
                         ))}
                     </ul>
                 ) : <p>No service items found for this job.</p>}
-                {editingService && (
+                {editingLineItem && (
                   <div className="mt-4 p-4 border rounded-md bg-secondary-light/50 dark:bg-secondary-dark/50 space-y-3">
-                      <h4 className="font-semibold">{editingService.id ? 'Edit' : 'Add'} Line Item</h4>
+                      <h4 className="font-semibold">{editingLineItem.id ? 'Edit' : 'Add'} Line Item</h4>
                        <input
                           type="text"
                           placeholder="Description"
-                          value={editingService.notes || ''}
-                          onChange={(e) => setEditingService({...editingService, notes: e.target.value})}
+                          value={editingLineItem.description || ''}
+                          onChange={(e) => setEditingLineItem({...editingLineItem, description: e.target.value})}
                           className="form-control"
                       />
                       <input
                           type="number"
-                          placeholder="Price ($)"
+                          placeholder="Quantity"
+                          value={editingLineItem.quantity || 1}
+                          onChange={(e) => setEditingLineItem({...editingLineItem, quantity: parseInt(e.target.value)})}
+                          className="form-control"
+                      />
+                      <input
+                          type="number"
+                          placeholder="Unit Price ($)"
                           step="0.01"
-                          value={editingService.price_cents !== undefined ? (editingService.price_cents / 100).toFixed(2) : ''}
-                          onChange={(e) => setEditingService({...editingService, price_cents: parseFloat(e.target.value) * 100 })}
+                          value={editingLineItem.unit_price_cents !== undefined ? (editingLineItem.unit_price_cents / 100).toFixed(2) : ''}
+                          onChange={(e) => setEditingLineItem({...editingLineItem, unit_price_cents: parseFloat(e.target.value) * 100 })}
                           className="form-control"
                       />
                       <div className="flex justify-end gap-2">
-                          <button className="btn btn-secondary" onClick={() => setEditingService(null)}>Cancel</button>
-                          <button className="btn btn-primary" onClick={handleServiceUpdate}>Save Item</button>
+                          <button className="btn btn-secondary" onClick={() => setEditingLineItem(null)}>Cancel</button>
+                          <button className="btn btn-primary" onClick={handleLineItemUpdate}>Save Item</button>
                       </div>
                   </div>
                 )}

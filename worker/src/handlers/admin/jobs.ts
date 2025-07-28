@@ -2,7 +2,7 @@
 import { Context } from 'hono';
 import { AppEnv } from '../../index.js';
 import { errorResponse, successResponse } from '../../utils.js';
-import type { Job, Service, User, JobStatus, JobWithDetails } from '@portal/shared';
+import type { Job, LineItem, User, JobStatus, JobWithDetails } from '@portal/shared';
 import { getStripe, createStripeCustomer, createDraftStripeInvoice } from '../../stripe.js';
 import { createJob } from '../../calendar.js';
 import Stripe from 'stripe';
@@ -17,30 +17,30 @@ export const handleGetJobsAndQuotes = async (c: Context<AppEnv>) => {
          u.name as customerName,
          u.address as customerAddress
        FROM jobs j
-       JOIN users u ON j.customerId = u.id
-       ORDER BY j.createdAt DESC`
+       JOIN users u ON j.user_id = u.id
+       ORDER BY j.created_at DESC`
     ).all<Job & { customerName: string; customerAddress: string }>();
 
     if (!jobs) {
       return successResponse([]);
     }
 
-    const { results: services } = await db.prepare(`SELECT * FROM services`).all<Service>();
-    const servicesByJobId = new Map<string, Service[]>();
-    if (services) {
-      for (const service of services) {
-        if (service.job_id) {
-          if (!servicesByJobId.has(service.job_id)) {
-            servicesByJobId.set(service.job_id, []);
+    const { results: lineItems } = await db.prepare(`SELECT * FROM line_items`).all<LineItem>();
+    const lineItemsByJobId = new Map<string, LineItem[]>();
+    if (lineItems) {
+      for (const item of lineItems) {
+        if (item.job_id) {
+          if (!lineItemsByJobId.has(item.job_id)) {
+            lineItemsByJobId.set(item.job_id, []);
           }
-          servicesByJobId.get(service.job_id)!.push(service);
+          lineItemsByJobId.get(item.job_id)!.push(item);
         }
       }
     }
 
     const jobsWithDetails: JobWithDetails[] = jobs.map(job => ({
       ...job,
-      services: servicesByJobId.get(job.id) || []
+      line_items: lineItemsByJobId.get(job.id) || []
     }));
 
     return successResponse(jobsWithDetails);
@@ -53,16 +53,16 @@ export const handleGetJobsAndQuotes = async (c: Context<AppEnv>) => {
 
 // REVISED AND CONSOLIDATED FUNCTION
 export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
-    const { customerId, title, services, start, isDraft, jobType } = await c.req.json();
+    const { userId, title, lineItems, isDraft, jobType } = await c.req.json();
     const db = c.env.DB;
     const stripe = getStripe(c.env);
 
-    if (!customerId || !title || !start || !services) {
-        return errorResponse("Missing required fields: customerId, title, start, services.", 400);
+    if (!userId || !title || !lineItems) {
+        return errorResponse("Missing required fields: userId, title, lineItems.", 400);
     }
 
     try {
-        const user = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(customerId).first<User>();
+        const user = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(userId).first<User>();
         if (!user) return errorResponse("User not found.", 404);
 
         let status: JobStatus;
@@ -79,18 +79,16 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
         const jobData = {
             title,
             description: `Created via admin panel on ${new Date().toLocaleDateString()}`,
-            start,
-            end: new Date(new Date(start).getTime() + 60 * 60 * 1000).toISOString(),
-            status,
+            job_status: status,
             recurrence: 'none'
         };
-        const newJob = await createJob(c.env, jobData, customerId);
+        const newJob = await createJob(c.env, jobData, userId);
 
-        const serviceInserts = services.map((service: any) =>
-            db.prepare(`INSERT INTO services (job_id, notes, price_cents) VALUES (?, ?, ?, ?, ?)`)
-              .bind(newJob.id, start, 'pending', service.notes, service.price_cents)
+        const lineItemInserts = lineItems.map((item: any) =>
+            db.prepare(`INSERT INTO line_items (job_id, description, quantity, unit_price_cents) VALUES (?, ?, ?, ?)`)
+              .bind(newJob.id, item.description, item.quantity, item.unit_price_cents)
         );
-        await db.batch(serviceInserts);
+        await db.batch(lineItemInserts);
 
         let stripeObject = null;
 
@@ -107,12 +105,13 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
                     return errorResponse("Failed to create a valid draft invoice in Stripe.", 500);
                 }
 
-                for (const service of services) {
+                for (const item of lineItems) {
                     await stripe.invoiceItems.create({
                         customer: user.stripe_customer_id,
                         invoice: draftInvoice.id,
-                        description: service.notes,
-                        amount: service.price_cents,
+                        description: item.description,
+                        quantity: item.quantity,
+                        unit_price: item.unit_price_cents,
                         currency: 'usd',
                     });
                 }
@@ -124,9 +123,9 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
                 const quote = await stripe.quotes.create({
                     customer: user.stripe_customer_id,
                     description: title,
-                    line_items: services.map((item: any) => ({
-                        price_data: { currency: 'usd', unit_amount: item.price_cents || 0, product_data: { name: item.notes || 'Unnamed Service' } },
-                        quantity: 1,
+                    line_items: lineItems.map((item: any) => ({
+                        price_data: { currency: 'usd', unit_amount: item.unit_price_cents || 0, product_data: { name: item.description || 'Unnamed Item' } },
+                        quantity: item.quantity,
                     })),
                 });
                 const finalizedQuote = await stripe.quotes.finalizeQuote(quote.id) as Stripe.Quote;
@@ -147,7 +146,8 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
         }, 201);
 
     } catch (e: any) {
-        console.error(`Failed to create ${jobType} for user ${customerId}:`, e);
+        console.error(`Failed to create ${jobType} for user ${userId}:`, e);
         return errorResponse(`Failed to create ${jobType}: ${e.message}`, 500);
     }
 };
+

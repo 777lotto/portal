@@ -1,7 +1,7 @@
 // 777lotto/portal/portal-bet/frontend/src/lib/api.ts
 import {
   type Job,
-  type Service,
+  type LineItem,
   type User,
   type AuthResponse,
   type PortalSession,
@@ -10,7 +10,7 @@ import {
   type Photo,
   type Note,
   type PhotoWithNotes,
-  type BlockedDate,
+  type CalendarEvent,
   type StripeInvoice,
   type UINotification,
   type JobWithDetails,
@@ -114,9 +114,9 @@ export const createSetupIntent = () => apiPost<{ clientSecret: string }>('/api/p
                                   SERVICES
    ======================================================================== */
 
-export const getServices = () => apiGet<Service[]>('/api/services');
-export const getService = (id: string) => apiGet<Service>(`/api/services/${id}`);
-export const createInvoice = (serviceId: string) => apiPost<any>(`/api/services/${serviceId}/invoice`, {});
+export const getLineItems = () => apiGet<LineItem[]>('/api/line-items');
+export const getLineItem = (id: string) => apiGet<LineItem>(`/api/line-items/${id}`);
+export const createInvoice = (lineItemId: string) => apiPost<any>(`/api/line-items/${lineItemId}/invoice`, {});
 
 
 /* ========================================================================
@@ -125,8 +125,8 @@ export const createInvoice = (serviceId: string) => apiPost<any>(`/api/services/
 
 export const getJobs = () => apiGet<Job[]>('/api/jobs');
 export const getJob = (id: string) => apiGet<Job>(`/api/jobs/${id}`);
-export const createJob = (data: { title: string; start: string; services: { id: number; notes: string; price_cents: number }[] }) => apiPost<Job>('/api/jobs', data);
-export const getServicesForJob = (jobId: string) => apiGet<Service[]>(`/api/jobs/${jobId}/services`);
+export const createJob = (data: { title: string; lineItems: { id: number; description: string; quantity: number, unit_price_cents: number }[] }) => apiPost<Job>('/api/jobs', data);
+export const getLineItemsForJob = (jobId: string) => apiGet<LineItem[]>(`/api/jobs/${jobId}/line-items`);
 export const getOpenInvoices = () => apiGet<StripeInvoice[]>('/api/invoices/open');
 export const requestRecurrence = (jobId: string, data: { frequency: number, requested_day?: number }) => apiPost(`/api/jobs/${jobId}/request-recurrence`, data);
 export const getUnavailableRecurrenceDays = () => apiGet<{ unavailableDays: number[] }>('/api/jobs/unavailable-recurrence-days');
@@ -143,12 +143,12 @@ export const reviseQuote = (quoteId: string, revisionReason: string) => apiPost(
 export const adminCreateUser = (data: unknown) => apiPost<User>('/api/admin/users', data);
 export const adminUpdateUser = (userId: string, data: Partial<User>) => apiPost<User>(`/api/admin/users/${userId}`, data, 'PUT');
 export const deleteUser = (userId: string) => fetchJson(`/api/admin/users/${userId}`, { method: 'DELETE' });
-export const getBlockedDates = () => apiGet<BlockedDate[]>('/api/admin/blocked-dates');
-export const addBlockedDate = (date: string, reason?: string) => apiPost('/api/admin/blocked-dates', { date, reason });
-export const removeBlockedDate = (date: string) => fetchJson(`/api/admin/blocked-dates/${date}`, { method: 'DELETE' });
+export const getCalendarEvents = () => apiGet<CalendarEvent[]>('/api/admin/calendar-events');
+export const addCalendarEvent = (event: Omit<CalendarEvent, 'id' | 'user_id'>) => apiPost('/api/admin/calendar-events', event);
+export const removeCalendarEvent = (eventId: number) => fetchJson(`/api/admin/calendar-events/${eventId}`, { method: 'DELETE' });
 export const adminCreateInvoice = (userId: string) => apiPost<{ invoice: StripeInvoice }>(`/api/admin/users/${userId}/invoice`, {});
 export const adminGetAllJobs = () => apiGet<Job[]>('/api/admin/jobs');
-export const adminGetAllServices = () => apiGet<Service[]>('/api/admin/services');
+export const adminGetAllLineItems = () => apiGet<LineItem[]>('/api/admin/line-items');
 
 export const adminGetAllOpenInvoices = () => apiGet<StripeInvoice[]>('/api/admin/invoices/open');
 export const adminFinalizeJob = (jobId: string) => {
@@ -159,31 +159,30 @@ export const adminImportQuotes = () => apiPost<{ message: string, imported: numb
 export const adminImportInvoicesForUser = (userId: string) => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>(`/api/admin/users/${userId}/invoices/import`, {});
 export const getImportedContacts = (token: string) => apiPost<any[]>('/api/admin/get-imported-contacts', { token });
 export const adminGetJobsAndQuotes = () => apiGet<JobWithDetails[]>('/api/admin/jobs-and-quotes');
-export const adminReassignJob = (jobId: string, newCustomerId: string) => {
-  return apiPost(`/api/admin/jobs/${jobId}/reassign`, { newCustomerId });
+export const adminReassignJob = (jobId: string, newUserId: string) => {
+  return apiPost(`/api/admin/jobs/${jobId}/reassign`, { newUserId });
 };
 export const adminCreateJob = (data: {
-  customerId: string;
+  userId: string;
   jobType: 'job' | 'quote' | 'invoice';
   title: string;
-  start: string;
-  services: { notes: string, price_cents: number }[];
+  lineItems: { description: string, quantity: number, unit_price_cents: number }[];
   isDraft: boolean;
-  action?: string; // Kept for compatibility with AddJobModal
+  action?: string;
 }) => {
   return apiPost<{ job: Job, invoice?: StripeInvoice, quote?: any }>('/api/admin/jobs', data);
 };
 export const adminUpdateJobDetails = (jobId: string, data: Partial<Job>) => {
   return apiPost(`/api/admin/jobs/${jobId}/details`, data, 'PUT');
 };
-export const adminAddServiceToJob = (jobId: string, data: Partial<Service>) => {
-  return apiPost(`/api/admin/jobs/${jobId}/services`, data);
+export const adminAddLineItemToJob = (jobId: string, data: Partial<LineItem>) => {
+  return apiPost(`/api/admin/jobs/${jobId}/line-items`, data);
 };
-export const adminUpdateServiceInJob = (jobId: string, serviceId: number, data: Partial<Service>) => {
-  return apiPost(`/api/admin/jobs/${jobId}/services/${serviceId}`, data, 'PUT');
+export const adminUpdateLineItemInJob = (jobId: string, lineItemId: number, data: Partial<LineItem>) => {
+  return apiPost(`/api/admin/jobs/${jobId}/line-items/${lineItemId}`, data, 'PUT');
 };
-export const adminDeleteServiceFromJob = (jobId: string, serviceId: number) => {
-  return apiPost(`/api/admin/jobs/${jobId}/services/${serviceId}`, {}, 'DELETE');
+export const adminDeleteLineItemFromJob = (jobId: string, lineItemId: number) => {
+  return apiPost(`/api/admin/jobs/${jobId}/line-items/${lineItemId}`, {}, 'DELETE');
 };
 export const getRecurrenceRequests = () => apiGet<JobRecurrenceRequest[]>('/api/admin/recurrence-requests');
 export const updateRecurrenceRequest = (requestId: number, data: { status: 'accepted' | 'declined' | 'countered', admin_notes?: string, frequency?: number, requested_day?: number }) => apiPost(`/api/admin/recurrence-requests/${requestId}`, data, 'PUT');

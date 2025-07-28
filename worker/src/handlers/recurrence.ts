@@ -12,7 +12,6 @@ const RecurrenceRequestPayload = z.object({
 
 const RecurrenceUpdatePayload = z.object({
     status: z.enum(['accepted', 'declined', 'countered']),
-    admin_notes: z.string().optional(),
     frequency: z.number().min(1).optional(),
     requested_day: z.number().min(0).max(6).optional(),
 });
@@ -30,8 +29,7 @@ export const handleRequestRecurrence = async (c: Context<AppEnv>) => {
     const { frequency, requested_day } = parsed.data;
 
     try {
-        // --- FIX: Convert user.id to a string for the query ---
-        const job = await c.env.DB.prepare(`SELECT * FROM jobs WHERE id = ? AND customerId = ?`).bind(jobId, user.id.toString()).first<Job>();
+        const job = await c.env.DB.prepare(`SELECT * FROM jobs WHERE id = ? AND user_id = ?`).bind(jobId, user.id).first<Job>();
         if (!job) {
             return errorResponse("Job not found or you don't have permission to modify it.", 404);
         }
@@ -98,7 +96,7 @@ export const handleUpdateRecurrenceRequest = async (c: Context<AppEnv>) => {
         return errorResponse("Invalid data", 400, parsed.error.flatten());
     }
 
-    const { status, admin_notes, frequency, requested_day } = parsed.data;
+    const { status, frequency, requested_day } = parsed.data;
 
     try {
         const request = await c.env.DB.prepare(`SELECT * FROM job_recurrence_requests WHERE id = ?`).bind(requestId).first<any>();
@@ -107,10 +105,9 @@ export const handleUpdateRecurrenceRequest = async (c: Context<AppEnv>) => {
         }
 
         await c.env.DB.prepare(
-            `UPDATE job_recurrence_requests SET status = ?, admin_notes = ?, frequency = ?, requested_day = ?, updated_at = ? WHERE id = ?`
+            `UPDATE job_recurrence_requests SET status = ?, frequency = ?, requested_day = ?, updated_at = ? WHERE id = ?`
         ).bind(
             status,
-            admin_notes ?? request.admin_notes, // FIX: Use existing value if new one is not provided
             frequency ?? request.frequency,
             requested_day ?? request.requested_day,
             new Date().toISOString(),
@@ -118,7 +115,6 @@ export const handleUpdateRecurrenceRequest = async (c: Context<AppEnv>) => {
         ).run();
 
         if (status === 'accepted') {
-            // FIX: Explicitly check if the day is not null/undefined to handle Sunday (day 0) correctly
             const day = requested_day ?? request.requested_day;
             const byDayRule = (day !== null && day !== undefined)
                 ? `;BYDAY=${['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][day]}`
@@ -138,7 +134,6 @@ export const handleUpdateRecurrenceRequest = async (c: Context<AppEnv>) => {
             data: {
                 jobId: request.job_id,
                 status: status,
-                adminNotes: admin_notes,
             },
             channels: ['push']
         });

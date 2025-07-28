@@ -25,17 +25,15 @@ export const UserSchema = z.object({
 });
 export type User = z.infer<typeof UserSchema>;
 
-// Defines a service record, matching the database schema.
-export const ServiceSchema = z.object({
+// Defines a line item record, matching the database schema.
+export const LineItemSchema = z.object({
   id: z.number(),
-  user_id: z.number(),
-  service_date: z.string(),
-  status: z.string(),
-  notes: z.string().optional().nullable(),
-  price_cents: z.number().optional().nullable(),
-  job_id: z.string().optional().nullable(),
+  job_id: z.string(),
+  description: z.string(),
+  quantity: z.number(),
+  unit_price_cents: z.number(),
 });
-export type Service = z.infer<typeof ServiceSchema>;
+export type LineItem = z.infer<typeof LineItemSchema>;
 
 // Define the new, stricter set of statuses for a Job
 export const JobStatusEnum = z.enum([
@@ -54,23 +52,18 @@ export type JobStatus = z.infer<typeof JobStatusEnum>;
 // This resolves the majority of the frontend errors.
 export const JobSchema = z.object({
   id: z.string(),
-  customerId: z.string(),
+  user_id: z.number(), // Changed from customerId
   title: z.string(),
   description: z.string().optional().nullable(),
-  start: z.string(), // ISO date string
-  end: z.string(),   // ISO date string
-  status: JobStatusEnum, // Use the new enum
+  job_status: JobStatusEnum, // Renamed from status
   recurrence: z.string().optional().nullable(),
-  rrule: z.string().optional().nullable(),
-  crewId: z.string().optional().nullable(),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
+  created_at: z.string().optional(), // Renamed from createdAt
+  updated_at: z.string().optional(), // Renamed from updatedAt
   stripe_invoice_id: z.string().optional().nullable(),
   stripe_quote_id: z.string().optional().nullable(),
   invoice_created_at: z.string().optional().nullable(),
-  total_amount_cents: z.number().optional().nullable(), // New field
-  due_date: z.string().optional().nullable(),
-  expires_at: z.string().optional().nullable(),
+  total_amount_cents: z.number().optional().nullable(),
+  due: z.string().optional().nullable(), // Renamed from due_date and expires_at
   contact_method_override: z.enum(['email', 'sms', 'push']).optional().nullable(),
 });
 export type Job = z.infer<typeof JobSchema>;
@@ -83,7 +76,6 @@ export const JobRecurrenceRequestSchema = z.object({
     frequency: z.number(),
     requested_day: z.number().optional(),
     status: z.enum(['pending', 'accepted', 'declined', 'countered']),
-    admin_notes: z.string().optional().nullable(),
     created_at: z.string(),
     updated_at: z.string(),
 });
@@ -92,7 +84,7 @@ export type JobRecurrenceRequest = z.infer<typeof JobRecurrenceRequestSchema>;
 export const JobWithDetailsSchema = JobSchema.extend({
   customerName: z.string().nullable(),
   customerAddress: z.string().nullable(),
-  services: z.array(ServiceSchema),
+  line_items: z.array(LineItemSchema),
   recurrence_requests: z.array(JobRecurrenceRequestSchema).optional(), // Add recurrence requests
 });
 export type JobWithDetails = z.infer<typeof JobWithDetailsSchema>;
@@ -118,7 +110,6 @@ export const PhotoSchema = z.object({
     url: z.string().url(),
     created_at: z.string(),
     job_id: z.string().optional().nullable(),
-    service_id: z.number().optional().nullable(),
 });
 export type Photo = z.infer<typeof PhotoSchema>;
 
@@ -136,14 +127,17 @@ export const PhotoWithNotesSchema = PhotoSchema.extend({
 });
 export type PhotoWithNotes = z.infer<typeof PhotoWithNotesSchema>;
 
-// ADD NEW SCHEMA for blocked dates
- export const BlockedDateSchema = z.object({
-   date: z.string(), // YYYY-MM-DD
-   reason: z.string().optional().nullable(),
-   created_at: z.string().optional(),
-   user_id: z.number().optional(),
+// Renamed from BlockedDateSchema
+ export const CalendarEventSchema = z.object({
+   id: z.number(),
+   title: z.string(),
+   start: z.string(), // ISO date string
+   end: z.string(), // ISO date string
+   type: z.enum(['job', 'blocked', 'personal']),
+   job_id: z.string().optional().nullable(),
+   user_id: z.number().optional().nullable(),
  });
- export type BlockedDate = z.infer<typeof BlockedDateSchema>;
+ export type CalendarEvent = z.infer<typeof CalendarEventSchema>;
 
  export const AdminCreateUserSchema = z.object({
   name: z.string().optional(),

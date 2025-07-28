@@ -59,28 +59,17 @@ export const handlePublicCalendarFeed = async (c: Context<AppEnv>) => {
 // Handler to get day availability
 export const handleGetAvailability = async (c: Context<AppEnv>) => {
   try {
-    // Fetch all jobs that aren't cancelled, drafts, or expired quotes
-    const { results: jobResults } = await c.env.DB.prepare(
-      `SELECT start FROM jobs WHERE status NOT IN ('canceled', 'quote_draft', 'invoice_draft', 'job_draft')`
+    // Fetch all calendar events that are jobs or blocked dates
+    const { results: eventResults } = await c.env.DB.prepare(
+      `SELECT start FROM calendar_events WHERE type IN ('job', 'blocked')`
     ).all<{ start: string }>();
-
-    // Fetch all manually blocked dates
-    const { results: blockedDateResults } = await c.env.DB.prepare(
-      `SELECT date FROM blocked_dates`
-    ).all<{ date: string }>();
-
 
     // Use a Set for efficiency to get unique day strings
     const bookedDays = new Set<string>();
 
-    jobResults?.forEach((job: { start: string }) => {
-      const day = new Date(job.start).toISOString().split('T')[0];
+    eventResults?.forEach((event: { start: string }) => {
+      const day = new Date(event.start).toISOString().split('T')[0];
       bookedDays.add(day);
-    });
-
-    // Add manually blocked dates to the set
-    blockedDateResults?.forEach((blocked: { date: string }) => {
-        bookedDays.add(blocked.date);
     });
 
     // Return the array of unique booked days

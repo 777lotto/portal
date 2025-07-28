@@ -61,8 +61,8 @@ async function handleSubscribe(request: Request, env: NotificationEnv): Promise<
 
     try {
         await env.DB.prepare(
-            `INSERT OR REPLACE INTO push_subscriptions (user_id, subscription_json) VALUES (?, ?)`
-        ).bind(userId, JSON.stringify(subscription)).run();
+            `INSERT INTO notifications (user_id, type, message, link, is_read, channel, target) VALUES (?, ?, ?, ?, ?, ?, ?)`
+        ).bind(userId, 'push_subscription', 'Subscribed to push notifications', '/account', 0, 'push', JSON.stringify(subscription)).run();
 
         return new Response(JSON.stringify({ success: true }), { status: 201 });
     } catch (e: any) {
@@ -185,7 +185,7 @@ export default {
           return;
         }
 
-        const { type, userId, data, channels = ['email', 'sms', 'push'] } = validation.data;
+        const { type, userId, data, channels = ['email', 'sms', 'push', 'ui'] } = validation.data;
 
         const user = await env.DB.prepare(
             'SELECT id, email, name, phone, email_notifications_enabled, sms_notifications_enabled FROM users WHERE id = ?'
@@ -200,16 +200,15 @@ export default {
         console.log(`Processing queued notification for user ${user.id}. Type: ${type}`);
         const notificationPromises = [];
 
-        // --- NEW LOGIC ---
-        // Always create a UI notification, regardless of user preferences for other channels
         const { message: uiMessage, link: uiLink } = generateUINotificationDetails(type, data);
-        const uiNotificationPromise = env.DB.prepare(
-            `INSERT INTO ui_notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)`
-        ).bind(userId, type, uiMessage, uiLink).run();
-        notificationPromises.push(uiNotificationPromise);
-        // --- END NEW LOGIC ---
 
-        // Send email if channel is selected and user has enabled email notifications
+        if (channels.includes('ui')) {
+            const uiNotificationPromise = env.DB.prepare(
+                `INSERT INTO notifications (user_id, type, message, link, is_read, channel) VALUES (?, ?, ?, ?, ?, ?)`
+            ).bind(userId, type, uiMessage, uiLink, 0, 'ui').run();
+            notificationPromises.push(uiNotificationPromise);
+        }
+
         if (channels.includes('email') && user.email && user.email_notifications_enabled) {
           const subject = `Gutter Portal Reminder: ${type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}`;
           const html = generateEmailHTML(type, user.name, data);
@@ -217,24 +216,22 @@ export default {
           notificationPromises.push(sendEmailNotification(env, { to: user.email, toName: user.name, subject, html, text }));
         }
 
-        // Send SMS if channel is selected and user has enabled SMS notifications
         if (channels.includes('sms') && user.phone && user.sms_notifications_enabled) {
           const smsMessage = generateSMSMessage(type, data);
           notificationPromises.push(sendSMSNotification(env, user.phone, smsMessage));
         }
 
-        // Send Push Notification if user is subscribed
         if(channels.includes('push')) {
             const pushSubResult = await env.DB.prepare(
-                `SELECT subscription_json FROM push_subscriptions WHERE user_id = ?`
-            ).bind(userId).first<{ subscription_json: string }>();
+                `SELECT target FROM notifications WHERE user_id = ? AND type = 'push_subscription'`
+            ).bind(userId).first<{ target: string }>();
 
-            if (pushSubResult?.subscription_json) {
+            if (pushSubResult?.target) {
                 try {
-                    const subscription = JSON.parse(pushSubResult.subscription_json);
+                    const subscription = JSON.parse(pushSubResult.target);
                     const payload = JSON.stringify({
                         title: `Gutter Portal: ${type.replace(/_/g, ' ')}`,
-                        body: uiMessage // Re-use UI message for push body
+                        body: uiMessage
                     });
 
                     notificationPromises.push(
@@ -242,7 +239,7 @@ export default {
                             .catch(async (e: any) => {
                                 if (e.statusCode === 410) {
                                     console.log(`Subscription for user ${userId} is expired/invalid. Deleting.`);
-                                    await env.DB.prepare(`DELETE FROM push_subscriptions WHERE user_id = ?`).bind(userId).run();
+                                    await env.DB.prepare(`DELETE FROM notifications WHERE user_id = ? AND type = 'push_subscription'`).bind(userId).run();
                                 }
                             })
                     );
@@ -258,7 +255,7 @@ export default {
 
       } catch (e: any) {
         console.error('Error processing queue message:', e);
-        message.retry(); // Retry the message on failure
+        message.retry();
       }
     });
 

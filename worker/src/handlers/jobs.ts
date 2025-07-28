@@ -5,13 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { AppEnv as WorkerAppEnv } from '../index.js';
 import { errorResponse, successResponse } from '../utils.js';
 import { generateCalendarFeed, createJob } from '../calendar.js';
-import type { Job, Service, User } from '@portal/shared'; // Corrected: Added User import
-import { getStripe } from '../stripe.js';
-
-const BlockDatePayload = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
-  reason: z.string().optional().nullable(),
-});
+import type { Job, LineItem, User, CalendarEvent } from '@portal/shared'; 
+import { CalendarEventSchema } from '@portal/shared';
 
 // --- Calendar URL Handlers ---
 
@@ -70,7 +65,7 @@ export const handleCreateJob = async (c: HonoContext<WorkerAppEnv>) => {
     const body = await c.req.json();
 
     try {
-        const newJob = await createJob(c.env, body, user.id.toString());
+        const newJob = await createJob(c.env, body, user.id);
         return successResponse(newJob, 201);
     } catch (e: any) {
         if (e instanceof z.ZodError) {
@@ -85,16 +80,15 @@ export const handleGetJobs = async (c: HonoContext<WorkerAppEnv>) => {
     const user = c.get('user');
     try {
         let dbResponse;
-        const now = new Date().toISOString();
 
         if (user.role === 'admin') {
             dbResponse = await c.env.DB.prepare(
-                `SELECT * FROM jobs WHERE status = 'upcoming' AND start >= ? ORDER BY start ASC`
-            ).bind(now).all<Job>();
+                `SELECT * FROM jobs WHERE job_status = 'upcoming' ORDER BY created_at ASC`
+            ).all<Job>();
         } else {
             dbResponse = await c.env.DB.prepare(
-                `SELECT * FROM jobs WHERE customerId = ? AND status = 'upcoming' AND start >= ? ORDER BY start ASC`
-            ).bind(user.id.toString(), now).all<Job>();
+                `SELECT * FROM jobs WHERE user_id = ? AND job_status = 'upcoming' ORDER BY created_at ASC`
+            ).bind(user.id).all<Job>();
         }
 
         const jobs = dbResponse?.results || [];
@@ -116,7 +110,7 @@ export const handleGetJobById = async (c: HonoContext<WorkerAppEnv>) => {
             return errorResponse("Job not found", 404);
         }
 
-        if (user.role !== 'admin' && job.customerId !== user.id.toString()) {
+        if (user.role !== 'admin' && job.user_id !== user.id) {
             return errorResponse("Job not found", 404);
         }
 
@@ -128,16 +122,16 @@ export const handleGetJobById = async (c: HonoContext<WorkerAppEnv>) => {
 
 export const handleAdminReassignJob = async (c: HonoContext<WorkerAppEnv>) => {
     const { jobId } = c.req.param();
-    const { newCustomerId } = await c.req.json();
+    const { newUserId } = await c.req.json();
 
-    if (!newCustomerId) {
-        return errorResponse("New customer ID is required.", 400);
+    if (!newUserId) {
+        return errorResponse("New user ID is required.", 400);
     }
 
     try {
         await c.env.DB.prepare(
-            `UPDATE jobs SET customerId = ? WHERE id = ?`
-        ).bind(newCustomerId, jobId).run();
+            `UPDATE jobs SET user_id = ? WHERE id = ?`
+        ).bind(newUserId, jobId).run();
 
         const updatedJob = await c.env.DB.prepare(
             `SELECT * FROM jobs WHERE id = ?`
@@ -167,63 +161,57 @@ export const handleCalendarFeed = async (c: HonoContext<WorkerAppEnv>) => {
     }
 };
 
-// --- Admin Handlers for Blocked Dates ---
+// --- Admin Handlers for Calendar Events ---
 
-export async function handleGetBlockedDates(c: HonoContext<WorkerAppEnv>) {
+export async function handleGetCalendarEvents(c: HonoContext<WorkerAppEnv>) {
   try {
     const { results } = await c.env.DB.prepare(
-      `SELECT date, reason FROM blocked_dates ORDER BY date ASC`
-    ).all<{ date: string, reason: string }>();
+      `SELECT * FROM calendar_events ORDER BY start ASC`
+    ).all<CalendarEvent>();
     return successResponse(results || []);
   } catch (e: any) {
-    console.error("Error fetching blocked dates:", e);
-    return errorResponse('Failed to fetch blocked dates.', 500);
+    console.error("Error fetching calendar events:", e);
+    return errorResponse('Failed to fetch calendar events.', 500);
   }
 }
 
-export async function handleAddBlockedDate(c: HonoContext<WorkerAppEnv>) {
+export async function handleAddCalendarEvent(c: HonoContext<WorkerAppEnv>) {
   const user = c.get('user');
   const body = await c.req.json();
-  const parsed = BlockDatePayload.safeParse(body);
+  const parsed = CalendarEventSchema.omit({ id: true, user_id: true }).safeParse(body);
 
   if (!parsed.success) {
     return errorResponse("Invalid data", 400, parsed.error.flatten());
   }
 
-  const { date, reason } = parsed.data;
+  const { title, start, end, type, job_id } = parsed.data;
 
   try {
     await c.env.DB.prepare(
-      `INSERT INTO blocked_dates (date, reason, user_id) VALUES (?, ?, ?)`
-    ).bind(date, reason || null, user.id).run();
-    return successResponse({ date, reason }, 201);
+      `INSERT INTO calendar_events (title, start, end, type, job_id, user_id) VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(title, start, end, type, job_id || null, user.id).run();
+    return successResponse({ ...parsed.data, user_id: user.id }, 201);
   } catch (e: any) {
-    if (e.message?.includes('UNIQUE constraint failed')) {
-      return errorResponse("This date is already blocked.", 409);
-    }
-    console.error("Error adding blocked date:", e);
-    return errorResponse('Failed to block date.', 500);
+    console.error("Error adding calendar event:", e);
+    return errorResponse('Failed to add calendar event.', 500);
   }
 }
 
-export async function handleRemoveBlockedDate(c: HonoContext<WorkerAppEnv>) {
-  const { date } = c.req.param();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return errorResponse("Invalid date format in URL. Use YYYY-MM-DD.", 400);
-  }
+export async function handleRemoveCalendarEvent(c: HonoContext<WorkerAppEnv>) {
+  const { eventId } = c.req.param();
 
   try {
     const { success } = await c.env.DB.prepare(
-      `DELETE FROM blocked_dates WHERE date = ?`
-    ).bind(date).run();
+      `DELETE FROM calendar_events WHERE id = ?`
+    ).bind(eventId).run();
 
     if (!success) {
-      return errorResponse('Failed to unblock date.', 500);
+      return errorResponse('Failed to remove calendar event.', 500);
     }
-    return successResponse({ message: `Date ${date} has been unblocked.` });
+    return successResponse({ message: `Calendar event ${eventId} has been removed.` });
   } catch (e: any) {
-    console.error("Error removing blocked date:", e);
-    return errorResponse('Failed to unblock date.', 500);
+    console.error("Error removing calendar event:", e);
+    return errorResponse('Failed to remove calendar event.', 500);
   }
 }
 
@@ -239,10 +227,11 @@ export const handleAdminUpdateJobDetails = async (c: HonoContext<WorkerAppEnv>) 
         const updatedTitle = body.title ?? job.title;
         const updatedDescription = body.description ?? job.description;
         const updatedRecurrence = body.recurrence ?? job.recurrence;
+        const updatedDue = body.due ?? job.due;
 
         await c.env.DB.prepare(
-            `UPDATE jobs SET title = ?, description = ?, recurrence = ?, updatedAt = ? WHERE id = ?`
-        ).bind(updatedTitle, updatedDescription, updatedRecurrence, new Date().toISOString(), jobId).run();
+            `UPDATE jobs SET title = ?, description = ?, recurrence = ?, due = ?, updated_at = ? WHERE id = ?`
+        ).bind(updatedTitle, updatedDescription, updatedRecurrence, updatedDue, new Date().toISOString(), jobId).run();
 
         return successResponse({ message: "Job updated successfully." });
     } catch (e: any) {
@@ -250,11 +239,11 @@ export const handleAdminUpdateJobDetails = async (c: HonoContext<WorkerAppEnv>) 
     }
 };
 
-export const handleAdminAddServiceToJob = async (c: HonoContext<WorkerAppEnv>) => {
+export const handleAdminAddLineItemToJob = async (c: HonoContext<WorkerAppEnv>) => {
     const { jobId } = c.req.param();
     const body = await c.req.json();
-    if (!body.notes || body.price_cents === undefined) {
-        return errorResponse("Service notes and price_cents are required.", 400);
+    if (!body.description || body.quantity === undefined || body.unit_price_cents === undefined) {
+        return errorResponse("Line item description, quantity, and unit_price_cents are required.", 400);
     }
 
     try {
@@ -262,41 +251,41 @@ export const handleAdminAddServiceToJob = async (c: HonoContext<WorkerAppEnv>) =
         if (!job) return errorResponse("Job not found.", 404);
 
         const { results } = await c.env.DB.prepare(
-            `INSERT INTO services (job_id, service_date, status, notes, price_cents)
-             VALUES (?, ?, ?, ?, ?) RETURNING *`
-        ).bind(jobId, job.start, 'pending', body.notes, body.price_cents).all<Service>();
+            `INSERT INTO line_items (job_id, description, quantity, unit_price_cents)
+             VALUES (?, ?, ?, ?) RETURNING *`
+        ).bind(jobId, body.description, body.quantity, body.unit_price_cents).all<LineItem>();
 
         return successResponse(results[0], 201);
     } catch (e: any) {
-        return errorResponse(`Failed to add service: ${e.message}`, 500);
+        return errorResponse(`Failed to add line item: ${e.message}`, 500);
     }
 };
 
-export const handleAdminUpdateServiceInJob = async (c: HonoContext<WorkerAppEnv>) => {
-    const { jobId, serviceId } = c.req.param();
+export const handleAdminUpdateLineItemInJob = async (c: HonoContext<WorkerAppEnv>) => {
+    const { jobId, lineItemId } = c.req.param();
     const body = await c.req.json();
-    if (!body.notes || body.price_cents === undefined) {
-        return errorResponse("Service notes and price_cents are required.", 400);
+    if (!body.description || body.quantity === undefined || body.unit_price_cents === undefined) {
+        return errorResponse("Line item description, quantity, and unit_price_cents are required.", 400);
     }
     try {
         await c.env.DB.prepare(
-            `UPDATE services SET notes = ?, price_cents = ? WHERE id = ? AND job_id = ?`
-        ).bind(body.notes, body.price_cents, serviceId, jobId).run();
-        return successResponse({ message: 'Service updated successfully' });
+            `UPDATE line_items SET description = ?, quantity = ?, unit_price_cents = ? WHERE id = ? AND job_id = ?`
+        ).bind(body.description, body.quantity, body.unit_price_cents, lineItemId, jobId).run();
+        return successResponse({ message: 'Line item updated successfully' });
     } catch (e: any) {
-        return errorResponse(`Failed to update service: ${e.message}`, 500);
+        return errorResponse(`Failed to update line item: ${e.message}`, 500);
     }
 };
 
-export const handleAdminDeleteServiceFromJob = async (c: HonoContext<WorkerAppEnv>) => {
-    const { jobId, serviceId } = c.req.param();
+export const handleAdminDeleteLineItemFromJob = async (c: HonoContext<WorkerAppEnv>) => {
+    const { jobId, lineItemId } = c.req.param();
     try {
         await c.env.DB.prepare(
-            `DELETE FROM services WHERE id = ? AND job_id = ?`
-        ).bind(serviceId, jobId).run();
-        return successResponse({ message: 'Service deleted successfully' });
+            `DELETE FROM line_items WHERE id = ? AND job_id = ?`
+        ).bind(lineItemId, jobId).run();
+        return successResponse({ message: 'Line item deleted successfully' });
     } catch (e: any) {
-        return errorResponse(`Failed to delete service: ${e.message}`, 500);
+        return errorResponse(`Failed to delete line item: ${e.message}`, 500);
     }
 };
 
@@ -309,14 +298,15 @@ export const handleAdminCompleteJob = async (c: HonoContext<WorkerAppEnv>) => {
         const job = await db.prepare(`SELECT * FROM jobs WHERE id = ?`).bind(jobId).first<Job>();
         if (!job) return errorResponse("Job not found", 404);
 
-        const customer = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(job.customerId).first<User>();
+        const customer = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(job.user_id).first<User>();
         if (!customer || !customer.stripe_customer_id) {
             return errorResponse("Customer not found or not linked to Stripe.", 404);
         }
 
-        const services = await db.prepare(`SELECT * FROM services WHERE job_id = ?`).bind(jobId).all<Service>();
-        if (!services.results || services.results.length === 0) {
-            return errorResponse("Cannot complete a job with no services.", 400);
+        const lineItemsResult = await db.prepare(`SELECT * FROM line_items WHERE job_id = ?`).bind(jobId).all<LineItem>();
+        const lineItems = lineItemsResult.results;
+        if (!lineItems || lineItems.length === 0) {
+            return errorResponse("Cannot complete a job with no line items.", 400);
         }
 
         const draftInvoice = await stripe.invoices.create({
@@ -329,12 +319,13 @@ export const handleAdminCompleteJob = async (c: HonoContext<WorkerAppEnv>) => {
             return errorResponse("Failed to create a draft invoice.", 500);
         }
 
-        for (const service of services.results) {
+        for (const item of lineItems) {
             await stripe.invoiceItems.create({
                 customer: customer.stripe_customer_id,
                 invoice: draftInvoice.id,
-                description: service.notes || 'Service',
-                amount: service.price_cents || 0,
+                description: item.description,
+                quantity: item.quantity,
+                unit_price: item.unit_price_cents,
                 currency: 'usd',
             });
         }
@@ -346,7 +337,7 @@ export const handleAdminCompleteJob = async (c: HonoContext<WorkerAppEnv>) => {
 
         await stripe.invoices.sendInvoice(finalInvoice.id);
 
-        await db.prepare(`UPDATE jobs SET status = 'payment_needed', stripe_invoice_id = ? WHERE id = ?`)
+        await db.prepare(`UPDATE jobs SET job_status = 'payment_needed', stripe_invoice_id = ? WHERE id = ?`)
             .bind(finalInvoice.id, jobId)
             .run();
 
@@ -357,29 +348,60 @@ export const handleAdminCompleteJob = async (c: HonoContext<WorkerAppEnv>) => {
     }
 };
 
-export const handleGetServicesForJob = async (c: HonoContext<WorkerAppEnv>) => {
+export const handleGetLineItemsForJob = async (c: HonoContext<WorkerAppEnv>) => {
     const user = c.get('user');
     const { jobId } = c.req.param();
 
     try {
         const job = await c.env.DB.prepare(
-            `SELECT customerId FROM jobs WHERE id = ?`
-        ).bind(jobId).first<{ customerId: string }>();
+            `SELECT user_id FROM jobs WHERE id = ?`
+        ).bind(jobId).first<{ user_id: number }>();
 
         if (!job) return errorResponse("Job not found", 404);
-        if (user.role !== 'admin' && job.customerId !== user.id.toString()) {
+        if (user.role !== 'admin' && job.user_id !== user.id) {
             return errorResponse("Access denied", 403);
         }
 
         const { results } = await c.env.DB.prepare(
-            `SELECT * FROM services WHERE job_id = ? ORDER BY id ASC`
-        ).bind(jobId).all<Service>();
+            `SELECT * FROM line_items WHERE job_id = ? ORDER BY id ASC`
+        ).bind(jobId).all<LineItem>();
 
         return successResponse(results || []);
     } catch (e: any) {
-        return errorResponse("Failed to retrieve services.", 500);
+        return errorResponse("Failed to retrieve line items.", 500);
     }
 }
+
+export const handleGetOpenInvoicesForUser = async (c: HonoContext<WorkerAppEnv>) => {
+    const user = c.get('user');
+    const stripe = getStripe(c.env);
+
+    if (!user.stripe_customer_id) {
+        return successResponse([]);
+    }
+
+    try {
+        const invoices = await stripe.invoices.list({
+            customer: user.stripe_customer_id,
+            status: 'open',
+        });
+
+        const simplifiedInvoices = invoices.data.map(inv => ({
+            id: inv.id,
+            customer: inv.customer,
+            hosted_invoice_url: inv.hosted_invoice_url,
+            number: inv.number,
+            status: inv.status,
+            total: inv.total,
+            due_date: inv.due_date,
+        }));
+
+        return successResponse(simplifiedInvoices);
+    } catch (e: any) {
+        return errorResponse("Failed to retrieve open invoices.", 500);
+    }
+};
+
 
 export const handleGetOpenInvoicesForUser = async (c: HonoContext<WorkerAppEnv>) => {
     const user = c.get('user');

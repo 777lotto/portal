@@ -5,8 +5,8 @@ import { format, parse, startOfWeek, getDay, parseISO } from 'date-fns';
 import enUS from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import useSWR from 'swr';
-import { apiGet, getPublicAvailability, getBlockedDates } from '../lib/api';
-import type { Job, BlockedDate, JobRecurrenceRequest } from '@portal/shared';
+import { apiGet, getPublicAvailability } from '../lib/api';
+import type { Job, CalendarEvent, JobRecurrenceRequest } from '@portal/shared';
 import AdminBlockDayModal from './AdminBlockDayModal';
 import InitialJobTypeModal from './admin/InitialJobTypeModal';
 import AddJobModal from './admin/AddJobModal';
@@ -205,9 +205,9 @@ function JobCalendar() {
 
   const { data: jobs, error: jobsError, isLoading: jobsLoading, mutate: mutateJobs } = useSWR<Job[]>('/api/jobs', apiGet);
   const { data: availability, error: availabilityError, isLoading: availabilityLoading } = useSWR('/api/public/availability', getPublicAvailability);
-  const { data: blockedDates, isLoading: blockedDatesLoading, mutate: mutateBlockedDates } = useSWR(
-    user?.role === 'admin' ? '/api/admin/blocked-dates' : null,
-    apiGet<BlockedDate[]>
+  const { data: calendarEvents, isLoading: calendarEventsLoading, mutate: mutateCalendarEvents } = useSWR(
+    user?.role === 'admin' ? '/api/admin/calendar-events' : null,
+    apiGet<CalendarEvent[]>
   );
     const { data: recurrenceRequests, mutate: mutateRecurrenceRequests } = useSWR(
     user?.role === 'admin' ? '/api/admin/recurrence-requests' : null,
@@ -226,30 +226,30 @@ function JobCalendar() {
   }, [recurrenceRequestId, recurrenceRequests]);
 
   const adminBlockedDaysSet = useMemo(() => {
-    return new Set(blockedDates?.map(d => d.date) || []);
-  }, [blockedDates]);
+    return new Set(calendarEvents?.filter(e => e.type === 'blocked').map(e => e.start.split('T')[0]) || []);
+  }, [calendarEvents]);
 
   const events: CalendarEvent[] = useMemo(() => {
     const jobEvents = (jobs || []).map((job): CalendarEvent => ({
       title: job.title,
-      start: parseISO(job.start),
-      end: parseISO(job.end),
+      start: parseISO(job.created_at), // Assuming created_at for start
+      end: parseISO(job.due), // Assuming due for end
       allDay: false,
       resource: job,
     }));
 
     if (user?.role === 'admin') {
-      const blockedEvents = (blockedDates || []).map((blocked): CalendarEvent => ({
-        title: `BLOCKED: ${blocked.reason || 'No reason'}`,
-        start: parseISO(blocked.date + 'T00:00:00'),
-        end: parseISO(blocked.date + 'T23:59:59'),
+      const blockedEvents = (calendarEvents?.filter(e => e.type === 'blocked') || []).map((event): CalendarEvent => ({
+        title: `BLOCKED: ${event.title || 'No reason'}`,
+        start: parseISO(event.start),
+        end: parseISO(event.end),
         allDay: true,
-        resource: { type: 'blocked', reason: blocked.reason },
+        resource: { type: 'blocked', reason: event.title },
       }));
       return [...jobEvents, ...blockedEvents];
     }
     return jobEvents;
-  }, [jobs, blockedDates, user]);
+  }, [jobs, calendarEvents, user]);
 
   const eventPropGetter = useCallback((event: CalendarEvent) => {
     if (typeof event.resource !== 'string' && 'type' in event.resource && event.resource.type === 'blocked') {
@@ -309,16 +309,16 @@ function JobCalendar() {
   const handleSelectSlot = useCallback((slotInfo: { start: Date }) => {
     if (user?.role === 'admin') {
       const dateStr = format(slotInfo.start, 'yyyy-MM-dd');
-      const existingBlock = blockedDates?.find(d => d.date === dateStr);
+      const existingEvent = calendarEvents?.find(e => e.start.startsWith(dateStr) && e.type === 'blocked');
       setModalState({
         ...modalState,
         initialJobTypeModalOpen: true, // Open the new initial job type modal
         selectedDate: slotInfo.start,
-        isBlocked: !!existingBlock,
-        reason: existingBlock?.reason,
+        isBlocked: !!existingEvent,
+        reason: existingEvent?.title,
       });
     }
-  }, [user, blockedDates, modalState]);
+  }, [user, calendarEvents, modalState]);
 
   const handleJobTypeSelect = (type: 'quote' | 'job' | 'invoice') => {
     setModalState({
@@ -393,7 +393,7 @@ function JobCalendar() {
               isBlocked={modalState.isBlocked}
               reason={modalState.reason}
               onUpdate={() => {
-                mutateBlockedDates();
+                mutateCalendarEvents();
                 closeAllModals();
               }}
             />

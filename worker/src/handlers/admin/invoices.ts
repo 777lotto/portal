@@ -157,32 +157,29 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
                 }
 
                 const jobStartDate = new Date((invoice.status_transitions.paid_at || invoice.created) * 1000);
-                const jobEndDate = new Date(jobStartDate.getTime() + 60 * 60 * 1000);
                 const jobTitle = invoice.lines.data[0]?.description || invoice.description || `Imported Job ${invoice.id}`;
                 const newJobId = uuidv4();
 
                 const jobInsertStmt = db.prepare(
-                    `INSERT INTO jobs (id, customerId, title, description, start, end, status, recurrence, stripe_invoice_id, invoice_created_at, total_amount_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                    `INSERT INTO jobs (id, user_id, title, description, job_status, recurrence, stripe_invoice_id, invoice_created_at, total_amount_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
                 ).bind(
                     newJobId,
-                    user.id.toString(),
+                    user.id,
                     jobTitle,
                     invoice.description || `Imported from Stripe Invoice #${invoice.number}`,
-                    jobStartDate.toISOString(),
-                    jobEndDate.toISOString(),
-                    'paid',
+                    'complete', // Mark as complete since it's a paid invoice
                     'none',
                     invoice.id,
                     new Date(invoice.created * 1000).toISOString(),
                     invoice.total
                 );
 
-                const serviceInserts: D1PreparedStatement[] = invoice.lines.data.map((item) =>
-                    db.prepare(`INSERT INTO services (job_id, service_date, status, notes, price_cents) VALUES (?, ?, ?, ?, ?)`
-                    ).bind(newJobId, jobStartDate.toISOString(), 'completed', item.description || 'Imported Service', item.amount)
+                const lineItemInserts: D1PreparedStatement[] = invoice.lines.data.map((item) =>
+                    db.prepare(`INSERT INTO line_items (job_id, description, quantity, unit_price_cents) VALUES (?, ?, ?, ?)`
+                    ).bind(newJobId, item.description || 'Imported Item', item.quantity || 1, item.amount)
                 );
 
-                await db.batch([jobInsertStmt, ...serviceInserts]);
+                await db.batch([jobInsertStmt, ...lineItemInserts]);
                 importedCount++;
             }
 
