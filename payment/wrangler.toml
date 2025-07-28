@@ -22,8 +22,8 @@ ENVIRONMENT = "development"
 # Development D1 binding (will use a local file)
 [[env.development.d1_databases]]
 binding = "DB"
-database_name = "gutter_db"
-database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+database_name = "777pd1"
+database_id = "4c83ab6f-3912-4e76-99f3-7d86d6cd6518"
 migrations_dir = "../worker/migrations" # Point to the canonical migrations directory
 
 # Development Queue producer binding (will use a local in-memory queue)
@@ -43,8 +43,8 @@ ENVIRONMENT = "production"
 # Production-specific D1 binding
 [[env.production.d1_databases]]
 binding = "DB"
-database_name = "gutter_db"
-database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+database_name = "777pd1"
+database_id = "4c83ab6f-3912-4e76-99f3-7d86d6cd6518"
 migrations_dir = "../worker/migrations"
 
 # Production-specific Queue producer binding

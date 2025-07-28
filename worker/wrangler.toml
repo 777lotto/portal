@@ -5,6 +5,14 @@ account_id = "67d3a6021370e7b666fff2023b2db359"
 compatibility_date = "2024-06-20"
 compatibility_flags = [ "nodejs_compat_v2" ]
 
+# --- THIS IS THE FIX ---
+# Define the D1 database at the top level so all commands can find it.
+[[d1_databases]]
+binding = "DB"
+database_name = "777pd1"
+database_id = "4c83ab6f-3912-4e76-99f3-7d86d6cd6518"
+migrations_dir = "./migrations"
+
 # Serve the frontend application from the /frontend/dist directory
 [site]
 bucket = "../frontend/dist"
@@ -23,13 +31,6 @@ head_sampling_rate = 1
 ENVIRONMENT = "development"
 API_VERSION = "1.0.0"
 PORTAL_URL = "http://localhost:5173/dashboard"
-
-# Development D1 binding
-[[env.development.d1_databases]]
-binding = "DB"
-database_name = "gutter_db"
-database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
-migrations_dir = "./migrations"
 
 # Development KV binding
 [[env.development.kv_namespaces]]
@@ -74,12 +75,8 @@ GOOGLE_API_KEY = "GOOGLE_API_KEY"
 binding = "TEMP_STORAGE"
 id = "bbbd0ff333d14f2b8077226c79635395"
 
-# Production D1 binding
-[[env.production.d1_databases]]
-binding = "DB"
-database_name = "gutter_db"
-database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
-migrations_dir = "./migrations"
+# NOTE: We don't need to define the D1 database again here,
+# as it will inherit the top-level definition.
 
 [[env.production.services]]
 binding = "NOTIFICATION_SERVICE"

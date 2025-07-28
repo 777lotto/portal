@@ -28,8 +28,8 @@
     "deploy:dev": "pnpm run build && pnpm run deploy:workers:dev",
     "deploy:workers": "pnpm --filter notification run deploy && pnpm --filter payment run deploy && pnpm --filter worker run deploy && pnpm --filter @portal/durable-chat run deploy",
     "deploy:workers:dev": "pnpm --filter \"./{worker,notification,payment}\" --parallel run deploy:dev",
-    "migrate": "pnpm --filter worker exec wrangler d1 migrations apply gutter_db --env production",
-    "migrate:dev": "pnpm --filter worker exec wrangler d1 migrations apply gutter_db --local"
+    "migrate": "pnpm --filter worker exec wrangler d1 migrations apply 777pd1 --remote",
+    "migrate:dev": "pnpm --filter worker exec wrangler d1 migrations apply 777pd1 --local"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.36.0",
