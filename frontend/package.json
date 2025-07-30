@@ -9,10 +9,10 @@
     "@fullcalendar/interaction": "^6.1.11",
     "@fullcalendar/react": "^6.1.11",
     "@fullcalendar/timegrid": "^6.1.11",
+    "@hono/zod-validator": "^0.7.2",
+    "@portal/shared": "workspace:*",
     "@stripe/react-stripe-js": "^2.7.3",
     "@stripe/stripe-js": "^4.1.0",
-    "@hono/zod-validator": "^0.2.1",
-    "@portal/shared": "workspace:*",
     "date-fns": "^4.1.0",
     "hono": "^4.7.10",
     "jwt-decode": "^4.0.0",
@@ -22,7 +22,7 @@
     "react-dropzone": "^14.2.3",
     "react-router-dom": "^6.27.1",
     "swr": "^2.2.5",
-    "zod": "^3.22.4"
+    "zod": "^4.0.14"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",

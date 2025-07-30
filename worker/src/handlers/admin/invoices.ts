@@ -83,7 +83,6 @@ export async function handleAdminFinalizeInvoice(c: Context<AppEnv>) {
 
 // Handler to import paid Stripe invoices as historical jobs
 export async function handleAdminImportInvoices(c: Context<AppEnv>) {
-    // userId is now optional, read from the path parameter if it exists
     const { userId } = c.req.param();
     const stripe = getStripe(c.env);
     const db = c.env.DB;
@@ -95,14 +94,12 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
     let startingAfter: string | undefined = undefined;
 
     try {
-        // Prepare the initial parameters for the Stripe invoices.list call
         const listParams: Stripe.InvoiceListParams = {
             status: 'paid',
             limit: 100,
             expand: ['data.customer', 'data.lines.data'],
         };
 
-        // If a userId is provided, fetch the user and add their Stripe customer ID to the params
         if (userId) {
             const user = await db.prepare(`SELECT id, stripe_customer_id FROM users WHERE id = ?`).bind(userId).first<User>();
             if (!user || !user.stripe_customer_id) {
@@ -133,11 +130,10 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
                     continue;
                 }
 
-                // This logic remains the same, finding or creating a user based on the Stripe customer ID
                 let user: User | { id: number } | null = await db.prepare(`SELECT id FROM users WHERE stripe_customer_id = ?`).bind(invoice.customer.id).first<User>();
                 if (!user) {
-                    const customer = invoice.customer as Stripe.Customer;
-                    const { name, email, phone } = customer;
+                    const stripeCustomer = invoice.customer as Stripe.Customer;
+                    const { name, email, phone } = stripeCustomer;
                     const { results } = await db.prepare(
                         `INSERT INTO users (name, email, phone, stripe_customer_id, role) VALUES (?, ?, ?, ?, 'guest') RETURNING id`
                     ).bind(name || 'Stripe Customer', email, phone, invoice.customer.id).all<{ id: number }>();
@@ -160,17 +156,18 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
                 const newJobId = uuidv4();
 
                 const jobInsertStmt = db.prepare(
-                    `INSERT INTO jobs (id, user_id, title, description, status, recurrence, stripe_invoice_id, invoice_createdAt, total_amount_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                    `INSERT INTO jobs (id, user_id, title, description, status, recurrence, stripe_invoice_id, invoice_createdAt, total_amount_cents, due) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
                 ).bind(
                     newJobId,
                     user.id,
                     jobTitle,
                     invoice.description || `Imported from Stripe Invoice #${invoice.number}`,
-                    'complete', // Mark as complete since it's a paid invoice
+                    'complete',
                     'none',
                     invoice.id,
                     new Date(invoice.created * 1000).toISOString(),
-                    invoice.total
+                    invoice.total,
+                    invoice.due_date ? new Date(invoice.due_date * 1000).toISOString() : null
                 );
 
                 const lineItemInserts: D1PreparedStatement[] = invoice.lines.data.map((item) =>
@@ -200,22 +197,22 @@ export const handleAdminGetAllOpenInvoices = async (c: Context<AppEnv>) => {
     try {
         const invoices = await stripe.invoices.list({
             status: 'open',
-            limit: 100, // Adjust as needed
+            limit: 100,
         });
 
-        const user_ids = invoices.data.map(inv => inv.customer).filter(c => typeof c === 'string');
-        const uniqueuser_ids = [...new Set(user_ids)];
+        const stripeCustomerIds = invoices.data.map(inv => inv.customer).filter((c): c is string => typeof c === 'string');
+        const uniqueStripeCustomerIds = [...new Set(stripeCustomerIds)];
 
-        if (uniqueuser_ids.length === 0) {
+        if (uniqueStripeCustomerIds.length === 0) {
             return successResponse([]);
         }
 
-        const placeholders = uniqueuser_ids.map(() => '?').join(',');
-        const users = await c.env.DB.prepare(
+        const placeholders = uniqueStripeCustomerIds.map(() => '?').join(',');
+        const { results: users } = await c.env.DB.prepare(
             `SELECT id, name, stripe_customer_id FROM users WHERE stripe_customer_id IN (${placeholders})`
-        ).bind(...uniqueuser_ids).all<User>();
+        ).bind(...uniqueStripeCustomerIds).all<User>();
 
-        const userMap = new Map(users.results.map(u => [u.stripe_customer_id, u]));
+        const userMap = new Map((users || []).map(u => [u.stripe_customer_id, u]));
 
         const enrichedInvoices: DashboardInvoice[] = invoices.data
             .filter((inv): inv is Stripe.Invoice & { id: string } => !!inv.id)

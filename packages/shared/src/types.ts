@@ -61,9 +61,8 @@ export const JobSchema = z.object({
   updatedAt: z.string().optional(), // Renamed from updatedAt
   stripe_invoice_id: z.string().optional().nullable(),
   stripe_quote_id: z.string().optional().nullable(),
-  invoice_createdAt: z.string().optional().nullable(),
   total_amount_cents: z.number().optional().nullable(),
-  due: z.string().optional().nullable(), // Renamed from due_date and due
+  due: z.string().nullable().optional(), // Renamed from due_date and due
   contact_method_override: z.enum(['email', 'sms', 'push']).optional().nullable(),
 });
 export type Job = z.infer<typeof JobSchema>;

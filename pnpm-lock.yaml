@@ -55,8 +55,8 @@ importers:
         specifier: ^6.1.11
         version: 6.1.17(@fullcalendar/core@6.1.17)
       '@hono/zod-validator':
-        specifier: ^0.2.1
-        version: 0.2.2(hono@4.7.11)(zod@3.25.65)
+        specifier: ^0.7.2
+        version: 0.7.2(hono@4.7.11)(zod@4.0.14)
       '@portal/shared':
         specifier: workspace:*
         version: link:../packages/shared
@@ -94,8 +94,8 @@ importers:
         specifier: ^2.2.5
         version: 2.3.3(react@18.3.1)
       zod:
-        specifier: ^3.22.4
-        version: 3.25.65
+        specifier: ^4.0.14
+        version: 4.0.14
     devDependencies:
       '@types/node':
         specifier: ^20.12.7
@@ -214,8 +214,8 @@ importers:
   packages/shared:
     dependencies:
       zod:
-        specifier: ^3.24.4
-        version: 3.25.65
+        specifier: ^4.0.14
+        version: 4.0.14
     devDependencies:
       typescript:
         specifier: ~5.7.2
@@ -1044,11 +1044,11 @@ packages:
     peerDependencies:
       '@fullcalendar/core': ~6.1.17
 
-  '@hono/zod-validator@0.2.2':
-    resolution: {integrity: sha512-dSDxaPV70Py8wuIU2QNpoVEIOSzSXZ/6/B/h4xA7eOMz7+AarKTSGV8E6QwrdcCbBLkpqfJ4Q2TmBO0eP1tCBQ==}
+  '@hono/zod-validator@0.7.2':
+    resolution: {integrity: sha512-ub5eL/NeZ4eLZawu78JpW/J+dugDAYhwqUIdp9KYScI6PZECij4Hx4UsrthlEUutqDDhPwRI0MscUfNkvn/mqQ==}
     peerDependencies:
       hono: '>=3.9.0'
-      zod: ^3.19.1
+      zod: ^3.25.0 || ^4.0.0
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -3446,8 +3446,11 @@ packages:
   zod@3.22.3:
     resolution: {integrity: sha512-EjIevzuJRiRPbVH4mGc8nApb/lVLKVpmUhAaR5R5doKGfAnGJ6Gr3CViAVjP+4FWSxCsybeWQdcgCtbX+7oZug==}
 
-  zod@3.25.65:
-    resolution: {integrity: sha512-kMyE2qsXK1p+TAvO7zsf5wMFiCejU3obrUDs9bR1q5CBKykfvp7QhhXrycUylMoOow0iEUSyjLlZZdCsHwSldQ==}
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
+  zod@4.0.14:
+    resolution: {integrity: sha512-nGFJTnJN6cM2v9kXL+SOBq3AtjQby3Mv5ySGFof5UGRHrRioSJ5iG680cYNjE/yWk671nROcpPj4hAS8nyLhSw==}
 
 snapshots:
 
@@ -3603,7 +3606,7 @@ snapshots:
       semver: 7.7.2
       vitest: 3.0.9(@types/node@22.15.32)(jiti@1.21.7)(yaml@2.8.0)
       wrangler: 4.20.0(@cloudflare/workers-types@4.20250724.0)
-      zod: 3.25.65
+      zod: 3.25.76
     transitivePeerDependencies:
       - '@cloudflare/workers-types'
       - bufferutil
@@ -3963,10 +3966,10 @@ snapshots:
       '@fullcalendar/core': 6.1.17
       '@fullcalendar/daygrid': 6.1.17(@fullcalendar/core@6.1.17)
 
-  '@hono/zod-validator@0.2.2(hono@4.7.11)(zod@3.25.65)':
+  '@hono/zod-validator@0.7.2(hono@4.7.11)(zod@4.0.14)':
     dependencies:
       hono: 4.7.11
-      zod: 3.25.65
+      zod: 4.0.14
 
   '@humanfs/core@0.19.1': {}
 
@@ -6773,4 +6776,6 @@ snapshots:
 
   zod@3.22.3: {}
 
-  zod@3.25.65: {}
+  zod@3.25.76: {}
+
+  zod@4.0.14: {}
