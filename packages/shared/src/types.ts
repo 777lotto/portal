@@ -237,7 +237,7 @@ export type Conversation = z.infer<typeof ConversationSchema>;
 export const NotificationRequestSchema = z.object({
   type: z.string(),
   userId: z.union([z.string(), z.number()]),
-  data: z.record(z.any()),
+  data: z.record(z.string(), z.any()),
   channels: z.array(z.enum(['email', 'sms', 'push'])).optional()
 });
 
