@@ -57,7 +57,7 @@ export async function handleAdminGetJobsForUser(c: Context<AppEnv>): Promise<Res
     const { userId } = c.req.param();
     try {
         const dbResponse = await c.env.DB.prepare(
-            `SELECT * FROM jobs WHERE user_id = ? ORDER BY ceatedAt DESC`
+            `SELECT * FROM jobs WHERE user_id = ? ORDER BY createdAt DESC`
         ).bind(userId).all<Job>();
         const jobs = dbResponse?.results || [];
         return successResponse(jobs);
@@ -75,12 +75,12 @@ export async function handleAdminGetPhotosForUser(c: Context<AppEnv>): Promise<R
     try {
         const query = `
             SELECT
-                p.id, p.url, p.ceatedAt, p.job_id,
-                (SELECT JSON_GROUP_ARRAY(JSON_OBJECT('id', n.id, 'content', n.content, 'ceatedAt', n.ceatedAt))
+                p.id, p.url, p.createdAt, p.job_id,
+                (SELECT JSON_GROUP_ARRAY(JSON_OBJECT('id', n.id, 'content', n.content, 'createdAt', n.createdAt))
                  FROM notes n WHERE n.photo_id = p.id) as notes
             FROM photos p
             WHERE p.user_id = ?
-            ORDER BY p.ceatedAt DESC
+            ORDER BY p.createdAt DESC
         `;
 
         type PhotoQueryResult = Omit<PhotoWithNotes, 'notes'> & { notes: string | null };
@@ -265,7 +265,7 @@ export async function handleAdminUpdateUser(c: Context<AppEnv>): Promise<Respons
 export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
     try {
         const dbResponse = await c.env.DB.prepare(
-            `SELECT * FROM jobs ORDER BY ceatedAt ASC`
+            `SELECT * FROM jobs ORDER BY createdAt ASC`
         ).all<Job>();
         const jobs = dbResponse?.results || [];
         return successResponse(jobs);

@@ -15,7 +15,7 @@ function CustomerPhotos() {
   const [filters, setFilters] = useState({
     createdAt: '',
     job_id: '',
-    service_id: '',
+    item_id: '',
     invoice_id: '',
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -63,8 +63,8 @@ function CustomerPhotos() {
               <input type="text" id="job_id" name="job_id" value={filters.job_id} onChange={handleFilterChange} className="form-control" placeholder="Job ID"/>
             </div>
             <div>
-              <label htmlFor="service_id" className="form-label">Service ID</label>
-              <input type="text" id="service_id" name="service_id" value={filters.service_id} onChange={handleFilterChange} className="form-control" placeholder="Service ID"/>
+              <label htmlFor="item_id" className="form-label">Service ID</label>
+              <input type="text" id="item_id" name="item_id" value={filters.item_id} onChange={handleFilterChange} className="form-control" placeholder="Service ID"/>
             </div>
             <div>
               <label htmlFor="invoice_id" className="form-label">Invoice ID</label>
@@ -83,7 +83,7 @@ function CustomerPhotos() {
                 <div className="card-body">
                    <p className="card-text"><small className="text-muted">Uploaded: {new Date(photo.createdAt).toLocaleString()}</small></p>
                    {photo.job_id && <p className="card-text"><small className="text-muted">Job ID: {photo.job_id}</small></p>}
-                   {photo.service_id && <p className="card-text"><small className="text-muted">Service ID: {photo.service_id}</small></p>}
+                   {photo.item_id && <p className="card-text"><small className="text-muted">Service ID: {photo.item_id}</small></p>}
                    {photo.invoice_id && <p className="card-text"><small className="text-muted">Invoice ID: {photo.invoice_id}</small></p>}
                    {photo.notes && photo.notes.length > 0 && (
                       <div className="mt-3">
@@ -112,10 +112,10 @@ function CustomerPhotos() {
 function AdminPhotos() {
   const [users, setUsers] = useState<User[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
+  const [items, setItems] = useState<item[]>([]);
   const [selectedUser, setSelectedUser] = useState<string>('');
   const [selectedJob, setSelectedJob] = useState<string>('');
-  const [selectedService, setSelectedService] = useState<string>('');
+  const [selectedItem, setselectedItem] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [userSearch, setUserSearch] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -136,11 +136,11 @@ function AdminPhotos() {
 
   useEffect(() => {
     if (selectedJob) {
-      apiGet<Service[]>(`/api/jobs/${selectedJob}/services`).then(setServices);
+      apiGet<item[]>(`/api/jobs/${selectedJob}/line_items`).then(setItems);
     } else {
-      setServices([]);
+      setItems([]);
     }
-    setSelectedService('');
+    setselectedItem('');
   }, [selectedJob]);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -156,7 +156,7 @@ function AdminPhotos() {
         formData.append('photo', file);
         formData.append('userId', selectedUser);
         if (selectedJob) formData.append('job_id', selectedJob);
-        if (selectedService) formData.append('service_id', selectedService);
+        if (selectedItem) formData.append('item_id', selectedItem);
         if (notes) formData.append('notes', notes);
         return apiPostFormData(`/api/admin/users/${selectedUser}/photos`, formData);
       });
@@ -164,14 +164,14 @@ function AdminPhotos() {
       setMessage({ type: 'success', text: `${acceptedFiles.length} photo(s) uploaded successfully!` });
       // Reset form
       setSelectedJob('');
-      setSelectedService('');
+      setselectedItem('');
       setNotes('');
     } catch (err: any) {
       setMessage({ type: 'danger', text: `Upload failed: ${err.message}` });
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedUser, selectedJob, selectedService, notes]);
+  }, [selectedUser, selectedJob, selectedItem, notes]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: { 'image/*': [] } });
 
@@ -228,7 +228,7 @@ function AdminPhotos() {
             </div>
             <div>
               <label htmlFor="service" className="form-label">Associate with Service (Optional)</label>
-              <select id="service" className="form-control" value={selectedService} onChange={e => setSelectedService(e.target.value)} disabled={!selectedJob}>
+              <select id="service" className="form-control" value={selectedItem} onChange={e => setselectedItem(e.target.value)} disabled={!selectedJob}>
                 <option value="">-- Select a Service --</option>
                 {services.map(service => (
                   <option key={service.id} value={service.id}>{service.notes}</option>

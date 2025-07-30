@@ -16,7 +16,7 @@ interface CloudflareImageResponse {
 
 export const handleGetUserPhotos = async (c: PhotoContext<PhotoAppEnv>) => {
     const user = c.get('user');
-    const { createdAt, job_id, service_id } = c.req.query();
+    const { createdAt, job_id, item_id } = c.req.query();
 
     try {
         let query = `
@@ -25,7 +25,7 @@ export const handleGetUserPhotos = async (c: PhotoContext<PhotoAppEnv>) => {
                 p.url,
                 p.createdAt,
                 p.job_id,
-                p.service_id,
+                p.item_id,
                 (SELECT JSON_GROUP_ARRAY(JSON_OBJECT('id', n.id, 'content', n.content, 'createdAt', n.createdAt))
                  FROM notes n WHERE n.photo_id = p.id) as notes
             FROM photos p
@@ -41,9 +41,9 @@ export const handleGetUserPhotos = async (c: PhotoContext<PhotoAppEnv>) => {
             query += ` AND p.job_id = ?`;
             queryParams.push(job_id);
         }
-        if (service_id) {
-            query += ` AND p.service_id = ?`;
-            queryParams.push(service_id);
+        if (item_id) {
+            query += ` AND p.item_id = ?`;
+            queryParams.push(item_id);
         }
 
         query += ` ORDER BY p.createdAt DESC`;
@@ -97,7 +97,7 @@ export const handleAdminUploadPhotoForUser = async (c: PhotoContext<PhotoAppEnv>
     const userId = formData.get('userId') as string | null;
     const fileValue = formData.get('photo');
     const jobId = formData.get('job_id') as string | null;
-    const serviceId = formData.get('service_id') as string | null;
+    const serviceId = formData.get('item_id') as string | null;
     const notes = formData.get('notes') as string | null;
 
 
@@ -147,12 +147,12 @@ export const handleAdminUploadPhotoForUser = async (c: PhotoContext<PhotoAppEnv>
             url: cfResult.result.variants[0],
             user_id: parseInt(userId, 10),
             job_id: jobId || null,
-            service_id: serviceId ? parseInt(serviceId, 10) : null,
+            item_id: serviceId ? parseInt(serviceId, 10) : null,
         };
 
         const { results: dbResults } = await c.env.DB.prepare(
-            `INSERT INTO photos (id, url, user_id, job_id, service_id) VALUES (?, ?, ?, ?, ?) RETURNING *`
-        ).bind(newPhotoData.id, newPhotoData.url, newPhotoData.user_id, newPhotoData.job_id, newPhotoData.service_id).all<Photo>();
+            `INSERT INTO photos (id, url, user_id, job_id, item_id) VALUES (?, ?, ?, ?, ?) RETURNING *`
+        ).bind(newPhotoData.id, newPhotoData.url, newPhotoData.user_id, newPhotoData.job_id, newPhotoData.item_id).all<Photo>();
 
         if (!dbResults || dbResults.length === 0) {
             console.error(`Failed to save photo record for Cloudflare image ${newPhotoData.id}`);
@@ -161,8 +161,8 @@ export const handleAdminUploadPhotoForUser = async (c: PhotoContext<PhotoAppEnv>
 
         if (notes) {
             await c.env.DB.prepare(
-                `INSERT INTO notes (user_id, content, job_id, service_id, photo_id) VALUES (?, ?, ?, ?, ?)`
-            ).bind(newPhotoData.user_id, notes, newPhotoData.job_id, newPhotoData.service_id, newPhotoData.id).run();
+                `INSERT INTO notes (user_id, content, job_id, item_id, photo_id) VALUES (?, ?, ?, ?, ?)`
+            ).bind(newPhotoData.user_id, notes, newPhotoData.job_id, newPhotoData.item_id, newPhotoData.id).run();
         }
 
 
