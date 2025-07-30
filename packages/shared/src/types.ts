@@ -52,13 +52,13 @@ export type JobStatus = z.infer<typeof JobStatusEnum>;
 // This resolves the majority of the frontend errors.
 export const JobSchema = z.object({
   id: z.string(),
-  user_id: z.number(), // Changed from customerId
+  user_id: z.number(), // Changed from user_id
   title: z.string(),
   description: z.string().optional().nullable(),
-  job_status: JobStatusEnum, // Renamed from status
+  status: JobStatusEnum, // Renamed from status
   recurrence: z.string().optional().nullable(),
-  created_at: z.string().optional(), // Renamed from createdAt
-  updated_at: z.string().optional(), // Renamed from updatedAt
+  createdAt: z.string().optional(), // Renamed from createdAt
+  updatedAt: z.string().optional(), // Renamed from updatedAt
   stripe_invoice_id: z.string().optional().nullable(),
   stripe_quote_id: z.string().optional().nullable(),
   invoice_created_at: z.string().optional().nullable(),
@@ -76,8 +76,8 @@ export const JobRecurrenceRequestSchema = z.object({
     frequency: z.number(),
     requested_day: z.number().optional(),
     status: z.enum(['pending', 'accepted', 'declined', 'countered']),
-    created_at: z.string(),
-    updated_at: z.string(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
 });
 export type JobRecurrenceRequest = z.infer<typeof JobRecurrenceRequestSchema>;
 

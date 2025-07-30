@@ -72,7 +72,7 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
     setIsSubmitting(true);
     try {
       await adminCreateJob({
-        customerId: selectedUserId,
+        user_id: selectedUserId,
         jobType: creationType,
         title,
         start: selectedDate ? selectedDate.toISOString() : new Date().toISOString(),

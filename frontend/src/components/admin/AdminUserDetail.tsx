@@ -80,7 +80,7 @@ export function AdminUserDetail() {
     try {
         // Use the new, unified adminCreateJob function
         const { job } = await adminCreateJob({
-            customerId: userId,
+            user_id: userId,
             jobType: 'invoice',
             title: `Draft Invoice - ${new Date().toLocaleDateString()}`,
             start: new Date().toISOString(),

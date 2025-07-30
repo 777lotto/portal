@@ -32,9 +32,9 @@ export async function createStripeCustomer(stripe: Stripe, user: User): Promise<
   });
 }
 
-export async function createStripePortalSession(stripe: Stripe, customerId: string, returnUrl: string): Promise<Stripe.BillingPortal.Session> {
+export async function createStripePortalSession(stripe: Stripe, user_id: string, returnUrl: string): Promise<Stripe.BillingPortal.Session> {
     return stripe.billingPortal.sessions.create({
-        customer: customerId,
+        customer: user_id,
         return_url: returnUrl,
     });
 }
@@ -90,10 +90,10 @@ export async function finalizeStripeInvoice(stripe: Stripe, invoiceId: string | 
 }
 
 // ADDED_START
-export async function createDraftStripeInvoice(stripe: Stripe, customerId: string): Promise<Stripe.Invoice> {
-    console.log(`Creating new draft Stripe invoice for customer: ${customerId}`);
+export async function createDraftStripeInvoice(stripe: Stripe, user_id: string): Promise<Stripe.Invoice> {
+    console.log(`Creating new draft Stripe invoice for customer: ${user_id}`);
     const invoice = await stripe.invoices.create({
-      customer: customerId,
+      customer: user_id,
       collection_method: 'send_invoice',
       days_until_due: 30,
       auto_advance: false,
@@ -101,37 +101,37 @@ export async function createDraftStripeInvoice(stripe: Stripe, customerId: strin
     return invoice;
 }
 
-export async function listPaymentMethods(stripe: Stripe, customerId: string): Promise<Stripe.ApiList<Stripe.PaymentMethod>> {
+export async function listPaymentMethods(stripe: Stripe, user_id: string): Promise<Stripe.ApiList<Stripe.PaymentMethod>> {
     return stripe.paymentMethods.list({
-        customer: customerId,
+        customer: user_id,
         type: 'card',
     });
 }
 
-export async function attachPaymentMethod(stripe: Stripe, paymentMethodId: string, customerId: string): Promise<Stripe.PaymentMethod> {
+export async function attachPaymentMethod(stripe: Stripe, paymentMethodId: string, user_id: string): Promise<Stripe.PaymentMethod> {
     return stripe.paymentMethods.attach(paymentMethodId, {
-        customer: customerId,
+        customer: user_id,
     });
 }
 
-export async function updateCustomerDefaultPaymentMethod(stripe: Stripe, customerId: string, paymentMethodId: string): Promise<Stripe.Customer> {
-    return stripe.customers.update(customerId, {
+export async function updateCustomerDefaultPaymentMethod(stripe: Stripe, user_id: string, paymentMethodId: string): Promise<Stripe.Customer> {
+    return stripe.customers.update(user_id, {
         invoice_settings: {
             default_payment_method: paymentMethodId,
         },
     });
 }
 
-export async function createSetupIntent(stripe: Stripe, customerId: string): Promise<Stripe.SetupIntent> {
+export async function createSetupIntent(stripe: Stripe, user_id: string): Promise<Stripe.SetupIntent> {
     return stripe.setupIntents.create({
-        customer: customerId,
+        customer: user_id,
         payment_method_types: ['card'],
     });
 }
 // ADDED_END
 
-export async function createStripeQuote(stripe: Stripe, customerId: string, lineItems: LineItem[]): Promise<Stripe.Quote> {
-    console.log(`Creating new Stripe quote for customer: ${customerId}`);
+export async function createStripeQuote(stripe: Stripe, user_id: string, lineItems: LineItem[]): Promise<Stripe.Quote> {
+    console.log(`Creating new Stripe quote for customer: ${user_id}`);
 
     const line_items = lineItems.map(item => ({
         price_data: {
@@ -145,7 +145,7 @@ export async function createStripeQuote(stripe: Stripe, customerId: string, line
     }));
 
     const quote = await stripe.quotes.create({
-        customer: customerId,
+        customer: user_id,
         collection_method: 'send_invoice',
         line_items: line_items as any,
     });

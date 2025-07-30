@@ -119,9 +119,9 @@ function JobDetail() {
       const uploadPromises = acceptedFiles.map(file => {
         const formData = new FormData();
         formData.append('photo', file);
-        formData.append('userId', job.customerId);
+        formData.append('userId', job.user_id);
         formData.append('job_id', jobId);
-        return apiPostFormData(`/api/admin/users/${job.customerId}/photos`, formData);
+        return apiPostFormData(`/api/admin/users/${job.user_id}/photos`, formData);
       });
       await Promise.all(uploadPromises);
       fetchJobDetails();
@@ -136,7 +136,7 @@ function JobDetail() {
     e.preventDefault();
     if (!newNote.trim() || !jobId || user?.role !== 'admin' || !job) return;
     try {
-      await apiPost(`/api/admin/users/${job.customerId}/notes`, {
+      await apiPost(`/api/admin/users/${job.user_id}/notes`, {
         content: newNote,
         job_id: jobId,
       });

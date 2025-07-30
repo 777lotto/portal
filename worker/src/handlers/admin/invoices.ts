@@ -160,7 +160,7 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
                 const newJobId = uuidv4();
 
                 const jobInsertStmt = db.prepare(
-                    `INSERT INTO jobs (id, user_id, title, description, job_status, recurrence, stripe_invoice_id, invoice_created_at, total_amount_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                    `INSERT INTO jobs (id, user_id, title, description, status, recurrence, stripe_invoice_id, invoice_created_at, total_amount_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
                 ).bind(
                     newJobId,
                     user.id,
@@ -203,17 +203,17 @@ export const handleAdminGetAllOpenInvoices = async (c: Context<AppEnv>) => {
             limit: 100, // Adjust as needed
         });
 
-        const customerIds = invoices.data.map(inv => inv.customer).filter(c => typeof c === 'string');
-        const uniqueCustomerIds = [...new Set(customerIds)];
+        const user_ids = invoices.data.map(inv => inv.customer).filter(c => typeof c === 'string');
+        const uniqueuser_ids = [...new Set(user_ids)];
 
-        if (uniqueCustomerIds.length === 0) {
+        if (uniqueuser_ids.length === 0) {
             return successResponse([]);
         }
 
-        const placeholders = uniqueCustomerIds.map(() => '?').join(',');
+        const placeholders = uniqueuser_ids.map(() => '?').join(',');
         const users = await c.env.DB.prepare(
             `SELECT id, name, stripe_customer_id FROM users WHERE stripe_customer_id IN (${placeholders})`
-        ).bind(...uniqueCustomerIds).all<User>();
+        ).bind(...uniqueuser_ids).all<User>();
 
         const userMap = new Map(users.results.map(u => [u.stripe_customer_id, u]));
 

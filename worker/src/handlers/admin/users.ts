@@ -57,7 +57,7 @@ export async function handleAdminGetJobsForUser(c: Context<AppEnv>): Promise<Res
     const { userId } = c.req.param();
     try {
         const dbResponse = await c.env.DB.prepare(
-            `SELECT * FROM jobs WHERE user_id = ? ORDER BY created_at DESC`
+            `SELECT * FROM jobs WHERE user_id = ? ORDER BY ceatedAt DESC`
         ).bind(userId).all<Job>();
         const jobs = dbResponse?.results || [];
         return successResponse(jobs);
@@ -75,12 +75,12 @@ export async function handleAdminGetPhotosForUser(c: Context<AppEnv>): Promise<R
     try {
         const query = `
             SELECT
-                p.id, p.url, p.created_at, p.job_id,
-                (SELECT JSON_GROUP_ARRAY(JSON_OBJECT('id', n.id, 'content', n.content, 'created_at', n.created_at))
+                p.id, p.url, p.ceatedAt, p.job_id,
+                (SELECT JSON_GROUP_ARRAY(JSON_OBJECT('id', n.id, 'content', n.content, 'ceatedAt', n.ceatedAt))
                  FROM notes n WHERE n.photo_id = p.id) as notes
             FROM photos p
             WHERE p.user_id = ?
-            ORDER BY p.created_at DESC
+            ORDER BY p.ceatedAt DESC
         `;
 
         type PhotoQueryResult = Omit<PhotoWithNotes, 'notes'> & { notes: string | null };
@@ -265,7 +265,7 @@ export async function handleAdminUpdateUser(c: Context<AppEnv>): Promise<Respons
 export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
     try {
         const dbResponse = await c.env.DB.prepare(
-            `SELECT * FROM jobs ORDER BY created_at ASC`
+            `SELECT * FROM jobs ORDER BY ceatedAt ASC`
         ).all<Job>();
         const jobs = dbResponse?.results || [];
         return successResponse(jobs);
@@ -293,21 +293,21 @@ export async function handleAdminCreateInvoice(c: Context<AppEnv>): Promise<Resp
     }
 
     const stripe = getStripe(c.env as Env);
-    let stripeCustomerId = user.stripe_customer_id;
+    let stripeuser_id = user.stripe_customer_id;
 
-    if (!stripeCustomerId) {
+    if (!stripeuser_id) {
       const customer = await createStripeCustomer(stripe, user);
-      stripeCustomerId = customer.id;
+      stripeuser_id = customer.id;
       await db.prepare(
         `UPDATE users SET stripe_customer_id = ? WHERE id = ?`
-      ).bind(stripeCustomerId, user.id).run();
+      ).bind(stripeuser_id, user.id).run();
     }
 
-    if (!stripeCustomerId) {
+    if (!stripeuser_id) {
         return errorResponse("Could not create or find Stripe customer.", 500);
     }
 
-    const draftInvoice = await createDraftStripeInvoice(stripe, stripeCustomerId);
+    const draftInvoice = await createDraftStripeInvoice(stripe, stripeuser_id);
 
     if (!draftInvoice || !draftInvoice.id) {
         return errorResponse("Failed to create a valid draft invoice in Stripe.", 500);
@@ -361,7 +361,7 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
     const jobData = {
       title: title,
       description: `Created by admin on ${new Date().toLocaleDateString()}`,
-      job_status: status,
+      status: status,
       recurrence: 'none',
       due: due.toISOString(),
     };
@@ -403,21 +403,21 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
       }
 
       const stripe = getStripe(c.env as Env);
-      let stripeCustomerId = user.stripe_customer_id;
+      let stripeuser_id = user.stripe_customer_id;
 
-      if (!stripeCustomerId) {
+      if (!stripeuser_id) {
         const customer = await createStripeCustomer(stripe, user);
-        stripeCustomerId = customer.id;
+        stripeuser_id = customer.id;
         await c.env.DB.prepare(
           `UPDATE users SET stripe_customer_id = ? WHERE id = ?`
-        ).bind(stripeCustomerId, user.id).run();
+        ).bind(stripeuser_id, user.id).run();
       }
 
-      if (!stripeCustomerId) {
+      if (!stripeuser_id) {
           return errorResponse("Could not create or find Stripe customer.", 500);
       }
 
-      const draftInvoice = await createDraftStripeInvoice(stripe, stripeCustomerId);
+      const draftInvoice = await createDraftStripeInvoice(stripe, stripeuser_id);
 
       if (!draftInvoice || !draftInvoice.id) {
           return errorResponse("Failed to create a valid draft invoice in Stripe.", 500);
@@ -425,7 +425,7 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
 
       for (const item of lineItems) {
         await stripe.invoiceItems.create({
-          customer: stripeCustomerId,
+          customer: stripeuser_id,
           invoice: draftInvoice.id,
           description: item.description,
           quantity: item.quantity,

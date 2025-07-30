@@ -79,7 +79,7 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
         const jobData = {
             title,
             description: `Created via admin panel on ${new Date().toLocaleDateString()}`,
-            job_status: status,
+            status: status,
             recurrence: 'none'
         };
         const newJob = await createJob(c.env, jobData, userId);

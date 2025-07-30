@@ -72,7 +72,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
     try {
       // Use the new, unified adminCreateJob function
       await adminCreateJob({
-        customerId: selectedUserId,
+        user_id: selectedUserId,
         jobType, // This comes from the component's props
         title,
         start: selectedDate.toISOString(),

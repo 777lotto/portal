@@ -9,14 +9,14 @@ export const handleGetNotesForJob = async (c: NoteContext<NoteAppEnv>) => {
     try {
         // First, get the job to verify ownership or admin status
         const job = await c.env.DB.prepare(
-            `SELECT customerId FROM jobs WHERE id = ?`
-        ).bind(jobId).first<{ customerId: string }>();
+            `SELECT user_id FROM jobs WHERE id = ?`
+        ).bind(jobId).first<{ user_id: string }>();
 
         if (!job) {
             return noteErrorResponse("Job not found", 404);
         }
 
-        if (user.role !== 'admin' && job.customerId !== user.id.toString()) {
+        if (user.role !== 'admin' && job.user_id !== user.id.toString()) {
             return noteErrorResponse("Access denied", 403);
         }
 

@@ -23,7 +23,7 @@ CREATE INDEX idx_users_phone ON users(phone);
 -- Create jobs table
 CREATE TABLE jobs (
   id TEXT PRIMARY KEY,
-  customerId TEXT NOT NULL,
+  user_id TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
   status TEXT NOT NULL,

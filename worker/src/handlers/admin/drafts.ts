@@ -13,7 +13,7 @@ export const handleGetDrafts = async (c: HonoContext<WorkerAppEnv>) => {
         const dbResponse = await c.env.DB.prepare(
             `SELECT j.*, u.name as customerName
              FROM jobs j
-             JOIN users u ON j.customerId = u.id
+             JOIN users u ON j.user_id = u.id
              WHERE j.status IN ('quote_draft', 'invoice_draft')
              ORDER BY j.updatedAt DESC`
         ).all<DraftJob>();

@@ -51,7 +51,7 @@ export async function createJob(env: Env, jobData: any, userId: number): Promise
   // Insert into database
   await env.DB.prepare(`
     INSERT INTO jobs (
-      id, user_id, title, description, job_status,
+      id, user_id, title, description, status,
       recurrence, created_at, updated_at, due
     ) VALUES (
       ?, ?, ?, ?, ?, ?, ?, ?, ?
@@ -61,7 +61,7 @@ export async function createJob(env: Env, jobData: any, userId: number): Promise
     parsedJob.user_id,
     parsedJob.title,
     parsedJob.description || null,
-    parsedJob.job_status,
+    parsedJob.status,
     parsedJob.recurrence,
     parsedJob.created_at,
     parsedJob.updated_at,
@@ -96,7 +96,7 @@ export async function updateJob(env: Env, jobId: string, updateData: any, userId
     UPDATE jobs SET
       title = ?,
       description = ?,
-      job_status = ?,
+      status = ?,
       recurrence = ?,
       updated_at = ?,
       due = ?
@@ -104,7 +104,7 @@ export async function updateJob(env: Env, jobId: string, updateData: any, userId
   `).bind(
     parsedJob.title,
     parsedJob.description || null,
-    parsedJob.job_status,
+    parsedJob.status,
     parsedJob.recurrence,
     parsedJob.updated_at,
     parsedJob.due || null,

@@ -12,7 +12,7 @@ interface Props {
 
 function EditJobModal({ isOpen, onClose, onJobUpdated, job }: Props) {
   const [users, setUsers] = useState<User[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>(job.customerId);
+  const [selectedUserId, setSelectedUserId] = useState<string>(job.user_id);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

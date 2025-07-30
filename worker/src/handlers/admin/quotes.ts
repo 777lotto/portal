@@ -46,7 +46,7 @@ export async function handleAdminCreateQuote(c: Context<AppEnv>) {
             expires_at: Math.floor(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).getTime() / 1000),
         });
 
-        await db.prepare(`UPDATE jobs SET stripe_quote_id = ?, job_status = 'quote_draft' WHERE id = ?`)
+        await db.prepare(`UPDATE jobs SET stripe_quote_id = ?, status = 'quote_draft' WHERE id = ?`)
             .bind(quoteData.id, jobId)
             .run();
 
@@ -125,7 +125,7 @@ export async function handleAdminImportQuotes(c: Context<AppEnv>) {
                 const newJobId = uuidv4();
 
                 await db.prepare(
-                    `INSERT INTO jobs (id, user_id, title, description, job_status, recurrence, stripe_quote_id, total_amount_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+                    `INSERT INTO jobs (id, user_id, title, description, status, recurrence, stripe_quote_id, total_amount_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
                 ).bind(
                     newJobId,
                     user.id,
@@ -173,7 +173,7 @@ export async function handleAdminSendQuote(c: Context<AppEnv>) {
         const job = await db.prepare(`SELECT * FROM jobs WHERE id = ?`).bind(jobId).first<Job>();
         if (!job) return errorResponse("Job not found.", 404);
 
-        if (job.job_status !== 'quote_draft') {
+        if (job.status !== 'quote_draft') {
             return errorResponse("This job does not have a draft quote.", 400);
         }
 
@@ -186,7 +186,7 @@ export async function handleAdminSendQuote(c: Context<AppEnv>) {
 
         const finalizedQuote = await stripe.quotes.finalizeQuote(job.stripe_quote_id) as Stripe.Quote;
 
-        await db.prepare(`UPDATE jobs SET job_status = 'pending' WHERE id = ?`)
+        await db.prepare(`UPDATE jobs SET status = 'pending' WHERE id = ?`)
             .bind(jobId)
             .run();
 
