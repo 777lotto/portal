@@ -45,12 +45,12 @@ import { handleRequestRecurrence, handleGetRecurrenceRequests, handleUpdateRecur
 
 
 // --- Admin Handlers ---
-import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleGetAllJobs, handleAdminCreateUser, handleAdminUpdateUser } from './handlers/admin/users.js';
+import { handleGetAllUsers, handleAdminDeleteUser, handleAdminCreateUser, handleAdminUpdateUser } from './handlers/admin/users.js';
 import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
 import { handleAdminAddNoteForUser } from './handlers/notes.js';
 import { handleAdminImportQuotes, handleAdminSendQuote } from './handlers/admin/quotes.js';
 import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminGetAllOpenInvoices, handleAdminMarkInvoiceAsPaid } from './handlers/admin/invoices.js';
-import { handleGetJobsAndQuotes, handleAdminCreateJob } from './handlers/admin/jobs.js'; // CORRECTED IMPORT
+import { handleGetJobsAndQuotes, handleAdminCreateJob, handleGetAllJobs } from './handlers/admin/jobs.js';
 import { handleGetDrafts } from './handlers/admin/drafts.js';
 
 
@@ -167,8 +167,6 @@ adminApi.post('/users', handleAdminCreateUser);
 adminApi.put('/users/:user_id', handleAdminUpdateUser);
 adminApi.post('/jobs/:jobId/quote/send', handleAdminSendQuote);
 adminApi.post('/quotes/import', handleAdminImportQuotes);
-adminApi.get('/users/:user_id/jobs', handleAdminGetJobsForUser);
-adminApi.get('/users/:user_id/photos', handleAdminGetPhotosForUser);
 adminApi.post('/users/:user_id/photos', handleAdminUploadPhotoForUser);
 adminApi.post('/users/:user_id/notes', handleAdminAddNoteForUser);
 adminApi.delete('/users/:user_id', handleAdminDeleteUser);

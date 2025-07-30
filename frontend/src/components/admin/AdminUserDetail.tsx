@@ -1,20 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useDropzone } from 'react-dropzone';
-import { apiGet, apiPost, apiPostFormData, adminCreateJob, adminFinalizeJob, adminImportInvoicesForUser, adminMarkInvoiceAsPaid } from '../../lib/api'; // Corrected import
-import type { Job, User, PhotoWithNotes, Note, StripeInvoice } from '@portal/shared';
+import { apiGet, adminCreateJob, adminImportInvoicesForUser } from '../../lib/api';
+import type { User, StripeInvoice } from '@portal/shared';
 import { InvoiceEditor } from './InvoiceEditor';
-import { format } from 'date-fns';
 
 type Message = { type: 'success' | 'danger'; text: string; };
 
 export function AdminUserDetail() {
   const { user_id } = useParams<{ user_id: string }>();
   const [user, setUser] = useState<User | null>(null);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [photos, setPhotos] = useState<PhotoWithNotes[]>([]);
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [newNote, setNewNote] = useState('');
   const [message, setMessage] = useState<Message | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeInvoice, setActiveInvoice] = useState<StripeInvoice | null>(null);
@@ -22,17 +16,10 @@ export function AdminUserDetail() {
   const fetchData = useCallback(async () => {
     if (!user_id) return;
     try {
-      const [userData, jobsData, photosData, notesData] = await Promise.all([
-        apiGet<User>(`/api/admin/users/${user_id}`),
-        apiGet<Job[]>(`/api/admin/users/${user_id}/jobs`),
-        apiGet<PhotoWithNotes[]>(`/api/admin/users/${user_id}/photos`),
-        apiGet<Note[]>(`/api/admin/users/${user_id}/notes`),
-      ]);
+      // We only need to fetch the user's primary data now.
+      const userData = await apiGet<User>(`/api/admin/users/${user_id}`);
       setUser(userData);
-      setJobs(jobsData);
-      setPhotos(photosData);
-      setNotes(notesData);
-    } catch (err: any) {
+    } catch (err: any)      {
       setMessage({ type: 'danger', text: `Failed to fetch user data: ${err.message}` });
     }
   }, [user_id]);
@@ -41,35 +28,7 @@ export function AdminUserDetail() {
     fetchData();
   }, [fetchData]);
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (!user_id) return;
-    const formData = new FormData();
-    formData.append('photo', acceptedFiles[0]);
-    formData.append('notes', 'Uploaded by admin');
-
-    try {
-      await apiPostFormData(`/api/admin/users/${user_id}/photos`, formData);
-      setMessage({ type: 'success', text: 'Photo uploaded successfully!' });
-      fetchData(); // Refresh photos
-    } catch (err: any) {
-      setMessage({ type: 'danger', text: `Photo upload failed: ${err.message}` });
-    }
-  }, [user_id, fetchData]);
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
-
-  const handleAddNote = async () => {
-    if (!user_id || !newNote.trim()) return;
-    try {
-      await apiPost(`/api/admin/users/${user_id}/notes`, { notes: newNote });
-      setNewNote('');
-      setMessage({ type: 'success', text: 'Note added successfully!' });
-      fetchData(); // Refresh notes
-    } catch (err: any) {
-      setMessage({ type: 'danger', text: `Failed to add note: ${err.message}` });
-    }
-  };
-
+  // This function can remain as it's a primary action for this page.
   const handleCreateInvoiceClick = async () => {
     if (!user_id) return;
     if (!window.confirm("Are you sure you want to create a new draft invoice for this user?")) {
@@ -78,7 +37,6 @@ export function AdminUserDetail() {
     setMessage(null);
     setIsSubmitting(true);
     try {
-        // Use the new, unified adminCreateJob function
         const { job } = await adminCreateJob({
             user_id: user_id,
             jobType: 'invoice',
@@ -88,7 +46,6 @@ export function AdminUserDetail() {
             isDraft: true,
         });
         setMessage({ type: 'success', text: `Draft invoice created successfully! You can now add line items. Associated Job ID: ${job.id}` });
-        // You might want to navigate to an invoice editor or refresh data
         fetchData();
     } catch (err: any) {
         setMessage({ type: 'danger', text: `Failed to create invoice: ${err.message}` });
@@ -110,7 +67,6 @@ export function AdminUserDetail() {
         setIsSubmitting(false);
     }
   };
-
 
   if (!user) return <div className="p-4">Loading user details...</div>;
   if (activeInvoice) {
@@ -139,38 +95,41 @@ export function AdminUserDetail() {
 
             <hr />
 
-            <h2 className="text-xl font-semibold mt-4">Jobs ({jobs.length})</h2>
-            <div className="list-group">
-                {jobs.map(job => (
-                    <Link key={job.id} to={`/admin/jobs/${job.id}`} className="list-group-item list-group-item-action">
-                        {job.title} - {format(new Date(job.start), 'MMMM do, yyyy')} - <span className={`badge bg-${job.status === 'completed' ? 'success' : 'warning'}`}>{job.status}</span>
-                    </Link>
-                ))}
-            </div>
+            {/* --- NEW SECTION WITH LINKS --- */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+              <div className="card bg-light">
+                <div className="card-body">
+                  <h2 className="card-title">Jobs & Quotes</h2>
+                  <p>View, edit, or create new jobs and quotes for this user.</p>
+                  <div className="card-actions justify-end">
+                    {/* Note: You will need to create a page component for this route */}
+                    <Link to={`/admin/users/${user.id}/jobs`} className="btn btn-primary">Manage Jobs</Link>
+                  </div>
+                </div>
+              </div>
 
-            <h2 className="text-xl font-semibold mt-4">Photos ({photos.length})</h2>
-            <div {...getRootProps()} className="border-2 border-dashed rounded-lg p-5 text-center cursor-pointer hover:border-primary-dark">
-                <input {...getInputProps()} />
-                {isDragActive ? <p>Drop the files here ...</p> : <p>Drag 'n' drop some files here, or click to select files</p>}
-            </div>
-            <div className="row mt-3">
-                {photos.map(p => (
-                    <div key={p.id} className="col-md-3 mb-3">
-                        <img src={p.url} alt="User upload" className="img-fluid rounded" />
-                    </div>
-                ))}
-            </div>
+              <div className="card bg-light">
+                <div className="card-body">
+                  <h2 className="card-title">Photos</h2>
+                  <p>View or upload photos associated with this user's jobs.</p>
+                  <div className="card-actions justify-end">
+                    {/* Note: You will need to create a page component for this route */}
+                    <Link to={`/admin/users/${user.id}/photos`} className="btn btn-primary">Manage Photos</Link>
+                  </div>
+                </div>
+              </div>
 
-            <h2 className="text-xl font-semibold mt-4">Notes</h2>
-            <div className="mb-3">
-                <textarea className="form-control" value={newNote} onChange={(e) => setNewNote(e.target.value)} rows={3}></textarea>
-                <button className="btn btn-primary mt-2" onClick={handleAddNote}>Add Note</button>
+              <div className="card bg-light">
+                <div className="card-body">
+                  <h2 className="card-title">Notes</h2>
+                  <p>View or add internal notes for this user.</p>
+                  <div className="card-actions justify-end">
+                    {/* Note: You will need to create a page component for this route */}
+                    <Link to={`/admin/users/${user.id}/notes`} className="btn btn-primary">Manage Notes</Link>
+                  </div>
+                </div>
+              </div>
             </div>
-            <ul className="list-group">
-                {notes.map(note => (
-                    <li key={note.id} className="list-group-item">{note.notes}</li>
-                ))}
-            </ul>
         </div>
       </div>
     </div>

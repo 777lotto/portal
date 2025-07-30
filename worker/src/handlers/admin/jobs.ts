@@ -7,6 +7,24 @@ import { getStripe, createStripeCustomer, createDraftStripeInvoice } from '../..
 import { createJob } from '../../calendar.js';
 import Stripe from 'stripe';
 
+export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
+  try {
+    const dbResponse = await c.env.DB.prepare(
+      `SELECT
+        j.id, j.title, j.start, j.end_time as end, j.status, j.job_type as jobType,
+        u.name as userName, u.id as userId
+      FROM jobs j
+      JOIN users u ON j.user_id = u.id
+      ORDER BY j.start DESC`
+    ).all();
+    const jobs = dbResponse?.results || [];
+    return successResponse(jobs);
+  } catch (e: any) {
+    console.error("Error in handleGetAllJobs:", e);
+    return errorResponse("Failed to fetch all jobs.", 500);
+  }
+}
+
 // This function remains as it was, used for fetching and displaying data.
 export const handleGetJobsAndQuotes = async (c: Context<AppEnv>) => {
   const db = c.env.DB;
