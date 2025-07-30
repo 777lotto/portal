@@ -1,3 +1,5 @@
+// worker/src/handlers/quotes.ts
+
 import { Context } from 'hono';
 import { AppEnv } from '../index.js';
 import { errorResponse, successResponse } from '../utils.js';
@@ -9,12 +11,14 @@ export async function getPendingQuotes(c: Context<AppEnv>) {
 
     let jobs;
     if (user.role === 'admin') {
+        // FIX: Changed j.user_id to j.customerId to match the database schema.
         jobs = await env.DB.prepare(
-            `SELECT j.*, u.name as customerName FROM jobs j JOIN users u ON j.user_id = u.id WHERE j.status = 'pending'`
+            `SELECT j.*, u.name as customerName FROM jobs j JOIN users u ON j.customerId = u.id WHERE j.status = 'pending'`
         ).all();
     } else {
+        // FIX: Changed user_id to customerId to match the database schema.
         jobs = await env.DB.prepare(
-            `SELECT * FROM jobs WHERE user_id = ? AND status = 'pending'`
+            `SELECT * FROM jobs WHERE customerId = ? AND status = 'pending'`
         ).bind(user.id).all();
     }
 
@@ -29,13 +33,15 @@ export async function getQuoteById(c: Context<AppEnv>) {
     let job;
     if (user.role === 'admin') {
         // Admins can view any job/quote regardless of status
+        // FIX: Changed j.user_id to j.customerId
         job = await env.DB.prepare(
-            `SELECT j.*, u.name as customerName FROM jobs j JOIN users u ON j.user_id = u.id WHERE j.id = ?`
+            `SELECT j.*, u.name as customerName FROM jobs j JOIN users u ON j.customerId = u.id WHERE j.id = ?`
         ).bind(quoteId).first();
     } else {
         // Customers can only view jobs that are pending quotes
+        // FIX: Changed user_id to customerId
         job = await env.DB.prepare(
-            `SELECT * FROM jobs WHERE id = ? AND user_id = ? AND status = 'pending'`
+            `SELECT * FROM jobs WHERE id = ? AND customerId = ? AND status = 'pending'`
         ).bind(quoteId, user.id).first();
     }
 
@@ -61,7 +67,8 @@ export async function handleDeclineQuote(c: Context<AppEnv>) {
             return errorResponse("Job with this quote not found.", 404);
         }
 
-        if (job.user_id.toString() !== user.id.toString() && user.role !== 'admin') {
+        // FIX: Changed user_id to customerId
+        if (job.customerId.toString() !== user.id.toString() && user.role !== 'admin') {
             return errorResponse("You are not authorized to decline this quote.", 403);
         }
 
@@ -90,7 +97,8 @@ export async function handleReviseQuote(c: Context<AppEnv>) {
             return errorResponse("Job with this quote not found.", 404);
         }
 
-        if (job.user_id.toString() !== user.id.toString() && user.role !== 'admin') {
+        // FIX: Changed user_id to customerId
+        if (job.customerId.toString() !== user.id.toString() && user.role !== 'admin') {
             return errorResponse("You are not authorized to revise this quote.", 403);
         }
 
