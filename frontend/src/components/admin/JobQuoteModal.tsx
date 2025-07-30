@@ -11,7 +11,7 @@ interface Props {
 
 function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
   const [users, setUsers] = useState<User[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [selecteduser_id, setSelecteduser_id] = useState<string>('');
   const [lineItems, setLineItems] = useState<Partial<Service>[]>([{ notes: '', total_amount_cents: 0 }]);
   const [title, setTitle] = useState('');
   const [dueDateDays, setDueDateDays] = useState<number>(30);
@@ -55,14 +55,14 @@ function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
 
   const handleSubmit = async (isDraft: boolean) => {
     setError(null);
-    if (!selectedUserId) {
+    if (!selecteduser_id) {
       setError("Please select a user.");
       return;
     }
     setIsSubmitting(true);
     try {
       const payload = {
-        userId: selectedUserId,
+        user_id: selecteduser_id,
         title,
         lineItems,
         isDraft,
@@ -92,7 +92,7 @@ function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
         {error && <div className="alert alert-danger">{error}</div>}
         <div className="mb-3">
           <label htmlFor="user" className="form-label">Customer</label>
-          <select id="user" className="form-control" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)}>
+          <select id="user" className="form-control" value={selecteduser_id} onChange={(e) => setSelecteduser_id(e.target.value)}>
             <option value="">Select a user</option>
             {users.map(user => (
               <option key={user.id} value={user.id}>

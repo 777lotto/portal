@@ -125,16 +125,16 @@ export const handleGetJobById = async (c: HonoContext<WorkerAppEnv>) => {
 
 export const handleAdminReassignJob = async (c: HonoContext<WorkerAppEnv>) => {
     const { jobId } = c.req.param();
-    const { newUserId } = await c.req.json();
+    const { newuser_id } = await c.req.json();
 
-    if (!newUserId) {
+    if (!newuser_id) {
         return errorResponse("New user ID is required.", 400);
     }
 
     try {
         await c.env.DB.prepare(
             `UPDATE jobs SET user_id = ? WHERE id = ?`
-        ).bind(newUserId, jobId).run();
+        ).bind(newuser_id, jobId).run();
 
         const updatedJob = await c.env.DB.prepare(
             `SELECT * FROM jobs WHERE id = ?`

@@ -54,22 +54,22 @@ export async function handleGetAllUsers(c: Context<AppEnv>): Promise<Response> {
 }
 
 export async function handleAdminGetJobsForUser(c: Context<AppEnv>): Promise<Response> {
-    const { userId } = c.req.param();
+    const { user_id } = c.req.param();
     try {
         const dbResponse = await c.env.DB.prepare(
             `SELECT * FROM jobs WHERE user_id = ? ORDER BY createdAt DESC`
-        ).bind(userId).all<Job>();
+        ).bind(user_id).all<Job>();
         const jobs = dbResponse?.results || [];
         return successResponse(jobs);
     } catch (e: any) {
-        console.error(`Failed to get jobs for user ${userId}:`, e);
+        console.error(`Failed to get jobs for user ${user_id}:`, e);
         return errorResponse("Failed to retrieve jobs for user.", 500);
     }
 }
 
 export async function handleAdminGetPhotosForUser(c: Context<AppEnv>): Promise<Response> {
-    const { userId } = c.req.param();
-    if (!userId) {
+    const { user_id } = c.req.param();
+    if (!user_id) {
         return errorResponse("User ID parameter is required.", 400);
     }
     try {
@@ -85,7 +85,7 @@ export async function handleAdminGetPhotosForUser(c: Context<AppEnv>): Promise<R
 
         type PhotoQueryResult = Omit<PhotoWithNotes, 'notes'> & { notes: string | null };
 
-        const { results } = await c.env.DB.prepare(query).bind(userId).all<PhotoQueryResult>();
+        const { results } = await c.env.DB.prepare(query).bind(user_id).all<PhotoQueryResult>();
 
         const photos: PhotoWithNotes[] = (results || []).map((p) => {
             const notesArray: Note[] = p.notes ? JSON.parse(p.notes) : [];
@@ -98,15 +98,15 @@ export async function handleAdminGetPhotosForUser(c: Context<AppEnv>): Promise<R
 
         return successResponse(photos);
     } catch (e: any) {
-        console.error(`Failed to get photos for user ${userId}:`, e);
+        console.error(`Failed to get photos for user ${user_id}:`, e);
         return errorResponse("Failed to retrieve photos for user.", 500);
     }
 }
 
 
 export async function handleAdminDeleteUser(c: Context<AppEnv>): Promise<Response> {
-  const { userId } = c.req.param();
-  if (!userId) {
+  const { user_id } = c.req.param();
+  if (!user_id) {
     return errorResponse("User ID is required.", 400);
   }
 
@@ -114,16 +114,16 @@ export async function handleAdminDeleteUser(c: Context<AppEnv>): Promise<Respons
 
   try {
     // First, get all job_ids for the user
-    const jobIdsResult = await db.prepare("SELECT id FROM jobs WHERE user_id = ?").bind(Number(userId)).all<{ id: string }>();
+    const jobIdsResult = await db.prepare("SELECT id FROM jobs WHERE user_id = ?").bind(Number(user_id)).all<{ id: string }>();
     const jobIds = jobIdsResult.results?.map(row => row.id) ?? [];
 
     const stmts = [];
 
     // Delete related data that has a direct user_id foreign key
-    stmts.push(db.prepare("DELETE FROM notes WHERE user_id = ?").bind(Number(userId)));
-    stmts.push(db.prepare("DELETE FROM photos WHERE user_id = ?").bind(Number(userId)));
-    stmts.push(db.prepare("DELETE FROM notifications WHERE user_id = ?").bind(Number(userId)));
-    stmts.push(db.prepare("DELETE FROM calendar_events WHERE user_id = ?").bind(Number(userId)));
+    stmts.push(db.prepare("DELETE FROM notes WHERE user_id = ?").bind(Number(user_id)));
+    stmts.push(db.prepare("DELETE FROM photos WHERE user_id = ?").bind(Number(user_id)));
+    stmts.push(db.prepare("DELETE FROM notifications WHERE user_id = ?").bind(Number(user_id)));
+    stmts.push(db.prepare("DELETE FROM calendar_events WHERE user_id = ?").bind(Number(user_id)));
 
     // Delete line_items for all jobs associated with the user
     if (jobIds.length > 0) {
@@ -132,16 +132,16 @@ export async function handleAdminDeleteUser(c: Context<AppEnv>): Promise<Respons
     }
 
     // Now delete the jobs associated with the user
-    stmts.push(db.prepare("DELETE FROM jobs WHERE user_id = ?").bind(Number(userId)));
+    stmts.push(db.prepare("DELETE FROM jobs WHERE user_id = ?").bind(Number(user_id)));
     
     // Finally, delete the user
-    stmts.push(db.prepare("DELETE FROM users WHERE id = ?").bind(Number(userId)));
+    stmts.push(db.prepare("DELETE FROM users WHERE id = ?").bind(Number(user_id)));
 
     await db.batch(stmts);
 
-    return successResponse({ message: `User ${userId} and all their associated data deleted successfully.` });
+    return successResponse({ message: `User ${user_id} and all their associated data deleted successfully.` });
   } catch (e: any) {
-    console.error(`Failed to delete user ${userId}:`, e);
+    console.error(`Failed to delete user ${user_id}:`, e);
     return errorResponse("Failed to delete user. The user may have associated records that could not be deleted.", 500);
   }
 }
@@ -208,7 +208,7 @@ export async function handleAdminCreateUser(c: Context<AppEnv>): Promise<Respons
 }
 
 export async function handleAdminUpdateUser(c: Context<AppEnv>): Promise<Response> {
-    const { userId } = c.req.param();
+    const { user_id } = c.req.param();
     const body = await c.req.json();
     const parsed = AdminCreateUserSchema.partial().safeParse(body);
 
@@ -220,7 +220,7 @@ export async function handleAdminUpdateUser(c: Context<AppEnv>): Promise<Respons
     const db = c.env.DB;
 
     try {
-        const existingUser = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(userId).first<User>();
+        const existingUser = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(user_id).first<User>();
         if (!existingUser) {
             return errorResponse("User not found", 404);
         }
@@ -247,7 +247,7 @@ export async function handleAdminUpdateUser(c: Context<AppEnv>): Promise<Respons
             cleanedPhone ?? existingUser.phone,
             address !== undefined ? (address || null) : existingUser.address, // Save the validated address
             role ?? existingUser.role,
-            userId
+            user_id
         ).first<User>();
 
         return successResponse(updatedResult);
@@ -256,7 +256,7 @@ export async function handleAdminUpdateUser(c: Context<AppEnv>): Promise<Respons
         if (e.message?.includes('UNIQUE constraint failed')) {
             return errorResponse('A user with this email or phone number already exists.', 409);
         }
-        console.error(`Failed to update user ${userId}:`, e);
+        console.error(`Failed to update user ${user_id}:`, e);
         return errorResponse('Failed to update user.', 500);
     }
 }
@@ -276,13 +276,13 @@ export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
 }
 
 export async function handleAdminCreateInvoice(c: Context<AppEnv>): Promise<Response> {
-  const { userId } = c.req.param();
+  const { user_id } = c.req.param();
   const db = c.env.DB;
 
   try {
     const user = await db.prepare(
       `SELECT id, name, email, phone, stripe_customer_id, role FROM users WHERE id = ?`
-    ).bind(Number(userId)).first<User>();
+    ).bind(Number(user_id)).first<User>();
 
     if (!user) {
       return errorResponse("User not found.", 404);
@@ -319,13 +319,13 @@ export async function handleAdminCreateInvoice(c: Context<AppEnv>): Promise<Resp
 
     return successResponse({ invoice });
   } catch (e: any) {
-    console.error(`Failed to create draft invoice for user ${userId}:`, e);
+    console.error(`Failed to create draft invoice for user ${user_id}:`, e);
     return errorResponse(`Failed to create draft invoice: ${e.message}`, 500);
   }
 }
 
 export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<Response> {
-  const { userId } = c.req.param();
+  const { user_id } = c.req.param();
   const body = await c.req.json();
   const { title, lineItems, days_until_expiry, jobType, action } = body;
 
@@ -365,7 +365,7 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
       recurrence: 'none',
       due: due.toISOString(),
     };
-    const newJob = await createJob(c.env, jobData, parseInt(userId, 10));
+    const newJob = await createJob(c.env, jobData, parseInt(user_id, 10));
 
     const lineItemInserts = lineItems.map((item: { description: string, quantity: number, unit_total_amount_cents: number }) => {
       return c.env.DB.prepare(
@@ -387,7 +387,7 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
         `INSERT INTO notifications (user_id, type, message, link)
          VALUES (?, 'new_quote', ?, ?)`
       ).bind(
-        parseInt(userId, 10),
+        parseInt(user_id, 10),
         notificationMessage,
         `/quotes/${newJob.id}`
       ).run();
@@ -396,7 +396,7 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
     if (jobType === 'invoice' && action === 'send_invoice') {
       const user = await c.env.DB.prepare(
         `SELECT id, name, email, phone, stripe_customer_id, role FROM users WHERE id = ?`
-      ).bind(parseInt(userId, 10)).first<User>();
+      ).bind(parseInt(user_id, 10)).first<User>();
 
       if (!user) {
         return errorResponse("User not found.", 404);
@@ -442,7 +442,7 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
 
     return successResponse(newJob, 201);
   } catch (e: any) {
-    console.error(`Failed to create job for user ${userId}:`, e);
+    console.error(`Failed to create job for user ${user_id}:`, e);
     return errorResponse("Failed to create job.", 500);
   }
 }

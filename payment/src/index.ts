@@ -91,7 +91,7 @@ export default {
         console.log(`[Cron] Enqueuing past_due notification for job ${job.id}`);
         return env.NOTIFICATION_QUEUE.send({
           type: 'invoice_past_due',
-          userId: job.user_id,
+          user_id: job.user_id,
           data: {
             jobId: job.id,
             invoiceId: job.stripe_invoice_id

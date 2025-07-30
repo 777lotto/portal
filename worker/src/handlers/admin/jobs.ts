@@ -53,16 +53,16 @@ export const handleGetJobsAndQuotes = async (c: Context<AppEnv>) => {
 
 // REVISED AND CONSOLIDATED FUNCTION
 export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
-    const { userId, title, lineItems, isDraft, jobType } = await c.req.json();
+    const { user_id, title, lineItems, isDraft, jobType } = await c.req.json();
     const db = c.env.DB;
     const stripe = getStripe(c.env);
 
-    if (!userId || !title || !lineItems) {
-        return errorResponse("Missing required fields: userId, title, lineItems.", 400);
+    if (!user_id || !title || !lineItems) {
+        return errorResponse("Missing required fields: user_id, title, lineItems.", 400);
     }
 
     try {
-        const user = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(userId).first<User>();
+        const user = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(user_id).first<User>();
         if (!user) return errorResponse("User not found.", 404);
 
         let status: JobStatus;
@@ -82,7 +82,7 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
             status: status,
             recurrence: 'none'
         };
-        const newJob = await createJob(c.env, jobData, userId);
+        const newJob = await createJob(c.env, jobData, user_id);
 
         const lineItemInserts = lineItems.map((item: any) =>
             db.prepare(`INSERT INTO line_items (job_id, description, quantity, unit_total_amount_cents) VALUES (?, ?, ?, ?)`)
@@ -132,7 +132,7 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
                 await db.prepare(`UPDATE jobs SET stripe_quote_id = ? WHERE id = ?`).bind(finalizedQuote.id, newJob.id).run();
                  await c.env.NOTIFICATION_QUEUE.send({
                     type: 'quote_created',
-                    userId: user.id,
+                    user_id: user.id,
                     data: { quoteUrl: (finalizedQuote as any).hosted_details_url, customerName: user.name, },
                 });
                 stripeObject = finalizedQuote;
@@ -146,7 +146,7 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
         }, 201);
 
     } catch (e: any) {
-        console.error(`Failed to create ${jobType} for user ${userId}:`, e);
+        console.error(`Failed to create ${jobType} for user ${user_id}:`, e);
         return errorResponse(`Failed to create ${jobType}: ${e.message}`, 500);
     }
 };

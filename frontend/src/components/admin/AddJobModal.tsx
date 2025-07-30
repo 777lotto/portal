@@ -16,7 +16,7 @@ interface Props {
 function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) {
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [selecteduser_id, setSelecteduser_id] = useState<string>('');
   const [lineItems, setLineItems] = useState<Partial<Service>[]>([{ notes: '', total_amount_cents: 0 }]);
   const [title, setTitle] = useState('');
   const [daysUntilExpiry, setDaysUntilExpiry] = useState<number>(7);
@@ -26,7 +26,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
   useEffect(() => {
     if (isOpen) {
       setTitle('');
-      setSelectedUserId('');
+      setSelecteduser_id('');
       setLineItems([{ notes: '', total_amount_cents: 0 }]);
       setError(null);
       setDaysUntilExpiry(7);
@@ -64,7 +64,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
 
   const handleSubmit = async (action: 'draft' | 'send_proposal' | 'send_invoice' | 'post') => {
     setError(null);
-    if (!selectedUserId || !title || lineItems.some(item => !item.notes)) {
+    if (!selecteduser_id || !title || lineItems.some(item => !item.notes)) {
       setError("Please select a customer, enter a title, and provide a description for all line items.");
       return;
     }
@@ -72,7 +72,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
     try {
       // Use the new, unified adminCreateJob function
       await adminCreateJob({
-        user_id: selectedUserId,
+        user_id: selecteduser_id,
         jobType, // This comes from the component's props
         title,
         start: selectedDate.toISOString(),
@@ -113,7 +113,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="mb-3">
                 <label htmlFor="user" className="form-label">Customer</label>
-                <select id="user" className="form-control" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)}>
+                <select id="user" className="form-control" value={selecteduser_id} onChange={(e) => setSelecteduser_id(e.target.value)}>
                   <option value="">Select a user</option>
                   {users.map(user => (
                     <option key={user.id} value={user.id}>

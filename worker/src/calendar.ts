@@ -8,22 +8,22 @@ import { JobSchema } from "@portal/shared";
 interface JobRecord extends Job {}
 
 // Get jobs for a specific customer
-export async function getCustomerJobs(env: Env, userId: number): Promise<JobRecord[]> {
+export async function getCustomerJobs(env: Env, user_id: number): Promise<JobRecord[]> {
   const { results } = await env.DB.prepare(
     `SELECT * FROM jobs WHERE user_id = ? ORDER BY createdAt DESC`
-  ).bind(userId).all<JobRecord>();
+  ).bind(user_id).all<JobRecord>();
 
   return results || [];
 }
 
 // Get a specific job by ID
-export async function getJob(env: Env, jobId: string, userId?: number): Promise<JobRecord> {
-  const query = userId
+export async function getJob(env: Env, jobId: string, user_id?: number): Promise<JobRecord> {
+  const query = user_id
     ? `SELECT * FROM jobs WHERE id = ? AND user_id = ?`
     : `SELECT * FROM jobs WHERE id = ?`;
 
-  const params = userId
-    ? [jobId, userId]
+  const params = user_id
+    ? [jobId, user_id]
     : [jobId];
 
   const job = await env.DB.prepare(query)
@@ -38,12 +38,12 @@ export async function getJob(env: Env, jobId: string, userId?: number): Promise<
 }
 
 // Create a new job
-export async function createJob(env: Env, jobData: any, userId: number): Promise<JobRecord> {
+export async function createJob(env: Env, jobData: any, user_id: number): Promise<JobRecord> {
   // Parse and validate job data
   const parsedJob = JobSchema.parse({
     ...jobData,
     id: jobData.id || uuidv4(),
-    user_id: userId,
+    user_id: user_id,
     createdAt: jobData.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString()
   });
@@ -72,9 +72,9 @@ export async function createJob(env: Env, jobData: any, userId: number): Promise
 }
 
 // Update an existing job
-export async function updateJob(env: Env, jobId: string, updateData: any, userId: number): Promise<JobRecord> {
+export async function updateJob(env: Env, jobId: string, updateData: any, user_id: number): Promise<JobRecord> {
   // First check if job exists and belongs to customer
-  const existingJob = await getJob(env, jobId, userId);
+  const existingJob = await getJob(env, jobId, user_id);
   if (!existingJob) {
     throw new Error("Job not found or you don't have permission to modify it");
   }
@@ -84,7 +84,7 @@ export async function updateJob(env: Env, jobId: string, updateData: any, userId
     ...existingJob,
     ...updateData,
     id: jobId, // ensure ID doesn't change
-    user_id: userId, // ensure user ID doesn't change
+    user_id: user_id, // ensure user ID doesn't change
     updatedAt: new Date().toISOString() // always update the timestamp
   };
 
@@ -109,17 +109,17 @@ export async function updateJob(env: Env, jobId: string, updateData: any, userId
     parsedJob.updatedAt,
     parsedJob.due || null,
     jobId,
-    userId
+    user_id
   ).run();
 
   return parsedJob as JobRecord;
 }
 
 // Delete a job
-export async function deleteJob(env: Env, jobId: string, userId: number): Promise<{ success: boolean }> {
+export async function deleteJob(env: Env, jobId: string, user_id: number): Promise<{ success: boolean }> {
   const result = await env.DB.prepare(
     `DELETE FROM jobs WHERE id = ? AND user_id = ?`
-  ).bind(jobId, userId).run();
+  ).bind(jobId, user_id).run();
 
   // Check if any rows were affected using the meta property
   if (result.meta.changes === 0) {

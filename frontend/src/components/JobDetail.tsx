@@ -119,7 +119,7 @@ function JobDetail() {
       const uploadPromises = acceptedFiles.map(file => {
         const formData = new FormData();
         formData.append('photo', file);
-        formData.append('userId', job.user_id);
+        formData.append('user_id', job.user_id);
         formData.append('job_id', jobId);
         return apiPostFormData(`/api/admin/users/${job.user_id}/photos`, formData);
       });

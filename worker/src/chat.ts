@@ -23,24 +23,24 @@ export class CustomerSupportChat {
 
   async fetch(request: Request) {
     const url = new URL(request.url);
-    const userId = url.searchParams.get('userId');
+    const user_id = url.searchParams.get('user_id');
     const isAdmin = url.searchParams.get('admin') === 'true';
 
-    if (!userId) {
-      return new Response("userId is required", { status: 400 });
+    if (!user_id) {
+      return new Response("user_id is required", { status: 400 });
     }
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
 
-    await this.handleSession(server, userId, isAdmin);
+    await this.handleSession(server, user_id, isAdmin);
 
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  async handleSession(ws: WebSocket, userId: string, isAdmin: boolean) {
+  async handleSession(ws: WebSocket, user_id: string, isAdmin: boolean) {
     ws.accept();
-    this.sessions.set(isAdmin ? 'admin' : userId, ws);
+    this.sessions.set(isAdmin ? 'admin' : user_id, ws);
 
     ws.send(JSON.stringify({ type: 'history', messages: this.messages }));
 

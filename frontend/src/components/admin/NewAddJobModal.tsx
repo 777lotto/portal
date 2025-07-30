@@ -13,7 +13,7 @@ interface Props {
 
 function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
   const [users, setUsers] = useState<User[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [selecteduser_id, setSelecteduser_id] = useState<string>('');
   const [lineItems, setLineItems] = useState<Partial<Service>[]>([{ notes: '', total_amount_cents: 0 }]);
   const [title, setTitle] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -25,7 +25,7 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
   useEffect(() => {
     if (isOpen) {
       setTitle('');
-      setSelectedUserId('');
+      setSelecteduser_id('');
       setLineItems([{ notes: '', total_amount_cents: 0 }]);
       setError(null);
       setCreationType('job'); // Reset to default on open
@@ -64,7 +64,7 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
   // NEW: Consolidated submit handler
   const handleSubmit = async (isDraft: boolean) => {
     setError(null);
-    if (!selectedUserId || !title || lineItems.some(item => !item.notes)) {
+    if (!selecteduser_id || !title || lineItems.some(item => !item.notes)) {
       setError("Please select a customer, enter a title, and provide a description for all line items.");
       return;
     }
@@ -72,13 +72,13 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
     setIsSubmitting(true);
     try {
       await adminCreateJob({
-        user_id: selectedUserId,
+        user_id: selecteduser_id, // Corrected from user_id
         jobType: creationType,
         title,
-        start: selectedDate ? selectedDate.toISOString() : new Date().toISOString(),
-        services: lineItems.map(item => ({
-            notes: item.notes || '',
-            total_amount_cents: item.total_amount_cents || 0
+        lineItems: lineItems.map(item => ({ // Corrected from services
+            description: item.notes || '',
+            quantity: 1, // Assuming a default quantity of 1
+            unit_total_amount_cents: item.total_amount_cents || 0
         })),
         isDraft: isDraft,
       });
@@ -117,7 +117,7 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
 
             <div className="mb-3">
               <label htmlFor="user" className="form-label">Customer</label>
-              <select id="user" className="form-control" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)}>
+              <select id="user" className="form-control" value={selecteduser_id} onChange={(e) => setSelecteduser_id(e.target.value)}>
                 <option value="">Select a user</option>
                 {users.map(user => (
                   <option key={user.id} value={user.id.toString()}>

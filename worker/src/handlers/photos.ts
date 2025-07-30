@@ -94,14 +94,14 @@ export const handleGetPhotosForJob = async (c: PhotoContext<PhotoAppEnv>) => {
 
 export const handleAdminUploadPhotoForUser = async (c: PhotoContext<PhotoAppEnv>) => {
     const formData = await c.req.formData();
-    const userId = formData.get('userId') as string | null;
+    const user_id = formData.get('user_id') as string | null;
     const fileValue = formData.get('photo');
     const jobId = formData.get('job_id') as string | null;
     const serviceId = formData.get('item_id') as string | null;
     const notes = formData.get('notes') as string | null;
 
 
-    if (!userId) {
+    if (!user_id) {
         return photoErrorResponse("User ID is required.", 400);
     }
 
@@ -118,7 +118,7 @@ export const handleAdminUploadPhotoForUser = async (c: PhotoContext<PhotoAppEnv>
     const cfUploadData = new FormData();
     cfUploadData.append('file', file);
     cfUploadData.append('requireSignedURLs', 'false');
-    cfUploadData.append('metadata', JSON.stringify({ userId, jobId, serviceId }));
+    cfUploadData.append('metadata', JSON.stringify({ user_id, jobId, serviceId }));
 
 
     try {
@@ -145,7 +145,7 @@ export const handleAdminUploadPhotoForUser = async (c: PhotoContext<PhotoAppEnv>
         const newPhotoData = {
             id: cfResult.result.id,
             url: cfResult.result.variants[0],
-            user_id: parseInt(userId, 10),
+            user_id: parseInt(user_id, 10),
             job_id: jobId || null,
             item_id: serviceId ? parseInt(serviceId, 10) : null,
         };

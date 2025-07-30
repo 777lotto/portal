@@ -129,7 +129,7 @@ export const handleCreateBooking = async (c: Context<AppEnv>) => {
 
             await c.env.NOTIFICATION_QUEUE.send({
                 type: 'password_reset', // This template works for setting a password too
-                userId: existingUser.id,
+                user_id: existingUser.id,
                 data: { name: existingUser.name, resetLink: resetLink },
                 channels: ['email']
             });
@@ -150,7 +150,7 @@ export const handleCreateBooking = async (c: Context<AppEnv>) => {
     if (!results || results.length === 0) {
       return errorResponse('Failed to create guest user', 500);
     }
-    const userId = results[0].id;
+    const user_id = results[0].id;
 
     // Create the job(s)
     let currentStartTime = new Date(`${date}T09:00:00`);
@@ -165,7 +165,7 @@ export const handleCreateBooking = async (c: Context<AppEnv>) => {
         status: 'pending',
         recurrence: 'none',
       };
-      await createJob(c.env, jobData, userId);
+      await createJob(c.env, jobData, user_id);
       currentStartTime = endTime;
     }
 

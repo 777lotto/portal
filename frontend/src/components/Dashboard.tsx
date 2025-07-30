@@ -164,7 +164,7 @@ function Dashboard() {
                 // --- MODIFICATION START ---
                 // Determine the correct link based on user role.
                 const invoiceLink = user?.role === 'admin'
-                  ? `/admin/users/${invoice.userId}` // Admins go to the user detail page
+                  ? `/admin/users/${invoice.user_id}` // Admins go to the user detail page
                   : `/pay-invoice/${invoice.id}`;     // Customers go to the internal payment page
 
                 // Both admins and customers will use the internal Link component.

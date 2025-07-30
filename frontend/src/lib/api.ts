@@ -141,12 +141,12 @@ export const reviseQuote = (quoteId: string, revisionReason: string) => apiPost(
    ======================================================================== */
 
 export const adminCreateUser = (data: unknown) => apiPost<User>('/api/admin/users', data);
-export const adminUpdateUser = (userId: string, data: Partial<User>) => apiPost<User>(`/api/admin/users/${userId}`, data, 'PUT');
-export const deleteUser = (userId: string) => fetchJson(`/api/admin/users/${userId}`, { method: 'DELETE' });
+export const adminUpdateUser = (user_id: string, data: Partial<User>) => apiPost<User>(`/api/admin/users/${user_id}`, data, 'PUT');
+export const deleteUser = (user_id: string) => fetchJson(`/api/admin/users/${user_id}`, { method: 'DELETE' });
 export const getCalendarEvents = () => apiGet<CalendarEvent[]>('/api/admin/calendar-events');
 export const addCalendarEvent = (event: Omit<CalendarEvent, 'id' | 'user_id'>) => apiPost('/api/admin/calendar-events', event);
 export const removeCalendarEvent = (eventId: number) => fetchJson(`/api/admin/calendar-events/${eventId}`, { method: 'DELETE' });
-export const adminCreateInvoice = (userId: string) => apiPost<{ invoice: StripeInvoice }>(`/api/admin/users/${userId}/invoice`, {});
+export const adminCreateInvoice = (user_id: string) => apiPost<{ invoice: StripeInvoice }>(`/api/admin/users/${user_id}/invoice`, {});
 export const adminGetAllJobs = () => apiGet<Job[]>('/api/admin/jobs');
 export const adminGetAllLineItems = () => apiGet<LineItem[]>('/api/admin/line-items');
 
@@ -156,14 +156,14 @@ export const adminFinalizeJob = (jobId: string) => {
 };
 export const adminImportInvoices = () => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>('/api/admin/invoices/import', {});
 export const adminImportQuotes = () => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>('/api/admin/quotes/import', {});
-export const adminImportInvoicesForUser = (userId: string) => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>(`/api/admin/users/${userId}/invoices/import`, {});
+export const adminImportInvoicesForUser = (user_id: string) => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>(`/api/admin/users/${user_id}/invoices/import`, {});
 export const getImportedContacts = (token: string) => apiPost<any[]>('/api/admin/get-imported-contacts', { token });
 export const adminGetJobsAndQuotes = () => apiGet<JobWithDetails[]>('/api/admin/jobs-and-quotes');
-export const adminReassignJob = (jobId: string, newUserId: string) => {
-  return apiPost(`/api/admin/jobs/${jobId}/reassign`, { newUserId });
+export const adminReassignJob = (jobId: string, newuser_id: string) => {
+  return apiPost(`/api/admin/jobs/${jobId}/reassign`, { newuser_id });
 };
 export const adminCreateJob = (data: {
-  userId: string;
+  user_id: string;
   jobType: 'job' | 'quote' | 'invoice';
   title: string;
   lineItems: { description: string, quantity: number, unit_total_amount_cents: number }[];

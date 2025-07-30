@@ -90,7 +90,7 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
                         for (const admin of admins.results) {
                             await c.env.NOTIFICATION_QUEUE.send({
                                 type: 'quote_accepted',
-                                userId: admin.id,
+                                user_id: admin.id,
                                 data: {
                                     quoteId: quote.id,
                                     customerName: customerName

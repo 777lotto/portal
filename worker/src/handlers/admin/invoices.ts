@@ -83,7 +83,7 @@ export async function handleAdminFinalizeInvoice(c: Context<AppEnv>) {
 
 // Handler to import paid Stripe invoices as historical jobs
 export async function handleAdminImportInvoices(c: Context<AppEnv>) {
-    const { userId } = c.req.param();
+    const { user_id } = c.req.param();
     const stripe = getStripe(c.env);
     const db = c.env.DB;
 
@@ -100,8 +100,8 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
             expand: ['data.customer', 'data.lines.data'],
         };
 
-        if (userId) {
-            const user = await db.prepare(`SELECT id, stripe_customer_id FROM users WHERE id = ?`).bind(userId).first<User>();
+        if (user_id) {
+            const user = await db.prepare(`SELECT id, stripe_customer_id FROM users WHERE id = ?`).bind(user_id).first<User>();
             if (!user || !user.stripe_customer_id) {
                 return errorResponse("User not found or does not have a Stripe customer ID.", 404);
             }
@@ -186,7 +186,7 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
         return successResponse({ message: `Import complete.`, imported: importedCount, skipped: skippedCount, errors });
 
     } catch (e: any) {
-        const errorMessage = userId ? `Failed to import Stripe invoices for user ${userId}:` : "Failed to import Stripe invoices:";
+        const errorMessage = user_id ? `Failed to import Stripe invoices for user ${user_id}:` : "Failed to import Stripe invoices:";
         console.error(errorMessage, e);
         return errorResponse(`Failed to import invoices: ${e.message}`, 500);
     }
@@ -227,7 +227,7 @@ export const handleAdminGetAllOpenInvoices = async (c: Context<AppEnv>) => {
                     hosted_invoice_url: inv.hosted_invoice_url ?? null,
                     number: inv.number,
                     due_date: inv.due_date,
-                    userId: user?.id,
+                    user_id: user?.id,
                     customerName: user?.name,
                 };
             });

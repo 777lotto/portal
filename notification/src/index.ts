@@ -48,9 +48,9 @@ async function handleVapidKey(env: NotificationEnv): Promise<Response> {
  * Saves a user's push notification subscription to the database.
  */
 async function handleSubscribe(request: Request, env: NotificationEnv): Promise<Response> {
-    const userIdHeader = request.headers.get('X-Internal-User-Id');
-    if (!userIdHeader) return new Response("Unauthorized", { status: 401 });
-    const userId = parseInt(userIdHeader, 10);
+    const user_idHeader = request.headers.get('X-Internal-User-Id');
+    if (!user_idHeader) return new Response("Unauthorized", { status: 401 });
+    const user_id = parseInt(user_idHeader, 10);
 
     const subscription = await request.json();
     const validation = PushSubscriptionSchema.safeParse(subscription);
@@ -62,7 +62,7 @@ async function handleSubscribe(request: Request, env: NotificationEnv): Promise<
     try {
         await env.DB.prepare(
             `INSERT INTO notifications (user_id, type, message, link, is_read, channel, target) VALUES (?, ?, ?, ?, ?, ?, ?)`
-        ).bind(userId, 'push_subscription', 'Subscribed to push notifications', '/account', 0, 'push', JSON.stringify(subscription)).run();
+        ).bind(user_id, 'push_subscription', 'Subscribed to push notifications', '/account', 0, 'push', JSON.stringify(subscription)).run();
 
         return new Response(JSON.stringify({ success: true }), { status: 201 });
     } catch (e: any) {
@@ -97,7 +97,7 @@ function generateUINotificationDetails(type: string, data: Record<string, any>):
         case 'quote_accepted':
             return {
                 message: `Quote #${data.quoteId} has been accepted by ${data.customerName}.`,
-                link: `/admin/users/${data.userId}` // Assuming admin notification
+                link: `/admin/users/${data.user_id}` // Assuming admin notification
             };
         case 'service_reminder':
             return {
@@ -185,14 +185,14 @@ export default {
           return;
         }
 
-        const { type, userId, data, channels = ['email', 'sms', 'push', 'ui'] } = validation.data;
+        const { type, user_id, data, channels = ['email', 'sms', 'push', 'ui'] } = validation.data;
 
         const user = await env.DB.prepare(
             'SELECT id, email, name, phone, email_notifications_enabled, sms_notifications_enabled FROM users WHERE id = ?'
-        ).bind(userId).first<any>();
+        ).bind(user_id).first<any>();
 
         if (!user) {
-          console.error(`User with ID ${userId} not found for notification, discarding message.`);
+          console.error(`User with ID ${user_id} not found for notification, discarding message.`);
           message.ack();
           return;
         }
@@ -205,7 +205,7 @@ export default {
         if (channels.includes('ui')) {
             const uiNotificationPromise = env.DB.prepare(
                 `INSERT INTO notifications (user_id, type, message, link, is_read, channel) VALUES (?, ?, ?, ?, ?, ?)`
-            ).bind(userId, type, uiMessage, uiLink, 0, 'ui').run();
+            ).bind(user_id, type, uiMessage, uiLink, 0, 'ui').run();
             notificationPromises.push(uiNotificationPromise);
         }
 
@@ -224,7 +224,7 @@ export default {
         if(channels.includes('push')) {
             const pushSubResult = await env.DB.prepare(
                 `SELECT target FROM notifications WHERE user_id = ? AND type = 'push_subscription'`
-            ).bind(userId).first<{ target: string }>();
+            ).bind(user_id).first<{ target: string }>();
 
             if (pushSubResult?.target) {
                 try {
@@ -238,19 +238,19 @@ export default {
                         sendPushNotification(env, subscription, payload)
                             .catch(async (e: any) => {
                                 if (e.statusCode === 410) {
-                                    console.log(`Subscription for user ${userId} is expired/invalid. Deleting.`);
-                                    await env.DB.prepare(`DELETE FROM notifications WHERE user_id = ? AND type = 'push_subscription'`).bind(userId).run();
+                                    console.log(`Subscription for user ${user_id} is expired/invalid. Deleting.`);
+                                    await env.DB.prepare(`DELETE FROM notifications WHERE user_id = ? AND type = 'push_subscription'`).bind(user_id).run();
                                 }
                             })
                     );
                 } catch (e) {
-                    console.error(`Could not parse or send push notification for user ${userId}`, e);
+                    console.error(`Could not parse or send push notification for user ${user_id}`, e);
                 }
             }
         }
 
         await Promise.all(notificationPromises);
-        console.log(`Successfully processed notifications for user ${userId}`);
+        console.log(`Successfully processed notifications for user ${user_id}`);
         message.ack();
 
       } catch (e: any) {

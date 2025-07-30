@@ -12,7 +12,7 @@ interface Props {
 
 function EditJobModal({ isOpen, onClose, onJobUpdated, job }: Props) {
   const [users, setUsers] = useState<User[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>(job.user_id);
+  const [selecteduser_id, setSelecteduser_id] = useState<string>(job.user_id);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +35,7 @@ function EditJobModal({ isOpen, onClose, onJobUpdated, job }: Props) {
     setError(null);
     setIsSubmitting(true);
     try {
-      const updatedJob = await adminReassignJob(job.id, selectedUserId);
+      const updatedJob = await adminReassignJob(job.id, selecteduser_id);
       onJobUpdated(updatedJob);
       onClose();
     } catch (err: any) {
@@ -62,8 +62,8 @@ function EditJobModal({ isOpen, onClose, onJobUpdated, job }: Props) {
               <select
                 id="customer"
                 className="form-control"
-                value={selectedUserId}
-                onChange={(e) => setSelectedUserId(e.target.value)}
+                value={selecteduser_id}
+                onChange={(e) => setSelecteduser_id(e.target.value)}
               >
                 {users.map(user => (
                   <option key={user.id} value={user.id.toString()}>

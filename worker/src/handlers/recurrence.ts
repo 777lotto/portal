@@ -50,7 +50,7 @@ export const handleRequestRecurrence = async (c: Context<AppEnv>) => {
             for (const admin of admins.results) {
                 await c.env.NOTIFICATION_QUEUE.send({
                     type: 'recurrence_request_new',
-                    userId: admin.id,
+                    user_id: admin.id,
                     data: {
                         requestId: requestId, // Pass the new ID
                         jobId: jobId,
@@ -130,7 +130,7 @@ export const handleUpdateRecurrenceRequest = async (c: Context<AppEnv>) => {
         // Notify customer
         await c.env.NOTIFICATION_QUEUE.send({
             type: 'recurrence_request_response',
-            userId: request.user_id,
+            user_id: request.user_id,
             data: {
                 jobId: request.job_id,
                 status: status,

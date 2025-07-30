@@ -1,7 +1,7 @@
 // frontend/src/components/Photos.tsx
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getPhotos, apiGet } from '../lib/api.js';
-import type { PhotoWithNotes, User, Job, Service } from '@portal/shared';
+import type { PhotoWithNotes, User, Job, item } from '@portal/shared';
 import { useDropzone } from 'react-dropzone';
 import { jwtDecode } from 'jwt-decode';
 import { apiPostFormData } from '../lib/api';
@@ -63,8 +63,8 @@ function CustomerPhotos() {
               <input type="text" id="job_id" name="job_id" value={filters.job_id} onChange={handleFilterChange} className="form-control" placeholder="Job ID"/>
             </div>
             <div>
-              <label htmlFor="item_id" className="form-label">Service ID</label>
-              <input type="text" id="item_id" name="item_id" value={filters.item_id} onChange={handleFilterChange} className="form-control" placeholder="Service ID"/>
+              <label htmlFor="item_id" className="form-label">item ID</label>
+              <input type="text" id="item_id" name="item_id" value={filters.item_id} onChange={handleFilterChange} className="form-control" placeholder="item ID"/>
             </div>
             <div>
               <label htmlFor="invoice_id" className="form-label">Invoice ID</label>
@@ -83,7 +83,7 @@ function CustomerPhotos() {
                 <div className="card-body">
                    <p className="card-text"><small className="text-muted">Uploaded: {new Date(photo.createdAt).toLocaleString()}</small></p>
                    {photo.job_id && <p className="card-text"><small className="text-muted">Job ID: {photo.job_id}</small></p>}
-                   {photo.item_id && <p className="card-text"><small className="text-muted">Service ID: {photo.item_id}</small></p>}
+                   {photo.item_id && <p className="card-text"><small className="text-muted">item ID: {photo.item_id}</small></p>}
                    {photo.invoice_id && <p className="card-text"><small className="text-muted">Invoice ID: {photo.invoice_id}</small></p>}
                    {photo.notes && photo.notes.length > 0 && (
                       <div className="mt-3">
@@ -154,7 +154,7 @@ function AdminPhotos() {
       const uploadPromises = acceptedFiles.map(file => {
         const formData = new FormData();
         formData.append('photo', file);
-        formData.append('userId', selectedUser);
+        formData.append('user_id', selectedUser);
         if (selectedJob) formData.append('job_id', selectedJob);
         if (selectedItem) formData.append('item_id', selectedItem);
         if (notes) formData.append('notes', notes);
@@ -227,11 +227,11 @@ function AdminPhotos() {
               </select>
             </div>
             <div>
-              <label htmlFor="service" className="form-label">Associate with Service (Optional)</label>
-              <select id="service" className="form-control" value={selectedItem} onChange={e => setselectedItem(e.target.value)} disabled={!selectedJob}>
-                <option value="">-- Select a Service --</option>
-                {services.map(service => (
-                  <option key={service.id} value={service.id}>{service.notes}</option>
+              <label htmlFor="item" className="form-label">Associate with item (Optional)</label>
+              <select id="item" className="form-control" value={selectedItem} onChange={e => setselectedItem(e.target.value)} disabled={!selectedJob}>
+                <option value="">-- Select a item --</option>
+                {items.map(item => (
+                  <option key={item.id} value={item.id}>{item.notes}</option>
                 ))}
               </select>
             </div>

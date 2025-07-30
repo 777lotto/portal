@@ -195,7 +195,7 @@ export async function handleAdminSendQuote(c: Context<AppEnv>) {
 
         await c.env.NOTIFICATION_QUEUE.send({
           type: 'quote_created',
-          userId: user.id,
+          user_id: user.id,
           data: {
               quoteId: finalizedQuote.id,
               quoteUrl: (finalizedQuote as any).hosted_details_url,

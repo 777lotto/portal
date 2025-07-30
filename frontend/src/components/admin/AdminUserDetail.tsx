@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 type Message = { type: 'success' | 'danger'; text: string; };
 
 export function AdminUserDetail() {
-  const { userId } = useParams<{ userId: string }>();
+  const { user_id } = useParams<{ user_id: string }>();
   const [user, setUser] = useState<User | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [photos, setPhotos] = useState<PhotoWithNotes[]>([]);
@@ -20,13 +20,13 @@ export function AdminUserDetail() {
   const [activeInvoice, setActiveInvoice] = useState<StripeInvoice | null>(null);
 
   const fetchData = useCallback(async () => {
-    if (!userId) return;
+    if (!user_id) return;
     try {
       const [userData, jobsData, photosData, notesData] = await Promise.all([
-        apiGet<User>(`/api/admin/users/${userId}`),
-        apiGet<Job[]>(`/api/admin/users/${userId}/jobs`),
-        apiGet<PhotoWithNotes[]>(`/api/admin/users/${userId}/photos`),
-        apiGet<Note[]>(`/api/admin/users/${userId}/notes`),
+        apiGet<User>(`/api/admin/users/${user_id}`),
+        apiGet<Job[]>(`/api/admin/users/${user_id}/jobs`),
+        apiGet<PhotoWithNotes[]>(`/api/admin/users/${user_id}/photos`),
+        apiGet<Note[]>(`/api/admin/users/${user_id}/notes`),
       ]);
       setUser(userData);
       setJobs(jobsData);
@@ -35,33 +35,33 @@ export function AdminUserDetail() {
     } catch (err: any) {
       setMessage({ type: 'danger', text: `Failed to fetch user data: ${err.message}` });
     }
-  }, [userId]);
+  }, [user_id]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (!userId) return;
+    if (!user_id) return;
     const formData = new FormData();
     formData.append('photo', acceptedFiles[0]);
     formData.append('notes', 'Uploaded by admin');
 
     try {
-      await apiPostFormData(`/api/admin/users/${userId}/photos`, formData);
+      await apiPostFormData(`/api/admin/users/${user_id}/photos`, formData);
       setMessage({ type: 'success', text: 'Photo uploaded successfully!' });
       fetchData(); // Refresh photos
     } catch (err: any) {
       setMessage({ type: 'danger', text: `Photo upload failed: ${err.message}` });
     }
-  }, [userId, fetchData]);
+  }, [user_id, fetchData]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
 
   const handleAddNote = async () => {
-    if (!userId || !newNote.trim()) return;
+    if (!user_id || !newNote.trim()) return;
     try {
-      await apiPost(`/api/admin/users/${userId}/notes`, { notes: newNote });
+      await apiPost(`/api/admin/users/${user_id}/notes`, { notes: newNote });
       setNewNote('');
       setMessage({ type: 'success', text: 'Note added successfully!' });
       fetchData(); // Refresh notes
@@ -71,7 +71,7 @@ export function AdminUserDetail() {
   };
 
   const handleCreateInvoiceClick = async () => {
-    if (!userId) return;
+    if (!user_id) return;
     if (!window.confirm("Are you sure you want to create a new draft invoice for this user?")) {
         return;
     }
@@ -80,7 +80,7 @@ export function AdminUserDetail() {
     try {
         // Use the new, unified adminCreateJob function
         const { job } = await adminCreateJob({
-            user_id: userId,
+            user_id: user_id,
             jobType: 'invoice',
             title: `Draft Invoice - ${new Date().toLocaleDateString()}`,
             start: new Date().toISOString(),
@@ -98,10 +98,10 @@ export function AdminUserDetail() {
   };
 
   const handleImportInvoices = async () => {
-    if (!userId) return;
+    if (!user_id) return;
     setIsSubmitting(true);
     try {
-        await adminImportInvoicesForUser(userId);
+        await adminImportInvoicesForUser(user_id);
         setMessage({ type: 'success', text: 'Invoices imported successfully! Refreshing data...' });
         fetchData();
     } catch (err: any) {

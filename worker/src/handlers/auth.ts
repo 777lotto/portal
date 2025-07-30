@@ -87,7 +87,7 @@ export const handleInitializeSignup = async (c: Context<AppEnv>) => {
 
         // Return info needed for the frontend to request a verification code
         return successResponse({
-            userId: newUser.id,
+            user_id: newUser.id,
             email: newUser.email,
             phone: newUser.phone
         });
@@ -277,7 +277,7 @@ export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
 
             const notificationPayload = {
                 type: 'password_reset',
-                userId: user.id,
+                user_id: user.id,
                 data: { name: user.name, resetCode: token },
                 channels: [channel]
             };
@@ -345,7 +345,7 @@ export const handleSetPassword = async (c: Context<AppEnv>) => {
             try {
                 await c.env.NOTIFICATION_QUEUE.send({
                   type: 'welcome',
-                  userId: user.id,
+                  user_id: user.id,
                   data: { name: user.name },
                   channels: ['email', 'sms']
                 });

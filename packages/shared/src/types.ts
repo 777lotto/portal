@@ -179,7 +179,7 @@ export const StripeInvoiceSchema = z.object({
 export type StripeInvoice = z.infer<typeof StripeInvoiceSchema>;
 
 export const DashboardInvoiceSchema = StripeInvoiceSchema.extend({
-    userId: z.number().optional(),
+    user_id: z.number().optional(),
     customerName: z.string().optional(),
 });
 export type DashboardInvoice = z.infer<typeof DashboardInvoiceSchema>;
@@ -236,7 +236,7 @@ export type Conversation = z.infer<typeof ConversationSchema>;
 // For notification worker queue
 export const NotificationRequestSchema = z.object({
   type: z.string(),
-  userId: z.union([z.string(), z.number()]),
+  user_id: z.union([z.string(), z.number()]),
   data: z.record(z.string(), z.any()),
   channels: z.array(z.enum(['email', 'sms', 'push'])).optional()
 });

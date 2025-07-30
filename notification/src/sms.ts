@@ -30,10 +30,10 @@ function jsonResponse(data: any, status: number = 200): Response {
     });
 }
 
-function getUserId(request: Request): number | null {
-    const userIdHeader = request.headers.get('X-Internal-User-Id');
-    if (!userIdHeader) return null;
-    const id = parseInt(userIdHeader, 10);
+function getuser_id(request: Request): number | null {
+    const user_idHeader = request.headers.get('X-Internal-User-Id');
+    if (!user_idHeader) return null;
+    const id = parseInt(user_idHeader, 10);
     return isNaN(id) ? null : id;
 }
 
@@ -71,10 +71,10 @@ export async function handleSMSWebhook(request: Request, env: NotificationEnv): 
 }
 
 export async function handleGetSmsConversations(request: Request, env: NotificationEnv): Promise<Response> {
-    const userId = getUserId(request);
+    const user_id = getuser_id(request);
     const userRole = request.headers.get('X-Internal-User-Role');
 
-    if (!userId) {
+    if (!user_id) {
         return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
@@ -94,7 +94,7 @@ export async function handleGetSmsConversations(request: Request, env: Notificat
                 WHERE user_id = ?
                 GROUP BY phone_number
                 ORDER BY last_message_at DESC
-            `).bind(userId);
+            `).bind(user_id);
         }
 
         const { results } = await query.all<Conversation>();
@@ -107,8 +107,8 @@ export async function handleGetSmsConversations(request: Request, env: Notificat
 }
 
 export async function handleGetSmsConversation(request: Request, env: NotificationEnv): Promise<Response> {
-    const userId = getUserId(request);
-    if (!userId) {
+    const user_id = getuser_id(request);
+    if (!user_id) {
         return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
@@ -131,8 +131,8 @@ export async function handleGetSmsConversation(request: Request, env: Notificati
 }
 
 export async function handleSendSms(request: Request, env: NotificationEnv): Promise<Response> {
-    const userId = getUserId(request);
-    if (!userId) {
+    const user_id = getuser_id(request);
+    if (!user_id) {
         return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
@@ -153,7 +153,7 @@ export async function handleSendSms(request: Request, env: NotificationEnv): Pro
         const { results } = await env.DB.prepare(
             `INSERT INTO sms_messages (user_id, direction, phone_number, message, message_sid, status)
              VALUES (?, 'outgoing', ?, ?, ?, 'sent') RETURNING *`
-        ).bind(userId, to, message, sendResult.messageSid).all<SMSMessage>();
+        ).bind(user_id, to, message, sendResult.messageSid).all<SMSMessage>();
 
         if (!results || results.length === 0) {
             throw new Error("Failed to retrieve sent message from DB.");

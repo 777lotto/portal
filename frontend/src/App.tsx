@@ -129,7 +129,7 @@ function App() {
                 element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/dashboard" replace />}
               />
               <Route
-                path="/admin/users/:userId"
+                path="/admin/users/:user_id"
                 element={user?.role === 'admin' ? <AdminUserDetail /> : <Navigate to="/dashboard" replace />}
               />
               <Route
