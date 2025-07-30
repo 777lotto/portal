@@ -136,7 +136,7 @@ export const handleGetNotifications = async (c: ProfileContext<ProfileAppEnv>) =
         // NOTE: This assumes a 'ui_notifications' table exists.
         // In a real scenario, a migration would be created for this.
         const { results } = await c.env.DB.prepare(
-            `SELECT id, user_id, type, message, link, is_read, created_at FROM ui_notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 20`
+            `SELECT id, user_id, type, message, link, is_read, createdAt FROM ui_notifications WHERE user_id = ? ORDER BY createdAt DESC LIMIT 20`
         ).bind(user.id).all<UINotification>();
         return profileSuccessResponse(results || []);
     } catch (e: any) {

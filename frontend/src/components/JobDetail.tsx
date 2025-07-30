@@ -165,7 +165,7 @@ function JobDetail() {
       const method = editingLineItem.id ? 'PUT' : 'POST';
       await apiPost(url, {
         ...editingLineItem,
-        unit_price_cents: Math.round(Number(editingLineItem.unit_price_cents || 0))
+        unit_total_amount_cents: Math.round(Number(editingLineItem.unit_total_amount_cents || 0))
       }, method);
       setEditingLineItem(null);
       fetchJobDetails();
@@ -421,7 +421,7 @@ const handleReviseQuote = async (revisionReason: string) => {
                             <li key={item.id} className="py-3 flex justify-between items-center">
                                 <span>{item.description}</span>
                                 <div className="flex items-center gap-4">
-                                  <span className="font-medium">${((item.unit_price_cents || 0) / 100).toFixed(2)} x {item.quantity}</span>
+                                  <span className="font-medium">${((item.unit_total_amount_cents || 0) / 100).toFixed(2)} x {item.quantity}</span>
                                   {user?.role === 'admin' && (
                                       <div className="flex gap-2">
                                           <button className="btn btn-sm btn-secondary" onClick={() => setEditingLineItem(item)}>Edit</button>
@@ -454,8 +454,8 @@ const handleReviseQuote = async (revisionReason: string) => {
                           type="number"
                           placeholder="Unit Price ($)"
                           step="0.01"
-                          value={editingLineItem.unit_price_cents !== undefined ? (editingLineItem.unit_price_cents / 100).toFixed(2) : ''}
-                          onChange={(e) => setEditingLineItem({...editingLineItem, unit_price_cents: parseFloat(e.target.value) * 100 })}
+                          value={editingLineItem.unit_total_amount_cents !== undefined ? (editingLineItem.unit_total_amount_cents / 100).toFixed(2) : ''}
+                          onChange={(e) => setEditingLineItem({...editingLineItem, unit_total_amount_cents: parseFloat(e.target.value) * 100 })}
                           className="form-control"
                       />
                       <div className="flex justify-end gap-2">
@@ -477,7 +477,7 @@ const handleReviseQuote = async (revisionReason: string) => {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {photos.map(photo => (
                             <a key={photo.id} href={photo.url} target="_blank" rel="noopener noreferrer">
-                                <img src={photo.url} alt={`Job photo taken on ${new Date(photo.created_at).toLocaleDateString()}`} className="rounded-lg object-cover aspect-square"/>
+                                <img src={photo.url} alt={`Job photo taken on ${new Date(photo.createdAt).toLocaleDateString()}`} className="rounded-lg object-cover aspect-square"/>
                             </a>
                         ))}
                     </div>
@@ -501,7 +501,7 @@ const handleReviseQuote = async (revisionReason: string) => {
                         {notes.map(note => (
                             <li key={note.id} className="p-3 bg-secondary-light dark:bg-secondary-dark rounded-md">
                                 <p className="text-sm">{note.content}</p>
-                                <small className="text-text-secondary-light dark:text-text-secondary-dark">{new Date(note.created_at).toLocaleString()}</small>
+                                <small className="text-text-secondary-light dark:text-text-secondary-dark">{new Date(note.createdAt).toLocaleString()}</small>
                             </li>
                         ))}
                     </ul>

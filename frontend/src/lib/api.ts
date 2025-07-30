@@ -125,7 +125,7 @@ export const createInvoice = (lineItemId: string) => apiPost<any>(`/api/line-ite
 
 export const getJobs = () => apiGet<Job[]>('/api/jobs');
 export const getJob = (id: string) => apiGet<Job>(`/api/jobs/${id}`);
-export const createJob = (data: { title: string; lineItems: { id: number; description: string; quantity: number, unit_price_cents: number }[] }) => apiPost<Job>('/api/jobs', data);
+export const createJob = (data: { title: string; lineItems: { id: number; description: string; quantity: number, unit_total_amount_cents: number }[] }) => apiPost<Job>('/api/jobs', data);
 export const getLineItemsForJob = (jobId: string) => apiGet<LineItem[]>(`/api/jobs/${jobId}/line-items`);
 export const getOpenInvoices = () => apiGet<StripeInvoice[]>('/api/invoices/open');
 export const requestRecurrence = (jobId: string, data: { frequency: number, requested_day?: number }) => apiPost(`/api/jobs/${jobId}/request-recurrence`, data);
@@ -166,7 +166,7 @@ export const adminCreateJob = (data: {
   userId: string;
   jobType: 'job' | 'quote' | 'invoice';
   title: string;
-  lineItems: { description: string, quantity: number, unit_price_cents: number }[];
+  lineItems: { description: string, quantity: number, unit_total_amount_cents: number }[];
   isDraft: boolean;
   action?: string;
 }) => {

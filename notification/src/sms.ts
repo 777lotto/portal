@@ -82,14 +82,14 @@ export async function handleGetSmsConversations(request: Request, env: Notificat
         let query;
         if (userRole === 'admin') {
             query = env.DB.prepare(`
-                SELECT phone_number, COUNT(*) as message_count, MAX(created_at) as last_message_at
+                SELECT phone_number, COUNT(*) as message_count, MAX(createdAt) as last_message_at
                 FROM sms_messages
                 GROUP BY phone_number
                 ORDER BY last_message_at DESC
             `);
         } else {
             query = env.DB.prepare(`
-                SELECT phone_number, COUNT(*) as message_count, MAX(created_at) as last_message_at
+                SELECT phone_number, COUNT(*) as message_count, MAX(createdAt) as last_message_at
                 FROM sms_messages
                 WHERE user_id = ?
                 GROUP BY phone_number
@@ -120,7 +120,7 @@ export async function handleGetSmsConversation(request: Request, env: Notificati
 
     try {
         const { results } = await env.DB.prepare(
-            `SELECT * FROM sms_messages WHERE phone_number = ? ORDER BY created_at ASC`
+            `SELECT * FROM sms_messages WHERE phone_number = ? ORDER BY createdAt ASC`
         ).bind(phoneNumber).all<SMSMessage>();
 
         return jsonResponse(results || []);

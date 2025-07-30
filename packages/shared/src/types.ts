@@ -31,7 +31,7 @@ export const LineItemSchema = z.object({
   job_id: z.string(),
   description: z.string(),
   quantity: z.number(),
-  unit_price_cents: z.number(),
+  unit_total_amount_cents: z.number(),
 });
 export type LineItem = z.infer<typeof LineItemSchema>;
 
@@ -61,9 +61,9 @@ export const JobSchema = z.object({
   updatedAt: z.string().optional(), // Renamed from updatedAt
   stripe_invoice_id: z.string().optional().nullable(),
   stripe_quote_id: z.string().optional().nullable(),
-  invoice_created_at: z.string().optional().nullable(),
+  invoice_createdAt: z.string().optional().nullable(),
   total_amount_cents: z.number().optional().nullable(),
-  due: z.string().optional().nullable(), // Renamed from due_date and expires_at
+  due: z.string().optional().nullable(), // Renamed from due_date and due
   contact_method_override: z.enum(['email', 'sms', 'push']).optional().nullable(),
 });
 export type Job = z.infer<typeof JobSchema>;
@@ -108,7 +108,7 @@ export type PublicBookingRequest = z.infer<typeof PublicBookingRequestSchema>;
 export const PhotoSchema = z.object({
     id: z.string(),
     url: z.string().url(),
-    created_at: z.string(),
+    createdAt: z.string(),
     job_id: z.string().optional().nullable(),
 });
 export type Photo = z.infer<typeof PhotoSchema>;
@@ -117,7 +117,7 @@ export type Photo = z.infer<typeof PhotoSchema>;
 export const NoteSchema = z.object({
     id: z.number(),
     content: z.string(),
-    created_at: z.string(), // ISO date string
+    createdAt: z.string(), // ISO date string
 });
 export type Note = z.infer<typeof NoteSchema>;
 
@@ -220,7 +220,7 @@ export const SMSMessageSchema = z.object({
     id: z.number().optional(),
     direction: z.enum(['incoming', 'outgoing']),
     message: z.string(),
-    created_at: z.string(),
+    createdAt: z.string(),
     status: z.enum(['pending', 'delivered', 'failed']).optional(),
     message_sid: z.string().optional().nullable(),
 });
@@ -315,6 +315,6 @@ export const UINotificationSchema = z.object({
   message: z.string(),
   link: z.string().optional().nullable(),
   is_read: z.number(), // D1 returns 0 or 1
-  created_at: z.string(),
+  createdAt: z.string(),
 });
 export type UINotification = z.infer<typeof UINotificationSchema>;

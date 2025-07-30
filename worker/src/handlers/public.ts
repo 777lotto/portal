@@ -121,7 +121,7 @@ export const handleCreateBooking = async (c: Context<AppEnv>) => {
             expires.setHours(expires.getHours() + 1); // Token expires in 1 hour
 
             await c.env.DB.prepare(
-                `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)`
+                `INSERT INTO password_reset_tokens (user_id, token, due) VALUES (?, ?, ?)`
             ).bind(existingUser.id, token, expires.toISOString()).run();
 
             const portalBaseUrl = c.env.PORTAL_URL.replace('/dashboard', '');

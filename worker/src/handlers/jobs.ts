@@ -86,11 +86,11 @@ export const handleGetJobs = async (c: HonoContext<WorkerAppEnv>) => {
 
         if (user.role === 'admin') {
             dbResponse = await c.env.DB.prepare(
-                `SELECT * FROM jobs WHERE status = 'upcoming' ORDER BY created_at ASC`
+                `SELECT * FROM jobs WHERE status = 'upcoming' ORDER BY createdAt ASC`
             ).all<Job>();
         } else {
             dbResponse = await c.env.DB.prepare(
-                `SELECT * FROM jobs WHERE user_id = ? AND status = 'upcoming' ORDER BY created_at ASC`
+                `SELECT * FROM jobs WHERE user_id = ? AND status = 'upcoming' ORDER BY createdAt ASC`
             ).bind(user.id).all<Job>();
         }
 
@@ -233,7 +233,7 @@ export const handleAdminUpdateJobDetails = async (c: HonoContext<WorkerAppEnv>) 
         const updatedDue = body.due ?? job.due;
 
         await c.env.DB.prepare(
-            `UPDATE jobs SET title = ?, description = ?, recurrence = ?, due = ?, updated_at = ? WHERE id = ?`
+            `UPDATE jobs SET title = ?, description = ?, recurrence = ?, due = ?, updatedAt = ? WHERE id = ?`
         ).bind(updatedTitle, updatedDescription, updatedRecurrence, updatedDue, new Date().toISOString(), jobId).run();
 
         return successResponse({ message: "Job updated successfully." });
@@ -245,8 +245,8 @@ export const handleAdminUpdateJobDetails = async (c: HonoContext<WorkerAppEnv>) 
 export const handleAdminAddLineItemToJob = async (c: HonoContext<WorkerAppEnv>) => {
     const { jobId } = c.req.param();
     const body = await c.req.json();
-    if (!body.description || body.quantity === undefined || body.unit_price_cents === undefined) {
-        return errorResponse("Line item description, quantity, and unit_price_cents are required.", 400);
+    if (!body.description || body.quantity === undefined || body.unit_total_amount_cents === undefined) {
+        return errorResponse("Line item description, quantity, and unit_total_amount_cents are required.", 400);
     }
 
     try {
@@ -254,9 +254,9 @@ export const handleAdminAddLineItemToJob = async (c: HonoContext<WorkerAppEnv>) 
         if (!job) return errorResponse("Job not found.", 404);
 
         const { results } = await c.env.DB.prepare(
-            `INSERT INTO line_items (job_id, description, quantity, unit_price_cents)
+            `INSERT INTO line_items (job_id, description, quantity, unit_total_amount_cents)
              VALUES (?, ?, ?, ?) RETURNING *`
-        ).bind(jobId, body.description, body.quantity, body.unit_price_cents).all<LineItem>();
+        ).bind(jobId, body.description, body.quantity, body.unit_total_amount_cents).all<LineItem>();
 
         return successResponse(results[0], 201);
     } catch (e: any) {
@@ -267,13 +267,13 @@ export const handleAdminAddLineItemToJob = async (c: HonoContext<WorkerAppEnv>) 
 export const handleAdminUpdateLineItemInJob = async (c: HonoContext<WorkerAppEnv>) => {
     const { jobId, lineItemId } = c.req.param();
     const body = await c.req.json();
-    if (!body.description || body.quantity === undefined || body.unit_price_cents === undefined) {
-        return errorResponse("Line item description, quantity, and unit_price_cents are required.", 400);
+    if (!body.description || body.quantity === undefined || body.unit_total_amount_cents === undefined) {
+        return errorResponse("Line item description, quantity, and unit_total_amount_cents are required.", 400);
     }
     try {
         await c.env.DB.prepare(
-            `UPDATE line_items SET description = ?, quantity = ?, unit_price_cents = ? WHERE id = ? AND job_id = ?`
-        ).bind(body.description, body.quantity, body.unit_price_cents, lineItemId, jobId).run();
+            `UPDATE line_items SET description = ?, quantity = ?, unit_total_amount_cents = ? WHERE id = ? AND job_id = ?`
+        ).bind(body.description, body.quantity, body.unit_total_amount_cents, lineItemId, jobId).run();
         return successResponse({ message: 'Line item updated successfully' });
     } catch (e: any) {
         return errorResponse(`Failed to update line item: ${e.message}`, 500);
@@ -328,7 +328,7 @@ export const handleAdminCompleteJob = async (c: HonoContext<WorkerAppEnv>) => {
                 invoice: draftInvoice.id,
                 description: item.description,
                 quantity: item.quantity,
-                amount: item.unit_price_cents,
+                amount: item.unit_total_amount_cents,
                 currency: 'usd',
             });
         }

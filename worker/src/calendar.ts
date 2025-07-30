@@ -10,7 +10,7 @@ interface JobRecord extends Job {}
 // Get jobs for a specific customer
 export async function getCustomerJobs(env: Env, userId: number): Promise<JobRecord[]> {
   const { results } = await env.DB.prepare(
-    `SELECT * FROM jobs WHERE user_id = ? ORDER BY created_at DESC`
+    `SELECT * FROM jobs WHERE user_id = ? ORDER BY createdAt DESC`
   ).bind(userId).all<JobRecord>();
 
   return results || [];
@@ -44,15 +44,15 @@ export async function createJob(env: Env, jobData: any, userId: number): Promise
     ...jobData,
     id: jobData.id || uuidv4(),
     user_id: userId,
-    created_at: jobData.created_at || new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    createdAt: jobData.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   });
 
   // Insert into database
   await env.DB.prepare(`
     INSERT INTO jobs (
       id, user_id, title, description, status,
-      recurrence, created_at, updated_at, due
+      recurrence, createdAt, updatedAt, due
     ) VALUES (
       ?, ?, ?, ?, ?, ?, ?, ?, ?
     )
@@ -63,8 +63,8 @@ export async function createJob(env: Env, jobData: any, userId: number): Promise
     parsedJob.description || null,
     parsedJob.status,
     parsedJob.recurrence,
-    parsedJob.created_at,
-    parsedJob.updated_at,
+    parsedJob.createdAt,
+    parsedJob.updatedAt,
     parsedJob.due || null
   ).run();
 
@@ -85,7 +85,7 @@ export async function updateJob(env: Env, jobId: string, updateData: any, userId
     ...updateData,
     id: jobId, // ensure ID doesn't change
     user_id: userId, // ensure user ID doesn't change
-    updated_at: new Date().toISOString() // always update the timestamp
+    updatedAt: new Date().toISOString() // always update the timestamp
   };
 
   // Validate the merged job
@@ -98,7 +98,7 @@ export async function updateJob(env: Env, jobId: string, updateData: any, userId
       description = ?,
       status = ?,
       recurrence = ?,
-      updated_at = ?,
+      updatedAt = ?,
       due = ?
     WHERE id = ? AND user_id = ?
   `).bind(
@@ -106,7 +106,7 @@ export async function updateJob(env: Env, jobId: string, updateData: any, userId
     parsedJob.description || null,
     parsedJob.status,
     parsedJob.recurrence,
-    parsedJob.updated_at,
+    parsedJob.updatedAt,
     parsedJob.due || null,
     jobId,
     userId

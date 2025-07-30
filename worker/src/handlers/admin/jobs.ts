@@ -18,7 +18,7 @@ export const handleGetJobsAndQuotes = async (c: Context<AppEnv>) => {
          u.address as customerAddress
        FROM jobs j
        JOIN users u ON j.user_id = u.id
-       ORDER BY j.created_at DESC`
+       ORDER BY j.createdAt DESC`
     ).all<Job & { customerName: string; customerAddress: string }>();
 
     if (!jobs) {
@@ -85,8 +85,8 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
         const newJob = await createJob(c.env, jobData, userId);
 
         const lineItemInserts = lineItems.map((item: any) =>
-            db.prepare(`INSERT INTO line_items (job_id, description, quantity, unit_price_cents) VALUES (?, ?, ?, ?)`)
-              .bind(newJob.id, item.description, item.quantity, item.unit_price_cents)
+            db.prepare(`INSERT INTO line_items (job_id, description, quantity, unit_total_amount_cents) VALUES (?, ?, ?, ?)`)
+              .bind(newJob.id, item.description, item.quantity, item.unit_total_amount_cents)
         );
         await db.batch(lineItemInserts);
 
@@ -111,7 +111,7 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
                         invoice: draftInvoice.id,
                         description: item.description,
                         quantity: item.quantity,
-                        amount: item.unit_price_cents,
+                        amount: item.unit_total_amount_cents,
                         currency: 'usd',
                     });
                 }
@@ -124,7 +124,7 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
                     customer: user.stripe_customer_id,
                     description: title,
                     line_items: lineItems.map((item: any) => ({
-                        price_data: { currency: 'usd', unit_amount: item.unit_price_cents || 0, product_data: { name: item.description || 'Unnamed Item' } },
+                        price_data: { currency: 'usd', unit_amount: item.unit_total_amount_cents || 0, product_data: { name: item.description || 'Unnamed Item' } },
                         quantity: item.quantity,
                     })),
                 });

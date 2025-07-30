@@ -120,10 +120,10 @@ export const handleVerifyResetCode = async (c: Context<AppEnv>) => {
         }
 
         const tokenRecord = await c.env.DB.prepare(
-            `SELECT user_id, expires_at FROM password_reset_tokens WHERE token = ? AND user_id = ?`
-        ).bind(code, user.id).first<{ user_id: number; expires_at: string }>();
+            `SELECT user_id, due FROM password_reset_tokens WHERE token = ? AND user_id = ?`
+        ).bind(code, user.id).first<{ user_id: number; due: string }>();
 
-        if (!tokenRecord || new Date(tokenRecord.expires_at) < new Date()) {
+        if (!tokenRecord || new Date(tokenRecord.due) < new Date()) {
             if (tokenRecord) {
                 await c.env.DB.prepare(`DELETE FROM password_reset_tokens WHERE token = ?`).bind(code).run();
             }
@@ -268,7 +268,7 @@ export const handleRequestPasswordReset = async (c: Context<AppEnv>) => {
             expires.setMinutes(expires.getMinutes() + 10);
 
             await c.env.DB.prepare(
-                `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)`
+                `INSERT INTO password_reset_tokens (user_id, token, due) VALUES (?, ?, ?)`
             ).bind(user.id, token, expires.toISOString()).run();
 
             if (c.env.ENVIRONMENT === 'development') {
@@ -372,10 +372,10 @@ export const handleGetUserFromResetToken = async (c: Context<AppEnv>) => {
 
     try {
         const tokenRecord = await c.env.DB.prepare(
-            `SELECT user_id, expires_at FROM password_reset_tokens WHERE token = ?`
-        ).bind(token).first<{ user_id: number; expires_at: string }>();
+            `SELECT user_id, due FROM password_reset_tokens WHERE token = ?`
+        ).bind(token).first<{ user_id: number; due: string }>();
 
-        if (!tokenRecord || new Date(tokenRecord.expires_at) < new Date()) {
+        if (!tokenRecord || new Date(tokenRecord.due) < new Date()) {
             return errorResponse("This password reset link is invalid or has expired.", 400);
         }
 

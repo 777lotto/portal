@@ -7,7 +7,7 @@ export const handleScheduled = async (env: AppEnv['Bindings']) => {
   try {
     // Find jobs with 'quote_sent' status that have expired
     const { results: expiredQuotes } = await env.DB.prepare(
-      `SELECT id FROM jobs WHERE status = 'pending_quote' AND expires_at < ?`
+      `SELECT id FROM jobs WHERE status = 'pending_quote' AND due < ?`
     ).bind(now).all<{ id: string }>();
 
     if (expiredQuotes && expiredQuotes.length > 0) {
@@ -20,7 +20,7 @@ export const handleScheduled = async (env: AppEnv['Bindings']) => {
 
     // Find jobs with 'payment_pending' status that are past due
     const { results: pastDueInvoices } = await env.DB.prepare(
-      `SELECT id FROM jobs WHERE status = 'payment_pending' AND expires_at < ?`
+      `SELECT id FROM jobs WHERE status = 'payment_pending' AND due < ?`
     ).bind(now).all<{ id: string }>();
 
     if (pastDueInvoices && pastDueInvoices.length > 0) {

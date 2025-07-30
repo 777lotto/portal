@@ -77,7 +77,7 @@ export const handleGetRecurrenceRequests = async (c: Context<AppEnv>) => {
              JOIN jobs j ON r.job_id = j.id
              JOIN users u ON r.user_id = u.id
              WHERE r.status = 'pending'
-             ORDER BY r.created_at DESC`
+             ORDER BY r.createdAt DESC`
         ).all();
 
         return successResponse(results || []);
@@ -105,7 +105,7 @@ export const handleUpdateRecurrenceRequest = async (c: Context<AppEnv>) => {
         }
 
         await c.env.DB.prepare(
-            `UPDATE job_recurrence_requests SET status = ?, frequency = ?, requested_day = ?, updated_at = ? WHERE id = ?`
+            `UPDATE job_recurrence_requests SET status = ?, frequency = ?, requested_day = ?, updatedAt = ? WHERE id = ?`
         ).bind(
             status,
             frequency ?? request.frequency,

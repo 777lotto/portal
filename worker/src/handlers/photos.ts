@@ -16,26 +16,26 @@ interface CloudflareImageResponse {
 
 export const handleGetUserPhotos = async (c: PhotoContext<PhotoAppEnv>) => {
     const user = c.get('user');
-    const { created_at, job_id, service_id } = c.req.query();
+    const { createdAt, job_id, service_id } = c.req.query();
 
     try {
         let query = `
             SELECT
                 p.id,
                 p.url,
-                p.created_at,
+                p.createdAt,
                 p.job_id,
                 p.service_id,
-                (SELECT JSON_GROUP_ARRAY(JSON_OBJECT('id', n.id, 'content', n.content, 'created_at', n.created_at))
+                (SELECT JSON_GROUP_ARRAY(JSON_OBJECT('id', n.id, 'content', n.content, 'createdAt', n.createdAt))
                  FROM notes n WHERE n.photo_id = p.id) as notes
             FROM photos p
             WHERE p.user_id = ?
         `;
         const queryParams: (string | number)[] = [user.id];
 
-        if (created_at) {
-            query += ` AND date(p.created_at) = ?`;
-            queryParams.push(created_at);
+        if (createdAt) {
+            query += ` AND date(p.createdAt) = ?`;
+            queryParams.push(createdAt);
         }
         if (job_id) {
             query += ` AND p.job_id = ?`;
@@ -46,7 +46,7 @@ export const handleGetUserPhotos = async (c: PhotoContext<PhotoAppEnv>) => {
             queryParams.push(service_id);
         }
 
-        query += ` ORDER BY p.created_at DESC`;
+        query += ` ORDER BY p.createdAt DESC`;
 
         const { results } = await c.env.DB.prepare(query).bind(...queryParams).all();
 
@@ -81,7 +81,7 @@ export const handleGetPhotosForJob = async (c: PhotoContext<PhotoAppEnv>) => {
         }
 
         const dbResponse = await c.env.DB.prepare(
-            `SELECT * FROM photos WHERE job_id = ? ORDER BY created_at DESC`
+            `SELECT * FROM photos WHERE job_id = ? ORDER BY createdAt DESC`
         ).bind(jobId).all<Photo>();
 
         const photos = dbResponse?.results || [];

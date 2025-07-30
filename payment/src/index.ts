@@ -71,7 +71,7 @@ export default {
 
     try {
       const { results } = await db.prepare(
-        `SELECT id, user_id, stripe_invoice_id FROM jobs WHERE status = 'payment_pending' AND invoice_created_at < ?`
+        `SELECT id, user_id, stripe_invoice_id FROM jobs WHERE status = 'payment_pending' AND invoice_createdAt < ?`
       ).bind(threeDaysAgoISO).all<Job>();
 
       if (!results || results.length === 0) {

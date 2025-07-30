@@ -12,7 +12,7 @@ interface Props {
 function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
-  const [lineItems, setLineItems] = useState<Partial<Service>[]>([{ notes: '', price_cents: 0 }]);
+  const [lineItems, setLineItems] = useState<Partial<Service>[]>([{ notes: '', total_amount_cents: 0 }]);
   const [title, setTitle] = useState('');
   const [dueDateDays, setDueDateDays] = useState<number>(30);
   const [expireDateDays, setExpireDateDays] = useState<number>(30);
@@ -34,9 +34,9 @@ function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
     }
   }, [isOpen]);
 
-  const handleLineItemChange = (index: number, field: 'notes' | 'price_cents', value: string) => {
+  const handleLineItemChange = (index: number, field: 'notes' | 'total_amount_cents', value: string) => {
     const newLineItems = [...lineItems];
-    if (field === 'price_cents') {
+    if (field === 'total_amount_cents') {
       newLineItems[index][field] = parseInt(value, 10) * 100;
     } else {
       newLineItems[index][field] = value;
@@ -45,7 +45,7 @@ function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
   };
 
   const addLineItem = () => {
-    setLineItems([...lineItems, { notes: '', price_cents: 0 }]);
+    setLineItems([...lineItems, { notes: '', total_amount_cents: 0 }]);
   };
 
   const removeLineItem = (index: number) => {
@@ -113,7 +113,7 @@ function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
               <input type="text" className="form-control" placeholder="Description" value={item.notes || ''} onChange={(e) => handleLineItemChange(index, 'notes', e.target.value)} />
             </div>
             <div className="w-28">
-              <input type="number" step="0.01" className="form-control" placeholder="Price ($)" value={(item.price_cents || 0) / 100} onChange={(e) => handleLineItemChange(index, 'price_cents', e.target.value)} />
+              <input type="number" step="0.01" className="form-control" placeholder="Price ($)" value={(item.total_amount_cents || 0) / 100} onChange={(e) => handleLineItemChange(index, 'total_amount_cents', e.target.value)} />
             </div>
             <div>
               <button className="btn btn-danger" onClick={() => removeLineItem(index)}>X</button>

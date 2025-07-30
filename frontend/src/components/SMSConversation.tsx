@@ -67,7 +67,7 @@ function SMSConversation() {
             <div key={msg.id || index} className={`d-flex mb-2 ${msg.direction === 'outgoing' ? 'justify-content-end' : 'justify-content-start'}`}>
               <div className={`p-2 rounded shadow-sm ${msg.direction === 'outgoing' ? 'bg-primary text-white' : 'bg-light'}`} style={{ maxWidth: '75%' }}>
                 <p className="mb-1">{msg.message}</p>
-                <small className={`d-block ${msg.direction === 'outgoing' ? 'text-light' : 'text-muted'}`}>{new Date(msg.created_at).toLocaleTimeString()}</small>
+                <small className={`d-block ${msg.direction === 'outgoing' ? 'text-light' : 'text-muted'}`}>{new Date(msg.createdAt).toLocaleTimeString()}</small>
               </div>
             </div>
           ))}

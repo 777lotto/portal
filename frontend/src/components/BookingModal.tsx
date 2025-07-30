@@ -94,7 +94,7 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
         // Logic for existing customer
         await createJob({
           title: selectedLineItems.map(s => s.description).join(', '),
-          lineItems: selectedLineItems.map(s => ({ id: s.id, description: s.description, quantity: s.quantity, unit_price_cents: s.unit_price_cents })),
+          lineItems: selectedLineItems.map(s => ({ id: s.id, description: s.description, quantity: s.quantity, unit_total_amount_cents: s.unit_total_amount_cents })),
         });
         setSuccess('Your booking has been scheduled!');
       } else {

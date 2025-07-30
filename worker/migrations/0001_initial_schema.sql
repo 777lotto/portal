@@ -23,7 +23,7 @@ CREATE INDEX idx_users_phone ON users(phone);
 -- Create jobs table
 CREATE TABLE jobs (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
+  customerId TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
   status TEXT NOT NULL,
@@ -41,7 +41,7 @@ CREATE TABLE line_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   job_id TEXT,
   item TEXT,
-  price_cents INTEGER,
+  amount_cents INTEGER,
   FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
 );
 CREATE INDEX idx_line_items_job_id ON line_items(job_id);
@@ -126,7 +126,7 @@ CREATE TABLE password_reset_tokens (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
   token TEXT NOT NULL UNIQUE,
-  expires_at TEXT NOT NULL,
+  due TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

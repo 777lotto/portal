@@ -17,7 +17,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
-  const [lineItems, setLineItems] = useState<Partial<Service>[]>([{ notes: '', price_cents: 0 }]);
+  const [lineItems, setLineItems] = useState<Partial<Service>[]>([{ notes: '', total_amount_cents: 0 }]);
   const [title, setTitle] = useState('');
   const [daysUntilExpiry, setDaysUntilExpiry] = useState<number>(7);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,7 +27,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
     if (isOpen) {
       setTitle('');
       setSelectedUserId('');
-      setLineItems([{ notes: '', price_cents: 0 }]);
+      setLineItems([{ notes: '', total_amount_cents: 0 }]);
       setError(null);
       setDaysUntilExpiry(7);
       const fetchUsers = async () => {
@@ -42,9 +42,9 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
     }
   }, [isOpen]);
 
-  const handleLineItemChange = (index: number, field: 'notes' | 'price_cents', value: string) => {
+  const handleLineItemChange = (index: number, field: 'notes' | 'total_amount_cents', value: string) => {
     const newLineItems = [...lineItems];
-    if (field === 'price_cents') {
+    if (field === 'total_amount_cents') {
         const price = parseFloat(value);
         newLineItems[index][field] = isNaN(price) ? 0 : Math.round(price * 100);
     } else {
@@ -54,7 +54,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
   };
 
   const addLineItem = () => {
-    setLineItems([...lineItems, { notes: '', price_cents: 0 }]);
+    setLineItems([...lineItems, { notes: '', total_amount_cents: 0 }]);
   };
 
   const removeLineItem = (index: number) => {
@@ -78,7 +78,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
         start: selectedDate.toISOString(),
         services: lineItems.map(item => ({
             notes: item.notes || '',
-            price_cents: item.price_cents || 0
+            total_amount_cents: item.total_amount_cents || 0
         })),
         isDraft: action === 'draft',
         action: action, // Pass the action for the backend to use
@@ -139,7 +139,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
                   <input type="text" className="form-control" placeholder="Description" value={item.notes || ''} onChange={(e) => handleLineItemChange(index, 'notes', e.target.value)} />
                 </div>
                 <div className="w-32">
-                  <input type="number" step="0.01" className="form-control" placeholder="Price ($)" value={(item.price_cents || 0) / 100} onChange={(e) => handleLineItemChange(index, 'price_cents', e.target.value)} />
+                  <input type="number" step="0.01" className="form-control" placeholder="Price ($)" value={(item.total_amount_cents || 0) / 100} onChange={(e) => handleLineItemChange(index, 'total_amount_cents', e.target.value)} />
                 </div>
                 <div>
                   <button className="btn btn-danger" onClick={() => removeLineItem(index)}>X</button>

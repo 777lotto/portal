@@ -77,7 +77,7 @@ function NotificationBell() {
                               >
                                   <p className="font-medium text-gray-900 dark:text-white">{notification.message}</p>
                                   <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">
-                                      {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                                      {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
                                   </p>
                               </Link>
                           ))

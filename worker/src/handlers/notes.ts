@@ -21,7 +21,7 @@ export const handleGetNotesForJob = async (c: NoteContext<NoteAppEnv>) => {
         }
 
         const dbResponse = await c.env.DB.prepare(
-            `SELECT * FROM notes WHERE job_id = ? ORDER BY created_at DESC`
+            `SELECT * FROM notes WHERE job_id = ? ORDER BY createdAt DESC`
         ).bind(jobId).all();
 
         const notes = dbResponse?.results || [];

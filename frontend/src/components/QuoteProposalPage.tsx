@@ -69,7 +69,7 @@ function QuoteProposalPage() {
     if (error) return <div className="rounded-md bg-red-100 p-4 text-sm text-red-700">Failed to load quote details.</div>;
     if (!quote) return <div className="text-center p-8">Loading...</div>;
 
-    const total = quote.services.reduce((acc, service) => acc + (service.price_cents || 0), 0);
+    const total = quote.services.reduce((acc, service) => acc + (service.total_amount_cents || 0), 0);
 
     const isActionable = quote.status === 'pending';
 
@@ -85,7 +85,7 @@ function QuoteProposalPage() {
                 </div>
                 <div>
                     <h5 className="font-semibold">Expires On</h5>
-                    <p>{quote.expires_at ? new Date(quote.expires_at).toLocaleDateString() : 'N/A'}</p>
+                    <p>{quote.due ? new Date(quote.due).toLocaleDateString() : 'N/A'}</p>
                 </div>
             </div>
 
@@ -95,7 +95,7 @@ function QuoteProposalPage() {
                     {quote.services.map(service => (
                         <div key={service.id} className="flex justify-between items-center p-3 rounded-md bg-gray-50 dark:bg-gray-800">
                             <span>{service.notes}</span>
-                            <span className="font-semibold">${((service.price_cents || 0) / 100).toFixed(2)}</span>
+                            <span className="font-semibold">${((service.total_amount_cents || 0) / 100).toFixed(2)}</span>
                         </div>
                     ))}
                 </div>

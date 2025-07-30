@@ -13,7 +13,7 @@ interface UserPayload {
 function CustomerPhotos() {
   const [photos, setPhotos] = useState<PhotoWithNotes[]>([]);
   const [filters, setFilters] = useState({
-    created_at: '',
+    createdAt: '',
     job_id: '',
     service_id: '',
     invoice_id: '',
@@ -55,8 +55,8 @@ function CustomerPhotos() {
           <h5 className="card-title">Filter Photos</h5>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-              <label htmlFor="created_at" className="form-label">Date</label>
-              <input type="date" id="created_at" name="created_at" value={filters.created_at} onChange={handleFilterChange} className="form-control" />
+              <label htmlFor="createdAt" className="form-label">Date</label>
+              <input type="date" id="createdAt" name="createdAt" value={filters.createdAt} onChange={handleFilterChange} className="form-control" />
             </div>
             <div>
               <label htmlFor="job_id" className="form-label">Job ID</label>
@@ -78,10 +78,10 @@ function CustomerPhotos() {
           photos.map(photo => (
             <div key={photo.id} className="card h-100">
                 <a href={photo.url} target="_blank" rel="noopener noreferrer">
-                  <img src={photo.url} alt={`Photo from ${new Date(photo.created_at).toLocaleDateString()}`} className="card-img-top" style={{ aspectRatio: '16/9', objectFit: 'cover' }} />
+                  <img src={photo.url} alt={`Photo from ${new Date(photo.createdAt).toLocaleDateString()}`} className="card-img-top" style={{ aspectRatio: '16/9', objectFit: 'cover' }} />
                 </a>
                 <div className="card-body">
-                   <p className="card-text"><small className="text-muted">Uploaded: {new Date(photo.created_at).toLocaleString()}</small></p>
+                   <p className="card-text"><small className="text-muted">Uploaded: {new Date(photo.createdAt).toLocaleString()}</small></p>
                    {photo.job_id && <p className="card-text"><small className="text-muted">Job ID: {photo.job_id}</small></p>}
                    {photo.service_id && <p className="card-text"><small className="text-muted">Service ID: {photo.service_id}</small></p>}
                    {photo.invoice_id && <p className="card-text"><small className="text-muted">Invoice ID: {photo.invoice_id}</small></p>}
@@ -92,7 +92,7 @@ function CustomerPhotos() {
                               {photo.notes.map(note => (
                                   <li key={note.id} className="mb-2">
                                       <p className="mb-0">{note.content}</p>
-                                      <small className="text-muted">{new Date(note.created_at).toLocaleString()}</small>
+                                      <small className="text-muted">{new Date(note.createdAt).toLocaleString()}</small>
                                   </li>
                               ))}
                           </ul>

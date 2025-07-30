@@ -367,15 +367,15 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
     };
     const newJob = await createJob(c.env, jobData, parseInt(userId, 10));
 
-    const lineItemInserts = lineItems.map((item: { description: string, quantity: number, unit_price_cents: number }) => {
+    const lineItemInserts = lineItems.map((item: { description: string, quantity: number, unit_total_amount_cents: number }) => {
       return c.env.DB.prepare(
-        `INSERT INTO line_items (job_id, description, quantity, unit_price_cents)
+        `INSERT INTO line_items (job_id, description, quantity, unit_total_amount_cents)
          VALUES (?, ?, ?, ?)`
       ).bind(
         newJob.id,
         item.description,
         item.quantity,
-        item.unit_price_cents
+        item.unit_total_amount_cents
       );
     });
 
@@ -429,7 +429,7 @@ export async function handleAdminCreateJobForUser(c: Context<AppEnv>): Promise<R
           invoice: draftInvoice.id,
           description: item.description,
           quantity: item.quantity,
-          amount: item.unit_price_cents,
+          amount: item.unit_total_amount_cents,
           currency: 'usd',
         });
       }

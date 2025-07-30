@@ -160,7 +160,7 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
                 const newJobId = uuidv4();
 
                 const jobInsertStmt = db.prepare(
-                    `INSERT INTO jobs (id, user_id, title, description, status, recurrence, stripe_invoice_id, invoice_created_at, total_amount_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                    `INSERT INTO jobs (id, user_id, title, description, status, recurrence, stripe_invoice_id, invoice_createdAt, total_amount_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
                 ).bind(
                     newJobId,
                     user.id,
@@ -174,7 +174,7 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
                 );
 
                 const lineItemInserts: D1PreparedStatement[] = invoice.lines.data.map((item) =>
-                    db.prepare(`INSERT INTO line_items (job_id, description, quantity, unit_price_cents) VALUES (?, ?, ?, ?)`
+                    db.prepare(`INSERT INTO line_items (job_id, description, quantity, unit_total_amount_cents) VALUES (?, ?, ?, ?)`
                     ).bind(newJobId, item.description || 'Imported Item', item.quantity || 1, item.amount)
                 );
 

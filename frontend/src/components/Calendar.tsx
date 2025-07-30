@@ -232,7 +232,7 @@ function JobCalendar() {
   const events: CalendarEvent[] = useMemo(() => {
     const jobEvents = (jobs || []).map((job): CalendarEvent => ({
       title: job.title,
-      start: parseISO(job.created_at), // Assuming created_at for start
+      start: parseISO(job.createdAt), // Assuming createdAt for start
       end: parseISO(job.due), // Assuming due for end
       allDay: false,
       resource: job,

@@ -34,7 +34,7 @@ export async function handleAdminCreateQuote(c: Context<AppEnv>) {
                 product_data: {
                     name: item.description,
                 },
-                unit_amount: item.unit_price_cents,
+                unit_amount: item.unit_total_amount_cents,
             },
             quantity: item.quantity,
         }));
@@ -43,7 +43,7 @@ export async function handleAdminCreateQuote(c: Context<AppEnv>) {
             customer: customer.stripe_customer_id,
             description: `Quote for job: ${job.title}`,
             line_items: line_items as any,
-            expires_at: Math.floor(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).getTime() / 1000),
+            due: Math.floor(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).getTime() / 1000),
         });
 
         await db.prepare(`UPDATE jobs SET stripe_quote_id = ?, status = 'quote_draft' WHERE id = ?`)
@@ -139,7 +139,7 @@ export async function handleAdminImportQuotes(c: Context<AppEnv>) {
 
                 const lineItemInserts = quote.line_items.data.map(item => {
                     return db.prepare(
-                        `INSERT INTO line_items (job_id, description, quantity, unit_price_cents) VALUES (?, ?, ?, ?)`
+                        `INSERT INTO line_items (job_id, description, quantity, unit_total_amount_cents) VALUES (?, ?, ?, ?)`
                     ).bind(
                         newJobId,
                         item.description || 'Imported Item',

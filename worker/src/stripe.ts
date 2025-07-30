@@ -65,7 +65,7 @@ export async function createStripeInvoice(c: Context<AppEnv>, lineItems: LineIte
       await stripe.invoiceItems.create({
         customer: user.stripe_customer_id,
         invoice: invoice.id,
-        amount: item.unit_price_cents,
+        amount: item.unit_total_amount_cents,
         quantity: item.quantity,
         description: item.description,
         currency: 'usd',
@@ -139,7 +139,7 @@ export async function createStripeQuote(stripe: Stripe, user_id: string, lineIte
             product_data: {
                 name: item.description,
             },
-            amount: item.unit_price_cents,
+            amount: item.unit_total_amount_cents,
         },
         quantity: item.quantity,
     }));

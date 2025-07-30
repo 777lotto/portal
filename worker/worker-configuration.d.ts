@@ -3777,7 +3777,7 @@ type AiGatewayLog = {
     response_size: number;
     response_head?: string;
     response_head_complete: boolean;
-    created_at: Date;
+    createdAt: Date;
 };
 type AIGatewayProviders = 'workers-ai' | 'anthropic' | 'aws-bedrock' | 'azure-openai' | 'google-vertex-ai' | 'huggingface' | 'openai' | 'perplexity-ai' | 'replicate' | 'groq' | 'cohere' | 'google-ai-studio' | 'mistral' | 'grok' | 'openrouter' | 'deepseek' | 'cerebras' | 'cartesia' | 'elevenlabs' | 'adobe-firefly';
 type AIGatewayHeaders = {

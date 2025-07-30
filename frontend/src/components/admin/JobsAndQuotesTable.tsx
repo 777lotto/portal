@@ -200,7 +200,7 @@ function JobsAndQuotesTable({ data, onUpdate }: Props) {
                               {item.services.map((service: Service) => (
                                 <tr key={service.id}>
                                   <td className="px-4 py-2 whitespace-nowrap text-sm text-text-secondary-light dark:text-text-secondary-dark">{service.notes}</td>
-                                  <td className="px-4 py-2 whitespace-nowrap text-right text-sm text-text-primary-light dark:text-text-primary-dark">${((service.price_cents || 0) / 100).toFixed(2)}</td>
+                                  <td className="px-4 py-2 whitespace-nowrap text-right text-sm text-text-primary-light dark:text-text-primary-dark">${((service.total_amount_cents || 0) / 100).toFixed(2)}</td>
                                 </tr>
                               ))}
                            </tbody>
