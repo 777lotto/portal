@@ -11,11 +11,11 @@ export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
   try {
     const dbResponse = await c.env.DB.prepare(
       `SELECT
-        j.id, j.title, j.start, j.end_time as end, j.status, j.job_type as jobType,
+        j.id, j.title, j.createdAt as start, j.due as end, j.status,
         u.name as userName, u.id as userId
       FROM jobs j
       JOIN users u ON j.user_id = u.id
-      ORDER BY j.start DESC`
+      ORDER BY j.createdAt DESC`
     ).all();
     const jobs = dbResponse?.results || [];
     return successResponse(jobs);

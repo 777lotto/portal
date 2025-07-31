@@ -7,37 +7,42 @@ export const handleGetCustomerAvailability = async (c: Context<AppEnv>) => {
   const user = c.get('user');
 
   try {
-    // Fetch all jobs for the user that aren't cancelled or drafts
-    const { results: jobResults } = await c.env.DB.prepare(
-      `SELECT start, status FROM jobs WHERE user_id = ? AND status NOT IN ('cancelled', 'quote_draft', 'invoice_draft')`
-    ).bind(user.id).all<{ start: string, status: string }>();
+    // Query has been updated to use `calendar_events` as the source of truth for scheduling.
+    // It fetches all of a user's job events and any globally blocked-off days.
+    // It joins with the `jobs` table to get the status for job-related events.
+    const dbResponse = await c.env.DB.prepare(
+      `SELECT
+        ce.start,
+        ce.type,
+        j.status
+      FROM calendar_events ce
+      LEFT JOIN jobs j ON ce.job_id = j.id
+      WHERE
+        (ce.user_id = ? AND ce.type = 'job') OR ce.type = 'blocked'`
+    ).bind(user.id).all<{ start: string; type: 'job' | 'blocked' | 'personal'; status: string | null }>();
 
-    // Fetch all manually blocked dates
-    const { results: blockedDateResults } = await c.env.DB.prepare(
-      `SELECT date FROM blocked_dates`
-    ).all<{ date: string }>();
+    const events = dbResponse?.results || [];
 
     const bookedDays = new Set<string>();
     const pendingDays = new Set<string>();
-
-    jobResults?.forEach((job) => {
-      const day = new Date(job.start).toISOString().split('T')[0];
-      // Quotes awaiting acceptance are 'pending'
-      if (job.status === 'pending_quote') {
-        pendingDays.add(day);
-      } 
-      // All other non-cancelled/draft statuses are considered 'booked'
-      else {
-        bookedDays.add(day);
-      }
-    });
-
     const blockedDates = new Set<string>();
-    blockedDateResults?.forEach((blocked) => {
-        blockedDates.add(blocked.date);
+
+    events.forEach(event => {
+        const day = event.start.split('T')[0];
+
+        if (event.type === 'blocked') {
+            blockedDates.add(day);
+        } else if (event.type === 'job') {
+            // Check the status from the joined jobs table.
+            if (event.status === 'pending_quote' || event.status === 'quote_sent') {
+                pendingDays.add(day);
+            } else if (event.status && !['cancelled', 'completed', 'quote_draft', 'invoice_draft'].includes(event.status)) {
+                // Any other active job status means the day is booked.
+                bookedDays.add(day);
+            }
+        }
     });
 
-    // Return the arrays of unique days
     return successResponse({
         bookedDays: Array.from(bookedDays),
         pendingDays: Array.from(pendingDays),
