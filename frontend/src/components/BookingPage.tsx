@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import UnifiedCalenedar from './UnifiedCalenedar';
+import UnifiedCalendar from './UnifiedCalendar';
 import BookingModal from './modals/BookingModal';
 import { useAuth } from '../hooks/useAuth';
 
@@ -48,7 +48,7 @@ function BookingPage() {
       {token && <CalendarLegend />}
       {token && showTutorial && <BookingTutorial onClose={() => setShowTutorial(false)} />}
       <p className="mb-4">Select an available day on the calendar to start your booking request.</p>
-      <UnifiedCalenedar onSelectSlot={handleSelectSlot} isCustomer={!!token} />
+      <UnifiedCalendar onSelectSlot={handleSelectSlot} isCustomer={!!token} />
       {selectedDate && (
         <BookingModal
           isOpen={modalOpen}

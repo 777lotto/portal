@@ -1,5 +1,5 @@
 // frontend/src/pages/ChatPage.tsx
-import useAuth from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth';
 import AdminChatDashboard from '../components/admin/AdminChatDashboard';
 import SupportChatWidget from '../components/chat/SupportChatWidget';
 

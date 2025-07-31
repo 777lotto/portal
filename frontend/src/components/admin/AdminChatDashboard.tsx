@@ -4,7 +4,7 @@ import useSWR from 'swr';
 import { apiGet } from '../../lib/api';
 import type { User } from '@portal/shared';
 import SupportChatWidget from '../chat/SupportChatWidget';
-import useAuth from '../../hooks/useAuth';
+import { useAuth } from '../../hooks/useAuth';
 
 const AdminChatDashboard = () => {
   const { user: adminUser } = useAuth();

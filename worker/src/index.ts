@@ -86,7 +86,6 @@ const handleChatProxy = async (c: Context<AppEnv>) => {
   if (!chatService) {
     return c.json({ error: "Chat service is unavailable" }, 503);
   }
-  const user = c.get('user');
   const roomId = c.req.param('roomId');
   const room = chatService.idFromName(roomId);
   const stub = chatService.get(room);

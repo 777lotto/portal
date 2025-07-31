@@ -4,25 +4,26 @@ import { useEffect, useState, lazy, Suspense } from "react";
 import { jwtDecode } from 'jwt-decode';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
-import SupportChatWidget from './components/chat/SupportChatWidget.js';
+import SupportChatWidget from './components/chat/SupportChatWidget';
 
 // --- Page Components ---
-import Navbar from "./components/Navbar.js";
-import Dashboard from "./components/Dashboard.js";
-import UnifiedCalendar from './components/UnifiedCalendar.js';
-const JobDetail = lazy(() => import("./components/JobDetail.js"));
-const QuoteProposalPage = lazy(() => import("./components/QuoteProposalPage.js"));
-const CalendarSync = lazy(() => import("./components/CalendarSync.js"));
-const Photos = lazy(() => import("./components/Photos.js"));
-const AccountPage = lazy(() => import("./components/AccountPage.js"));
-const AuthForm = lazy(() => import("./components/forms/AuthForm.js"));
-const InvoicePaymentPage = lazy(() => import("./components/InvoicePaymentPage.js"));
+import Navbar from "./components/Navbar";
+import Dashboard from "./components/Dashboard";
+import UnifiedCalendar from './components/UnifiedCalendar';
+const BookingPage = lazy(() => import("./components/BookingPage"));
+const JobDetail = lazy(() => import("./components/JobDetail"));
+const QuoteProposalPage = lazy(() => import("./components/QuoteProposalPage"));
+const CalendarSync = lazy(() => import("./components/CalendarSync"));
+const Photos = lazy(() => import("./components/Photos"));
+const AccountPage = lazy(() => import("./components/AccountPage"));
+const AuthForm = lazy(() => import("./components/forms/AuthForm"));
+const InvoicePaymentPage = lazy(() => import("./components/InvoicePaymentPage"));
 
 // --- Admin Page Components ---
-const AdminDashboard = lazy(() => import("./components/admin/AdminDashboard.js"));
-const AdminUserDetail = lazy(() => import("./components/admin/AdminUserDetail.js"));
-const JobsPage = lazy(() => import("./components/admin/JobsPage.js"));
-const ChatPage = lazy(() => import("./pages/ChatPage.js"));
+const AdminDashboard = lazy(() => import("./components/admin/AdminDashboard"));
+const AdminUserDetail = lazy(() => import("./components/admin/AdminUserDetail"));
+const JobsPage = lazy(() => import("./components/admin/JobsPage"));
+const ChatPage = lazy(() => import("./pages/ChatPage"));
 
 
 interface UserPayload {
