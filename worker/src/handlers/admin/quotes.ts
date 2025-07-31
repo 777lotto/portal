@@ -3,38 +3,39 @@ import Stripe from 'stripe';
 import { v4 as uuidv4 } from 'uuid';
 import { AppEnv } from '../../index.js';
 import { errorResponse, successResponse } from '../../utils.js';
-import { getStripe } from '../../stripe.js';
+import { getStripe, createStripeQuote } from '../../stripe.js';
 import type { Job, LineItem, User } from '@portal/shared';
 
 export async function handleAdminCreateQuote(c: Context<AppEnv>) {
+    const { jobId } = c.req.param();
     const db = c.env.DB;
-    const stripe = c.env.STRIPE;
-    const body = await c.req.json();
-    const { user_id, title, description, lineItems } = body;
-
-    if (!user_id || !title || !lineItems) {
-        return errorResponse('Missing required fields', 400);
-    }
+    const stripe = getStripe(c.env);
 
     try {
-        const quote = await createStripeQuote(stripe, user_id, lineItems);
+        const job = await db.prepare(`SELECT * FROM jobs WHERE id = ?`).bind(jobId).first<Job>();
+        if (!job) return errorResponse("Job not found.", 404);
 
-        await db.prepare(
-            `INSERT INTO quotes (id, user_id, title, description, stripe_quote_id, status)
-             VALUES (?, ?, ?, ?, ?, ?)`
-        ).bind(
-            crypto.randomUUID(),
-            user_id,
-            title,
-            description,
-            quote.id,
-            'sent'
-        ).run();
+        const user = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(job.user_id).first<User>();
+        if (!user || !user.stripe_customer_id) {
+            return errorResponse("User or Stripe customer ID not found.", 404);
+        }
 
-        return c.json({ message: 'Quote created successfully', quoteId: quote.id }, 201);
+        const { results: lineItems } = await db.prepare(`SELECT * FROM line_items WHERE job_id = ?`).bind(jobId).all<LineItem>();
+        if (!lineItems || lineItems.length === 0) {
+            return errorResponse("Cannot create a quote for a job with no line items.", 400);
+        }
+
+        const quote = await createStripeQuote(stripe, user.stripe_customer_id, lineItems);
+
+        await db.prepare(`UPDATE jobs SET stripe_quote_id = ?, status = 'quote_sent' WHERE id = ?`)
+            .bind(quote.id, jobId)
+            .run();
+
+        return successResponse({ quoteId: quote.id });
+
     } catch (e: any) {
-        console.error('Failed to create quote:', e);
-        return errorResponse('An internal error occurred while creating the quote: ' + e.message, 500);
+        console.error(`Failed to create quote for job ${jobId}:`, e);
+        return errorResponse(`Failed to create quote: ${e.message}`, 500);
     }
 }
 

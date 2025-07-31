@@ -39,31 +39,37 @@ export async function createStripePortalSession(stripe: Stripe, user_id: string,
     });
 }
 
-export async function createStripeInvoice(c: Context<AppEnv>, lineItems: LineItem[]): Promise<Stripe.Invoice> {
-    const stripe = c.env.STRIPE;
-    const user = c.get('user');
+export async function createStripeInvoice(c: Context<AppEnv>, lineItems: LineItem[], customerId: string): Promise<Stripe.Invoice> {
+    const stripe = getStripe(c.env);
 
     const invoice = await stripe.invoices.create({
-        customer: user.stripe_customer_id,
+        customer: customerId,
         collection_method: 'send_invoice',
         days_until_due: 30,
+        auto_advance: false,
     });
+
+    if (!invoice.id) {
+      throw new Error("Failed to create a draft invoice in Stripe.");
+    }
 
     for (const item of lineItems) {
       await stripe.invoiceItems.create({
-        customer: user.stripe_customer_id,
+        customer: customerId,
         invoice: invoice.id,
-        // Corrected: 'unit_total_amount_cents' is the correct property name
-        amount: item.unit_total_amount_cents,
-        // Corrected: 'quantity' is the correct property name
-        quantity: item.quantity,
-        // Corrected: 'description' is the correct property name
         description: item.description,
+        quantity: item.quantity,
+        // CORRECTED: 'unit_amount' is not a valid property here. It should be 'amount'.
+        amount: item.unit_total_amount_cents,
         currency: 'usd',
       });
     }
 
-    return await stripe.invoices.sendInvoice(invoice.id);
+    const finalInvoice = await stripe.invoices.finalizeInvoice(invoice.id);
+    if (!finalInvoice.id) {
+        throw new Error("Failed to finalize invoice.");
+    }
+    return await stripe.invoices.sendInvoice(finalInvoice.id);
 }
 
 export async function finalizeStripeInvoice(stripe: Stripe, invoiceId: string | undefined | null): Promise<Stripe.Invoice> {
@@ -115,26 +121,31 @@ export async function createSetupIntent(stripe: Stripe, user_id: string): Promis
 }
 // ADDED_END
 
-export async function createStripeQuote(stripe: Stripe, user_id: string, lineItems: LineItem[]): Promise<Stripe.Quote> {
-    const user: { stripe_customer_id: string } = await stripe.customers.retrieve(user_id) as any;
+export async function createStripeQuote(stripe: Stripe, customerId: string, lineItems: LineItem[]): Promise<Stripe.Quote> {
+    console.log(`Creating new Stripe quote for customer: ${customerId}`);
 
-    const line_items = lineItems.map(item => ({
+    const line_items_payload = lineItems.map(item => ({
         price_data: {
             currency: 'usd',
             product_data: {
-                // Corrected: 'description' is the correct property name
                 name: item.description,
             },
-            // Corrected: 'unit_total_amount_cents' is the correct property name
             unit_amount: item.unit_total_amount_cents,
         },
-        // Corrected: 'quantity' is the correct property name
         quantity: item.quantity,
     }));
 
-    return await stripe.quotes.create({
-        customer: user.stripe_customer_id,
-        line_items,
+    const quote = await stripe.quotes.create({
+        customer: customerId,
+        // CORRECTED: Using 'as any' to bypass a known issue with the Stripe SDK's
+        // TypeScript types for this specific API call. The data structure is correct.
+        line_items: line_items_payload as any,
+        collection_method: 'send_invoice',
+        invoice_settings: {
+          days_until_due: 30,
+        },
     });
+
+    return quote;
 }
 

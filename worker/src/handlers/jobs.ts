@@ -107,19 +107,20 @@ export const handleGetJobById = async (c: HonoContext<WorkerAppEnv>) => {
     const { id } = c.req.param();
 
     try {
-        const job: Job = await db.prepare('SELECT * FROM jobs WHERE id = ?').bind(id).first();
+        const job = await db.prepare('SELECT * FROM jobs WHERE id = ?').bind(id).first<Job>();
         if (!job) {
             return errorResponse("Job not found", 404);
         }
 
-        // Corrected: Direct comparison between two numbers is correct.
-        if (user.role !== 'admin' && job.user_id !== user.id) {
-            return errorResponse("Job not found", 404);
+        // CORRECTED: Parse user_id to number for comparison
+        if (user.role !== 'admin' && parseInt(job.user_id, 10) !== user.id) {
+            return errorResponse("Access denied", 403);
         }
 
-        const lineItems: LineItem[] = await db.prepare('SELECT * FROM line_items WHERE job_id = ?').bind(id).all();
+        // CORRECTED: Destructure results from D1 response
+        const { results: lineItems } = await db.prepare('SELECT * FROM line_items WHERE job_id = ?').bind(id).all<LineItem>();
 
-        return c.json({ ...job, lineItems });
+        return c.json({ ...job, lineItems: lineItems || [] });
     } catch (e: any) {
         console.error('Failed to get job:', e);
         return errorResponse('An internal error occurred while fetching the job: ' + e.message, 500);
@@ -296,48 +297,65 @@ export const handleAdminDeleteLineItemFromJob = async (c: HonoContext<WorkerAppE
 };
 
 export const handleAdminCompleteJob = async (c: HonoContext<WorkerAppEnv>) => {
+    const { jobId } = c.req.param();
     const db = c.env.DB;
-    const stripe = c.env.STRIPE;
-    const { id } = c.req.param();
+    const stripe = getStripe(c.env);
 
     try {
-        const job: Job = await db.prepare('SELECT * FROM jobs WHERE id = ?').bind(id).first();
-        if (!job) {
-            return errorResponse("Job not found", 404);
+        const job = await db.prepare(`SELECT * FROM jobs WHERE id = ?`).bind(jobId).first<Job>();
+        if (!job) return errorResponse("Job not found", 404);
+
+        const customer = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(job.user_id).first<User>();
+        if (!customer || !customer.stripe_customer_id) {
+            return errorResponse("Customer not found or not linked to Stripe.", 404);
         }
 
-        const lineItems: LineItem[] = await db.prepare('SELECT * FROM line_items WHERE job_id = ?').bind(id).all();
-
-        const customer: { stripe_customer_id: string } = await db.prepare('SELECT stripe_customer_id FROM users WHERE id = ?').bind(job.user_id).first();
+        const { results: lineItems } = await db.prepare(`SELECT * FROM line_items WHERE job_id = ?`).bind(jobId).all<LineItem>();
+        if (!lineItems || lineItems.length === 0) {
+            return errorResponse("Cannot complete a job with no line items.", 400);
+        }
 
         const draftInvoice = await stripe.invoices.create({
             customer: customer.stripe_customer_id,
             collection_method: 'send_invoice',
-            days_until_due: 30,
+            description: `Invoice for job: ${job.title}`,
+            auto_advance: false,
         });
+
+        // CORRECTED: Added a check to ensure draftInvoice.id exists.
+        if (!draftInvoice.id) {
+            return errorResponse("Failed to create a draft invoice.", 500);
+        }
 
         for (const item of lineItems) {
             await stripe.invoiceItems.create({
                 customer: customer.stripe_customer_id,
                 invoice: draftInvoice.id,
-                // Corrected: 'description' is the correct property name
                 description: item.description,
-                // Corrected: 'quantity' is the correct property name
                 quantity: item.quantity,
-                // Corrected: 'unit_total_amount_cents' is the correct property name
+                // CORRECTED: 'unit_amount' is not a valid property here. It should be 'amount'.
                 amount: item.unit_total_amount_cents,
                 currency: 'usd',
             });
         }
 
-        await stripe.invoices.sendInvoice(draftInvoice.id);
+        const finalInvoice = await stripe.invoices.finalizeInvoice(draftInvoice.id);
 
-        await db.prepare('UPDATE jobs SET status = ? WHERE id = ?').bind('invoiced', id).run();
+        // CORRECTED: Added a check to ensure finalInvoice.id exists.
+        if (!finalInvoice?.id) {
+            throw new Error('Failed to finalize invoice: No ID returned from Stripe.');
+        }
 
-        return c.json({ message: 'Job completed and invoice sent' });
+        await stripe.invoices.sendInvoice(finalInvoice.id);
+
+        await db.prepare(`UPDATE jobs SET status = 'payment_needed', stripe_invoice_id = ? WHERE id = ?`)
+            .bind(finalInvoice.id, jobId)
+            .run();
+
+        return successResponse({ invoiceId: finalInvoice.id, invoiceUrl: finalInvoice.hosted_invoice_url });
     } catch (e: any) {
-        console.error('Failed to complete job:', e);
-        return errorResponse('An internal error occurred while completing the job: ' + e.message, 500);
+        console.error(`Failed to complete job ${jobId}:`, e);
+        return errorResponse(`Failed to complete job: ${e.message}`, 500);
     }
 };
 

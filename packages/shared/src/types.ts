@@ -27,9 +27,16 @@ export type User = z.infer<typeof UserSchema>;
 
 // Defines a line item record, matching the database schema.
 export const LineItemSchema = z.object({
-  item: z.string().min(1, "Item description cannot be empty."),
-  total_amount_cents: z.number().int("Amount must be an integer in cents."),
+  id: z.number(),
+  job_id: z.string(),
+  description: z.string(),
+  quantity: z.number(),
+  unit_total_amount_cents: z.number(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
 });
+
+// CORRECTED: The LineItem type is now correctly inferred from the schema.
 export type LineItem = z.infer<typeof LineItemSchema>;
 
 // Define the new, stricter set of statuses for a Job
@@ -63,16 +70,21 @@ export const JobSchema = z.object({
 });
 export type Job = z.infer<typeof JobSchema>;
 
+
 export const CreateJobPayloadSchema = z.object({
-  user_id: z.string().min(1, "User must be selected."),
-  title: z.string().min(1, "Title is required."),
+  user_id: z.string(),
+  title: z.string(),
   description: z.string().optional(),
-  lineItems: z.array(LineItemSchema).min(1, "At least one line item is required."),
+  lineItems: z.array(z.object({
+    description: z.string(),
+    unit_total_amount_cents: z.number().int(),
+    quantity: z.number().int().default(1),
+  })),
   jobType: z.enum(['quote', 'job', 'invoice']),
-  recurrence: z.string().default('none'),
-  due: z.string().nullable().optional(),
-  start: z.string().datetime({ message: "Invalid start date/time format." }).optional().or(z.literal('')),
-  end: z.string().datetime({ message: "Invalid end date/time format." }).optional().or(z.literal('')),
+  recurrence: z.string().optional(),
+  due: z.string().optional(),
+  start: z.string().optional(),
+  end: z.string().optional(),
 });
 
 export const JobRecurrenceRequestSchema = z.object({
@@ -87,13 +99,18 @@ export const JobRecurrenceRequestSchema = z.object({
 });
 export type JobRecurrenceRequest = z.infer<typeof JobRecurrenceRequestSchema>;
 
-export const JobWithDetailsSchema = JobSchema.extend({
-  customerName: z.string().nullable(),
-  customerAddress: z.string().nullable(),
-  line_items: z.array(LineItemSchema),
-  recurrence_requests: z.array(JobRecurrenceRequestSchema).optional(),
-});
-export type JobWithDetails = z.infer<typeof JobWithDetailsSchema>;
+export interface JobWithDetails extends Job {
+  // CORRECTED: Changed 'lineItems' to 'line_items' to match expected property name.
+  line_items: LineItem[];
+  customerName: string;
+  customerAddress: string;
+  recurrence_requests?: {
+    id: number;
+    status: string;
+    frequency: string;
+    start_date: string;
+  }[];
+}
 
 export const PublicBookingRequestSchema = z.object({
   name: z.string().min(2),

@@ -1,7 +1,8 @@
+// worker/src/handlers/admin/jobs.ts
+
 import { Context } from 'hono';
 import { AppEnv } from '../../index.js';
 import { errorResponse, successResponse } from '../../utils.js';
-// Corrected: Using the relative path for imports as required by the build tool.
 import type { Job, LineItem, JobWithDetails } from '@portal/shared';
 import { CreateJobPayloadSchema } from '@portal/shared';
 
@@ -24,7 +25,7 @@ export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
   }
 }
 
-// This function is corrected to use the right types for LineItem.
+
 export const handleGetJobsAndQuotes = async (c: Context<AppEnv>) => {
   const db = c.env.DB;
   try {
@@ -42,35 +43,29 @@ export const handleGetJobsAndQuotes = async (c: Context<AppEnv>) => {
       return successResponse([]);
     }
 
-    // Corrected: Explicitly type the result from the database as the full LineItem type
-    const { results: lineItems } = await db.prepare(`SELECT * FROM line_items`).all<LineItem>();
-    const lineItemsByJobId = new Map<string, LineItem[]>();
-    if (lineItems) {
-      for (const item of lineItems) {
-        // This check is now valid because the LineItem type from the DB includes job_id
-        if (item.job_id) {
-          if (!lineItemsByJobId.has(item.job_id)) {
-            lineItemsByJobId.set(item.job_id, []);
-          }
-          lineItemsByJobId.get(item.job_id)!.push(item);
-        }
-      }
-    }
+    const jobsWithDetails: JobWithDetails[] = [];
 
-    const jobsWithDetails: JobWithDetails[] = jobs.map(job => ({
-      ...job,
-      line_items: lineItemsByJobId.get(job.id) || []
-    }));
+    for (const job of jobs) {
+      const { results: lineItems } = await db.prepare(
+        `SELECT * FROM line_items WHERE job_id = ?`
+      ).bind(job.id).all<LineItem>();
+
+      jobsWithDetails.push({
+        ...job,
+        // CORRECTED: Changed property from 'lineItems' to 'line_items' to match JobWithDetails type.
+        line_items: lineItems || [],
+      });
+    }
 
     return successResponse(jobsWithDetails);
   } catch (e: any) {
-    console.error("Failed to get jobs and quotes:", e);
-    return errorResponse("Failed to retrieve job data.", 500);
+    console.error("Error in handleGetJobsAndQuotes:", e);
+    return errorResponse("Failed to retrieve jobs and quotes.", 500);
   }
 };
 
 
-// NEW: This is the main handler for creating a job, replacing all previous logic.
+// CORRECTED: This function now uses the updated Zod schema and correct property names.
 export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
   const db = c.env.DB;
   const body = await c.req.json();
@@ -84,11 +79,11 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
     }
   };
 
-  // 1. Validate the incoming payload using our Zod schema
   const validation = CreateJobPayloadSchema.safeParse(body);
   if (!validation.success) {
+    // Use flatten() for a more structured error response
     const errorMessage = validation.error.flatten();
-return errorResponse(JSON.stringify(errorMessage), 400);
+    return errorResponse(JSON.stringify(errorMessage), 400);
   }
 
   const {
@@ -111,30 +106,28 @@ return errorResponse(JSON.stringify(errorMessage), 400);
 
     const newJobId = crypto.randomUUID();
 
-    // 2. Calculate the total amount from the sum of line items with correct types
-    const total_amount_cents = lineItems.reduce((sum: number, item: { description: string, unit_total_amount_cents: number }) => sum + item.unit_total_amount_cents, 0);
+    // CORRECTED: Use 'unit_total_amount_cents' for the calculation.
+    const total_amount_cents = lineItems.reduce((sum, item) => sum + (item.unit_total_amount_cents * item.quantity), 0);
 
     const status = getStatusForJobType(jobType);
     const statements = [];
 
-    // Statement to create the main job record
     statements.push(
       db.prepare(
         `INSERT INTO jobs (id, user_id, title, description, status, recurrence, total_amount_cents, due)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      ).bind(newJobId, user_id, title, description || null, status, recurrence, total_amount_cents, due || null)
+      ).bind(newJobId, user_id, title, description || null, status, recurrence || null, total_amount_cents, due || null)
     );
 
-    // Statements to create each line item
+    // CORRECTED: Use 'description' and 'unit_total_amount_cents' for the insert.
     for (const item of lineItems) {
-  statements.push(
-    db.prepare(
-      `INSERT INTO line_items (job_id, description, unit_total_amount_cents) VALUES (?, ?, ?)`
-    ).bind(newJobId, item.description, item.unit_total_amount_cents)
-  );
-}
+      statements.push(
+        db.prepare(
+          `INSERT INTO line_items (job_id, description, unit_total_amount_cents, quantity) VALUES (?, ?, ?, ?)`
+        ).bind(newJobId, item.description, item.unit_total_amount_cents, item.quantity)
+      );
+    }
 
-    // Statement to create the calendar event
     if (start && end) {
       statements.push(
         db.prepare(
@@ -145,7 +138,6 @@ return errorResponse(JSON.stringify(errorMessage), 400);
     }
 
     await db.batch(statements);
-    // Corrected: Use c.json() instead of a custom helper for the response
     return c.json({ message: 'Job created successfully', jobId: newJobId }, 201);
 
   } catch (e: any) {
