@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiGet, deleteUser, adminImportInvoices, apiPost, getImportedContacts, adminUpdateUser } from '../../lib/api.js';
 import type { User } from '@portal/shared';
-import AddUserModal from './AddUserModal.js';
+import AddUserModal from '../modals/admin/AddUserModal.js';
 
 // A dedicated component for the inline user editing form
 function UserDetailEditor({ user, onUserUpdated, onCancel }: { user: User; onUserUpdated: (updatedUser: User) => void; onCancel: () => void; }) {

@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import type { JobWithDetails, Service } from '@portal/shared';
 import { markInvoiceAsPaid, apiPost } from '../../lib/api';
-import QuoteProposalModal from '../QuoteProposalModal';
+import QuoteProposalModal from '../modals/QuoteProposalModal';
 
 interface Props {
   data: JobWithDetails[];

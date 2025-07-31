@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { adminImportInvoices, adminImportQuotes, adminGetJobsAndQuotes } from '../../lib/api';
 import JobsAndQuotesTable from './JobsAndQuotesTable';
 import type { JobWithDetails } from '@portal/shared';
-import NewAddJobModal from './NewAddJobModal';
+import NewAddJobModal from '../modals/admin/NewAddJobModal';
 
 function JobsPage() {
   const [isImporting, setIsImporting] = useState(false);

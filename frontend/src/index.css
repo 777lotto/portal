@@ -109,6 +109,13 @@ body {
       background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px);
   }
 }
+
+@layer utilities {
+  .bg-stripes-blue {
+    /* This now uses your 'event-blue' color from tailwind.config.js */
+    background-image: repeating-linear-gradient(45deg, theme('colors.event-blue/5'), theme('colors.event-blue/5') 10px, theme('colors.event-blue/10') 10px, theme('colors.event-blue/10') 20px);
+  }
+}
   /* Cards */
   .card {
     @apply bg-primary-light dark:bg-tertiary-dark shadow-lg rounded-lg border border-border-light dark:border-border-dark;

@@ -2,9 +2,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 // MODIFIED: Import `initializeSignup` and remove `signup`
-import { initializeSignup, checkUser, login, requestPasswordReset, verifyResetCode, setPassword, loginWithToken } from '../lib/api';
-import { ApiError } from '../lib/fetchJson';
-import StyledDigitInput from './StyledDigitInput';
+import { initializeSignup, checkUser, login, requestPasswordReset, verifyResetCode, setPassword, loginWithToken } from '../../lib/api';
+import { ApiError } from '../../lib/fetchJson';
+import StyledDigitInput from '../StyledDigitInput';
 
 // Declare the global Turnstile type
 declare global {

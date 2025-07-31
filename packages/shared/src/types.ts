@@ -95,7 +95,7 @@ export const PublicBookingRequestSchema = z.object({
   phone: z.string().min(10),
   address: z.string().min(5),
   date: z.string(),
-  services: z.array(z.object({
+  lines: z.array(z.object({
     name: z.string(),
     duration: z.number(),
   })).min(1),
@@ -302,6 +302,18 @@ export interface Env {
   SMS_FROM_NUMBER?: string;
   VOIPMS_USERNAME?: string;
   VOIPMS_PASSWORD?: string;
+}
+
+export interface CalendarEvent {
+  id: number;
+  title: string;
+  start: string;
+  end: string;
+  type: 'job' | 'blocked' | 'personal';
+  reason?: string;
+  job_id?: string;
+  user_id?: number;
+  createdAt: string;
 }
 
 /* ========================================================================

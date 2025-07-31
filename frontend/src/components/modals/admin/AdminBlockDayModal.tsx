@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { addCalendarEvent, removeCalendarEvent } from '../lib/api';
+import { addCalendarEvent, removeCalendarEvent } from '../../../lib/api';
 
 interface Props {
   isOpen: boolean;

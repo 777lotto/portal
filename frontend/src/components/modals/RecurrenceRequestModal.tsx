@@ -1,6 +1,6 @@
 // frontend/src/components/RecurrenceRequestModal.tsx
 import { useState, useEffect } from 'react';
-import { requestRecurrence, getUnavailableRecurrenceDays } from '../lib/api';
+import { requestRecurrence, getUnavailableRecurrenceDays } from '../../lib/api';
 import type { Job } from '@portal/shared';
 
 interface Props {

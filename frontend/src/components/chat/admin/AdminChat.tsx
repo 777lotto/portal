@@ -1,6 +1,6 @@
 // frontend/src/components/admin/AdminChat.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { apiGet } from '../../lib/api';
+import { apiGet } from '../../../lib/api';
 import { User } from '@portal/shared';
 
 interface ChatMessage {

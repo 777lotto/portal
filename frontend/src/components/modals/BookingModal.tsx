@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { createPublicBooking, getLineItems, createJob } from '../lib/api';
-import { ApiError } from '../lib/fetchJson';
+import { createPublicBooking, getLineItems, createJob } from '../../lib/api';
+import { ApiError } from '../../lib/fetchJson';
 import { format } from 'date-fns';
-import StyledDigitInput from './StyledDigitInput';
+import StyledDigitInput from '../StyledDigitInput';
 import type { User, LineItem } from '@portal/shared';
 
 declare global {

@@ -1,7 +1,7 @@
 // frontend/src/components/ForgotPasswordForm.tsx
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { apiPost } from '../lib/api';
+import { apiPost } from '../../lib/api';
 
 function ForgotPasswordForm() {
   const [identifier, setIdentifier] = useState('');

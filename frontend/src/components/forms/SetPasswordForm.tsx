@@ -5,8 +5,8 @@ import { useState } from 'react';
 // MODIFIED: Remove useSearchParams, add useLocation
 import { useNavigate, useLocation } from 'react-router-dom';
 // MODIFIED: Remove getUserFromResetToken
-import { setPassword } from '../lib/api';
-import { ApiError } from '../lib/fetchJson';
+import { setPassword } from '../../lib/api';
+import { ApiError } from '../../lib/fetchJson';
 
 interface Props {
   setToken: (token: string) => void;

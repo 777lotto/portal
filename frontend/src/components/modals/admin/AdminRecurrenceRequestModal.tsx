@@ -1,6 +1,6 @@
 // frontend/src/components/admin/AdminRecurrenceRequestModal.tsx
 import { useState } from 'react';
-import { updateRecurrenceRequest } from '../../lib/api';
+import { updateRecurrenceRequest } from '../../../lib/api';
 import type { JobRecurrenceRequest } from '@portal/shared';
 
 interface Props {

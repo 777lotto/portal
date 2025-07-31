@@ -1,8 +1,8 @@
 // frontend/src/components/admin/AddJobModal.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiGet, adminCreateJobForUser } from '../../lib/api';
-import type { User, Service } from '@portal/shared';
+import { apiGet, adminCreateJobForUser } from '../../../lib/api';
+import type { User, Job } from '@portal/shared';
 import { format } from 'date-fns';
 
 interface Props {

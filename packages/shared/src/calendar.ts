@@ -13,7 +13,7 @@ export const AppointmentSchema = z.object({
 export const BookingSchema = z.object({
   start: z.instanceof(Date),
   end: z.instanceof(Date),
-  serviceId: z.string(),
+  lines: z.string(),
   user: z.custom<User>(),
 });
 
