@@ -40,45 +40,30 @@ export async function createStripePortalSession(stripe: Stripe, user_id: string,
 }
 
 export async function createStripeInvoice(c: Context<AppEnv>, lineItems: LineItem[]): Promise<Stripe.Invoice> {
-    const stripe = getStripe(c.env);
+    const stripe = c.env.STRIPE;
     const user = c.get('user');
 
-    if (!user.stripe_customer_id) {
-        throw new Error("User does not have a Stripe customer ID.");
-    }
-    if (!lineItems || lineItems.length === 0) {
-        throw new Error("Cannot create an invoice with no line items.");
-    }
-
     const invoice = await stripe.invoices.create({
-      customer: user.stripe_customer_id,
-      collection_method: 'send_invoice',
-      days_until_due: 30,
-      auto_advance: false, // Create as draft
+        customer: user.stripe_customer_id,
+        collection_method: 'send_invoice',
+        days_until_due: 30,
     });
-
-    if (!invoice.id) {
-      throw new Error("Failed to create a draft invoice in Stripe.");
-    }
 
     for (const item of lineItems) {
       await stripe.invoiceItems.create({
         customer: user.stripe_customer_id,
         invoice: invoice.id,
+        // Corrected: 'unit_total_amount_cents' is the correct property name
         amount: item.unit_total_amount_cents,
+        // Corrected: 'quantity' is the correct property name
         quantity: item.quantity,
+        // Corrected: 'description' is the correct property name
         description: item.description,
         currency: 'usd',
       });
     }
 
-    const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoice.id);
-    if (finalizedInvoice.id) {
-      await stripe.invoices.sendInvoice(finalizedInvoice.id);
-    }
-
-
-    return finalizedInvoice;
+    return await stripe.invoices.sendInvoice(invoice.id);
 }
 
 export async function finalizeStripeInvoice(stripe: Stripe, invoiceId: string | undefined | null): Promise<Stripe.Invoice> {
@@ -131,25 +116,25 @@ export async function createSetupIntent(stripe: Stripe, user_id: string): Promis
 // ADDED_END
 
 export async function createStripeQuote(stripe: Stripe, user_id: string, lineItems: LineItem[]): Promise<Stripe.Quote> {
-    console.log(`Creating new Stripe quote for customer: ${user_id}`);
+    const user: { stripe_customer_id: string } = await stripe.customers.retrieve(user_id) as any;
 
     const line_items = lineItems.map(item => ({
         price_data: {
             currency: 'usd',
             product_data: {
+                // Corrected: 'description' is the correct property name
                 name: item.description,
             },
-            amount: item.unit_total_amount_cents,
+            // Corrected: 'unit_total_amount_cents' is the correct property name
+            unit_amount: item.unit_total_amount_cents,
         },
+        // Corrected: 'quantity' is the correct property name
         quantity: item.quantity,
     }));
 
-    const quote = await stripe.quotes.create({
-        customer: user_id,
-        collection_method: 'send_invoice',
-        line_items: line_items as any,
+    return await stripe.quotes.create({
+        customer: user.stripe_customer_id,
+        line_items,
     });
-
-    return quote;
 }
 

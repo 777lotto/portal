@@ -27,11 +27,8 @@ export type User = z.infer<typeof UserSchema>;
 
 // Defines a line item record, matching the database schema.
 export const LineItemSchema = z.object({
-  id: z.number(),
-  job_id: z.string(),
-  description: z.string(),
-  quantity: z.number(),
-  unit_total_amount_cents: z.number(),
+  item: z.string().min(1, "Item description cannot be empty."),
+  total_amount_cents: z.number().int("Amount must be an integer in cents."),
 });
 export type LineItem = z.infer<typeof LineItemSchema>;
 
@@ -51,23 +48,33 @@ export type JobStatus = z.infer<typeof JobStatusEnum>;
 
 // This resolves the majority of the frontend errors.
 export const JobSchema = z.object({
-  id: z.string(),
-  user_id: z.number(), // Changed from user_id
+  id: z.string(), // TEXT (UUID)
+  user_id: z.string(), // TEXT (Corresponds to users.auth_user_id)
   title: z.string(),
-  description: z.string().optional().nullable(),
-  status: JobStatusEnum, // Renamed from status
-  recurrence: z.string().optional().nullable(),
-  createdAt: z.string().optional(), // Renamed from createdAt
-  updatedAt: z.string().optional(), // Renamed from updatedAt
-  stripe_invoice_id: z.string().optional().nullable(),
-  stripe_quote_id: z.string().optional().nullable(),
-  total_amount_cents: z.number().optional().nullable(),
-  due: z.string().nullable().optional(), // Renamed from due_date and due
-  contact_method_override: z.enum(['email', 'sms', 'push']).optional().nullable(),
+  description: z.string().nullable(),
+  status: z.string(),
+  recurrence: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  stripe_invoice_id: z.string().nullable(),
+  stripe_quote_id: z.string().nullable(),
+  total_amount_cents: z.number().int().nullable(),
+  due: z.string().nullable(),
 });
 export type Job = z.infer<typeof JobSchema>;
 
-// ADD NEW SCHEMA for job recurrence requests
+export const CreateJobPayloadSchema = z.object({
+  user_id: z.string().min(1, "User must be selected."),
+  title: z.string().min(1, "Title is required."),
+  description: z.string().optional(),
+  lineItems: z.array(LineItemSchema).min(1, "At least one line item is required."),
+  jobType: z.enum(['quote', 'job', 'invoice']),
+  recurrence: z.string().default('none'),
+  due: z.string().nullable().optional(),
+  start: z.string().datetime({ message: "Invalid start date/time format." }).optional().or(z.literal('')),
+  end: z.string().datetime({ message: "Invalid end date/time format." }).optional().or(z.literal('')),
+});
+
 export const JobRecurrenceRequestSchema = z.object({
     id: z.number(),
     job_id: z.string(),
@@ -84,11 +91,10 @@ export const JobWithDetailsSchema = JobSchema.extend({
   customerName: z.string().nullable(),
   customerAddress: z.string().nullable(),
   line_items: z.array(LineItemSchema),
-  recurrence_requests: z.array(JobRecurrenceRequestSchema).optional(), // Add recurrence requests
+  recurrence_requests: z.array(JobRecurrenceRequestSchema).optional(),
 });
 export type JobWithDetails = z.infer<typeof JobWithDetailsSchema>;
 
-// ADD NEW SCHEMA for public booking requests
 export const PublicBookingRequestSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
@@ -116,7 +122,7 @@ export type Photo = z.infer<typeof PhotoSchema>;
 export const NoteSchema = z.object({
     id: z.number(),
     content: z.string(),
-    createdAt: z.string(), // ISO date string
+    createdAt: z.string(),
 });
 export type Note = z.infer<typeof NoteSchema>;
 
@@ -130,12 +136,12 @@ export type PhotoWithNotes = z.infer<typeof PhotoWithNotesSchema>;
  export const CalendarEventSchema = z.object({
   id: z.number(),
   title: z.string(),
-  start: z.string(), // ISO date string
-  end: z.string(), // ISO date string
+  start: z.string(),
+  end: z.string(),
   type: z.enum(['job', 'blocked', 'personal']),
   job_id: z.string().optional().nullable(),
   user_id: z.number().optional().nullable(),
-  createdAt: z.string(), // Use createdAt to match the latest migration
+  createdAt: z.string(),
 });
  export type CalendarEvent = z.infer<typeof CalendarEventSchema>;
 
@@ -168,7 +174,7 @@ export const StripeInvoiceSchema = z.object({
     object: z.literal('invoice'),
     customer: z.string(),
     status: z.enum(['draft', 'open', 'paid', 'uncollectible', 'void']).nullable(),
-    total: z.number(), // in cents
+    total: z.number(),
     hosted_invoice_url: z.string().nullable(),
     lines: z.object({
         object: z.literal('list'),
