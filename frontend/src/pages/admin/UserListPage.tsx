@@ -1,6 +1,6 @@
 // frontend/src/pages/admin/UserListPage.tsx
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiGet, deleteUser, adminImportInvoices, apiPost, getImportedContacts, adminUpdateUser } from '../../lib/api.js';
 import type { User } from '@portal/shared';
 import AddUserModal from '../../components/modals/admin/AddUserModal.js';
@@ -88,6 +88,7 @@ function UserDetailEditor({ user, onUserUpdated, onCancel }: { user: User; onUse
 }
 
 function AdminDashboard() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -153,7 +154,7 @@ function AdminDashboard() {
 
   const toggleRow = (user_id: number) => {
     if (editinguser_id === user_id) return; // Prevent collapsing while editing
-    setExpandeduser_id(prevId => (prevId === user_id ? null : user_id));
+    navigate(`/admin/jobs/${user_id}`);
   };
 
   const filteredUsers = useMemo(() => {

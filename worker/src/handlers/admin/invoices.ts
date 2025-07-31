@@ -156,7 +156,7 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
                 const newJobId = uuidv4();
 
                 const jobInsertStmt = db.prepare(
-                    `INSERT INTO jobs (id, user_id, title, description, status, recurrence, stripe_invoice_id, invoice_createdAt, total_amount_cents, due) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                    `INSERT INTO jobs (id, user_id, title, description, status, recurrence, stripe_invoice_id, createdAt, total_amount_cents, due) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
                 ).bind(
                     newJobId,
                     user.id,
