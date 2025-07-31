@@ -161,6 +161,7 @@ export default function Navbar({ token, setToken, user }: Props) {
       <NavLink to="/dashboard" className={({ isActive }) => isActive ? activeLinkStyle : linkStyle}>Dashboard</NavLink>
       <NavLink to="/calendar" className={({ isActive }) => isActive ? activeLinkStyle : linkStyle}>Calendar</NavLink>
       <NavLink to="/photos" className={({ isActive }) => isActive ? activeLinkStyle : linkStyle}>Photos</NavLink>
+      <NavLink to="/chat" className={({ isActive }) => isActive ? activeLinkStyle : linkStyle}>Messages</NavLink>
       {user?.role === 'admin' && (
         <>
             <NavLink to="/admin/users" className={({ isActive }) => (isActive ? activeLinkStyle : linkStyle) + ' text-cyan-400'}>Users</NavLink>
@@ -175,6 +176,7 @@ export default function Navbar({ token, setToken, user }: Props) {
         <NavLink to="/dashboard" onClick={closeMobileMenu} className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileLinkStyle}>Dashboard</NavLink>
         <NavLink to="/calendar" onClick={closeMobileMenu} className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileLinkStyle}>Calendar</NavLink>
         <NavLink to="/photos" onClick={closeMobileMenu} className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileLinkStyle}>Photos</NavLink>
+        <NavLink to="/chat" onClick={closeMobileMenu} className={({isActive}) => isActive ? mobileActiveLinkStyle : mobileLinkStyle}>Messages</NavLink>
         {user?.role === 'admin' && (
            <>
             <NavLink to="/admin/users" onClick={closeMobileMenu} className={({isActive}) => (isActive ? mobileActiveLinkStyle : mobileLinkStyle) + ' text-cyan-400'}>Admin Users</NavLink>

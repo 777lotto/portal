@@ -318,3 +318,16 @@ export const UINotificationSchema = z.object({
   createdAt: z.string(),
 });
 export type UINotification = z.infer<typeof UINotificationSchema>;
+
+/* ========================================================================
+                            CHAT-SPECIFIC MODELS
+   ======================================================================== */
+
+export const ChatMessageSchema = z.object({
+  id: z.string(),
+  content: z.string(),
+  user: z.string(),
+  role: z.enum(['user', 'assistant', 'system']),
+  timestamp: z.number().optional(),
+});
+export type ChatMessage = z.infer<typeof ChatMessageSchema>;

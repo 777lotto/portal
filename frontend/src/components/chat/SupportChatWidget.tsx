@@ -1,19 +1,8 @@
-// frontend/src/components/SupportChatWidget.tsx
+// frontend/src/components/chat/SupportChatWidget.tsx
 import React, { useState, useEffect, useRef } from 'react';
+import type { ChatMessage, User } from '@portal/shared';
 
-interface ChatMessage {
-  user: string;
-  message: string;
-  timestamp: number;
-}
-
-// Define the type for the user prop
-interface UserPayload {
-  id: number;
-  role: 'customer' | 'admin';
-}
-
-const SupportChatWidget = ({ user }: { user: UserPayload }) => {
+const SupportChatWidget = ({ user }: { user: User }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -23,10 +12,8 @@ const SupportChatWidget = ({ user }: { user: UserPayload }) => {
     if (isOpen && !ws.current) {
       const token = localStorage.getItem("token");
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-
-      // MODIFICATION: Point to the dedicated chat service
-      const chatHost = 'chat.777.foo';
-      const roomId = user.id; // The room is unique to the logged-in user
+      const chatHost = window.location.host; // Use the main worker host
+      const roomId = user.id;
       const url = `${protocol}//${chatHost}/api/chat/${roomId}?token=${token}`;
 
       const socket = new WebSocket(url);
@@ -34,11 +21,10 @@ const SupportChatWidget = ({ user }: { user: UserPayload }) => {
       socket.onopen = () => console.log("Chat connected");
       socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        if (data.type === 'history' || data.type === 'all') { // The durable-chat worker uses 'all'
+        if (data.type === 'all') {
           setMessages(data.messages);
-        } else if (data.type === 'message' || data.type === 'add') { // The durable-chat worker uses 'add'
-          const newMessage = data.type === 'add' ? data : data.message;
-          setMessages(prev => [...prev, newMessage]);
+        } else if (data.type === 'add') {
+          setMessages(prev => [...prev, data]);
         }
       };
       ws.current = socket;
@@ -46,12 +32,11 @@ const SupportChatWidget = ({ user }: { user: UserPayload }) => {
       ws.current.close();
       ws.current = null;
     }
-  }, [isOpen, user]); // Add user to dependency array
+  }, [isOpen, user]);
 
   const sendMessage = () => {
     if (input.trim() && ws.current) {
-      // The durable-chat worker expects an object with a `content` property
-      ws.current.send(JSON.stringify({ type: 'add', content: input }));
+      ws.current.send(JSON.stringify({ content: input }));
       setInput('');
     }
   };
@@ -70,8 +55,8 @@ const SupportChatWidget = ({ user }: { user: UserPayload }) => {
           </div>
           <div className="card-body" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column-reverse' }}>
             <div>
-              {messages.map((msg, index) => (
-                <div key={msg.id || index} className={`chat-message ${msg.user === 'You' ? 'text-right' : ''}`}>
+              {messages.map((msg) => (
+                <div key={msg.id} className={`chat-message ${msg.role === 'user' ? 'text-right' : ''}`}>
                   <p><strong>{msg.user}:</strong> {msg.content}</p>
                 </div>
               ))}

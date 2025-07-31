@@ -81,6 +81,21 @@ const handleNotificationProxy = async (c: Context<AppEnv>) => {
     return await notificationService.fetch(newRequest);
 };
 
+const handleChatProxy = async (c: Context<AppEnv>) => {
+  const chatService = c.env.CUSTOMER_SUPPORT_CHAT;
+  if (!chatService) {
+    return c.json({ error: "Chat service is unavailable" }, 503);
+  }
+  const user = c.get('user');
+  const roomId = c.req.param('roomId');
+  const room = chatService.idFromName(roomId);
+  const stub = chatService.get(room);
+  const token = c.req.query('token');
+  const url = new URL(c.req.url);
+  url.searchParams.set('token', token || '');
+  return stub.fetch(url.toString(), c.req.raw);
+};
+
 /* ========================================================================
                                  APP SETUP
    ======================================================================== */
@@ -157,6 +172,8 @@ customerApi.get('/quotes/pending', getPendingQuotes);
 customerApi.get('/quotes/:quoteId', getQuoteById);
 customerApi.post('/quotes/:quoteId/decline', handleDeclineQuote);
 customerApi.post('/quotes/:quoteId/revise', handleReviseQuote);
+customerApi.get('/chat/:roomId', handleChatProxy);
+
 
 /* ========================================================================
                          ADMIN API ROUTES (Admin-Only)

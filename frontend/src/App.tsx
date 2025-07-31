@@ -4,12 +4,12 @@ import { useEffect, useState, lazy, Suspense } from "react";
 import { jwtDecode } from 'jwt-decode';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
-import SupportChatWidget from './components/chat/SupportChatWidget';
+import SupportChatWidget from './components/chat/SupportChatWidget.js';
 
 // --- Page Components ---
 import Navbar from "./components/Navbar.js";
 import Dashboard from "./components/Dashboard.js";
-import UnifiedCalendar from './components/UnifiedCalendar';
+import UnifiedCalendar from './components/UnifiedCalendar.js';
 const JobDetail = lazy(() => import("./components/JobDetail.js"));
 const QuoteProposalPage = lazy(() => import("./components/QuoteProposalPage.js"));
 const CalendarSync = lazy(() => import("./components/CalendarSync.js"));
@@ -22,7 +22,7 @@ const InvoicePaymentPage = lazy(() => import("./components/InvoicePaymentPage.js
 const AdminDashboard = lazy(() => import("./components/admin/AdminDashboard.js"));
 const AdminUserDetail = lazy(() => import("./components/admin/AdminUserDetail.js"));
 const JobsPage = lazy(() => import("./components/admin/JobsPage.js"));
-const AdminChat = lazy(() => import("./components/chat/admin/AdminChat.js"));
+const ChatPage = lazy(() => import("./pages/ChatPage.js"));
 
 
 interface UserPayload {
@@ -119,10 +119,10 @@ function App() {
               <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/auth" replace />} />
               <Route path="/account" element={token ? <AccountPage /> : <Navigate to="/auth" replace />} />
               <Route path="/pay-invoice/:invoiceId" element={token ? <InvoicePaymentPage /> : <Navigate to="/auth" replace />} />
+              <Route path="/chat" element={token ? <ChatPage /> : <Navigate to="/auth" replace />} />
               
 
               {/* --- Admin Routes --- */}
-              <Route path="/admin/chat" element={user?.role === 'admin' ? <AdminChat /> : <Navigate to="/dashboard" replace />} />
               <Route
                 path="/admin/users"
                 element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/dashboard" replace />}
@@ -146,7 +146,6 @@ function App() {
           </Suspense>
         </Elements>
       </main>
-      {token && user && <SupportChatWidget user={user} />}
     </div>
   );
 }

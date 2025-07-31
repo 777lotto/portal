@@ -1,12 +1,7 @@
-// 777lotto/portal/portal-fold/packages/durable-chat/src/server/index.ts
-import type { ChatMessage, User } from '@portal/shared';
+// packages/durable-chat/src/server/index.ts
+import type { ChatMessage, User, Env } from '@portal/shared';
 import { jwtVerify } from 'jose';
 import { nanoid } from 'nanoid';
-
-interface Env {
-  CHAT_ROOM: DurableObjectNamespace;
-  JWT_SECRET: string;
-}
 
 interface ChatSession {
   websocket: WebSocket;
@@ -67,11 +62,11 @@ export class ChatRoom {
 
     websocket.addEventListener("message", async (event) => {
       try {
-        const parsed = JSON.parse(event.data as string);
-        if (parsed.content) {
+        const { content } = JSON.parse(event.data as string);
+        if (content) {
           const chatMessage: ChatMessage = {
             id: nanoid(8),
-            content: parsed.content,
+            content,
             user: user.role === 'admin' ? 'Support' : (user.name || 'Customer'),
             role: user.role === 'admin' ? "assistant" : "user",
           };
@@ -84,23 +79,22 @@ export class ChatRoom {
       }
     });
 
-    websocket.addEventListener("close", () => {
+    const closeOrErrorHandler = () => {
       this.sessions = this.sessions.filter(s => s.websocket !== websocket);
-    });
-    websocket.addEventListener("error", () => {
-      this.sessions = this.sessions.filter(s => s.websocket !== websocket);
-    });
+    };
+    websocket.addEventListener("close", closeOrErrorHandler);
+    websocket.addEventListener("error", closeOrErrorHandler);
   }
 
   broadcast(message: string) {
-    for (const session of this.sessions) {
+    this.sessions = this.sessions.filter(session => {
       try {
         session.websocket.send(message);
+        return true;
       } catch (e) {
-        // Remove dead connections
-        this.sessions = this.sessions.filter(s => s !== session);
+        return false;
       }
-    }
+    });
   }
 }
 
