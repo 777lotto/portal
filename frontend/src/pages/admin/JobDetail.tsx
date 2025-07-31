@@ -1,56 +1,39 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
-import { apiGet, getLineItemsForJob, apiPost, apiPostFormData, adminFinalizeJob, markInvoiceAsPaid } from '../lib/api.js';
-import type { Job, LineItem, Photo, Note } from '@portal/shared';
+import { apiGet, getLineItemsForJob, apiPost, apiPostFormData, adminFinalizeJob, markInvoiceAsPaid, addInvoiceItem, deleteInvoiceItem, finalizeInvoice, getInvoice } from '../../lib/api.js';
+import type { Job, LineItem, Photo, Note, StripeInvoice, StripeInvoiceItem } from '@portal/shared';
 import { jwtDecode } from 'jwt-decode';
-import RecurrenceRequestModal from '../components/modals/RecurrenceRequestModal.js';
-import QuoteProposalModal from '../components/modals/QuoteProposalModal.js';
+import RecurrenceRequestModal from '../../components/modals/RecurrenceRequestModal.js';
+import QuoteProposalModal from '../../components/modals/QuoteProposalModal.js';
 
 interface UserPayload {
   id: number;
   role: 'customer' | 'admin';
 }
 
-// --- NEW: Helper function to parse RRULE string ---
 const parseRRule = (rrule: string | null | undefined): string => {
     if (!rrule) return 'Not set';
-
     const parts = rrule.split(';');
     const rules: Record<string, string> = {};
     parts.forEach(part => {
         const [key, value] = part.split('=');
-        if (key && value) {
-            rules[key] = value;
-        }
+        if (key && value) rules[key] = value;
     });
-
     const frequency = rules.FREQ;
     const interval = rules.INTERVAL ? parseInt(rules.INTERVAL, 10) : 1;
     const byDay = rules.BYDAY;
-
     let description = 'Recurs';
-
-    if (frequency === 'DAILY') {
-        description += interval > 1 ? ` every ${interval} days` : ' daily';
-    } else if (frequency === 'WEEKLY') {
-        description += interval > 1 ? ` every ${interval} weeks` : ' weekly';
-    } else if (frequency === 'MONTHLY') {
-        description += interval > 1 ? ` every ${interval} months` : ' monthly';
-    }
-
+    if (frequency === 'DAILY') description += interval > 1 ? ` every ${interval} days` : ' daily';
+    else if (frequency === 'WEEKLY') description += interval > 1 ? ` every ${interval} weeks` : ' weekly';
+    else if (frequency === 'MONTHLY') description += interval > 1 ? ` every ${interval} months` : ' monthly';
     if (byDay) {
-        const dayMap: Record<string, string> = {
-            SU: 'Sunday', MO: 'Monday', TU: 'Tuesday', WE: 'Wednesday',
-            TH: 'Thursday', FR: 'Friday', SA: 'Saturday'
-        };
+        const dayMap: Record<string, string> = { SU: 'Sunday', MO: 'Monday', TU: 'Tuesday', WE: 'Wednesday', TH: 'Thursday', FR: 'Friday', SA: 'Saturday' };
         const days = byDay.split(',').map(d => dayMap[d]).join(', ');
         description += ` on ${days}`;
     }
-
     return description;
 };
-
 
 function JobDetail() {
   const { id: jobId } = useParams<{ id: string }>();
@@ -58,6 +41,7 @@ function JobDetail() {
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [invoice, setInvoice] = useState<StripeInvoice | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<UserPayload | null>(null);
@@ -65,20 +49,18 @@ function JobDetail() {
   const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
-
-
-  // Editing States
   const [isEditingJob, setIsEditingJob] = useState(false);
   const [editingLineItem, setEditingLineItem] = useState<Partial<LineItem> | null>(null);
   const [newNote, setNewNote] = useState('');
   const [editedJobData, setEditedJobData] = useState<Partial<Job>>({});
+  const [isEditingInvoice, setIsEditingInvoice] = useState(false);
+  const [newInvoiceItem, setNewInvoiceItem] = useState({ description: '', amount: '' });
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
       try {
-        const decodedUser = jwtDecode<UserPayload>(token);
-        setUser(decodedUser);
+        setUser(jwtDecode<UserPayload>(token));
       } catch (e) {
         console.error("Invalid token:", e);
       }
@@ -100,6 +82,10 @@ function JobDetail() {
       setPhotos(photosData);
       setNotes(notesData);
       setEditedJobData(jobData);
+      if (jobData.stripe_invoice_id && jobData.status === 'invoice_draft') {
+        const invoiceData = await getInvoice(jobData.stripe_invoice_id);
+        setInvoice(invoiceData);
+      }
     } catch (err: any) {
       setError(err.message || 'An unknown error occurred.');
     } finally {
@@ -119,7 +105,7 @@ function JobDetail() {
       const uploadPromises = acceptedFiles.map(file => {
         const formData = new FormData();
         formData.append('photo', file);
-        formData.append('user_id', job.user_id);
+        formData.append('user_id', String(job.user_id));
         formData.append('job_id', jobId);
         return apiPostFormData(`/api/admin/users/${job.user_id}/photos`, formData);
       });
@@ -210,7 +196,6 @@ function JobDetail() {
   const handleAcceptQuote = async () => {
     if (!job?.id) return;
     try {
-        // Change this from /api/quotes/... to /api/jobs/...
         await apiPost(`/api/jobs/${job.id}/accept`, {});
         fetchJobDetails();
         setIsQuoteModalOpen(false);
@@ -219,7 +204,6 @@ function JobDetail() {
     }
 };
 
-// Update handleDeclineQuote similarly
 const handleDeclineQuote = async () => {
     if (!job?.id) return;
     try {
@@ -231,7 +215,6 @@ const handleDeclineQuote = async () => {
     }
 };
 
-// Update handleReviseQuote similarly
 const handleReviseQuote = async (revisionReason: string) => {
     if (!job?.id) return;
     try {
@@ -243,6 +226,52 @@ const handleReviseQuote = async (revisionReason: string) => {
     }
 };
 
+  const handleAddInvoiceItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newInvoiceItem.description || !newInvoiceItem.amount || !invoice) return;
+    setIsUpdating(true);
+    setError(null);
+    try {
+      const amountInCents = Math.round(parseFloat(newInvoiceItem.amount) * 100);
+      await addInvoiceItem(invoice.id, { description: newInvoiceItem.description, amount: amountInCents });
+      setNewInvoiceItem({ description: '', amount: '' });
+      fetchJobDetails();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDeleteInvoiceItem = async (itemId: string) => {
+    if (!window.confirm('Are you sure you want to delete this line item?') || !invoice) return;
+    setIsUpdating(true);
+    setError(null);
+    try {
+      await deleteInvoiceItem(invoice.id, itemId);
+      fetchJobDetails();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleFinalizeInvoice = async () => {
+    if (!window.confirm('This will finalize the invoice and send it to the customer. Are you sure?') || !invoice) return;
+    setIsUpdating(true);
+    setError(null);
+    try {
+      await finalizeInvoice(invoice.id);
+      setIsEditingInvoice(false);
+      fetchJobDetails();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const statusStyle = (status: string) => {
       switch (status.toLowerCase()) {
         case 'upcoming': return 'bg-yellow-100 text-yellow-800';
@@ -250,7 +279,7 @@ const handleReviseQuote = async (revisionReason: string) => {
         case 'completed':
         case 'paid':
              return 'bg-green-100 text-green-800';
-        case 'payment_pending': return 'bg-orange-100 text-orange-800';
+        case 'payment_needed': return 'bg-orange-100 text-orange-800';
         case 'past_due': return 'bg-red-100 text-red-800';
         case 'cancelled': return 'bg-gray-100 text-gray-800';
         default: return 'bg-gray-100 text-gray-800';
@@ -273,7 +302,7 @@ const handleReviseQuote = async (revisionReason: string) => {
           onSuccess={() => {
             setSuccessMessage(`Your recurrence ${hasRecurrence ? 'update' : 'request'} has been submitted.`);
             setTimeout(() => setSuccessMessage(null), 5000);
-            fetchJobDetails(); // Refresh job details to show new recurrence info
+            fetchJobDetails();
           }}
         />
       )}
@@ -301,19 +330,8 @@ const handleReviseQuote = async (revisionReason: string) => {
               ) : (
                   <h2 className="card-title">{job.title}</h2>
               )}
-              <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">{new Date(job.start).toLocaleString()}</p>
             </div>
             <div className="flex items-center gap-2">
-                    {job.status === 'pending' && user?.role === 'customer' && (
-                    <button className="btn btn-primary" onClick={() => setIsQuoteModalOpen(true)}>
-                        Respond to Quote
-                    </button>
-                )}
-                {user?.role === 'customer' && (
-                    <button className="btn btn-primary" onClick={() => setIsRecurrenceModalOpen(true)}>
-                        {hasRecurrence ? 'Alter Recurrence' : 'Request Recurrence'}
-                    </button>
-                )}
                 {user?.role === 'admin' && !isEditingJob && (
                     <button className="btn btn-secondary" onClick={() => setIsEditingJob(true)}>Edit Job</button>
                 )}
@@ -359,8 +377,7 @@ const handleReviseQuote = async (revisionReason: string) => {
                        {hasRecurrence && (
                         <div className="sm:col-span-1">
                            <dt className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Recurrence</dt>
-                           {/* --- MODIFIED: Display parsed rrule --- */}
-                           <dd className="mt-1 text-sm font-semibold">{parseRRule(job.rrule)}</dd>
+                           <dd className="mt-1 text-sm font-semibold">{parseRRule(job.recurrence)}</dd>
                         </div>
                       )}
                        {job.stripe_quote_id && (
@@ -373,12 +390,12 @@ const handleReviseQuote = async (revisionReason: string) => {
                            </dd>
                         </div>
                       )}
-                       {job.stripe_invoice_id && user?.role !== 'admin' && (
+                       {job.stripe_invoice_id && (
                         <div className="sm:col-span-1">
                            <dt className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Invoice</dt>
                            <dd className="mt-1 text-sm">
                                <Link to={`/pay-invoice/${job.stripe_invoice_id}`} className="text-event-blue hover:underline">
-                                   Pay Invoice
+                                   View Invoice
                                </Link>
                            </dd>
                         </div>
@@ -394,6 +411,9 @@ const handleReviseQuote = async (revisionReason: string) => {
                                 >
                                     {isUpdating ? 'Updating...' : 'Mark Paid'}
                                 </button>
+                                {job.status === 'invoice_draft' && (
+                                  <button onClick={() => setIsEditingInvoice(true)} className="btn btn-sm btn-secondary ml-2">Edit Draft Invoice</button>
+                                )}
                             </dd>
                         </div>
                        )}
@@ -406,6 +426,44 @@ const handleReviseQuote = async (revisionReason: string) => {
               </div>
           )}
         </div>
+
+        {isEditingInvoice && invoice && (
+          <div className="card">
+            <div className="card-header"><h3 className="card-title text-xl">Editing Draft Invoice: {invoice.id}</h3></div>
+            <div className="card-body">
+              <strong>Line Items:</strong>
+              {invoice.lines.data.length === 0 ? <p>No items yet.</p> : (
+                <ul>
+                  {invoice.lines.data.map((item: StripeInvoiceItem) => (
+                    <li key={item.id} className="flex justify-between items-center">
+                      <span>{item.description} - ${(item.amount / 100).toFixed(2)}</span>
+                      <button className="btn btn-sm btn-danger" onClick={() => handleDeleteInvoiceItem(item.id)} disabled={isUpdating}>X</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <form onSubmit={handleAddInvoiceItem} className="row g-3 align-items-end mb-4 mt-4">
+                <div className="col-md-6">
+                  <label htmlFor="description" className="form-label">Description</label>
+                  <input type="text" className="form-control" id="description" value={newInvoiceItem.description} onChange={(e) => setNewInvoiceItem({ ...newInvoiceItem, description: e.target.value })} required />
+                </div>
+                <div className="col-md-4">
+                  <label htmlFor="amount" className="form-label">Amount ($)</label>
+                  <input type="number" className="form-control" id="amount" step="0.01" value={newInvoiceItem.amount} onChange={(e) => setNewInvoiceItem({ ...newInvoiceItem, amount: e.target.value })} required />
+                </div>
+                <div className="col-md-2">
+                  <button type="submit" className="btn btn-info w-100" disabled={isUpdating}>Add</button>
+                </div>
+              </form>
+            </div>
+            <div className="card-footer flex justify-end gap-2">
+              <button className="btn btn-secondary" onClick={() => setIsEditingInvoice(false)}>Cancel</button>
+              <button className="btn btn-success" onClick={handleFinalizeInvoice} disabled={isUpdating || invoice.lines.data.length === 0}>
+                {isUpdating ? 'Finalizing...' : 'Finalize & Send'}
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="card">
             <div className="card-header flex justify-between items-center">
