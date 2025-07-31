@@ -4,7 +4,7 @@ import { errorResponse, successResponse } from '../../utils.js';
 import { Context } from 'hono';
 import type { AppEnv } from '../../index.js';
 import { getStripe, createStripeCustomer } from '../../stripe.js';
-import { AdminCreateUserSchema, type User } from '@portal/shared';
+import { AdminCreateUserSchema, type User, type Job, type Photo, type Note } from '@portal/shared';
 
 /**
  * Validates an address using the Google Geocoding API.
@@ -206,5 +206,47 @@ export async function handleAdminUpdateUser(c: Context<AppEnv>): Promise<Respons
         }
         console.error(`Failed to update user ${user_id}:`, e);
         return errorResponse('Failed to update user.', 500);
+    }
+}
+
+export async function handleAdminGetJobsForUser(c: Context<AppEnv>): Promise<Response> {
+    const { user_id } = c.req.param();
+    try {
+        const dbResponse = await c.env.DB.prepare(
+            `SELECT * FROM jobs WHERE user_id = ? ORDER BY createdAt DESC`
+        ).bind(Number(user_id)).all<Job>();
+        const jobs = dbResponse?.results || [];
+        return successResponse(jobs);
+    } catch (e: any) {
+        console.error(`Failed to get jobs for user ${user_id}:`, e);
+        return errorResponse("Failed to retrieve jobs for user.", 500);
+    }
+}
+
+export async function handleAdminGetPhotosForUser(c: Context<AppEnv>): Promise<Response> {
+    const { user_id } = c.req.param();
+    try {
+        const dbResponse = await c.env.DB.prepare(
+            `SELECT * FROM photos WHERE user_id = ? ORDER BY created_at DESC`
+        ).bind(Number(user_id)).all<Photo>();
+        const photos = dbResponse?.results || [];
+        return successResponse(photos);
+    } catch (e: any) {
+        console.error(`Failed to get photos for user ${user_id}:`, e);
+        return errorResponse("Failed to retrieve photos for user.", 500);
+    }
+}
+
+export async function handleAdminGetNotesForUser(c: Context<AppEnv>): Promise<Response> {
+    const { user_id } = c.req.param();
+    try {
+        const dbResponse = await c.env.DB.prepare(
+            `SELECT * FROM notes WHERE user_id = ? ORDER BY created_at DESC`
+        ).bind(Number(user_id)).all<Note>();
+        const notes = dbResponse?.results || [];
+        return successResponse(notes);
+    } catch (e: any) {
+        console.error(`Failed to get notes for user ${user_id}:`, e);
+        return errorResponse("Failed to retrieve notes for user.", 500);
     }
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import useSWR from 'swr';
-import { getSecretCalendarUrl, regenerateSecretCalendarUrl } from '../lib/api';
+import { getSecretCalendarUrl, regenerateSecretCalendarUrl } from '../../lib/api';
 
 function CalendarSync() {
   const { data, error, isLoading, mutate } = useSWR('/api/calendar/secret-url', getSecretCalendarUrl);

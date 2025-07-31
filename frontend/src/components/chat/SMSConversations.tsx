@@ -1,7 +1,7 @@
 // frontend/src/components/SMSConversations.tsx - CORRECTED
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getSmsConversations } from '../lib/api.js';
+import { getSmsConversations } from '../../lib/api.js';
 import type { Conversation } from '@portal/shared';
 
 function SMSConversations() {

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import useSWR from 'swr';
 import { apiGet } from '../../lib/api';
 import type { User } from '@portal/shared';
-import SupportChatWidget from '../chat/SupportChatWidget';
+import SupportChatWidget from '../../components/chat/SupportChatWidget';
 import { useAuth } from '../../hooks/useAuth';
 
 const AdminChatDashboard = () => {

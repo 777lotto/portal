@@ -13,10 +13,10 @@ import { useAuth } from '../hooks/useAuth';
 import { Job, CalendarEvent as ApiCalendarEvent } from '@portal/shared';
 
 // Modals
-import AddJobModal from './modals/admin/AddJobModal';
-import BlockDayModal from './modals/admin/AdminBlockDayModal';
-import EditJobModal from './modals/admin/EditJobModal';
-import BookingModal from './modals/BookingModal';
+import AddJobModal from '../components/modals/admin/AddJobModal';
+import BlockDayModal from '../components/modals/admin/AdminBlockDayModal';
+import EditJobModal from '../components/modals/admin/EditJobModal';
+import BookingModal from '../components/modals/BookingModal';
 
 const localizer = momentLocalizer(moment);
 

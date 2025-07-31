@@ -7,22 +7,22 @@ import { Elements } from '@stripe/react-stripe-js';
 import SupportChatWidget from './components/chat/SupportChatWidget';
 
 // --- Page Components ---
-import Navbar from "./components/Navbar";
-import Dashboard from "./components/Dashboard";
-import UnifiedCalendar from './components/UnifiedCalendar';
-const BookingPage = lazy(() => import("./components/BookingPage"));
-const JobDetail = lazy(() => import("./components/JobDetail"));
-const QuoteProposalPage = lazy(() => import("./components/QuoteProposalPage"));
-const CalendarSync = lazy(() => import("./components/CalendarSync"));
-const Photos = lazy(() => import("./components/Photos"));
-const AccountPage = lazy(() => import("./components/AccountPage"));
+import Navbar from "./pages/Navbar";
+import Dashboard from "./pages/Dashboard";
+import UnifiedCalendar from './pages/UnifiedCalendar';
+const BookingPage = lazy(() => import("./pages/BookingPage"));
+const JobDetail = lazy(() => import("./pages/JobDetail"));
+const QuoteProposalPage = lazy(() => import("./pages/QuoteProposalPage"));
+const CalendarSync = lazy(() => import("./components/forms/CalendarSync"));
+const Photos = lazy(() => import("./pages/Photos"));
+const AccountPage = lazy(() => import("./pages/AccountPage"));
 const AuthForm = lazy(() => import("./components/forms/AuthForm"));
-const InvoicePaymentPage = lazy(() => import("./components/InvoicePaymentPage"));
+const InvoicePaymentPage = lazy(() => import("./pages/InvoicePaymentPage"));
 
 // --- Admin Page Components ---
-const AdminDashboard = lazy(() => import("./components/admin/AdminDashboard"));
-const AdminUserDetail = lazy(() => import("./components/admin/AdminUserDetail"));
-const JobsPage = lazy(() => import("./components/admin/JobsPage"));
+const UserListPage = lazy(() => import("./pages/admin/UserListPage"));
+const UserDetailPage = lazy(() => import("./pages/admin/UserDetailPage"));
+const JobsPage = lazy(() => import("./pages/admin/JobsPage"));
 const ChatPage = lazy(() => import("./pages/ChatPage"));
 
 
@@ -126,11 +126,11 @@ function App() {
               {/* --- Admin Routes --- */}
               <Route
                 path="/admin/users"
-                element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/dashboard" replace />}
+                element={user?.role === 'admin' ? <UserListPage /> : <Navigate to="/dashboard" replace />}
               />
               <Route
                 path="/admin/users/:user_id"
-                element={user?.role === 'admin' ? <AdminUserDetail /> : <Navigate to="/dashboard" replace />}
+                element={user?.role === 'admin' ? <UserDetailPage /> : <Navigate to="/dashboard" replace />}
               />
               <Route
                 path="/admin/jobs"

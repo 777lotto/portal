@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import UnifiedCalendar from './UnifiedCalendar';
-import BookingModal from './modals/BookingModal';
+import BookingModal from '../components/modals/BookingModal';
 import { useAuth } from '../hooks/useAuth';
 
 const CalendarLegend = () => (

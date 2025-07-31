@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { verifyResetCode } from '../lib/api';
 import { ApiError } from '../../lib/fetchJson';
-import StyledDigitInput from '../StyledDigitInput'; // Make sure to import
+import StyledDigitInput from './StyledDigitInput';
 
 function VerifyCodeForm() {
   const [code, setCode] = useState('');

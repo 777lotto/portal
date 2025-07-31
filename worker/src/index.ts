@@ -1,4 +1,4 @@
-// 777lotto/portal/portal-fold/worker/src/index.ts
+// worker/src/index.ts
 /* ========================================================================
                         IMPORTS & INITIALIZATION
    ======================================================================== */
@@ -27,32 +27,41 @@ import { handleSmsProxy } from './sms.js';
                                ROUTE HANDLERS
    ======================================================================== */
 
-// --- Public Handlers ---
-import { handleInitializeSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './handlers/auth.js';
+/* --------------------------------------------------------------------- Public Handlers --------------------------------------------------------------------------------------- */
+// login
+import { handleInitializeSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './handlers/auth.js'
+// jobs
+import { getPendingQuotes, handleDeclineQuote, handleReviseQuote, getQuoteById } from './handlers/quotes.js';
+// payment
 import { handleStripeWebhook } from './handlers/stripe.js';
+// calendar
 import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed, handleAcceptQuote } from './handlers/public.js';
 import { handleGetCustomerAvailability } from './handlers/availability.js';
-import { getPendingQuotes, handleDeclineQuote, handleReviseQuote, getQuoteById } from './handlers/quotes.js';
 
-// --- Customer Handlers ---
+/* --------------------------------------------------------------------- Customer Handlers --------------------------------------------------------------------------------------- */
+// users
 import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent, handleGetNotifications, handleMarkAllNotificationsRead } from './handlers/profile.js';
+import { handlePortalSession } from './handlers/user.js';
+// jobs
 import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleGetCalendarEvents, handleAddCalendarEvent, handleRemoveCalendarEvent, handleAdminUpdateJobDetails, handleAdminAddLineItemToJob, handleAdminUpdateLineItemInJob, handleAdminDeleteLineItemFromJob, handleAdminCompleteJob, handleGetLineItemsForJob, handleGetOpenInvoicesForUser, handleCreateJob, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl } from './handlers/jobs.js';
+import { handleGetInvoiceForUser, handleCreatePaymentIntent, handleDownloadInvoicePdf } from './handlers/invoices.js';
+// calendar
+import { handleRequestRecurrence, handleGetRecurrenceRequests, handleUpdateRecurrenceRequest, handleGetUnavailableRecurrenceDays } from './handlers/recurrence.js';
+//content
 import { handleGetUserPhotos, handleGetPhotosForJob } from './handlers/photos.js';
 import { handleGetNotesForJob } from './handlers/notes.js';
-import { handlePortalSession } from './handlers/user.js';
-import { handleGetInvoiceForUser, handleCreatePaymentIntent, handleDownloadInvoicePdf } from './handlers/invoices.js';
-import { handleRequestRecurrence, handleGetRecurrenceRequests, handleUpdateRecurrenceRequest, handleGetUnavailableRecurrenceDays } from './handlers/recurrence.js';
 
-
-// --- Admin Handlers ---
-import { handleGetAllUsers, handleAdminDeleteUser, handleAdminCreateUser, handleAdminUpdateUser } from './handlers/admin/users.js';
-import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
-import { handleAdminAddNoteForUser } from './handlers/notes.js';
+/* --------------------------------------------------------------------- Admin Handlers --------------------------------------------------------------------------------------- */
+// users
+import { handleGetAllUsers, handleAdminDeleteUser, handleAdminCreateUser, handleAdminUpdateUser, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminGetNotesForUser } from './handlers/admin/users.js';
+// jobs
+import { handleGetJobsAndQuotes, handleAdminCreateJob, handleGetAllJobs } from './handlers/admin/jobs.js';
 import { handleAdminImportQuotes, handleAdminSendQuote } from './handlers/admin/quotes.js';
 import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminGetAllOpenInvoices, handleAdminMarkInvoiceAsPaid } from './handlers/admin/invoices.js';
-import { handleGetJobsAndQuotes, handleAdminCreateJob, handleGetAllJobs } from './handlers/admin/jobs.js';
 import { handleGetDrafts } from './handlers/admin/drafts.js';
-
+// content
+import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
+import { handleAdminAddNoteForUser } from './handlers/notes.js';
 
 /* ========================================================================
                        ENVIRONMENT & CLOUDFLARE TYPES
@@ -177,42 +186,55 @@ customerApi.get('/chat/:roomId', handleChatProxy);
 /* ========================================================================
                          ADMIN API ROUTES (Admin-Only)
    ======================================================================== */
-
+// get
 adminApi.get('/users', handleGetAllUsers);
-adminApi.post('/users', handleAdminCreateUser);
-adminApi.put('/users/:user_id', handleAdminUpdateUser);
-adminApi.post('/jobs/:jobId/quote/send', handleAdminSendQuote);
-adminApi.post('/quotes/import', handleAdminImportQuotes);
-adminApi.post('/users/:user_id/photos', handleAdminUploadPhotoForUser);
-adminApi.post('/users/:user_id/notes', handleAdminAddNoteForUser);
-adminApi.delete('/users/:user_id', handleAdminDeleteUser);
-adminApi.get('/calendar-events', handleGetCalendarEvents);
-adminApi.post('/calendar-events', handleAddCalendarEvent);
-adminApi.delete('/calendar-events/:eventId', handleRemoveCalendarEvent);
+
 adminApi.get('/jobs', handleGetAllJobs);
-adminApi.post('/jobs/:jobId/complete', handleAdminCompleteJob);
-adminApi.put('/jobs/:jobId/details', handleAdminUpdateJobDetails);
-adminApi.post('/jobs/:jobId/line-items', handleAdminAddLineItemToJob);
-adminApi.put('/jobs/:jobId/line-items/:lineItemId', handleAdminUpdateLineItemInJob);
-adminApi.delete('/jobs/:jobId/line-items/:lineItemId', handleAdminDeleteLineItemFromJob);
-adminApi.post('/invoices/import', handleAdminImportInvoices);
-adminApi.post('/users/:user_id/invoices/import', handleAdminImportInvoices);
+adminApi.get('/jobs/user/:user_id', handleAdminGetJobsForUser);
 adminApi.get('/invoices/open', handleAdminGetAllOpenInvoices);
 adminApi.get('/invoices/:invoiceId', handleAdminGetInvoice);
-adminApi.post('/invoices/:invoiceId/items', handleAdminAddInvoiceItem);
-adminApi.delete('/invoices/:invoiceId/items/:itemId', handleAdminDeleteInvoiceItem);
-adminApi.post('/invoices/:invoiceId/finalize', handleAdminFinalizeInvoice);
-adminApi.post('/invoices/:invoiceId/mark-as-paid', handleAdminMarkInvoiceAsPaid);
-adminApi.post('/import-contacts', handleAdminImportSelectedContacts);
-adminApi.post('/get-imported-contacts', handleGetImportedContacts);
 adminApi.get('/jobs-and-quotes', handleGetJobsAndQuotes);
-adminApi.get('/recurrence-requests', handleGetRecurrenceRequests);
-adminApi.put('/recurrence-requests/:requestId', handleUpdateRecurrenceRequest);
 adminApi.get('/drafts', handleGetDrafts);
 
-// CORRECTED: A single route for creating jobs, quotes, and invoices
-adminApi.post('/jobs', handleAdminCreateJob);
+adminApi.get('/calendar-events', handleGetCalendarEvents);
+adminApi.get('/recurrence-requests', handleGetRecurrenceRequests);
 
+adminApi.get('/photos/user/:user_id', handleAdminGetPhotosForUser);
+adminApi.get('/notes/user/:user_id', handleAdminGetNotesForUser);
+
+// put
+adminApi.put('/users/:user_id', handleAdminUpdateUser);
+adminApi.put('/jobs/:jobId/details', handleAdminUpdateJobDetails);
+adminApi.put('/jobs/:jobId/line-items/:lineItemId', handleAdminUpdateLineItemInJob);
+adminApi.put('/recurrence-requests/:requestId', handleUpdateRecurrenceRequest);
+
+// post
+adminApi.post('/users/:user_id/invoices/import', handleAdminImportInvoices);
+adminApi.post('/get-imported-contacts', handleGetImportedContacts);
+adminApi.post('/import-contacts', handleAdminImportSelectedContacts);
+adminApi.post('/users', handleAdminCreateUser);
+
+adminApi.post('/quotes/import', handleAdminImportQuotes);
+adminApi.post('/invoices/import', handleAdminImportInvoices);
+adminApi.post('/jobs', handleAdminCreateJob);
+adminApi.post('/jobs/:jobId/line-items', handleAdminAddLineItemToJob);
+adminApi.post('/jobs/:jobId/complete', handleAdminCompleteJob);
+adminApi.post('/jobs/:jobId/quote/send', handleAdminSendQuote);
+adminApi.post('/invoices/:invoiceId/items', handleAdminAddInvoiceItem);
+adminApi.post('/invoices/:invoiceId/finalize', handleAdminFinalizeInvoice);
+adminApi.post('/invoices/:invoiceId/mark-as-paid', handleAdminMarkInvoiceAsPaid);
+
+adminApi.post('/users/:user_id/photos', handleAdminUploadPhotoForUser);
+adminApi.post('/users/:user_id/notes', handleAdminAddNoteForUser);
+
+// delete
+adminApi.delete('/users/:user_id', handleAdminDeleteUser);
+
+adminApi.delete('/jobs/:jobId/line-items/:lineItemId', handleAdminDeleteLineItemFromJob);
+adminApi.delete('/invoices/:invoiceId/items/:itemId', handleAdminDeleteInvoiceItem);
+
+adminApi.delete('/calendar-events/:eventId', handleRemoveCalendarEvent);
+adminApi.post('/calendar-events', handleAddCalendarEvent);
 
 /* ========================================================================
                               ROUTER REGISTRATION
