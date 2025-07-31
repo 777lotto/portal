@@ -4,26 +4,25 @@ import { useEffect, useState, lazy, Suspense } from "react";
 import { jwtDecode } from 'jwt-decode';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
-import SupportChatWidget from './components/SupportChatWidget';
+import SupportChatWidget from './components/chat/SupportChatWidget';
 
 // --- Page Components ---
 import Navbar from "./components/Navbar.js";
 import Dashboard from "./components/Dashboard.js";
-const JobCalendar = lazy(() => import("./components/Calendar.js"));
+import UnifiedCalendar from './components/UnifiedCalendar';
 const JobDetail = lazy(() => import("./components/JobDetail.js"));
 const QuoteProposalPage = lazy(() => import("./components/QuoteProposalPage.js"));
 const CalendarSync = lazy(() => import("./components/CalendarSync.js"));
-const BookingPage = lazy(() => import("./components/BookingPage.js"));
 const Photos = lazy(() => import("./components/Photos.js"));
 const AccountPage = lazy(() => import("./components/AccountPage.js"));
-const AuthForm = lazy(() => import("./components/AuthForm.js"));
+const AuthForm = lazy(() => import("./components/forms/AuthForm.js"));
 const InvoicePaymentPage = lazy(() => import("./components/InvoicePaymentPage.js"));
 
 // --- Admin Page Components ---
 const AdminDashboard = lazy(() => import("./components/admin/AdminDashboard.js"));
 const AdminUserDetail = lazy(() => import("./components/admin/AdminUserDetail.js"));
 const JobsPage = lazy(() => import("./components/admin/JobsPage.js"));
-const AdminChat = lazy(() => import("./components/admin/AdminChat.js"));
+const AdminChat = lazy(() => import("./components/chat/admin/AdminChat.js"));
 
 
 interface UserPayload {
@@ -113,7 +112,7 @@ function App() {
 
               {/* --- Customer-facing Routes --- */}
               <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/auth" replace />} />
-              <Route path="/calendar" element={token ? <JobCalendar /> : <Navigate to="/auth" replace />} />
+              <Route path="/calendar" element={token ? <UnifiedCalendar /> : <Navigate to="/auth" replace />} />
               <Route path="/photos" element={token ? <Photos /> : <Navigate to="/auth" replace />} />
               <Route path="/jobs/:id" element={token ? <JobDetail /> : <Navigate to="/auth" replace />} />
               <Route path="/quotes/:quoteId" element={token ? <QuoteProposalPage /> : <Navigate to="/auth" replace />} />

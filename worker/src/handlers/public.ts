@@ -96,7 +96,7 @@ export const handleCreateBooking = async (c: Context<AppEnv>) => {
       return errorResponse("Invalid security token. Please try again.", 403);
   }
 
-  const { name, email, phone, address, date, services } = parsed.data;
+  const { name, email, phone, address, date, lines } = parsed.data;
   const lowercasedEmail = email.toLowerCase();
   const cleanedPhone = phone.replace(/\D/g, '').slice(-10);
 
@@ -155,7 +155,7 @@ export const handleCreateBooking = async (c: Context<AppEnv>) => {
     // Create the job(s)
     let currentStartTime = new Date(`${date}T09:00:00`);
 
-    for (const service of services) {
+    for (const service of lines) {
       const endTime = new Date(currentStartTime.getTime() + service.duration * 60 * 60 * 1000);
       const jobData = {
         title: service.name,

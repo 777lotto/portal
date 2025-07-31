@@ -128,14 +128,15 @@ export type PhotoWithNotes = z.infer<typeof PhotoWithNotesSchema>;
 
 // Renamed from BlockedDateSchema
  export const CalendarEventSchema = z.object({
-   id: z.number(),
-   title: z.string(),
-   start: z.string(), // ISO date string
-   end: z.string(), // ISO date string
-   type: z.enum(['job', 'blocked', 'personal']),
-   job_id: z.string().optional().nullable(),
-   user_id: z.number().optional().nullable(),
- });
+  id: z.number(),
+  title: z.string(),
+  start: z.string(), // ISO date string
+  end: z.string(), // ISO date string
+  type: z.enum(['job', 'blocked', 'personal']),
+  job_id: z.string().optional().nullable(),
+  user_id: z.number().optional().nullable(),
+  createdAt: z.string(), // Use createdAt to match the latest migration
+});
  export type CalendarEvent = z.infer<typeof CalendarEventSchema>;
 
  export const AdminCreateUserSchema = z.object({
@@ -302,18 +303,6 @@ export interface Env {
   SMS_FROM_NUMBER?: string;
   VOIPMS_USERNAME?: string;
   VOIPMS_PASSWORD?: string;
-}
-
-export interface CalendarEvent {
-  id: number;
-  title: string;
-  start: string;
-  end: string;
-  type: 'job' | 'blocked' | 'personal';
-  reason?: string;
-  job_id?: string;
-  user_id?: number;
-  createdAt: string;
 }
 
 /* ========================================================================

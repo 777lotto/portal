@@ -4,8 +4,8 @@ import { useDropzone } from 'react-dropzone';
 import { apiGet, getLineItemsForJob, apiPost, apiPostFormData, adminFinalizeJob, markInvoiceAsPaid } from '../lib/api.js';
 import type { Job, LineItem, Photo, Note } from '@portal/shared';
 import { jwtDecode } from 'jwt-decode';
-import RecurrenceRequestModal from './RecurrenceRequestModal.js';
-import QuoteProposalModal from './QuoteProposalModal.js';
+import RecurrenceRequestModal from './modals/RecurrenceRequestModal.js';
+import QuoteProposalModal from './modals/QuoteProposalModal.js';
 
 interface UserPayload {
   id: number;

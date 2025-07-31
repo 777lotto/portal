@@ -6,8 +6,8 @@ import useSWR, { KeyedMutator } from 'swr';
 import { format } from 'date-fns';
 
 // Utilities and Hooks
-import { apiGet } from '../../utils/api'; // Assuming this path is correct
-import { useAuth } from '../../hooks/useAuth';
+import { apiGet } from '../lib/api'; // Assuming this path is correct
+import { useAuth } from '../hooks/useAuth';
 
 // Shared Types
 import { Job, CalendarEvent as ApiCalendarEvent } from '@portal/shared';
@@ -15,7 +15,7 @@ import { Job, CalendarEvent as ApiCalendarEvent } from '@portal/shared';
 // Modals
 import AddJobModal from './modals/admin/AddJobModal';
 import BlockDayModal from './modals/admin/AdminBlockDayModal';
-import JobSummaryModal from './modals/JobSummaryModal';
+import EditJobModal from './modals/admin/EditJobModal';
 import BookingModal from './modals/BookingModal';
 
 const localizer = momentLocalizer(moment);
