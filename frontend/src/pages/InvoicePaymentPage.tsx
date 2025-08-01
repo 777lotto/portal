@@ -1,22 +1,19 @@
-// 777lotto/portal/portal-fold/frontend/src/components/InvoicePaymentPage.tsx
-
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { apiGet, apiPost } from '../lib/api';
+// Import the new 'api' client.
+import { api } from '../lib/api';
+import { ApiError } from '../lib/fetchJson';
 import type { StripeInvoice, StripeInvoiceItem } from '@portal/shared';
 import { loadStripe } from '@stripe/stripe-js';
 import {
   Elements,
-  PaymentElement, // MODIFIED: Import PaymentElement instead of CardElement
+  PaymentElement,
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js';
 
-// This promise should be defined outside of the component to avoid re-creating it on every render.
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PK);
 
-// --- NEW ---
-// A small component to show a payment status message after redirection.
 function PaymentStatus() {
   const [searchParams] = useSearchParams();
   const message = searchParams.get('redirect_status') === 'succeeded'
@@ -30,7 +27,6 @@ function PaymentStatus() {
   );
 }
 
-// MODIFIED: This is the updated CheckoutForm using the Payment Element
 const CheckoutForm = ({ invoice }: { invoice: StripeInvoice }) => {
   const stripe = useStripe();
   const elements = useElements();
@@ -39,20 +35,16 @@ const CheckoutForm = ({ invoice }: { invoice: StripeInvoice }) => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!stripe || !elements) {
-      return;
-    }
+    if (!stripe || !elements) return;
     setIsProcessing(true);
 
     const { error: submitError } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        // This is where Stripe will redirect the user after payment.
         return_url: `${window.location.origin}/pay-invoice/${invoice.id}`,
       },
     });
 
-    // This point will only be reached if there is an immediate error.
     if (submitError) {
       setError(submitError.message || 'An unexpected error occurred.');
       setIsProcessing(false);
@@ -64,7 +56,7 @@ const CheckoutForm = ({ invoice }: { invoice: StripeInvoice }) => {
       {error && <div className="alert alert-danger">{error}</div>}
       <PaymentElement />
       <button type="submit" className="btn btn-primary mt-4 w-full" disabled={isProcessing || !stripe}>
-        {isProcessing ? 'Processing...' : `Pay $${(invoice.total / 100).toFixed(2)}`}
+        {isProcessing ? 'Processing...' : `Pay $${((invoice.total || 0) / 100).toFixed(2)}`}
       </button>
     </form>
   );
@@ -73,41 +65,52 @@ const CheckoutForm = ({ invoice }: { invoice: StripeInvoice }) => {
 
 function InvoicePaymentPage() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
-  const [searchParams] = useSearchParams(); // To check for redirect status
+  const [searchParams] = useSearchParams();
 
   const [invoice, setInvoice] = useState<StripeInvoice | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isDownloading, setIsDownloading] = useState(false); // NEW: State for PDF download
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     if (invoiceId) {
-      Promise.all([
-        apiGet<StripeInvoice>(`/api/invoices/${invoiceId}`),
-        apiPost<{ clientSecret: string }>(`/api/invoices/${invoiceId}/create-payment-intent`, {})
-      ])
-      .then(([invoiceData, intentData]) => {
-        setInvoice(invoiceData);
-        setClientSecret(intentData.clientSecret);
-      })
-      .catch(err => setError(err.message))
-      .finally(() => setIsLoading(false));
+      const fetchData = async () => {
+        try {
+          // --- UPDATED ---
+          const [invoiceRes, intentRes] = await Promise.all([
+            api.invoices[':invoiceId'].$get({ param: { invoiceId } }),
+            api.invoices[':invoiceId']['create-payment-intent'].$post({ param: { invoiceId } })
+          ]);
+
+          if (!invoiceRes.ok) throw new Error('Failed to fetch invoice data');
+          if (!intentRes.ok) throw new Error('Failed to create payment intent');
+
+          const invoiceData = await invoiceRes.json();
+          const intentData = await intentRes.json();
+          // --- END UPDATE ---
+
+          setInvoice(invoiceData);
+          setClientSecret(intentData.clientSecret);
+        } catch (err: any) {
+          setError(err.message);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchData();
     }
   }, [invoiceId]);
 
-  // --- NEW ---
-  // This function handles the PDF download.
   const handleDownloadPdf = async () => {
     if (!invoiceId) return;
     setIsDownloading(true);
     setError(null);
     try {
-      const token = localStorage.getItem("token");
+      // This uses fetch directly to handle the file blob response.
+      // Our custom fetchJson adds the auth header automatically.
       const response = await fetch(`/api/invoices/${invoiceId}/pdf`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          headers: { 'Authorization': `Bearer ${localStorage.getItem("token")}` }
       });
 
       if (!response.ok) {
@@ -118,7 +121,7 @@ function InvoicePaymentPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `invoice-${invoice.number || invoiceId}.pdf`;
+      a.download = `invoice-${invoice?.number || invoiceId}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -141,12 +144,7 @@ function InvoicePaymentPage() {
       <div className="card">
         <div className="card-header flex justify-between items-center">
           <h2 className="card-title">Invoice #{invoice.number}</h2>
-          {/* --- NEW: PDF DOWNLOAD BUTTON --- */}
-          <button
-            onClick={handleDownloadPdf}
-            className="btn btn-secondary"
-            disabled={isDownloading}
-          >
+          <button onClick={handleDownloadPdf} className="btn btn-secondary" disabled={isDownloading}>
             {isDownloading ? 'Downloading...' : 'Download PDF'}
           </button>
         </div>
@@ -161,10 +159,9 @@ function InvoicePaymentPage() {
           </div>
           <div className="flex justify-between mb-6">
             <span>Total Due:</span>
-            <span className="font-semibold text-2xl">${(invoice.total / 100).toFixed(2)}</span>
+            <span className="font-semibold text-2xl">${((invoice.total || 0) / 100).toFixed(2)}</span>
           </div>
 
-          {/* --- NEW: LINE ITEMS TABLE --- */}
           <div className="mb-6">
             <h3 className="text-lg font-semibold mb-2">Invoice Details</h3>
             <table className="min-w-full divide-y divide-border-light dark:divide-border-dark">
@@ -178,14 +175,13 @@ function InvoicePaymentPage() {
                 {(invoice.lines?.data || []).map((item: StripeInvoiceItem) => (
                   <tr key={item.id}>
                     <td className="px-4 py-2 whitespace-nowrap">{item.description}</td>
-                    <td className="px-4 py-2 whitespace-nowrap text-right">${(item.amount / 100).toFixed(2)}</td>
+                    <td className="px-4 py-2 whitespace-nowrap text-right">${((item.amount || 0) / 100).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* --- MODIFIED: PAYMENT ELEMENT LOGIC --- */}
           {showPaymentStatus ? (
             <PaymentStatus />
           ) : invoice.status === 'open' && clientSecret ? (

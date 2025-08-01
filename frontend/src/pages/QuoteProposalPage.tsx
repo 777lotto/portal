@@ -1,19 +1,29 @@
-// frontend/src/components/QuoteProposalPage.tsx
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
-import { apiGet, apiPost } from '../lib/api';
-import type { Job, Service } from '@portal/shared';
+// Import the new 'api' client.
+import { api } from '../lib/api';
+import { ApiError } from '../lib/fetchJson';
+import type { Job, LineItem } from '@portal/shared';
 
 interface QuoteDetails extends Job {
-    services: Service[];
+    lineItems: LineItem[];
     customerName?: string;
+}
+
+// --- SWR Fetcher for Quote Details ---
+const quoteFetcher = async (url: string) => {
+    const quoteId = url.split('/').pop();
+    if (!quoteId) throw new Error('Invalid quote ID');
+    const res = await api.quotes[':quoteId'].$get({ param: { quoteId } });
+    if (!res.ok) throw new Error('Failed to fetch quote details');
+    return res.json();
 }
 
 function QuoteProposalPage() {
     const { quoteId } = useParams<{ quoteId: string }>();
     const navigate = useNavigate();
-    const { data: quote, error, mutate } = useSWR<QuoteDetails>(quoteId ? `/api/quotes/${quoteId}` : null, apiGet);
+    const { data: quote, error, mutate } = useSWR<QuoteDetails>(quoteId ? `/api/quotes/${quoteId}` : null, quoteFetcher);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
     const [revisionReason, setRevisionReason] = useState('');
@@ -23,7 +33,10 @@ function QuoteProposalPage() {
         setActionError(null);
         setIsSubmitting(true);
         try {
-            await apiPost(`/api/quotes/${quoteId}/accept`, {});
+            // --- UPDATED ---
+            const res = await api.quotes[':quoteId'].accept.$post({ param: { quoteId: quoteId! } });
+            if (!res.ok) throw new Error('Failed to accept quote');
+            // --- END UPDATE ---
             mutate();
             navigate('/dashboard', { state: { message: 'Quote accepted successfully!' } });
         } catch (err: any) {
@@ -37,7 +50,10 @@ function QuoteProposalPage() {
         setActionError(null);
         setIsSubmitting(true);
         try {
-            await apiPost(`/api/quotes/${quoteId}/decline`, {});
+            // --- UPDATED ---
+            const res = await api.quotes[':quoteId'].decline.$post({ param: { quoteId: quoteId! } });
+            if (!res.ok) throw new Error('Failed to decline quote');
+            // --- END UPDATE ---
             mutate();
             navigate('/dashboard', { state: { message: 'Quote declined.' } });
         } catch (err: any) {
@@ -55,7 +71,13 @@ function QuoteProposalPage() {
         setActionError(null);
         setIsSubmitting(true);
         try {
-            await apiPost(`/api/quotes/${quoteId}/revise`, { revisionReason });
+            // --- UPDATED ---
+            const res = await api.quotes[':quoteId'].revise.$post({
+                param: { quoteId: quoteId! },
+                json: { revisionReason }
+            });
+            if (!res.ok) throw new Error('Failed to submit revision');
+            // --- END UPDATE ---
             mutate();
             setIsRevising(false);
             navigate('/dashboard', { state: { message: 'Revision request submitted.' } });
@@ -69,7 +91,7 @@ function QuoteProposalPage() {
     if (error) return <div className="rounded-md bg-red-100 p-4 text-sm text-red-700">Failed to load quote details.</div>;
     if (!quote) return <div className="text-center p-8">Loading...</div>;
 
-    const total = quote.services.reduce((acc, service) => acc + (service.total_amount_cents || 0), 0);
+    const total = quote.lineItems.reduce((acc, item) => acc + (item.unit_total_amount_cents || 0) * item.quantity, 0);
 
     const isActionable = quote.status === 'pending';
 
@@ -92,10 +114,10 @@ function QuoteProposalPage() {
             <div className="mb-8">
                 <h4 className="text-xl font-semibold mb-4 border-b pb-2">Line Items</h4>
                 <div className="space-y-3">
-                    {quote.services.map(service => (
-                        <div key={service.id} className="flex justify-between items-center p-3 rounded-md bg-gray-50 dark:bg-gray-800">
-                            <span>{service.notes}</span>
-                            <span className="font-semibold">${((service.total_amount_cents || 0) / 100).toFixed(2)}</span>
+                    {quote.lineItems.map(item => (
+                        <div key={item.id} className="flex justify-between items-center p-3 rounded-md bg-gray-50 dark:bg-gray-800">
+                            <span>{item.description}</span>
+                            <span className="font-semibold">${((item.unit_total_amount_cents || 0) / 100).toFixed(2)}</span>
                         </div>
                     ))}
                 </div>

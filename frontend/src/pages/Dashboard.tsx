@@ -1,8 +1,20 @@
-// 777lotto/portal/portal-fold/frontend/src/components/Dashboard.tsx
+// frontend/src/pages/Dashboard.tsx
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getProfile, getJobs, getOpenInvoices, adminGetAllJobs, adminGetAllOpenInvoices, getPendingQuotes, adminGetDrafts } from '../lib/api.js';
+// Import the new 'api' client.
+import { api } from '../lib/api';
+import { ApiError } from '../lib/fetchJson';
 import type { User, Job, DashboardInvoice } from '@portal/shared';
+
+// Helper function to handle API responses
+async function fetchAndParse<T>(promise: Promise<Response>): Promise<T> {
+    const res = await promise;
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'An unknown error occurred' }));
+        throw new ApiError(errorData.error || `Request failed with status ${res.status}`, res.status);
+    }
+    return res.json() as Promise<T>;
+}
 
 function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
@@ -19,12 +31,14 @@ function Dashboard() {
     setDownloadingInvoiceId(invoiceId);
     setError(null);
     try {
-      const token = localStorage.getItem("token");
+      // --- UPDATED ---
+      // This still uses fetch directly because it's handling a blob (file),
+      // but we can use our custom fetchJson wrapper which adds the auth header.
+      // Note: The custom fetchJson needs to be able to handle non-JSON responses.
       const response = await fetch(`/api/invoices/${invoiceId}/pdf`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem("token")}` }
       });
+      // --- END UPDATE ---
 
       if (!response.ok) {
         throw new Error('Failed to download invoice. Please try again.');
@@ -52,31 +66,32 @@ function Dashboard() {
       try {
         setIsLoading(true);
         setError(null);
-        const profileData = await getProfile();
+
+        // --- UPDATED ---
+        const profileData = await fetchAndParse<User>(api.profile.$get());
         setUser(profileData);
 
-        const [quotesData] = await Promise.all([
-            getPendingQuotes()
-        ]);
+        const quotesData = await fetchAndParse<Job[]>(api.quotes.pending.$get());
         setPendingQuotes(quotesData);
 
         if (profileData.role === 'admin') {
           const [jobsData, invoicesData, draftsData] = await Promise.all([
-            adminGetAllJobs(),
-            adminGetAllOpenInvoices(),
-            adminGetDrafts(),
+            fetchAndParse<Job[]>(api.admin.jobs.$get()),
+            fetchAndParse<DashboardInvoice[]>(api.admin.invoices.open.$get()),
+            fetchAndParse<any[]>(api.admin.drafts.$get()),
           ]);
           setUpcomingJobs(jobsData.filter(j => j.status !== 'pending' && j.status !== 'draft').slice(0, 10));
           setOpenInvoices(invoicesData);
           setDrafts(draftsData);
         } else {
           const [jobsData, invoicesData] = await Promise.all([
-            getJobs(),
-            getOpenInvoices(),
+            fetchAndParse<Job[]>(api.jobs.$get()),
+            fetchAndParse<DashboardInvoice[]>(api.invoices.open.$get()),
           ]);
           setUpcomingJobs(jobsData.filter(j => j.status !== 'pending' && j.status !== 'draft').slice(0, 5));
           setOpenInvoices(invoicesData);
         }
+        // --- END UPDATE ---
 
       } catch (err: any) {
         setError(err.message);
@@ -95,14 +110,13 @@ function Dashboard() {
       <header className="flex justify-between items-center mb-6">
         {user && <h1 className="text-3xl font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark">Welcome, {user.name}!</h1>}
         {user?.role !== 'admin' && (
-          <Link to="/schedule" className="btn btn-primary">
+          <Link to="/booking" className="btn btn-primary">
             Schedule Next Service
           </Link>
         )}
       </header>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Upcoming Jobs Card */}
-        <div className="bg-primary-light dark:bg-tertiary-dark shadow-sm rounded-lg p-6 border border-border-light dark:border-border-dark">
+        <div className="card p-6">
           <h3 className="text-xl font-semibold mb-4 text-text-primary-light dark:text-text-primary-dark">
             {user?.role === 'admin' ? "All Upcoming Jobs" : "Your Upcoming Jobs"}
           </h3>
@@ -117,8 +131,7 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* Pending Quotes Card */}
-        <div className="bg-primary-light dark:bg-tertiary-dark shadow-sm rounded-lg p-6 border border-border-light dark:border-border-dark">
+        <div className="card p-6">
             <h3 className="text-xl font-semibold mb-4 text-text-primary-light dark:text-text-primary-dark">
                 Pending Quotes
             </h3>
@@ -134,9 +147,8 @@ function Dashboard() {
             </div>
         </div>
 
-        {/* Drafts Card */}
         {user?.role === 'admin' && (
-          <div className="bg-primary-light dark:bg-tertiary-dark shadow-sm rounded-lg p-6 border border-border-light dark:border-border-dark">
+          <div className="card p-6">
             <h3 className="text-xl font-semibold mb-4 text-text-primary-light dark:text-text-primary-dark">
               Drafts
             </h3>
@@ -153,27 +165,20 @@ function Dashboard() {
           </div>
         )}
 
-        {/* Open Invoices Card */}
-         <div className="bg-primary-light dark:bg-tertiary-dark shadow-sm rounded-lg p-6 border border-border-light dark:border-border-dark">
+         <div className="card p-6">
            <h3 className="text-xl font-semibold mb-4 text-text-primary-light dark:text-text-primary-dark">
             {user?.role === 'admin' ? "All Open Invoices" : "Your Open Invoices"}
            </h3>
            <div className="space-y-3">
             {openInvoices.length > 0 ? (
               openInvoices.map(invoice => {
-                // --- MODIFICATION START ---
-                // Determine the correct link based on user role.
                 const invoiceLink = user?.role === 'admin'
-                  ? `/admin/jobs/${invoice.job_id}` // Admins go to the user detail page
-                  : `/pay-invoice/${invoice.id}`;     // Customers go to the internal payment page
-
-                // Both admins and customers will use the internal Link component.
-                const linkProps = { to: invoiceLink };
-                // --- MODIFICATION END ---
+                  ? `/admin/jobs/${(invoice as any).job_id}`
+                  : `/pay-invoice/${invoice.id}`;
 
                 return (
                   <div key={invoice.id} className="flex justify-between items-center p-3 rounded-md transition hover:bg-secondary-light dark:hover:bg-secondary-dark">
-                    <Link {...linkProps} className="flex-grow">
+                    <Link to={invoiceLink} className="flex-grow">
                       <div className="flex justify-between">
                         <span>
                           {user?.role === 'admin' && invoice.customerName ? `${invoice.customerName} - ` : ''}

@@ -1,12 +1,10 @@
-// frontend/src/components/Navbar.tsx
-
 import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import useSWR from 'swr';
 import { formatDistanceToNow } from 'date-fns';
-import { apiGet, apiPost, logout } from '../lib/api';
+// Import the new 'api' client.
+import { api } from '../lib/api';
 import { UINotification } from '@portal/shared';
-
 import companyLogo from '../assets/777-solutions.svg';
 
 interface UserPayload {
@@ -19,14 +17,22 @@ interface Props {
   setToken: (token: string | null) => void;
   user: UserPayload | null;
 }
+
 const BellIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
   </svg>
 );
 
+// --- SWR Fetcher for Notifications ---
+const notificationsFetcher = async () => {
+    const res = await api.notifications.$get();
+    if (!res.ok) throw new Error('Failed to fetch notifications');
+    return res.json();
+};
+
 function NotificationBell() {
-  const { data: notifications, error, mutate } = useSWR<UINotification[]>('/api/notifications', apiGet, { refreshInterval: 30000 });
+  const { data: notifications, mutate } = useSWR<UINotification[]>('/api/notifications', notificationsFetcher, { refreshInterval: 30000 });
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -43,12 +49,15 @@ function NotificationBell() {
   }, []);
 
   const handleMarkAllAsRead = async () => {
+      // Optimistically update the UI
       const updatedNotifications = notifications?.map(n => ({...n, is_read: 1}));
       mutate(updatedNotifications, false);
       try {
-          await apiPost('/api/notifications/read-all', {});
+          // --- UPDATED ---
+          await api.notifications['read-all'].$post({});
+          // --- END UPDATE ---
       } catch (error) {
-          mutate(); // revert on error
+          mutate(); // Revert on error
           console.error("Failed to mark all as read", error);
       }
   }
@@ -101,24 +110,16 @@ export default function Navbar({ token, setToken, user }: Props) {
   const userMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
-  // Check initial theme and set up listener
   useEffect(() => {
     const useDark = window.matchMedia("(prefers-color-scheme: dark)").matches || document.documentElement.classList.contains('dark');
     setIsDarkMode(useDark);
-    if (useDark) {
-      document.documentElement.classList.add('dark');
-    }
+    if (useDark) document.documentElement.classList.add('dark');
   }, []);
 
-  // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-        setIsUserMenuOpen(false);
-      }
-      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
-        setIsMobileMenuOpen(false);
-      }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) setIsUserMenuOpen(false);
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) setIsMobileMenuOpen(false);
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -126,7 +127,9 @@ export default function Navbar({ token, setToken, user }: Props) {
 
   const handleLogout = async () => {
     try {
-      await logout();
+      // --- UPDATED ---
+      await api.logout.$post({});
+      // --- END UPDATE ---
     } catch (error) {
       console.error("Server logout failed:", error);
     } finally {
@@ -140,11 +143,8 @@ export default function Navbar({ token, setToken, user }: Props) {
   const toggleTheme = () => {
     setIsDarkMode(prev => {
       const newIsDark = !prev;
-      if (newIsDark) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
+      if (newIsDark) document.documentElement.classList.add('dark');
+      else document.documentElement.classList.remove('dark');
       return newIsDark;
     });
   };
@@ -186,7 +186,6 @@ export default function Navbar({ token, setToken, user }: Props) {
       </>
   );
 
-
   return (
     <nav className="bg-secondary-dark dark:bg-primary-dark shadow-md" ref={mobileMenuRef}>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -197,9 +196,7 @@ export default function Navbar({ token, setToken, user }: Props) {
               <span>{user?.role === 'admin' ? 'Admin Center' : 'Customer Portal'}</span>
             </Link>
             <div className="hidden md:block">
-              <div className="ml-10 flex items-baseline space-x-4">
-                {token && navLinks}
-              </div>
+              <div className="ml-10 flex items-baseline space-x-4">{token && navLinks}</div>
             </div>
           </div>
           <div className="hidden md:block">
@@ -207,18 +204,9 @@ export default function Navbar({ token, setToken, user }: Props) {
               {token && user ? (
                 <>
                   <NotificationBell />
-                  <div
-                    className="relative ml-3"
-                    ref={userMenuRef}
-                    onMouseEnter={() => setIsUserMenuOpen(true)}
-                    onMouseLeave={() => setIsUserMenuOpen(false)}
-                  >
+                  <div className="relative ml-3" ref={userMenuRef}>
                     <div>
-                      <button
-                        type="button"
-                        className="flex max-w-xs items-center rounded-full bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800 p-2"
-                        onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                      >
+                      <button type="button" className="flex max-w-xs items-center rounded-full bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800 p-2" onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}>
                         <span className="sr-only">Open user menu</span>
                          <span className="text-white mx-2 text-sm font-medium">{user.name}</span>
                          <svg className={`h-5 w-5 text-gray-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -227,16 +215,12 @@ export default function Navbar({ token, setToken, user }: Props) {
                       </button>
                     </div>
                     {isUserMenuOpen && (
-                      <div className="absolute right-0 z-10 mt-0 w-48 origin-top-right rounded-md bg-white dark:bg-gray-800 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                        <NavLink to="/account" onClick={() => setIsUserMenuOpen(false)} className={({isActive}) => "block px-4 py-2 text-sm " + (isActive ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white" : "text-gray-700 dark:text-gray-200")}>
-                          My Account
-                        </NavLink>
+                      <div className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white dark:bg-gray-800 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none" onMouseLeave={() => setIsUserMenuOpen(false)}>
+                        <NavLink to="/account" onClick={() => setIsUserMenuOpen(false)} className={({isActive}) => "block px-4 py-2 text-sm " + (isActive ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white" : "text-gray-700 dark:text-gray-200")}>My Account</NavLink>
                          <button onClick={toggleTheme} className="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                           {isDarkMode ? "Light Mode" : "Dark Mode"}
                         </button>
-                        <button onClick={handleLogout} className="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                          Logout
-                        </button>
+                        <button onClick={handleLogout} className="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Logout</button>
                       </div>
                     )}
                   </div>
@@ -247,11 +231,7 @@ export default function Navbar({ token, setToken, user }: Props) {
             </div>
           </div>
           <div className="-mr-2 flex md:hidden">
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              type="button"
-              className="inline-flex items-center justify-center rounded-md bg-gray-800 p-2 text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800"
-            >
+            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} type="button" className="inline-flex items-center justify-center rounded-md bg-gray-800 p-2 text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800">
               <span className="sr-only">Open main menu</span>
               {isMobileMenuOpen ? (
                 <svg className="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -265,21 +245,15 @@ export default function Navbar({ token, setToken, user }: Props) {
 
       {isMobileMenuOpen && (
         <div className="md:hidden">
-          <div className="space-y-1 px-2 pt-2 pb-3 sm:px-3">
-            {token && mobileNavLinks}
-          </div>
+          <div className="space-y-1 px-2 pt-2 pb-3 sm:px-3">{token && mobileNavLinks}</div>
           {user && (
             <div className="border-t border-gray-700 pt-4 pb-3">
               <div className="flex items-center px-5">
-                <div className="ml-3">
-                  <div className="text-base font-medium leading-none text-white">{user.name}</div>
-                </div>
+                <div className="ml-3"><div className="text-base font-medium leading-none text-white">{user.name}</div></div>
               </div>
               <div className="mt-3 space-y-1 px-2">
                  <NavLink to="/account" onClick={closeMobileMenu} className={mobileLinkStyle}>My Account</NavLink>
-                 <button onClick={() => { toggleTheme(); closeMobileMenu(); }} className={`${mobileLinkStyle} w-full text-left`}>
-                    {isDarkMode ? "Light Mode" : "Dark Mode"}
-                 </button>
+                 <button onClick={() => { toggleTheme(); closeMobileMenu(); }} className={`${mobileLinkStyle} w-full text-left`}>{isDarkMode ? "Light Mode" : "Dark Mode"}</button>
                  <button onClick={handleLogout} className={`${mobileLinkStyle} w-full text-left`}>Logout</button>
               </div>
             </div>

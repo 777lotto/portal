@@ -15,6 +15,8 @@ const ChatPage = () => {
       {user.role === 'admin' ? (
         <AdminChatDashboard />
       ) : (
+        // We will need to update SupportChatWidget if it makes API calls,
+        // but the ChatPage itself is fine.
         <SupportChatWidget user={user} />
       )}
     </div>

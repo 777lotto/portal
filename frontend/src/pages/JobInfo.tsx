@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { apiGet, getLineItemsForJob } from '../lib/api.js';
+// Import the new 'api' client.
+import { api } from '../lib/api.js';
+import { ApiError } from '../lib/fetchJson.js';
 import type { Job, LineItem, Photo, Note } from '@portal/shared';
 import RecurrenceRequestModal from '../components/modals/RecurrenceRequestModal.js';
 import QuoteProposalModal from '../components/modals/QuoteProposalModal.js';
@@ -45,12 +47,27 @@ function JobInfo() {
     if (!jobId) return;
     try {
       setError(null);
-      const [jobData, lineItemsData, photosData, notesData] = await Promise.all([
-        apiGet<Job>(`/api/jobs/${jobId}`),
-        getLineItemsForJob(jobId),
-        apiGet<Photo[]>(`/api/jobs/${jobId}/photos`),
-        apiGet<Note[]>(`/api/jobs/${jobId}/notes`)
+      // --- UPDATED ---
+      const [jobRes, lineItemsRes, photosRes, notesRes] = await Promise.all([
+        api.jobs[':id'].$get({ param: { id: jobId } }),
+        api.jobs[':id']['line-items'].$get({ param: { id: jobId } }),
+        api.jobs[':id'].photos.$get({ param: { id: jobId } }),
+        api.jobs[':id'].notes.$get({ param: { id: jobId } })
       ]);
+
+      if (!jobRes.ok) throw new Error('Failed to fetch job details');
+      if (!lineItemsRes.ok) throw new Error('Failed to fetch line items');
+      if (!photosRes.ok) throw new Error('Failed to fetch photos');
+      if (!notesRes.ok) throw new Error('Failed to fetch notes');
+
+      const [jobData, lineItemsData, photosData, notesData] = await Promise.all([
+        jobRes.json(),
+        lineItemsRes.json(),
+        photosRes.json(),
+        notesRes.json()
+      ]);
+      // --- END UPDATE ---
+
       setJob(jobData);
       setLineItems(lineItemsData);
       setPhotos(photosData);
@@ -67,38 +84,46 @@ function JobInfo() {
     fetchJobDetails();
   }, [jobId, fetchJobDetails]);
 
+  // --- UPDATED ---
   const handleAcceptQuote = async () => {
     if (!job?.id) return;
     try {
-        await apiPost(`/api/jobs/${job.id}/accept`, {});
+        const res = await api.quotes[':quoteId'].accept.$post({ param: { quoteId: job.id } });
+        if (!res.ok) throw new Error('Failed to accept quote');
         fetchJobDetails();
         setIsQuoteModalOpen(false);
     } catch (err: any) {
         setError(`Failed to accept quote: ${err.message}`);
     }
-};
+  };
 
-const handleDeclineQuote = async () => {
-    if (!job?.id) return;
-    try {
-        await apiPost(`/api/jobs/${job.id}/decline`, {});
-        fetchJobDetails();
-        setIsQuoteModalOpen(false);
-    } catch (err: any) {
-        setError(`Failed to decline quote: ${err.message}`);
-    }
-};
+  const handleDeclineQuote = async () => {
+      if (!job?.id) return;
+      try {
+          const res = await api.quotes[':quoteId'].decline.$post({ param: { quoteId: job.id } });
+          if (!res.ok) throw new Error('Failed to decline quote');
+          fetchJobDetails();
+          setIsQuoteModalOpen(false);
+      } catch (err: any) {
+          setError(`Failed to decline quote: ${err.message}`);
+      }
+  };
 
-const handleReviseQuote = async (revisionReason: string) => {
-    if (!job?.id) return;
-    try {
-        await apiPost(`/api/jobs/${job.id}/revise`, { revisionReason });
-        fetchJobDetails();
-        setIsQuoteModalOpen(false);
-    } catch (err: any) {
-        setError(`Failed to revise quote: ${err.message}`);
-    }
-};
+  const handleReviseQuote = async (revisionReason: string) => {
+      if (!job?.id) return;
+      try {
+          const res = await api.quotes[':quoteId'].revise.$post({
+            param: { quoteId: job.id },
+            json: { revisionReason }
+          });
+          if (!res.ok) throw new Error('Failed to revise quote');
+          fetchJobDetails();
+          setIsQuoteModalOpen(false);
+      } catch (err: any) {
+          setError(`Failed to revise quote: ${err.message}`);
+      }
+  };
+  // --- END UPDATE ---
 
   const statusStyle = (status: string) => {
       switch (status.toLowerCase()) {
@@ -147,14 +172,10 @@ const handleReviseQuote = async (revisionReason: string) => {
         {successMessage && <div className="alert alert-success mb-4">{successMessage}</div>}
         <div className="card">
           <div className="card-header flex justify-between items-center">
-            <div>
-              <h2 className="card-title">{job.title}</h2>
-            </div>
+            <div><h2 className="card-title">{job.title}</h2></div>
             <div className="flex items-center gap-2">
               {job.status === 'pending' && (
-                <button className="btn btn-primary" onClick={() => setIsQuoteModalOpen(true)}>
-                    Respond to Quote
-                </button>
+                <button className="btn btn-primary" onClick={() => setIsQuoteModalOpen(true)}>Respond to Quote</button>
               )}
               <button className="btn btn-primary" onClick={() => setIsRecurrenceModalOpen(true)}>
                   {hasRecurrence ? 'Alter Recurrence' : 'Request Recurrence'}

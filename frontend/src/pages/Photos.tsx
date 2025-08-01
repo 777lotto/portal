@@ -1,13 +1,23 @@
-// frontend/src/components/Photos.tsx
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { getPhotos, apiGet } from '../lib/api.js';
-import type { PhotoWithNotes, User, Job, item } from '@portal/shared';
+// Import the new 'api' client.
+import { api } from '../lib/api.js';
+import { ApiError } from '../lib/fetchJson';
+import type { PhotoWithNotes, User, Job, LineItem } from '@portal/shared';
 import { useDropzone } from 'react-dropzone';
 import { jwtDecode } from 'jwt-decode';
-import { apiPostFormData } from '../lib/api';
 
 interface UserPayload {
   role: 'customer' | 'admin';
+}
+
+// Helper function to handle API responses
+async function fetchAndParse<T>(promise: Promise<Response>): Promise<T> {
+    const res = await promise;
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'An unknown error occurred' }));
+        throw new ApiError(errorData.error || `Request failed with status ${res.status}`, res.status);
+    }
+    return res.json() as Promise<T>;
 }
 
 function CustomerPhotos() {
@@ -16,7 +26,6 @@ function CustomerPhotos() {
     createdAt: '',
     job_id: '',
     item_id: '',
-    invoice_id: '',
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +38,11 @@ function CustomerPhotos() {
         const activeFilters = Object.fromEntries(
           Object.entries(filters).filter(([, value]) => value !== '')
         );
-        const data = await getPhotos(activeFilters);
+
+        // --- UPDATED ---
+        const data = await fetchAndParse<PhotoWithNotes[]>(api.photos.$get({ query: activeFilters }));
+        // --- END UPDATE ---
+
         setPhotos(data);
       } catch (err: any) {
         setError(err.message);
@@ -53,7 +66,7 @@ function CustomerPhotos() {
       <div className="card mb-4">
         <div className="card-body">
           <h5 className="card-title">Filter Photos</h5>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label htmlFor="createdAt" className="form-label">Date</label>
               <input type="date" id="createdAt" name="createdAt" value={filters.createdAt} onChange={handleFilterChange} className="form-control" />
@@ -63,12 +76,8 @@ function CustomerPhotos() {
               <input type="text" id="job_id" name="job_id" value={filters.job_id} onChange={handleFilterChange} className="form-control" placeholder="Job ID"/>
             </div>
             <div>
-              <label htmlFor="item_id" className="form-label">item ID</label>
-              <input type="text" id="item_id" name="item_id" value={filters.item_id} onChange={handleFilterChange} className="form-control" placeholder="item ID"/>
-            </div>
-            <div>
-              <label htmlFor="invoice_id" className="form-label">Invoice ID</label>
-              <input type="text" id="invoice_id" name="invoice_id" onChange={handleFilterChange} className="form-control" placeholder="Invoice ID"/>
+              <label htmlFor="item_id" className="form-label">Line Item ID</label>
+              <input type="text" id="item_id" name="item_id" value={filters.item_id} onChange={handleFilterChange} className="form-control" placeholder="Item ID"/>
             </div>
           </div>
         </div>
@@ -83,8 +92,7 @@ function CustomerPhotos() {
                 <div className="card-body">
                    <p className="card-text"><small className="text-muted">Uploaded: {new Date(photo.createdAt).toLocaleString()}</small></p>
                    {photo.job_id && <p className="card-text"><small className="text-muted">Job ID: {photo.job_id}</small></p>}
-                   {photo.item_id && <p className="card-text"><small className="text-muted">item ID: {photo.item_id}</small></p>}
-                   {photo.invoice_id && <p className="card-text"><small className="text-muted">Invoice ID: {photo.invoice_id}</small></p>}
+                   {photo.item_id && <p className="card-text"><small className="text-muted">Item ID: {photo.item_id}</small></p>}
                    {photo.notes && photo.notes.length > 0 && (
                       <div className="mt-3">
                           <h6>Notes:</h6>
@@ -112,22 +120,22 @@ function CustomerPhotos() {
 function AdminPhotos() {
   const [users, setUsers] = useState<User[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [items, setItems] = useState<item[]>([]);
+  const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [selectedUser, setSelectedUser] = useState<string>('');
   const [selectedJob, setSelectedJob] = useState<string>('');
-  const [selectedItem, setselectedItem] = useState<string>('');
+  const [selectedItem, setSelectedItem] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [userSearch, setUserSearch] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'danger', text: string } | null>(null);
 
   useEffect(() => {
-    apiGet<User[]>('/api/admin/users').then(setUsers);
+    fetchAndParse<User[]>(api.admin.users.$get()).then(setUsers);
   }, []);
 
   useEffect(() => {
     if (selectedUser) {
-      apiGet<Job[]>(`/api/admin/users/${selectedUser}/jobs`).then(setJobs);
+      fetchAndParse<Job[]>(api.admin.jobs['user'][':user_id'].$get({ param: { user_id: selectedUser } })).then(setJobs);
     } else {
       setJobs([]);
     }
@@ -136,11 +144,11 @@ function AdminPhotos() {
 
   useEffect(() => {
     if (selectedJob) {
-      apiGet<item[]>(`/api/jobs/${selectedJob}/line_items`).then(setItems);
+      fetchAndParse<LineItem[]>(api.jobs[':id']['line-items'].$get({ param: { id: selectedJob } })).then(setLineItems);
     } else {
-      setItems([]);
+      setLineItems([]);
     }
-    setselectedItem('');
+    setSelectedItem('');
   }, [selectedJob]);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -158,13 +166,21 @@ function AdminPhotos() {
         if (selectedJob) formData.append('job_id', selectedJob);
         if (selectedItem) formData.append('item_id', selectedItem);
         if (notes) formData.append('notes', notes);
-        return apiPostFormData(`/api/admin/users/${selectedUser}/photos`, formData);
+        // For file uploads, it's often easier to use a dedicated fetch call
+        // that is configured to handle multipart/form-data.
+        return fetch(`/api/admin/users/${selectedUser}/photos`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`},
+          body: formData,
+        }).then(res => {
+            if (!res.ok) throw new Error('Upload failed');
+            return res.json();
+        });
       });
       await Promise.all(uploadPromises);
       setMessage({ type: 'success', text: `${acceptedFiles.length} photo(s) uploaded successfully!` });
-      // Reset form
       setSelectedJob('');
-      setselectedItem('');
+      setSelectedItem('');
       setNotes('');
     } catch (err: any) {
       setMessage({ type: 'danger', text: `Upload failed: ${err.message}` });
@@ -193,24 +209,11 @@ function AdminPhotos() {
         <div className="card-body space-y-4">
           <div>
             <label htmlFor="userSearch" className="form-label">Search and Select a User</label>
-            <input
-              type="text"
-              id="userSearch"
-              className="form-control mb-2"
-              placeholder="Search by name, email, or phone..."
-              value={userSearch}
-              onChange={e => setUserSearch(e.target.value)}
-            />
-            <select
-              id="user"
-              className="form-control"
-              value={selectedUser}
-              onChange={e => setSelectedUser(e.target.value)}
-              required
-            >
+            <input type="text" id="userSearch" className="form-control mb-2" placeholder="Search by name, email, or phone..." value={userSearch} onChange={e => setUserSearch(e.target.value)} />
+            <select id="user" className="form-control" value={selectedUser} onChange={e => setSelectedUser(e.target.value)} required>
               <option value="">-- Select a User --</option>
               {filteredUsers.map(user => (
-                <option key={user.id} value={user.id}>
+                <option key={user.id} value={user.id.toString()}>
                   {user.name || user.company_name} ({user.email || user.phone})
                 </option>
               ))}
@@ -227,27 +230,20 @@ function AdminPhotos() {
               </select>
             </div>
             <div>
-              <label htmlFor="item" className="form-label">Associate with item (Optional)</label>
-              <select id="item" className="form-control" value={selectedItem} onChange={e => setselectedItem(e.target.value)} disabled={!selectedJob}>
-                <option value="">-- Select a item --</option>
-                {items.map(item => (
-                  <option key={item.id} value={item.id}>{item.notes}</option>
+              <label htmlFor="item" className="form-label">Associate with Line Item (Optional)</label>
+              <select id="item" className="form-control" value={selectedItem} onChange={e => setSelectedItem(e.target.value)} disabled={!selectedJob}>
+                <option value="">-- Select an Item --</option>
+                {lineItems.map(item => (
+                  <option key={item.id} value={item.id.toString()}>{item.description}</option>
                 ))}
               </select>
             </div>
           </div>
           <div>
             <label htmlFor="notes" className="form-label">Notes (Optional)</label>
-            <textarea
-              id="notes"
-              className="form-control"
-              rows={3}
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Add any relevant notes for these photos..."
-            ></textarea>
+            <textarea id="notes" className="form-control" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Add any relevant notes for these photos..."></textarea>
           </div>
-          <div {...getRootProps()} className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:bg-light">
+          <div {...getRootProps()} className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
             <input {...getInputProps()} />
             {isDragActive ? <p>Drop the files here...</p> : <p>Drag 'n' drop photos here, or click to select files</p>}
           </div>
@@ -272,9 +268,7 @@ function Photos() {
     }
   }, []);
 
-  if (userRole === 'admin') {
-    return <AdminPhotos />;
-  }
+  if (userRole === 'admin') return <AdminPhotos />;
   return <CustomerPhotos />;
 }
 

@@ -1,18 +1,30 @@
-// frontend/src/components/admin/AdminChatDashboard.tsx
+// frontend/src/pages/admin/AdminChatDashboard.tsx
 import { useState } from 'react';
 import useSWR from 'swr';
-import { apiGet } from '../../lib/api';
+// Import the new 'api' client.
+import { api } from '../../lib/api';
 import type { User } from '@portal/shared';
 import SupportChatWidget from '../../components/chat/SupportChatWidget';
 import { useAuth } from '../../hooks/useAuth';
 
+// --- SWR Fetcher for Admin Users ---
+const usersFetcher = async () => {
+    const res = await api.admin.users.$get();
+    if (!res.ok) throw new Error('Failed to fetch users');
+    return res.json();
+};
+
 const AdminChatDashboard = () => {
   const { user: adminUser } = useAuth();
-  const { data: users, error } = useSWR<User[]>('/api/admin/users', apiGet);
+  // --- UPDATED ---
+  const { data: users, error } = useSWR<User[]>('/api/admin/users', usersFetcher);
+  // --- END UPDATE ---
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   if (error) return <div>Failed to load users</div>;
   if (!users) return <div>Loading users...</div>;
+  if (!adminUser) return <div>Authenticating...</div>;
+
 
   if (selectedUser) {
     return (
@@ -20,6 +32,7 @@ const AdminChatDashboard = () => {
         <button onClick={() => setSelectedUser(null)} className="btn btn-secondary mb-4">
           &larr; Back to User List
         </button>
+        {/* SupportChatWidget uses WebSockets and does not need changes */}
         <SupportChatWidget user={selectedUser} />
       </div>
     );
@@ -32,7 +45,7 @@ const AdminChatDashboard = () => {
         {users.map((user) => (
           <div key={user.id} className="card bg-base-100 shadow-xl">
             <div className="card-body">
-              <h2 className="card-title">{user.name}</h2>
+              <h2 className="card-title">{user.name || user.company_name}</h2>
               <p>{user.email}</p>
               <div className="card-actions justify-end">
                 <button onClick={() => setSelectedUser(user)} className="btn btn-primary">

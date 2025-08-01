@@ -2,9 +2,10 @@
                             IMPORTS & TYPES
    ======================================================================== */
 import { useState, useEffect, useMemo } from 'react';
-import { getProfile, updateProfile, apiPost, requestPasswordReset, listPaymentMethods, createSetupIntent } from '../lib/api';
+// Import the new 'api' client.
+import { api } from '../lib/api';
 import { subscribeUser, unsubscribeUser } from '../lib/push';
-import type { User } from '@portal/shared';
+import type { User, PaymentMethod } from '@portal/shared';
 import { ApiError } from '../lib/fetchJson';
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
@@ -22,13 +23,8 @@ const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
     useEffect(() => {
         const checkDarkMode = () => document.documentElement.classList.contains('dark');
         setIsDarkMode(checkDarkMode());
-
-        const observer = new MutationObserver(() => {
-            setIsDarkMode(checkDarkMode());
-        });
-
+        const observer = new MutationObserver(() => setIsDarkMode(checkDarkMode()));
         observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-
         return () => observer.disconnect();
     }, []);
 
@@ -38,9 +34,7 @@ const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
                 color: isDarkMode ? '#dee2e6' : '#212529',
                 fontFamily: 'system-ui, sans-serif',
                 fontSize: '16px',
-                '::placeholder': {
-                    color: isDarkMode ? '#adb5bd' : '#6c757d',
-                },
+                '::placeholder': { color: isDarkMode ? '#adb5bd' : '#6c757d' },
             },
             invalid: { color: '#fa755a', iconColor: '#fa755a' },
         },
@@ -48,16 +42,20 @@ const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
 
     const handleSubmit = async (event: React.SyntheticEvent) => {
         event.preventDefault();
-
-        if (!stripe || !elements) {
-            return;
-        }
-
+        if (!stripe || !elements) return;
         setIsProcessing(true);
 
-        const { clientSecret } = await createSetupIntent();
-        const cardElement = elements.getElement(CardElement);
+        // --- UPDATED ---
+        const intentRes = await api.profile['setup-intent'].$post({});
+        if (!intentRes.ok) {
+            setError('Could not create setup intent.');
+            setIsProcessing(false);
+            return;
+        }
+        const { clientSecret } = await intentRes.json();
+        // --- END UPDATE ---
 
+        const cardElement = elements.getElement(CardElement);
         if (!cardElement) {
             setError("Card element not found");
             setIsProcessing(false);
@@ -65,9 +63,7 @@ const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
         }
 
         const { error, setupIntent } = await stripe.confirmCardSetup(clientSecret, {
-            payment_method: {
-                card: cardElement,
-            },
+            payment_method: { card: cardElement },
         });
 
         if (error) {
@@ -76,7 +72,6 @@ const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
             setError(null);
             onSuccessfulAdd();
         }
-
         setIsProcessing(false);
     };
 
@@ -94,13 +89,11 @@ const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
 };
 
 function AccountPage() {
-
 /* ========================================================================
                                  STATE
    ======================================================================== */
-
   const [user, setUser] = useState<User | null>(null);
-  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [showAddPaymentMethod, setShowAddPaymentMethod] = useState(false);
   const [formData, setFormData] = useState({
       name: '',
@@ -119,14 +112,16 @@ function AccountPage() {
   const [passwordMessage, setPasswordMessage] = useState<{type: 'success'|'danger', text: string} | null>(null);
   const [isSendingCode, setIsSendingCode] = useState(false);
 
-
 /* ========================================================================
                                 EFFECTS
    ======================================================================== */
-
   const fetchPaymentMethods = async () => {
     try {
-        const methods = await listPaymentMethods();
+        // --- UPDATED ---
+        const res = await api.profile['payment-methods'].$get();
+        if (!res.ok) throw new Error('Failed to fetch payment methods');
+        const methods = await res.json();
+        // --- END UPDATE ---
         setPaymentMethods(methods);
     } catch (err: any) {
         setError(err.message);
@@ -137,7 +132,11 @@ function AccountPage() {
     const fetchProfile = async () => {
       try {
         setIsLoading(true);
-        const profileData = await getProfile();
+        // --- UPDATED ---
+        const profileRes = await api.profile.$get();
+        if (!profileRes.ok) throw new Error('Failed to fetch profile');
+        const profileData = await profileRes.json();
+        // --- END UPDATE ---
         setUser(profileData);
         setFormData({
             name: profileData.name,
@@ -175,20 +174,14 @@ function AccountPage() {
     }
   }, [formData.preferred_contact_method, formData.email_notifications_enabled, formData.sms_notifications_enabled]);
 
-
 /* ========================================================================
                                 HANDLERS
    ======================================================================== */
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const isCheckbox = type === 'checkbox';
     const checked = isCheckbox ? (e.target as HTMLInputElement).checked : undefined;
-
-    setFormData(prev => ({
-        ...prev,
-        [name]: isCheckbox ? checked : value
-    }));
+    setFormData(prev => ({ ...prev, [name]: isCheckbox ? checked : value }));
   };
 
   const handleSettingsSubmit = async (e: React.FormEvent) => {
@@ -196,11 +189,12 @@ function AccountPage() {
     setError(null);
     setSuccess(null);
     try {
-      const payload = {
-          ...formData,
-          calendar_reminder_minutes: Number(formData.calendar_reminder_minutes)
-      };
-      const updatedUser = await updateProfile(payload);
+      const payload = { ...formData, calendar_reminder_minutes: Number(formData.calendar_reminder_minutes) };
+      // --- UPDATED ---
+      const res = await api.profile.$put({ json: payload });
+      if (!res.ok) throw new Error('Failed to update profile');
+      const updatedUser = await res.json();
+      // --- END UPDATE ---
       setUser(updatedUser);
       setSuccess('Profile and notification settings saved!');
       setTimeout(() => setSuccess(null), 5000);
@@ -210,7 +204,6 @@ function AccountPage() {
     }
   };
 
-  // ... other handlers are unchanged ...
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPasswordData({ ...passwordData, [e.target.name]: e.target.value });
   };
@@ -223,7 +216,13 @@ function AccountPage() {
     }
     setPasswordMessage(null);
     try {
-        await apiPost('/api/profile/change-password', passwordData);
+        // --- UPDATED ---
+        const res = await api.profile['change-password'].$post({ json: passwordData });
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new ApiError(errorData.error || 'Failed to change password', res.status);
+        }
+        // --- END UPDATE ---
         setPasswordMessage({type: 'success', text: 'Password changed successfully!'});
         setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
         setTimeout(() => setPasswordMessage(null), 5000);
@@ -240,11 +239,13 @@ function AccountPage() {
         setPasswordMessage({type: 'danger', text: `You do not have a registered ${channel}.`});
         return;
     }
-
     setIsSendingCode(true);
     setPasswordMessage(null);
     try {
-        await requestPasswordReset(identifier, channel);
+        // --- UPDATED ---
+        const res = await api['request-password-reset'].$post({ json: { identifier, channel } });
+        if (!res.ok) throw new Error('Failed to send reset code');
+        // --- END UPDATE ---
         setPasswordMessage({type: 'success', text: `A verification code has been sent. Please use the "Forgot Password" option on the login page to complete the password change.`})
     } catch (err: any) {
         setPasswordMessage({type: 'danger', text: (err as Error).message});
@@ -276,7 +277,6 @@ function AccountPage() {
 /* ========================================================================
                              RENDER LOGIC
    ======================================================================== */
-
   if (isLoading) return <div className="text-center p-8">Loading account details...</div>;
   if (error && !user) return <div className="alert alert-danger">{error}</div>;
 
@@ -294,7 +294,6 @@ function AccountPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Column 1 */}
           <div className="space-y-8">
-              {/* Profile Card */}
               <div className="card">
                   <div className="card-header"><h2 className="card-title text-xl">Profile</h2></div>
                   <div className="card-body space-y-4">
@@ -309,7 +308,6 @@ function AccountPage() {
                   </div>
               </div>
 
-            {/* Calendar Settings Card */}
             <div className="card">
                 <div className="card-header"><h2 className="card-title text-xl">Calendar Settings</h2></div>
                 <div className="card-body space-y-4">
@@ -331,15 +329,14 @@ function AccountPage() {
                 </div>
             </div>
 
-             {/* Billing Card */}
               {user?.role === 'customer' && (
                   <div className="card">
                       <div className="card-header"><h2 className="card-title text-xl">Payment Methods</h2></div>
                       <div className="card-body">
                           {paymentMethods.map(pm => (
                               <div key={pm.id} className="flex justify-between items-center p-2 border-b">
-                                  <span>{pm.card.brand} **** {pm.card.last4}</span>
-                                  <span>Exp: {pm.card.exp_month}/{pm.card.exp_year}</span>
+                                  <span>{pm.brand} **** {pm.last4}</span>
+                                  <span>Exp: {pm.exp_month}/{pm.exp_year}</span>
                               </div>
                           ))}
                           {showAddPaymentMethod ? (
@@ -361,7 +358,6 @@ function AccountPage() {
 
           {/* Column 2 */}
           <div className="space-y-8">
-              {/* Notification Preferences Card */}
               <div className="card">
                    <div className="card-header"><h2 className="card-title text-xl">Notification Preferences</h2></div>
                    <div className="card-body space-y-6">
@@ -401,7 +397,6 @@ function AccountPage() {
                    </div>
               </div>
 
-               {/* Security Card */}
                <div className="card">
                 <div className="card-header"><h2 className="card-title text-xl">Security</h2></div>
                 <div className="card-body">
@@ -447,9 +442,7 @@ function AccountPage() {
   );
 }
 
-
 /* ========================================================================
                                 EXPORT
    ======================================================================== */
-
 export default AccountPage;
