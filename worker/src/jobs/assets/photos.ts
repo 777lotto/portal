@@ -1,7 +1,7 @@
 // 777lotto/portal/portal-fold/worker/src/handlers/photos.ts
 import { Context as PhotoContext } from 'hono';
-import { AppEnv as PhotoAppEnv } from '../index.js';
-import { errorResponse as photoErrorResponse, successResponse as photoSuccessResponse } from '../utils.js';
+import { AppEnv as PhotoAppEnv } from '../../index.js';
+import { errorResponse as photoErrorResponse, successResponse as photoSuccessResponse } from '../../utils.js';
 import type { Note, Photo } from '@portal/shared';
 
 // Define the type for the Cloudflare Images API response

@@ -29,7 +29,7 @@ import { handleSmsProxy } from './comms/sms.js';
 
 /* --------------------------------------------------------------------- Public Handlers --------------------------------------------------------------------------------------- */
 // login
-import { handleInitializeSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './security/auth.js'
+import { handleInitializeSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './security/handler.js'
 // jobs
 import { getPendingQuotes, handleDeclineQuote, handleReviseQuote, getQuoteById } from './jobs/ledger/quotes.js';
 // payment

@@ -1,6 +1,6 @@
 // portal/worker/src/handlers/admin/users.ts
 
-import { errorResponse, successResponse } from '../../utils.js';
+import { errorResponse, successResponse } from '../utils.js';
 import { Context } from 'hono';
 import type { AppEnv } from '../index.js';
 import { getStripe, createStripeCustomer } from '../stripe/index.js';
