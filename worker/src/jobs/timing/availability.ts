@@ -1,7 +1,7 @@
 // worker/src/handlers/availability.ts
 import { Context } from 'hono';
-import { AppEnv } from '../index.js';
-import { successResponse, errorResponse } from '../utils.js';
+import { AppEnv } from '../../index.js';
+import { successResponse, errorResponse } from '../../utils.js';
 
 export const handleGetCustomerAvailability = async (c: Context<AppEnv>) => {
   const user = c.get('user');

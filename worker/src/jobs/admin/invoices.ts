@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import Stripe from 'stripe';
 import type { AppEnv } from '../../index.js';
 import { errorResponse, successResponse } from '../../utils.js';
-import { getStripe } from '../../stripe.js';
+import { getStripe } from '../../stripe/index.js';
 import type { User, DashboardInvoice } from '@portal/shared';
 
 // Handler to get a single invoice's details, including its line items

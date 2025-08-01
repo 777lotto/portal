@@ -8,20 +8,20 @@ import { cors } from 'hono/cors';
 import { serveStatic } from 'hono/cloudflare-workers';
 import manifest from '__STATIC_CONTENT_MANIFEST';
 import type { Env, User } from '@portal/shared';
-import { handleGoogleLogin, handleGoogleCallback, handleAdminImportSelectedContacts, handleGetImportedContacts } from './handlers/google.js';
+import { handleGoogleLogin, handleGoogleCallback, handleAdminImportSelectedContacts, handleGetImportedContacts } from './google/index.js';
 
 /* ========================================================================
                            MIDDLEWARE & UTILITIES
    ======================================================================== */
 
 import { errorResponse } from './utils.js';
-import { requireAuthMiddleware, requireAdminAuthMiddleware, requirePasswordSetTokenMiddleware } from './auth.js';
+import { requireAuthMiddleware, requireAdminAuthMiddleware, requirePasswordSetTokenMiddleware } from './security/auth.js';
 
 /* ========================================================================
                                 PROXIES
    ======================================================================== */
 
-import { handleSmsProxy } from './sms.js';
+import { handleSmsProxy } from './comms/sms.js';
 
 /* ========================================================================
                                ROUTE HANDLERS
@@ -29,39 +29,39 @@ import { handleSmsProxy } from './sms.js';
 
 /* --------------------------------------------------------------------- Public Handlers --------------------------------------------------------------------------------------- */
 // login
-import { handleInitializeSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './handlers/auth.js'
+import { handleInitializeSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './security/auth.js'
 // jobs
-import { getPendingQuotes, handleDeclineQuote, handleReviseQuote, getQuoteById } from './handlers/quotes.js';
+import { getPendingQuotes, handleDeclineQuote, handleReviseQuote, getQuoteById } from './jobs/ledger/quotes.js';
 // payment
-import { handleStripeWebhook } from './handlers/stripe.js';
+import { handleStripeWebhook } from './stripe/webhook.js';
 // calendar
-import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed, handleAcceptQuote } from './handlers/public.js';
-import { handleGetCustomerAvailability } from './handlers/availability.js';
+import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed, handleAcceptQuote } from './public/index.js';
+import { handleGetCustomerAvailability } from './jobs/timing/availability.js';
 
 /* --------------------------------------------------------------------- Customer Handlers --------------------------------------------------------------------------------------- */
 // users
-import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent, handleGetNotifications, handleMarkAllNotificationsRead } from './handlers/profile.js';
-import { handlePortalSession } from './handlers/user.js';
+import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent, handleGetNotifications, handleMarkAllNotificationsRead } from './users/profile.js';
+import { handlePortalSession } from './users/user.js';
 // jobs
-import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleGetCalendarEvents, handleAddCalendarEvent, handleRemoveCalendarEvent, handleAdminUpdateJobDetails, handleAdminAddLineItemToJob, handleAdminUpdateLineItemInJob, handleAdminDeleteLineItemFromJob, handleAdminCompleteJob, handleGetLineItemsForJob, handleGetOpenInvoicesForUser, handleCreateJob, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl } from './handlers/jobs.js';
-import { handleGetInvoiceForUser, handleCreatePaymentIntent, handleDownloadInvoicePdf } from './handlers/invoices.js';
+import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleGetCalendarEvents, handleAddCalendarEvent, handleRemoveCalendarEvent, handleAdminUpdateJobDetails, handleAdminAddLineItemToJob, handleAdminUpdateLineItemInJob, handleAdminDeleteLineItemFromJob, handleAdminCompleteJob, handleGetLineItemsForJob, handleGetOpenInvoicesForUser, handleCreateJob, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl } from './jobs/jobs.js';
+import { handleGetInvoiceForUser, handleCreatePaymentIntent, handleDownloadInvoicePdf } from './jobs/ledger/invoices.js';
 // calendar
-import { handleRequestRecurrence, handleGetRecurrenceRequests, handleUpdateRecurrenceRequest, handleGetUnavailableRecurrenceDays } from './handlers/recurrence.js';
+import { handleRequestRecurrence, handleGetRecurrenceRequests, handleUpdateRecurrenceRequest, handleGetUnavailableRecurrenceDays } from './jobs/timing/recurrence.js';
 //content
-import { handleGetUserPhotos, handleGetPhotosForJob } from './handlers/photos.js';
-import { handleGetNotesForJob } from './handlers/notes.js';
+import { handleGetUserPhotos, handleGetPhotosForJob } from './jobs/assets/photos.js';
+import { handleGetNotesForJob } from './jobs/assets/notes.js';
 
 /* --------------------------------------------------------------------- Admin Handlers --------------------------------------------------------------------------------------- */
 // users
-import { handleGetAllUsers, handleAdminDeleteUser, handleAdminCreateUser, handleAdminUpdateUser, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminGetNotesForUser } from './handlers/admin/users.js';
+import { handleGetAllUsers, handleAdminDeleteUser, handleAdminCreateUser, handleAdminUpdateUser, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminGetNotesForUser } from './users/admin.js';
 // jobs
-import { handleGetJobsAndQuotes, handleAdminCreateJob, handleGetAllJobs } from './handlers/admin/jobs.js';
-import { handleAdminImportQuotes, handleAdminSendQuote } from './handlers/admin/quotes.js';
-import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminGetAllOpenInvoices, handleAdminMarkInvoiceAsPaid } from './handlers/admin/invoices.js';
-import { handleGetDrafts } from './handlers/admin/drafts.js';
+import { handleGetJobsAndQuotes, handleAdminCreateJob, handleGetAllJobs } from './jobs/admin/jobs.js';
+import { handleAdminImportQuotes, handleAdminSendQuote } from './jobs/admin/quotes.js';
+import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminGetAllOpenInvoices, handleAdminMarkInvoiceAsPaid } from './jobs/admin/invoices.js';
+import { handleGetDrafts } from './jobs/ledger/drafts.js';
 // content
-import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
-import { handleAdminAddNoteForUser } from './handlers/notes.js';
+import { handleAdminUploadPhotoForUser } from './jobs/assets/photos.js';
+import { handleAdminAddNoteForUser } from './jobs/assets/notes.js';
 
 /* ========================================================================
                        ENVIRONMENT & CLOUDFLARE TYPES
@@ -258,7 +258,7 @@ app.get('*', serveStatic({ path: './index.html', manifest }));
                                    EXPORT
    ======================================================================== */
 
-import { handleScheduled } from './handlers/cron.js';
+import { handleScheduled } from './cron/cron.js';
 
 export default {
   fetch: app.fetch,

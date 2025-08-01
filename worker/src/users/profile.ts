@@ -4,8 +4,8 @@ import { z } from 'zod';
 import { AppEnv as ProfileAppEnv } from '../index.js';
 import { errorResponse as profileErrorResponse, successResponse as profileSuccessResponse } from '../utils.js';
 import { UserSchema, type User, type UINotification } from '@portal/shared';
-import { verifyPassword, hashPassword } from '../auth.js';
-import { getStripe, listPaymentMethods, createSetupIntent } from '../stripe.js';
+import { verifyPassword, hashPassword } from '../security/auth.js';
+import { getStripe, listPaymentMethods, createSetupIntent } from '../stripe/index.js';
 
 const UpdateProfilePayload = UserSchema.pick({
     name: true,

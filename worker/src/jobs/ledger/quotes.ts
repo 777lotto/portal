@@ -1,8 +1,8 @@
 // worker/src/handlers/quotes.ts
 
 import { Context } from 'hono';
-import { AppEnv } from '../index.js';
-import { errorResponse, successResponse } from '../utils.js';
+import { AppEnv } from '../../index.js';
+import { errorResponse, successResponse } from '../../utils.js';
 import type { Job } from '@portal/shared';
 
 export async function getPendingQuotes(c: Context<AppEnv>) {

@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 import { v4 as uuidv4 } from 'uuid';
 import { AppEnv } from '../../index.js';
 import { errorResponse, successResponse } from '../../utils.js';
-import { getStripe, createStripeQuote } from '../../stripe.js';
+import { getStripe, createStripeQuote } from '../../stripe/index.js';
 import type { Job, LineItem, User } from '@portal/shared';
 
 export async function handleAdminCreateQuote(c: Context<AppEnv>) {

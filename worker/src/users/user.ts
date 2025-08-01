@@ -1,7 +1,7 @@
 import { Context as UserContext } from 'hono';
 import { AppEnv as UserAppEnv } from '../index.js';
 import { errorResponse as userErrorResponse, successResponse as userSuccessResponse } from '../utils.js';
-import { getStripe, createStripePortalSession } from '../stripe.js';
+import { getStripe, createStripePortalSession } from '../stripe/index.js';
 
 
 export const handlePortalSession = async (c: UserContext<UserAppEnv>) => {

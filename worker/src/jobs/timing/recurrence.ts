@@ -1,8 +1,8 @@
 // worker/src/handlers/recurrence.ts
 import { Context } from 'hono';
 import { z } from 'zod';
-import { AppEnv } from '../index.js';
-import { errorResponse, successResponse } from '../utils.js';
+import { AppEnv } from '../../index.js';
+import { errorResponse, successResponse } from '../../utils.js';
 import type { Job } from '@portal/shared';
 
 const RecurrenceRequestPayload = z.object({

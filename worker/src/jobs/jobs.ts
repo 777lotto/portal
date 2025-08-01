@@ -4,11 +4,11 @@ import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { AppEnv as WorkerAppEnv } from '../index.js';
 import { errorResponse, successResponse } from '../utils.js';
-import { generateCalendarFeed, createJob } from '../calendar.js';
+import { generateCalendarFeed, createJob } from './timing/calendar.js';
 import type { Job, LineItem, User, CalendarEvent } from '@portal/shared'; 
 import { CalendarEventSchema } from '@portal/shared';
 
-import { getStripe } from '../stripe.js';
+import { getStripe } from '../stripe/index.js';
 import Stripe from 'stripe';
 
 // --- Calendar URL Handlers ---

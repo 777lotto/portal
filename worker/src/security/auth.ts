@@ -1,7 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { Context, Next } from 'hono';
-import type { AppEnv } from './index.js';
+import type { AppEnv } from '../index.js';
 import type { Env, User } from "@portal/shared";
 
 export function getJwtSecretKey(secret: string): Uint8Array {

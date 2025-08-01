@@ -2,8 +2,8 @@
 
 import { errorResponse, successResponse } from '../../utils.js';
 import { Context } from 'hono';
-import type { AppEnv } from '../../index.js';
-import { getStripe, createStripeCustomer } from '../../stripe.js';
+import type { AppEnv } from '../index.js';
+import { getStripe, createStripeCustomer } from '../stripe/index.js';
 import { AdminCreateUserSchema, type User, type Job, type Photo, type Note } from '@portal/shared';
 
 /**

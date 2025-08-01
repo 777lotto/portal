@@ -4,9 +4,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { AppEnv } from '../index.js';
 import { PublicBookingRequestSchema, User } from '@portal/shared';
 import { errorResponse, successResponse } from '../utils.js';
-import { createJob, generateCalendarFeed } from '../calendar.js'; // MODIFIED: import generateCalendarFeed
-import { validateTurnstileToken } from '../auth.js';
-import { getStripe } from '../stripe.js';
+import { createJob, generateCalendarFeed } from '../jobs/timing/calendar.js';
+import { validateTurnstileToken } from '../security/auth.js';
+import { getStripe } from '../stripe/index.js';
 
 export async function handleAcceptQuote(c: Context<AppEnv>) {
     const { quoteId } = c.req.param();

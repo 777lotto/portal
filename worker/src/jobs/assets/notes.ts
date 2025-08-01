@@ -1,7 +1,7 @@
 // 777lotto/portal/portal-fold/worker/src/handlers/notes.ts
 import { Context as NoteContext } from 'hono';
-import { AppEnv as NoteAppEnv } from '../index.js';
-import { errorResponse as noteErrorResponse, successResponse as noteSuccessResponse } from '../utils.js';
+import { AppEnv as NoteAppEnv } from '../../index.js';
+import { errorResponse as noteErrorResponse, successResponse as noteSuccessResponse } from '../../utils.js';
 
 export const handleGetNotesForJob = async (c: NoteContext<NoteAppEnv>) => {
     const user = c.get('user');
