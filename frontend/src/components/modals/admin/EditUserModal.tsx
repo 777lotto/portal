@@ -1,6 +1,8 @@
-// 777lotto/portal/portal-fold/frontend/src/components/admin/EditUserModal.tsx
+// frontend/src/components/modals/admin/EditUserModal.tsx
 import { useState, useEffect } from 'react';
-import { adminUpdateUser } from '../../../lib/api';
+// Import the new 'api' client.
+import { api } from '../../../lib/api';
+import { ApiError } from '../../../lib/fetchJson';
 import type { User } from '@portal/shared';
 
 interface Props {
@@ -33,7 +35,7 @@ function EditUserModal({ isOpen, onClose, onUserUpdated, user }: Props) {
         role: user.role || 'customer'
       });
     }
-  }, [user]);
+  }, [user, isOpen]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -43,17 +45,30 @@ function EditUserModal({ isOpen, onClose, onUserUpdated, user }: Props) {
     e.preventDefault();
     setError(null);
 
+    // Create a payload with only the fields that have values.
     const payload: Partial<User> = {};
     if (formData.name) payload.name = formData.name;
     if (formData.company_name) payload.company_name = formData.company_name;
     if (formData.email) payload.email = formData.email;
     if (formData.phone) payload.phone = formData.phone;
     if (formData.address) payload.address = formData.address;
-    if (formData.role) payload.role = formData.role;
+    if (formData.role) payload.role = formData.role as User['role'];
 
     setIsSubmitting(true);
     try {
-      const updatedUser = await adminUpdateUser(user.id.toString(), payload);
+      // --- UPDATED ---
+      const res = await api.admin.users[':user_id'].$put({
+        param: { user_id: user.id.toString() },
+        json: payload
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new ApiError(errorData.error || 'Failed to update user', res.status);
+      }
+      const updatedUser = await res.json();
+      // --- END UPDATE ---
+
       onUserUpdated(updatedUser);
       onClose();
     } catch (err: any) {
@@ -105,7 +120,7 @@ function EditUserModal({ isOpen, onClose, onUserUpdated, user }: Props) {
               </select>
             </div>
           </div>
-          <div className="p-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2 bg-secondary-light/50 dark:bg-secondary-dark/50 rounded-b-lg">
+          <div className="p-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2 bg-gray-50 dark:bg-secondary-dark/50 rounded-b-lg">
             <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
               {isSubmitting ? 'Saving...' : 'Save Changes'}

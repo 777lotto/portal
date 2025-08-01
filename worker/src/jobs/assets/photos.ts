@@ -97,7 +97,7 @@ export const handleAdminUploadPhotoForUser = async (c: PhotoContext<PhotoAppEnv>
     const user_id = formData.get('user_id') as string | null;
     const fileValue = formData.get('photo');
     const jobId = formData.get('job_id') as string | null;
-    const serviceId = formData.get('item_id') as string | null;
+     const lineItemId = formData.get('item_id') as string | null;
     const notes = formData.get('notes') as string | null;
 
 

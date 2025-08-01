@@ -1,20 +1,32 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { addCalendarEvent, removeCalendarEvent } from '../../../lib/api';
+// Import the new 'api' client.
+import { api } from '../../../lib/api';
+import { ApiError } from '../../../lib/fetchJson';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   selectedDate: Date;
   isBlocked: boolean;
+  // Updated: The event ID is now an explicit prop for unblocking.
+  eventId?: number | null;
   reason?: string | null;
   onUpdate: () => void; // Callback to refresh the calendar
 }
 
-function AdminBlockDayModal({ isOpen, onClose, selectedDate, isBlocked, reason, onUpdate }: Props) {
-  const [note, setNote] = useState(reason || '');
+function AdminBlockDayModal({ isOpen, onClose, selectedDate, isBlocked, eventId, reason, onUpdate }: Props) {
+  const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // Reset the note when the modal opens or the reason prop changes.
+  useEffect(() => {
+    if (isOpen) {
+      setNote(reason || '');
+    }
+  }, [isOpen, reason]);
+
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
@@ -22,12 +34,21 @@ function AdminBlockDayModal({ isOpen, onClose, selectedDate, isBlocked, reason, 
     setIsSubmitting(true);
     setError('');
     try {
-      await addCalendarEvent({
-        title: note,
-        start: dateStr,
-        end: dateStr,
-        type: 'blocked',
+      // --- UPDATED ---
+      const res = await api.admin['calendar-events'].$post({
+        json: {
+          title: note,
+          start: dateStr,
+          end: dateStr,
+          type: 'blocked',
+        }
       });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new ApiError(errorData.error || 'Failed to block date', res.status);
+      }
+      // --- END UPDATE ---
+
       onUpdate();
       onClose();
     } catch (err: any) {
@@ -38,14 +59,24 @@ function AdminBlockDayModal({ isOpen, onClose, selectedDate, isBlocked, reason, 
   };
 
   const handleUnblock = async () => {
+    // Ensure we have an event ID to delete.
+    if (!eventId) {
+        setError('Cannot unblock date: Event ID is missing.');
+        return;
+    }
     setIsSubmitting(true);
     setError('');
     try {
-      // We need the event ID to delete it. This will require a change to how the modal is opened.
-      // For now, I will assume the ID is passed in as a prop.
-      // This will be a breaking change, and I will need to update the parent component.
-      // @ts-ignore
-      await removeCalendarEvent(reason);
+      // --- UPDATED ---
+      const res = await api.admin['calendar-events'][':eventId'].$delete({
+          param: { eventId: eventId.toString() }
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new ApiError(errorData.error || 'Failed to unblock date', res.status);
+      }
+      // --- END UPDATE ---
+
       onUpdate();
       onClose();
     } catch (err: any) {
@@ -74,6 +105,7 @@ function AdminBlockDayModal({ isOpen, onClose, selectedDate, isBlocked, reason, 
             onChange={(e) => setNote(e.target.value)}
             className="form-control mt-1"
             placeholder="e.g., Holiday, Team Off-site"
+            disabled={isBlocked} // Disable editing if the day is already blocked
           />
         </div>
 

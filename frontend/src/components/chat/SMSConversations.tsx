@@ -1,7 +1,9 @@
-// frontend/src/components/SMSConversations.tsx - CORRECTED
+// frontend/src/components/chat/SMSConversations.tsx
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getSmsConversations } from '../../lib/api.js';
+// Import the new 'api' client.
+import { api } from '../../lib/api';
+import { ApiError } from '../../lib/fetchJson';
 import type { Conversation } from '@portal/shared';
 
 function SMSConversations() {
@@ -14,8 +16,16 @@ function SMSConversations() {
       try {
         setIsLoading(true);
         setError(null);
-        // FIX: The token is no longer passed directly to API functions.
-        const data = await getSmsConversations();
+
+        // --- UPDATED ---
+        const res = await api.sms.conversations.$get();
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new ApiError(errorData.error || 'Failed to fetch conversations', res.status);
+        }
+        const data = await res.json();
+        // --- END UPDATE ---
+
         setConversations(data);
       } catch (err: any) {
         setError(err.message);

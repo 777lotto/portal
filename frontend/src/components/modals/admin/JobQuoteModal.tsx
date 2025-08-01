@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { apiGet, apiPost } from '../../../lib/api';
-import type { User, Service } from '@portal/shared';
+// Import the new 'api' client.
+import { api } from '../../../lib/api';
+import { ApiError } from '../../../lib/fetchJson';
+import type { User } from '@portal/shared';
 
 interface Props {
   isOpen: boolean;
@@ -9,10 +11,16 @@ interface Props {
   type: 'job' | 'quote';
 }
 
+// A simple interface for the line item state within this component.
+interface LineItemState {
+  notes: string;
+  total_amount_cents: number;
+}
+
 function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
   const [users, setUsers] = useState<User[]>([]);
-  const [selecteduser_id, setSelecteduser_id] = useState<string>('');
-  const [lineItems, setLineItems] = useState<Partial<Service>[]>([{ notes: '', total_amount_cents: 0 }]);
+  const [selecteduserId, setSelectedUserId] = useState<string>('');
+  const [lineItems, setLineItems] = useState<LineItemState[]>([{ notes: '', total_amount_cents: 0 }]);
   const [title, setTitle] = useState('');
   const [dueDateDays, setDueDateDays] = useState<number>(30);
   const [expireDateDays, setExpireDateDays] = useState<number>(30);
@@ -24,7 +32,11 @@ function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
     if (isOpen) {
       const fetchUsers = async () => {
         try {
-          const allUsers = await apiGet<User[]>('/api/admin/users');
+          // --- UPDATED ---
+          const res = await api.admin.users.$get();
+          if (!res.ok) throw new Error('Failed to fetch users');
+          const allUsers = await res.json();
+          // --- END UPDATE ---
           setUsers(allUsers.filter(u => u.role === 'customer'));
         } catch (err) {
           setError('Failed to load users.');
@@ -37,7 +49,8 @@ function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
   const handleLineItemChange = (index: number, field: 'notes' | 'total_amount_cents', value: string) => {
     const newLineItems = [...lineItems];
     if (field === 'total_amount_cents') {
-      newLineItems[index][field] = parseInt(value, 10) * 100;
+      const price = parseFloat(value);
+      newLineItems[index][field] = isNaN(price) ? 0 : Math.round(price * 100);
     } else {
       newLineItems[index][field] = value;
     }
@@ -55,22 +68,34 @@ function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
 
   const handleSubmit = async (isDraft: boolean) => {
     setError(null);
-    if (!selecteduser_id) {
+    if (!selecteduserId) {
       setError("Please select a user.");
       return;
     }
     setIsSubmitting(true);
     try {
+      // --- UPDATED ---
       const payload = {
-        user_id: selecteduser_id,
+        user_id: selecteduserId,
         title,
-        lineItems,
+        jobType: type, // Use the 'type' prop
+        lineItems: lineItems.map(li => ({
+            description: li.notes,
+            quantity: 1,
+            unit_total_amount_cents: li.total_amount_cents
+        })),
         isDraft,
-        contactMethod,
-        dueDateDays: type === 'job' ? dueDateDays : undefined,
-        expireDateDays: type === 'quote' ? expireDateDays : undefined,
+        // contactMethod, // Backend does not seem to support this field directly on job creation
+        // dueDateDays and expireDateDays also need to be handled by the backend logic
       };
-      await apiPost(`/api/admin/jobs/${type}`, payload);
+
+      const res = await api.admin.jobs.$post({ json: payload as any });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new ApiError(errorData.error || `Failed to create ${type}`, res.status);
+      }
+      // --- END UPDATE ---
+
       onSave();
       onClose();
     } catch (err: any) {
@@ -92,10 +117,10 @@ function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
         {error && <div className="alert alert-danger">{error}</div>}
         <div className="mb-3">
           <label htmlFor="user" className="form-label">Customer</label>
-          <select id="user" className="form-control" value={selecteduser_id} onChange={(e) => setSelecteduser_id(e.target.value)}>
+          <select id="user" className="form-control" value={selecteduserId} onChange={(e) => setSelectedUserId(e.target.value)}>
             <option value="">Select a user</option>
             {users.map(user => (
-              <option key={user.id} value={user.id}>
+              <option key={user.id} value={user.id.toString()}>
                 {user.name || user.company_name} ({user.email || user.phone})
               </option>
             ))}
@@ -144,7 +169,7 @@ function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
             </select>
         </div>
       </div>
-      <div className="p-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2 bg-secondary-light/50 dark:bg-secondary-dark/50 rounded-b-lg">
+      <div className="p-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2 bg-gray-50 dark:bg-secondary-dark/50 rounded-b-lg">
         <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
         <button type="button" className="btn btn-info" onClick={() => handleSubmit(true)} disabled={isSubmitting}>Save as Draft</button>
         <button type="button" className="btn btn-primary" onClick={() => handleSubmit(false)} disabled={isSubmitting}>

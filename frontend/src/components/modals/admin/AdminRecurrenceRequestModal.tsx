@@ -1,12 +1,15 @@
-// frontend/src/components/admin/AdminRecurrenceRequestModal.tsx
+// frontend/src/components/modals/admin/AdminRecurrenceRequestModal.tsx
 import { useState } from 'react';
-import { updateRecurrenceRequest } from '../../../lib/api';
+// Import the new 'api' client.
+import { api } from '../../../lib/api';
+import { ApiError } from '../../../lib/fetchJson';
 import type { JobRecurrenceRequest } from '@portal/shared';
 
+// The request object from the API will likely include these details for display.
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  request: JobRecurrenceRequest;
+  request: JobRecurrenceRequest & { customer_name?: string, job_title?: string };
   onUpdate: () => void;
 }
 
@@ -20,8 +23,19 @@ function AdminRecurrenceRequestModal({ isOpen, onClose, request, onUpdate }: Pro
     setError(null);
     setIsSubmitting(true);
     try {
-      await updateRecurrenceRequest(request.id, { status });
+      // --- UPDATED ---
+      const res = await api.admin['recurrence-requests'][':requestId'].$put({
+        param: { requestId: request.id.toString() },
+        json: { status }
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new ApiError(errorData.error || 'Failed to update request', res.status);
+      }
+      // --- END UPDATE ---
+
       onUpdate();
+      onClose(); // Close the modal on success
     } catch (err: any) {
       setError(err.message || 'An unknown error occurred.');
     } finally {
@@ -38,10 +52,10 @@ function AdminRecurrenceRequestModal({ isOpen, onClose, request, onUpdate }: Pro
         {error && <div className="alert alert-danger">{error}</div>}
 
         <div className="space-y-3 text-sm">
-          <p><strong>Customer:</strong> {request.customer_name}</p>
-          <p><strong>Job:</strong> {request.job_title}</p>
+          <p><strong>Customer:</strong> {request.customer_name || 'N/A'}</p>
+          <p><strong>Job:</strong> {request.job_title || 'N/A'}</p>
           <p><strong>Requested Frequency:</strong> Every {request.frequency} days</p>
-          {request.requested_day !== null && (
+          {request.requested_day !== null && typeof request.requested_day !== 'undefined' && (
             <p><strong>Preferred Day:</strong> {weekDays[request.requested_day]}</p>
           )}
         </div>

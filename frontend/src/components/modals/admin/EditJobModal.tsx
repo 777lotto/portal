@@ -1,6 +1,8 @@
-// frontend/src/components/admin/EditJobModal.tsx
+// frontend/src/components/modals/admin/EditJobModal.tsx
 import { useState, useEffect } from 'react';
-import { adminReassignJob, apiGet } from '../../../lib/api';
+// Import the new 'api' client.
+import { api } from '../../../lib/api';
+import { ApiError } from '../../../lib/fetchJson';
 import type { Job, User } from '@portal/shared';
 
 interface Props {
@@ -12,15 +14,20 @@ interface Props {
 
 function EditJobModal({ isOpen, onClose, onJobUpdated, job }: Props) {
   const [users, setUsers] = useState<User[]>([]);
-  const [selecteduser_id, setSelecteduser_id] = useState<string>(job.user_id);
+  const [selecteduserId, setSelectedUserId] = useState<string>(job.user_id);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
+      setSelectedUserId(job.user_id); // Reset selection when modal opens
       const fetchUsers = async () => {
         try {
-          const allUsers = await apiGet<User[]>('/api/admin/users');
+          // --- UPDATED ---
+          const res = await api.admin.users.$get();
+          if (!res.ok) throw new Error('Failed to fetch users');
+          const allUsers = await res.json();
+          // --- END UPDATE ---
           setUsers(allUsers);
         } catch (err) {
           setError('Failed to load users.');
@@ -28,14 +35,27 @@ function EditJobModal({ isOpen, onClose, onJobUpdated, job }: Props) {
       };
       fetchUsers();
     }
-  }, [isOpen]);
+  }, [isOpen, job.user_id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
     try {
-      const updatedJob = await adminReassignJob(job.id, selecteduser_id);
+      // --- UPDATED ---
+      // Assumes reassigning is part of updating job details.
+      const res = await api.admin.jobs[':jobId'].details.$put({
+        param: { jobId: job.id.toString() },
+        json: { user_id: selecteduserId }
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new ApiError(errorData.error || 'Failed to reassign job', res.status);
+      }
+      const updatedJob = await res.json();
+      // --- END UPDATE ---
+
       onJobUpdated(updatedJob);
       onClose();
     } catch (err: any) {
@@ -62,8 +82,8 @@ function EditJobModal({ isOpen, onClose, onJobUpdated, job }: Props) {
               <select
                 id="customer"
                 className="form-control"
-                value={selecteduser_id}
-                onChange={(e) => setSelecteduser_id(e.target.value)}
+                value={selecteduserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
               >
                 {users.map(user => (
                   <option key={user.id} value={user.id.toString()}>
@@ -73,7 +93,7 @@ function EditJobModal({ isOpen, onClose, onJobUpdated, job }: Props) {
               </select>
             </div>
           </div>
-          <div className="p-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2 bg-secondary-light/50 dark:bg-secondary-dark/50 rounded-b-lg">
+          <div className="p-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2 bg-gray-50 dark:bg-secondary-dark/50 rounded-b-lg">
             <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
               {isSubmitting ? 'Saving...' : 'Save Changes'}

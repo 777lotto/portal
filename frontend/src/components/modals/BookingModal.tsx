@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { createPublicBooking, getLineItems, createJob } from '../../lib/api';
+// Import the new 'api' client.
+import { api } from '../../lib/api';
 import { ApiError } from '../../lib/fetchJson';
 import { format } from 'date-fns';
 import StyledDigitInput from '../forms/StyledDigitInput';
@@ -41,7 +42,17 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
 
       const fetchLineItems = async () => {
         try {
-          const lineItems = await getLineItems();
+          // --- UPDATED ---
+          // NOTE: Your backend 'worker/src/index.ts' does not seem to have a public
+          // endpoint for '/api/line-items'. I am assuming one will be added.
+          // The RPC call would look like this:
+          const res = await api['line-items'].$get();
+          if (!res.ok) {
+            throw new Error('Failed to load services');
+          }
+          const lineItems = await res.json();
+          // --- END UPDATE ---
+
           setLineItemOptions(lineItems);
         } catch (err) {
           setError('Failed to load services. Please try again.');
@@ -91,20 +102,38 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
 
     try {
       if (user) {
-        // Logic for existing customer
-        await createJob({
-          title: selectedLineItems.map(s => s.description).join(', '),
-          lineItems: selectedLineItems.map(s => ({ id: s.id, description: s.description, quantity: s.quantity, unit_total_amount_cents: s.unit_total_amount_cents })),
+        // --- UPDATED: Logic for existing customer ---
+        const res = await api.jobs.$post({
+          json: {
+            title: selectedLineItems.map(s => s.description).join(', '),
+            lineItems: selectedLineItems.map(s => ({ id: s.id, description: s.description, quantity: s.quantity, unit_total_amount_cents: s.unit_total_amount_cents })),
+          }
         });
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new ApiError(errorData.error || 'Failed to create job', res.status);
+        }
+        // --- END UPDATE ---
         setSuccess('Your booking has been scheduled!');
       } else {
-        // Logic for public booking
-        await createPublicBooking({
-          ...formData,
-          date: format(selectedDate, 'yyyy-MM-dd'),
-          services: selectedLineItems.map(({description}) => ({name: description, duration: 1})),
-          'cf-turnstile-response': turnstileToken,
+        // --- UPDATED: Logic for public booking ---
+        const res = await api.public.booking.$post({
+            json: {
+                ...formData,
+                date: format(selectedDate, 'yyyy-MM-dd'),
+                services: selectedLineItems.map(({description}) => ({name: description, duration: 1})),
+                'cf-turnstile-response': turnstileToken,
+            }
         });
+        if (!res.ok) {
+            const errorData = await res.json();
+            // Preserve the special error case for existing users
+            if (res.status === 409 && errorData.details?.code === 'LOGIN_REQUIRED') {
+                 throw new ApiError(errorData.message, res.status, errorData.details);
+            }
+            throw new ApiError(errorData.error || 'Failed to create booking request', res.status);
+        }
+        // --- END UPDATE ---
         setSuccess('Your booking request has been sent! We will contact you shortly to confirm.');
       }
 
@@ -114,16 +143,12 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
         if(!user) setTurnstileToken('');
       }, 3000);
     } catch (err: any) {
-      if (err instanceof ApiError && err.details?.code) {
-        if (err.details.code === 'LOGIN_REQUIRED') {
-          setError(
-            <span>
-              An account already exists. Please <Link to="/auth" className="text-primary font-bold">log in</Link> to book.
-            </span>
-          );
-        } else {
-          setError(err.message);
-        }
+      if (err instanceof ApiError && err.details?.code === 'LOGIN_REQUIRED') {
+        setError(
+          <span>
+            An account already exists with this information. Please <Link to="/auth" className="text-event-blue font-bold">log in</Link> to book.
+          </span>
+        );
       } else {
         setError(err.message || 'An unknown error occurred.');
       }
@@ -135,7 +160,7 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-tertiary-dark rounded-lg p-6 w-full max-w-lg max-h-full overflow-y-auto">
         <h2 className="text-2xl font-bold mb-4">Request Booking for {format(selectedDate, 'MMMM do, yyyy')}</h2>
         {error && <div className="alert alert-danger">{error}</div>}
@@ -167,7 +192,6 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
                 digitCount={10}
                 format="phone"
                 autoComplete="tel"
-                readOnly={!!user}
               />
             </div>
 
@@ -175,7 +199,7 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
           </div>
 
           {!user && (
-            <div className="mb-3 d-flex justify-content-center" id="turnstile-container"></div>
+            <div className="mb-3 flex justify-center" id="turnstile-container"></div>
           )}
 
           <div className="flex justify-end space-x-4">

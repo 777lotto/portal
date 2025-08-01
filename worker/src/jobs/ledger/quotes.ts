@@ -49,11 +49,13 @@ export async function getQuoteById(c: Context<AppEnv>) {
         return errorResponse("Quote not found.", 404);
     }
 
-    const services = await env.DB.prepare(
-        `SELECT * FROM services WHERE job_id = ?`
+    // Fetch from the 'line_items' table instead of 'services'.
+    const lineItems = await env.DB.prepare(
+        `SELECT * FROM line_items WHERE job_id = ?`
     ).bind(quoteId).all();
 
-    return successResponse({ ...job, services: services.results });
+    // Return the job object with a 'lineItems' property.
+    return successResponse({ ...job, lineItems: lineItems.results });
 }
 
 export async function handleDeclineQuote(c: Context<AppEnv>) {

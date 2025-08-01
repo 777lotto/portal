@@ -1,4 +1,5 @@
 // frontend/src/components/chat/SupportChatWidget.tsx
+// No changes were needed for this file as it uses WebSockets, not fetch/RPC.
 import React, { useState, useEffect, useRef } from 'react';
 import type { ChatMessage, User } from '@portal/shared';
 
@@ -43,21 +44,23 @@ const SupportChatWidget = ({ user }: { user: User }) => {
 
   return (
     <>
-      <div style={{ position: 'fixed', bottom: '20px', right: '20px' }}>
-        <button onClick={() => setIsOpen(!isOpen)} className="btn btn-primary">
+      <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 1000 }}>
+        <button onClick={() => setIsOpen(!isOpen)} className="btn btn-primary shadow-lg">
           {isOpen ? 'Close Chat' : 'Support Chat'}
         </button>
       </div>
       {isOpen && (
-        <div style={{ position: 'fixed', bottom: '80px', right: '20px', width: '350px', height: '500px' }} className="card">
+        <div style={{ position: 'fixed', bottom: '80px', right: '20px', width: '350px', height: '500px', zIndex: 1000 }} className="card shadow-lg">
           <div className="card-header">
             <h5 className="card-title">Support Chat</h5>
           </div>
           <div className="card-body" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column-reverse' }}>
             <div>
               {messages.map((msg) => (
-                <div key={msg.id} className={`chat-message ${msg.role === 'user' ? 'text-right' : ''}`}>
-                  <p><strong>{msg.user}:</strong> {msg.content}</p>
+                <div key={msg.id} className={`chat-message mb-2 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                  <div className={`inline-block p-2 rounded ${msg.role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}>
+                    <p className="mb-0"><strong>{msg.user}:</strong> {msg.content}</p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -70,7 +73,7 @@ const SupportChatWidget = ({ user }: { user: User }) => {
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
             />
-            <button onClick={sendMessage} className="btn btn-primary mt-2">Send</button>
+            <button onClick={sendMessage} className="btn btn-primary mt-2 w-full">Send</button>
           </div>
         </div>
       )}

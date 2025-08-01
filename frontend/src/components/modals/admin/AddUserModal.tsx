@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { adminCreateUser } from '../../../lib/api';
+// Import the new 'api' client.
+import { api } from '../../../lib/api';
+import { ApiError } from '../../../lib/fetchJson';
 import type { User } from '@portal/shared';
 
 interface Props {
@@ -38,7 +40,15 @@ function AddUserModal({ isOpen, onClose, onUserAdded }: Props) {
 
     setIsSubmitting(true);
     try {
-      const newUser = await adminCreateUser(formData);
+      // --- UPDATED ---
+      const res = await api.admin.users.$post({ json: formData });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new ApiError(errorData.error || 'Failed to create user', res.status);
+      }
+      const newUser = await res.json();
+      // --- END UPDATE ---
+
       onUserAdded(newUser);
       onClose();
     } catch (err: any) {
@@ -50,52 +60,50 @@ function AddUserModal({ isOpen, onClose, onUserAdded }: Props) {
 
   if (!isOpen) return null;
 
+  // No changes needed for the JSX below
  return (
-    <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
-      <div className="modal-dialog">
-        <div className="modal-content card"> {/* Added .card for consistent styling */}
-          <form onSubmit={handleSubmit}>
-            <div className="card-header"> {/* Used .card-header */}
-              <h5 className="card-title text-xl">Add New User</h5>
-              <button type="button" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl font-bold" onClick={onClose}>&times;</button>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white dark:bg-tertiary-dark rounded-lg w-full max-w-lg">
+        <form onSubmit={handleSubmit}>
+          <div className="p-6 border-b border-border-light dark:border-border-dark flex justify-between items-center">
+            <h5 className="text-xl font-bold">Add New User</h5>
+            <button type="button" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl font-bold" onClick={onClose}>&times;</button>
+          </div>
+          <div className="p-6 space-y-4">
+            {error && <div className="alert alert-danger">{error}</div>}
+            <div>
+              <label htmlFor="name" className="form-label">Full Name</label>
+              <input type="text" id="name" name="name" className="form-control" onChange={handleChange} />
             </div>
-            <div className="card-body"> {/* Used .card-body */}
-              {error && <div className="alert alert-danger">{error}</div>}
-              <div className="mb-3">
-                <label htmlFor="name" className="form-label">Full Name</label>
-                <input type="text" id="name" name="name" className="form-control" onChange={handleChange} />
-              </div>
-              <div className="mb-3">
-                <label htmlFor="company_name" className="form-label">Company/Community Name</label>
-                <input type="text" id="company_name" name="company_name" className="form-control" onChange={handleChange} />
-              </div>
-              <div className="mb-3">
-                <label htmlFor="email" className="form-label">Email Address</label>
-                <input type="email" id="email" name="email" className="form-control" onChange={handleChange} />
-              </div>
-              <div className="mb-3">
-                <label htmlFor="phone" className="form-label">Phone Number</label>
-                <input type="tel" id="phone" name="phone" className="form-control" onChange={handleChange} />
-              </div>
-              <div className="mb-3">
-                <label htmlFor="role" className="form-label">Role</label>
-
-                <select id="role" name="role" className="form-control" value={formData.role} onChange={handleChange}>
-                  <option value="customer">Customer</option>
-                  <option value="admin">Admin</option>
-                  <option value="associate">Associate</option>
-                  <option value="guest">Guest</option>
-                </select>
-              </div>
+            <div>
+              <label htmlFor="company_name" className="form-label">Company/Community Name</label>
+              <input type="text" id="company_name" name="company_name" className="form-control" onChange={handleChange} />
             </div>
-            <div className="p-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2 bg-secondary-light/50 dark:bg-secondary-dark/50 rounded-b-lg">
-              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-              <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-                {isSubmitting ? 'Saving...' : 'Create User'}
-              </button>
+            <div>
+              <label htmlFor="email" className="form-label">Email Address</label>
+              <input type="email" id="email" name="email" className="form-control" onChange={handleChange} />
             </div>
-          </form>
-        </div>
+            <div>
+              <label htmlFor="phone" className="form-label">Phone Number</label>
+              <input type="tel" id="phone" name="phone" className="form-control" onChange={handleChange} />
+            </div>
+            <div>
+              <label htmlFor="role" className="form-label">Role</label>
+              <select id="role" name="role" className="form-control" value={formData.role} onChange={handleChange}>
+                <option value="customer">Customer</option>
+                <option value="admin">Admin</option>
+                <option value="associate">Associate</option>
+                <option value="guest">Guest</option>
+              </select>
+            </div>
+          </div>
+          <div className="p-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2 bg-gray-50 dark:bg-secondary-dark/50 rounded-b-lg">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Create User'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

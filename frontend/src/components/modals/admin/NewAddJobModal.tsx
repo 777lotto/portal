@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { apiGet, adminCreateJob } from '../../../lib/api'; // Using your actual API functions
-import type { User } from '@portal/shared'; // Using your actual shared types
+// Import the new 'api' client
+import { api } from '../../../lib/api';
+import { ApiError } from '../../../lib/fetchJson';
+import type { User } from '@portal/shared';
 import { format } from 'date-fns';
 
-// Props interface based on your existing file
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -11,15 +12,13 @@ interface Props {
   selectedDate: Date | null;
 }
 
-// Interface for the line item state within this component
 interface LineItemFormState {
-  id: number; // A temporary ID for React key purposes
+  id: number;
   item: string;
   amountInDollars: string;
 }
 
 function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
-  // State for all form fields
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [title, setTitle] = useState('');
@@ -32,15 +31,11 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
   const [lineItems, setLineItems] = useState<LineItemFormState[]>([
     { id: Date.now(), item: '', amountInDollars: '' }
   ]);
-
-  // State for submission status and errors
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset form state when the modal is opened
   useEffect(() => {
     if (isOpen) {
-      // Reset all fields to their default values
       setTitle('');
       setDescription('');
       setSelectedUserId('');
@@ -54,8 +49,13 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
 
       const fetchUsers = async () => {
         try {
-          const allUsers = await apiGet<User[]>('/api/admin/users');
-          // Filter for customers/guests as in your original file
+          // --- UPDATED ---
+          const res = await api.admin.users.$get();
+          if (!res.ok) {
+            throw new Error('Failed to fetch users');
+          }
+          const allUsers = await res.json();
+          // --- END UPDATE ---
           setUsers(allUsers.filter(u => u.role === 'customer' || u.role === 'guest'));
         } catch (err) {
           setError('Failed to load users.');
@@ -65,7 +65,6 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
     }
   }, [isOpen]);
 
-  // Handlers for dynamically managing line items
   const handleLineItemChange = (id: number, field: 'item' | 'amountInDollars', value: string) => {
     setLineItems(lineItems.map(item => item.id === id ? { ...item, [field]: value } : item));
   };
@@ -74,14 +73,12 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
     setLineItems([...lineItems, { id: Date.now(), item: '', amountInDollars: '' }]);
   };
 
-  // CORRECTED: This now correctly filters by the item's unique ID.
   const removeLineItem = (id: number) => {
     if (lineItems.length > 1) {
       setLineItems(lineItems.filter(item => item.id !== id));
     }
   };
 
-  // Main submission handler
   const handleSubmit = async () => {
     setError(null);
     if (!selectedUserId || !title) {
@@ -89,7 +86,6 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
       return;
     }
 
-    // Construct the payload that matches our backend's Zod schema
     const payload = {
       user_id: selectedUserId,
       title,
@@ -101,10 +97,12 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
       end: end ? new Date(end).toISOString() : null,
       lineItems: lineItems
         .map(li => ({
-          item: li.item,
-          total_amount_cents: Math.round(parseFloat(li.amountInDollars) * 100),
+          // Note: The backend expects 'description', not 'item' for line items.
+          description: li.item,
+          quantity: 1, // Assuming quantity is always 1 for this form
+          unit_total_amount_cents: Math.round(parseFloat(li.amountInDollars) * 100),
         }))
-        .filter(li => li.item && !isNaN(li.total_amount_cents) && li.total_amount_cents >= 0),
+        .filter(li => li.description && !isNaN(li.unit_total_amount_cents) && li.unit_total_amount_cents >= 0),
     };
 
     if (payload.lineItems.length === 0) {
@@ -114,8 +112,13 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
 
     setIsSubmitting(true);
     try {
-      // Use the imported adminCreateJob function with the new payload
-      await adminCreateJob(payload);
+      // --- UPDATED ---
+      const res = await api.admin.jobs.$post({ json: payload as any }); // Using 'as any' because the payload is complex and matches the expected backend schema
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new ApiError(errorData.error || `Failed to create ${jobType}`, res.status);
+      }
+      // --- END UPDATE ---
       onSave();
       onClose();
     } catch (err: any) {
@@ -201,7 +204,7 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
 
             <hr className="my-3 border-border-light dark:border-border-dark" />
             <h6 className="font-semibold mb-2">Line Items</h6>
-            {lineItems.map((item) => ( // Removed index from map
+            {lineItems.map((item) => (
               <div key={item.id} className="flex items-center gap-2 mb-2">
                 <div className="flex-grow">
                   <input type="text" className="form-control" placeholder="Description" value={item.item} onChange={(e) => handleLineItemChange(item.id, 'item', e.target.value)} />
@@ -210,7 +213,6 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
                   <input type="number" step="0.01" className="form-control" placeholder="Price ($)" value={item.amountInDollars} onChange={(e) => handleLineItemChange(item.id, 'amountInDollars', e.target.value)} />
                 </div>
                 <div>
-                  {/* CORRECTED: This now calls removeLineItem with the correct ID */}
                   <button className="btn btn-danger" onClick={() => removeLineItem(item.id)}>X</button>
                 </div>
               </div>

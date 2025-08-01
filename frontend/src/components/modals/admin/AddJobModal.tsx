@@ -1,8 +1,10 @@
-// frontend/src/components/admin/AddJobModal.tsx
+// frontend/src/components/modals/admin/AddJobModal.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiGet, adminCreateJobForUser } from '../../../lib/api';
-import type { User, Job } from '@portal/shared';
+// Import the new 'api' client.
+import { api } from '../../../lib/api';
+import { ApiError } from '../../../lib/fetchJson';
+import type { User } from '@portal/shared';
 import { format } from 'date-fns';
 
 interface Props {
@@ -13,11 +15,17 @@ interface Props {
   jobType: 'quote' | 'job' | 'invoice';
 }
 
+// A simple interface for the line item state within this component.
+interface LineItemState {
+  notes: string;
+  total_amount_cents: number;
+}
+
 function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) {
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
-  const [selecteduser_id, setSelecteduser_id] = useState<string>('');
-  const [lineItems, setLineItems] = useState<Partial<Service>[]>([{ notes: '', total_amount_cents: 0 }]);
+  const [selecteduserId, setSelectedUserId] = useState<string>('');
+  const [lineItems, setLineItems] = useState<LineItemState[]>([{ notes: '', total_amount_cents: 0 }]);
   const [title, setTitle] = useState('');
   const [daysUntilExpiry, setDaysUntilExpiry] = useState<number>(7);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,13 +34,17 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
   useEffect(() => {
     if (isOpen) {
       setTitle('');
-      setSelecteduser_id('');
+      setSelectedUserId('');
       setLineItems([{ notes: '', total_amount_cents: 0 }]);
       setError(null);
       setDaysUntilExpiry(7);
       const fetchUsers = async () => {
         try {
-          const allUsers = await apiGet<User[]>('/api/admin/users');
+          // --- UPDATED ---
+          const res = await api.admin.users.$get();
+          if (!res.ok) throw new Error('Failed to fetch users');
+          const allUsers = await res.json();
+          // --- END UPDATE ---
           setUsers(allUsers.filter(u => u.role === 'customer' || u.role === 'guest'));
         } catch (err) {
           setError('Failed to load users.');
@@ -62,27 +74,37 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
     setLineItems(newLineItems);
   };
 
-  const handleSubmit = async (action: 'draft' | 'send_proposal' | 'send_invoice' | 'post') => {
+  const handleSubmit = async (action: 'draft' | 'send_proposal' | 'send_invoice' | 'post' | 'send_finalized') => {
     setError(null);
-    if (!selecteduser_id || !title || lineItems.some(item => !item.notes)) {
+    if (!selecteduserId || !title || lineItems.some(item => !item.notes)) {
       setError("Please select a customer, enter a title, and provide a description for all line items.");
       return;
     }
     setIsSubmitting(true);
     try {
-      // Use the new, unified adminCreateJob function
-      await adminCreateJob({
-        user_id: selecteduser_id,
-        jobType, // This comes from the component's props
-        title,
-        start: selectedDate.toISOString(),
-        services: lineItems.map(item => ({
-            notes: item.notes || '',
-            total_amount_cents: item.total_amount_cents || 0
-        })),
-        isDraft: action === 'draft',
-        action: action, // Pass the action for the backend to use
+      // --- UPDATED ---
+      const res = await api.admin.jobs.$post({
+        json: {
+          user_id: selecteduserId,
+          jobType,
+          title,
+          start: selectedDate.toISOString(),
+          // The backend expects 'services' with this shape
+          services: lineItems.map(item => ({
+              notes: item.notes || '',
+              total_amount_cents: item.total_amount_cents || 0
+          })),
+          isDraft: action === 'draft',
+          action: action,
+        }
       });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new ApiError(errorData.error || `Failed to create ${jobType}`, res.status);
+      }
+      // --- END UPDATE ---
+
       onSave();
       onClose();
     } catch (err: any) {
@@ -113,10 +135,10 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="mb-3">
                 <label htmlFor="user" className="form-label">Customer</label>
-                <select id="user" className="form-control" value={selecteduser_id} onChange={(e) => setSelecteduser_id(e.target.value)}>
+                <select id="user" className="form-control" value={selecteduserId} onChange={(e) => setSelectedUserId(e.target.value)}>
                   <option value="">Select a user</option>
                   {users.map(user => (
-                    <option key={user.id} value={user.id}>
+                    <option key={user.id} value={user.id.toString()}>
                       {user.name || user.company_name} ({user.email || user.phone})
                     </option>
                   ))}

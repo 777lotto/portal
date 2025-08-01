@@ -1,4 +1,4 @@
-// worker/src/handlers/public.ts
+// worker/src/public/index.ts
 import { Context } from 'hono';
 import { v4 as uuidv4 } from 'uuid';
 import { AppEnv } from '../index.js';
@@ -21,8 +21,6 @@ export async function handleAcceptQuote(c: Context<AppEnv>) {
     }
 }
 
-
-// NEW: Handler for public iCal feed
 export const handlePublicCalendarFeed = async (c: Context<AppEnv>) => {
     const { token } = c.req.param();
     const cleanToken = token.endsWith('.ics') ? token.slice(0, -4) : token;
@@ -32,7 +30,6 @@ export const handlePublicCalendarFeed = async (c: Context<AppEnv>) => {
     }
 
     try {
-        // Find the user associated with this token
         const tokenRecord = await c.env.DB.prepare(
             `SELECT user_id FROM calendar_tokens WHERE token = ?`
         ).bind(cleanToken).first<{ user_id: number }>();
@@ -55,16 +52,12 @@ export const handlePublicCalendarFeed = async (c: Context<AppEnv>) => {
     }
 }
 
-
-// Handler to get day availability
 export const handleGetAvailability = async (c: Context<AppEnv>) => {
   try {
-    // Fetch all calendar events that are jobs or blocked dates
     const { results: eventResults } = await c.env.DB.prepare(
       `SELECT start FROM calendar_events WHERE type IN ('job', 'blocked')`
     ).all<{ start: string }>();
 
-    // Use a Set for efficiency to get unique day strings
     const bookedDays = new Set<string>();
 
     eventResults?.forEach((event: { start: string }) => {
@@ -72,7 +65,6 @@ export const handleGetAvailability = async (c: Context<AppEnv>) => {
       bookedDays.add(day);
     });
 
-    // Return the array of unique booked days
     return successResponse({ bookedDays: Array.from(bookedDays) });
   } catch (e: any) {
     console.error("Failed to get availability:", e.message, e.stack);
@@ -80,7 +72,6 @@ export const handleGetAvailability = async (c: Context<AppEnv>) => {
   }
 };
 
-// Handler to create a new booking from a public user
 export const handleCreateBooking = async (c: Context<AppEnv>) => {
   const body = await c.req.json();
   const parsed = PublicBookingRequestSchema.safeParse(body);
@@ -89,36 +80,35 @@ export const handleCreateBooking = async (c: Context<AppEnv>) => {
     return errorResponse("Invalid booking data", 400, parsed.error.flatten());
   }
 
-  // ADDED: Turnstile validation
   const ip = c.req.header('CF-Connecting-IP') || '127.0.0.1';
   const turnstileSuccess = await validateTurnstileToken(parsed.data['cf-turnstile-response'], ip, c.env);
   if (!turnstileSuccess) {
       return errorResponse("Invalid security token. Please try again.", 403);
   }
 
-  const { name, email, phone, address, date, lines } = parsed.data;
+  // --- UPDATED ---
+  // Destructure 'lineItems' instead of 'lines'.
+  const { name, email, phone, address, date, lineItems } = parsed.data;
+  // --- END UPDATE ---
   const lowercasedEmail = email.toLowerCase();
   const cleanedPhone = phone.replace(/\D/g, '').slice(-10);
 
   try {
-    // 1. Check for an existing user by email OR phone
     const existingUser = await c.env.DB.prepare(
       `SELECT id, name, password_hash FROM users WHERE email = ? OR phone = ?`
     ).bind(lowercasedEmail, cleanedPhone).first<User & { password_hash?: string }>();
 
     if (existingUser) {
-        // Case 1: User exists and has a password. Prompt them to log in.
         if (existingUser.password_hash) {
             return errorResponse(
                 "An account with this email or phone number already exists. Please log in to book.",
-                409, // Conflict
+                409,
                 { code: "LOGIN_REQUIRED" }
             );
         } else {
-            // Case 2: User exists but has no password (is a guest). Send a password set link.
             const token = uuidv4();
             const expires = new Date();
-            expires.setHours(expires.getHours() + 1); // Token expires in 1 hour
+            expires.setHours(expires.getHours() + 1);
 
             await c.env.DB.prepare(
                 `INSERT INTO password_reset_tokens (user_id, token, due) VALUES (?, ?, ?)`
@@ -128,7 +118,7 @@ export const handleCreateBooking = async (c: Context<AppEnv>) => {
             const resetLink = `${portalBaseUrl}/set-password?token=${token}`;
 
             await c.env.NOTIFICATION_QUEUE.send({
-                type: 'password_reset', // This template works for setting a password too
+                type: 'password_reset',
                 user_id: existingUser.id,
                 data: { name: existingUser.name, resetLink: resetLink },
                 channels: ['email']
@@ -142,7 +132,6 @@ export const handleCreateBooking = async (c: Context<AppEnv>) => {
         }
     }
 
-    // Case 3: No user exists. Create a new guest user and proceed with booking.
     const { results } = await c.env.DB.prepare(
         `INSERT INTO users (name, email, phone, address, role) VALUES (?, ?, ?, ?, 'guest') RETURNING id`
       ).bind(name, lowercasedEmail, cleanedPhone, address).all<{ id: number }>();
@@ -152,13 +141,16 @@ export const handleCreateBooking = async (c: Context<AppEnv>) => {
     }
     const user_id = results[0].id;
 
-    // Create the job(s)
     let currentStartTime = new Date(`${date}T09:00:00`);
 
-    for (const service of lines) {
-      const endTime = new Date(currentStartTime.getTime() + service.duration * 60 * 60 * 1000);
+    // --- UPDATED ---
+    // Iterate over 'lineItems' and use 'lineItem' as the variable.
+    for (const lineItem of lineItems) {
+      // Assuming duration is still a valid property for public booking line items.
+      const endTime = new Date(currentStartTime.getTime() + (lineItem.duration || 1) * 60 * 60 * 1000);
       const jobData = {
-        title: service.name,
+        // Use 'description' for the title to be consistent.
+        title: lineItem.description,
         description: `New booking for ${name}. Address: ${address}`,
         start: currentStartTime.toISOString(),
         end: endTime.toISOString(),
@@ -168,6 +160,7 @@ export const handleCreateBooking = async (c: Context<AppEnv>) => {
       await createJob(c.env, jobData, user_id);
       currentStartTime = endTime;
     }
+    // --- END UPDATE ---
 
     return successResponse({ message: 'Booking request received successfully!' }, 201);
 

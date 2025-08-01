@@ -118,15 +118,15 @@ export const PublicBookingRequestSchema = z.object({
   phone: z.string().min(10),
   address: z.string().min(5),
   date: z.string(),
-  lines: z.array(z.object({
-    name: z.string(),
-    duration: z.number(),
+  lineItems: z.array(z.object({
+      description: z.string(), // Changed from name to description
+      duration: z.number().optional().default(1)
   })).min(1),
   'cf-turnstile-response': z.string(),
 });
 export type PublicBookingRequest = z.infer<typeof PublicBookingRequestSchema>;
 
-// Defines a photo, associated with a job or service.
+// Defines a photo, associated with a job or line item service.
 export const PhotoSchema = z.object({
     id: z.string(),
     url: z.string().url(),

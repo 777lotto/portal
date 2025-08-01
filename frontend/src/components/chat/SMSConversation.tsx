@@ -1,7 +1,9 @@
-// frontend/src/components/SMSConversation.tsx - CORRECTED
+// frontend/src/components/chat/SMSConversation.tsx
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getSmsConversation, sendSms } from '../../lib/api.js';
+// Import the new 'api' client.
+import { api } from '../../lib/api';
+import { ApiError } from '../../lib/fetchJson';
 import type { SMSMessage } from '@portal/shared';
 
 function SMSConversation() {
@@ -26,7 +28,18 @@ function SMSConversation() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await getSmsConversation(phoneNumber); // FIX: Removed token argument
+
+        // --- UPDATED ---
+        const res = await api.sms.conversation[':phoneNumber'].$get({
+          param: { phoneNumber }
+        });
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new ApiError(errorData.error || 'Failed to fetch messages', res.status);
+        }
+        const data = await res.json();
+        // --- END UPDATE ---
+
         setMessages(data);
       } catch (err: any) {
         setError(err.message);
@@ -44,7 +57,18 @@ function SMSConversation() {
     try {
       setIsSending(true);
       setError(null);
-      const sentMessage = await sendSms(phoneNumber, newMessage); // FIX: Removed token argument
+
+      // --- UPDATED ---
+      const res = await api.sms.send.$post({
+        json: { to: phoneNumber, message: newMessage }
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new ApiError(errorData.error || 'Failed to send message', res.status);
+      }
+      const sentMessage = await res.json();
+      // --- END UPDATE ---
+
       setMessages(prev => [...prev, sentMessage]);
       setNewMessage('');
     } catch(err: any) {
