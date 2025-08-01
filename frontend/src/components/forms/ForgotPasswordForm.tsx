@@ -1,11 +1,13 @@
-// frontend/src/components/ForgotPasswordForm.tsx
+// frontend/src/components/forms/ForgotPasswordForm.tsx
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { apiPost } from '../../lib/api';
+// Import the new 'api' client
+import { api } from '../../lib/api';
+import { ApiError } from '../../lib/fetchJson';
 
 function ForgotPasswordForm() {
   const [identifier, setIdentifier] = useState('');
-  const [channel, setChannel] = useState('email');
+  const [channel, setChannel] = useState<'email' | 'sms'>('email');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -18,8 +20,15 @@ function ForgotPasswordForm() {
     setIsLoading(true);
 
     try {
-      const response = await apiPost<{ message: string }>('/api/request-password-reset', { identifier, channel });
-      // MODIFIED: On success, navigate to the verify code form instead of just showing a message.
+      // --- UPDATED ---
+      const res = await api['request-password-reset'].$post({ json: { identifier, channel } });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new ApiError(errorData.error || 'Failed to send reset request', res.status);
+      }
+      // --- END UPDATE ---
+
+      // On success, navigate to the verify code form instead of just showing a message.
       // Pass the identifier so the next form knows who is verifying.
       navigate('/verify-code', { state: { identifier } });
     } catch (err: any) {
@@ -29,6 +38,7 @@ function ForgotPasswordForm() {
     }
   };
 
+  // No changes needed to the JSX render logic below
   return (
     <div className="container mt-5">
       <div className="row justify-content-center">
@@ -36,7 +46,7 @@ function ForgotPasswordForm() {
           <div className="card">
             <div className="card-body">
               <h3 className="card-title text-center">Reset Password</h3>
-              <p className="text-center text-muted mb-4">Enter your email or phone number to receive a reset link.</p>
+              <p className="text-center text-muted mb-4">Enter your email or phone number to receive a reset code.</p>
               <form onSubmit={handleSubmit}>
                 <div className="mb-3">
                   <label htmlFor="identifier">Email or Phone Number</label>
@@ -51,7 +61,7 @@ function ForgotPasswordForm() {
                 </div>
 
                 <div className="mb-3">
-                  <label className="form-label">Send link via:</label>
+                  <label className="form-label">Send code via:</label>
                   <div className="form-check">
                     <input
                       className="form-check-input"
@@ -87,7 +97,7 @@ function ForgotPasswordForm() {
 
                 <div className="d-grid">
                   <button type="submit" className="btn btn-primary" disabled={isLoading}>
-                    {isLoading ? 'Sending...' : 'Send Reset Link'}
+                    {isLoading ? 'Sending...' : 'Send Reset Code'}
                   </button>
                 </div>
 

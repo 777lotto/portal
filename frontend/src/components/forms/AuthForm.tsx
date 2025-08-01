@@ -1,8 +1,8 @@
-// 777lotto/portal/portal-bet/frontend/src/components/AuthForm.tsx
+// frontend/src/components/forms/AuthForm.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-// MODIFIED: Import `initializeSignup` and remove `signup`
-import { initializeSignup, checkUser, login, requestPasswordReset, verifyResetCode, setPassword, loginWithToken } from '../../lib/api';
+// Import the new 'api' client. All other api functions are no longer needed.
+import { api } from '../../lib/api';
 import { ApiError } from '../../lib/fetchJson';
 import StyledDigitInput from './StyledDigitInput';
 
@@ -55,12 +55,10 @@ function AuthForm({ setToken }: Props) {
   useEffect(() => {
     window.onTurnstileSuccess = (token: string) => setTurnstileToken(token);
 
-    // Mock Turnstile in development if a site key is not provided
     if (import.meta.env.DEV && !import.meta.env.VITE_TURNSTILE_SITE_KEY) {
       setTimeout(() => window.onTurnstileSuccess?.('mock-token-for-dev'), 100);
     }
 
-    // MODIFIED: Also render turnstile on the details step, since it now calls an API
     if (step === 'LOGIN_PASSWORD' || step === 'SET_PASSWORD' || step === 'SIGNUP_DETAILS') {
         setTimeout(() => {
             if (window.renderCfTurnstile) {
@@ -99,7 +97,12 @@ function AuthForm({ setToken }: Props) {
       const isEmail = formData.identifier.includes('@');
       const finalIdentifier = isEmail ? formData.identifier : formData.identifier.replace(/\D/g, '').slice(-10);
 
-      const response = await checkUser(finalIdentifier);
+      // --- UPDATED ---
+      const res = await api['check-user'].$post({ json: { identifier: finalIdentifier } });
+      if (!res.ok) throw new ApiError((await res.json()).error || 'Failed to check user', res.status);
+      const response = await res.json();
+      // --- END UPDATE ---
+
       setContactInfo({ email: response.email, phone: response.phone });
 
       if (response.status === 'EXISTING_WITH_PASSWORD') {
@@ -137,11 +140,18 @@ function AuthForm({ setToken }: Props) {
     setIsLoading(true);
 
     try {
-      const response = await login({
-        email: contactInfo.email || formData.identifier,
-        password: formData.password,
-        'cf-turnstile-response': turnstileToken,
+      // --- UPDATED ---
+      const res = await api.login.$post({
+        json: {
+          email: contactInfo.email || formData.identifier,
+          password: formData.password,
+          'cf-turnstile-response': turnstileToken,
+        }
       });
+      if (!res.ok) throw new ApiError((await res.json()).error || 'Login failed', res.status);
+      const response = await res.json();
+      // --- END UPDATE ---
+
       if (response.token) {
         setToken(response.token);
         navigate('/dashboard');
@@ -154,7 +164,6 @@ function AuthForm({ setToken }: Props) {
     }
   };
 
-  // MODIFIED: This function is now async and handles the first part of the signup
   const handleDetailsSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!formData.name && !formData.company_name) {
@@ -169,19 +178,28 @@ function AuthForm({ setToken }: Props) {
       setIsLoading(true);
 
       try {
-        const initResponse = await initializeSignup({
-            name: formData.name,
-            company_name: formData.company_name,
-            email: formData.email,
-            phone: formData.phone,
-            'cf-turnstile-response': turnstileToken,
+        // --- UPDATED ---
+        const initRes = await api.signup.initialize.$post({
+            json: {
+                name: formData.name,
+                company_name: formData.company_name,
+                email: formData.email,
+                phone: formData.phone,
+                'cf-turnstile-response': turnstileToken,
+            }
         });
+        if (!initRes.ok) throw new ApiError((await initRes.json()).error || 'Signup initialization failed', initRes.status);
+        const initResponse = await initRes.json();
+        // --- END UPDATE ---
 
         const channel = formData.email ? 'email' : 'sms';
         const identifier = channel === 'email' ? initResponse.email : initResponse.phone;
 
         if (identifier) {
-             await requestPasswordReset(identifier, channel);
+            // --- UPDATED ---
+             const reqPassRes = await api['request-password-reset'].$post({ json: { identifier, channel } });
+             if (!reqPassRes.ok) throw new ApiError((await reqPassRes.json()).error || 'Failed to request password reset', reqPassRes.status);
+            // --- END UPDATE ---
              setVerificationChannel(channel);
              setMessage(`A verification code has been sent to your ${channel}.`);
              setStep('VERIFY_CODE');
@@ -204,7 +222,10 @@ function AuthForm({ setToken }: Props) {
         const identifier = flowContext === 'SIGNUP'
             ? (channel === 'email' ? formData.email : formData.phone)
             : formData.identifier;
-        await requestPasswordReset(identifier, channel);
+        // --- UPDATED ---
+        const res = await api['request-password-reset'].$post({ json: { identifier, channel } });
+        if (!res.ok) throw new ApiError((await res.json()).error || 'Failed to request code', res.status);
+        // --- END UPDATE ---
         setVerificationChannel(channel);
         setMessage(`A verification code has been sent to your ${channel}.`);
         setStep('VERIFY_CODE');
@@ -222,10 +243,22 @@ function AuthForm({ setToken }: Props) {
         const identifier = flowContext === 'SIGNUP'
             ? (verificationChannel === 'email' ? formData.email : formData.phone)
             : formData.identifier;
-        const response = await verifyResetCode(identifier, code);
+
+        // --- UPDATED ---
+        const verifyRes = await api['verify-reset-code'].$post({ json: { identifier, code } });
+        if (!verifyRes.ok) throw new ApiError((await verifyRes.json()).error || 'Code verification failed', verifyRes.status);
+        const response = await verifyRes.json();
+        // --- END UPDATE ---
+
         if (response.passwordSetToken) {
             if (flowContext === 'LOGIN') {
-                const sessionResponse = await loginWithToken(response.passwordSetToken);
+                // --- UPDATED ---
+                const sessionRes = await api['login-with-token'].$post({}, {
+                    headers: { Authorization: `Bearer ${response.passwordSetToken}` }
+                });
+                if (!sessionRes.ok) throw new ApiError((await sessionRes.json()).error || 'Login with token failed', sessionRes.status);
+                const sessionResponse = await sessionRes.json();
+                // --- END UPDATE ---
                 setToken(sessionResponse.token);
                 navigate('/dashboard', { replace: true });
             } else {
@@ -242,7 +275,6 @@ function AuthForm({ setToken }: Props) {
     }
   };
 
-  // MODIFIED: This function is now simpler and only calls `setPassword`
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
@@ -257,7 +289,13 @@ function AuthForm({ setToken }: Props) {
     setIsLoading(true);
 
     try {
-      const response = await setPassword(formData.password, passwordSetToken);
+      // --- UPDATED ---
+      const res = await api['set-password'].$post({ json: { password: formData.password } }, {
+          headers: { Authorization: `Bearer ${passwordSetToken}` }
+      });
+      if (!res.ok) throw new ApiError((await res.json()).error || 'Failed to set password', res.status);
+      const response = await res.json();
+      // --- END UPDATE ---
 
       if (response.token) {
         setToken(response.token);
@@ -272,6 +310,8 @@ function AuthForm({ setToken }: Props) {
       setTurnstileToken('');
     }
   };
+
+  // --- No changes needed to any of the render functions below this line ---
 
   const renderIdentify = () => (
     <form onSubmit={handleIdentify} className="space-y-6">
@@ -326,7 +366,6 @@ function AuthForm({ setToken }: Props) {
     </form>
   );
 
-  // MODIFIED: This form now includes the Turnstile widget
   const renderSignupDetails = () => (
       <form onSubmit={handleDetailsSubmit} className="space-y-6">
            <div className="text-center">

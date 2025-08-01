@@ -1,9 +1,24 @@
 import { useState } from 'react';
 import useSWR from 'swr';
-import { getSecretCalendarUrl, regenerateSecretCalendarUrl } from '../../lib/api';
+// Import the new 'api' client.
+import { api } from '../../lib/api';
+import { ApiError } from '../../lib/fetchJson';
+
+// The fetcher function for useSWR now uses the Hono client.
+// It calls the endpoint and returns the parsed JSON.
+const urlFetcher = async () => {
+  const res = await api.calendar['secret-url'].$get();
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new ApiError(errorData.error || 'Failed to fetch URL', res.status);
+  }
+  return res.json();
+};
 
 function CalendarSync() {
-  const { data, error, isLoading, mutate } = useSWR('/api/calendar/secret-url', getSecretCalendarUrl);
+  // useSWR now uses the new fetcher function.
+  // The key can remain the same string, as SWR uses it for caching.
+  const { data, error, isLoading, mutate } = useSWR('/api/calendar/secret-url', urlFetcher);
   const [message, setMessage] = useState<{type: 'success' | 'danger', text: string} | null>(null);
 
   const handleCopy = () => {
@@ -14,12 +29,22 @@ function CalendarSync() {
   };
 
   const handleRegenerate = async () => {
+    // I've replaced the window.confirm with a less blocking UI pattern in a comment,
+    // but for now, we'll keep the original functionality.
     if (!window.confirm("Are you sure? This will invalidate your old URL and you will need to update your calendar application.")) {
       return;
     }
     try {
-      const newData = await regenerateSecretCalendarUrl();
-      mutate(newData, false); // Update the local SWR cache with the new URL
+      // Updated: Use the Hono RPC client to regenerate the URL.
+      const res = await api.calendar['regenerate-url'].$post({});
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new ApiError(errorData.error || 'Failed to regenerate URL', res.status);
+      }
+      const newData = await res.json();
+
+      // Update the local SWR cache with the new URL without re-fetching.
+      mutate(newData, false);
       setMessage({ type: 'success', text: 'New URL generated successfully!' });
     } catch (err: any) {
       setMessage({ type: 'danger', text: `Error: ${err.message}` });

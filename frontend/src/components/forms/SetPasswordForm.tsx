@@ -1,11 +1,9 @@
-// frontend/src/components/SetPasswordForm.tsx
-// frontend/src/components/SetPasswordForm.tsx
+// frontend/src/components/forms/SetPasswordForm.tsx
 
 import { useState } from 'react';
-// MODIFIED: Remove useSearchParams, add useLocation
 import { useNavigate, useLocation } from 'react-router-dom';
-// MODIFIED: Remove getUserFromResetToken
-import { setPassword } from '../../lib/api';
+// Import the new 'api' client
+import { api } from '../../lib/api';
 import { ApiError } from '../../lib/fetchJson';
 
 interface Props {
@@ -14,9 +12,8 @@ interface Props {
 
 function SetPasswordForm({ setToken }: Props) {
   const navigate = useNavigate();
-  const location = useLocation(); // MODIFIED: Use location to get state
+  const location = useLocation();
 
-  // MODIFIED: The passwordSetToken comes from the previous step
   const passwordSetToken = location.state?.passwordSetToken;
 
   const [password, setPasswordState] = useState('');
@@ -26,7 +23,16 @@ function SetPasswordForm({ setToken }: Props) {
 
   // If the user lands here without a token, redirect them.
   if (!passwordSetToken) {
-    navigate('/login', { replace: true });
+    // We can't call navigate directly in the render body.
+    // A simple solution is to return null and let an effect handle the redirect.
+    // Or for this case, just show an error.
+    return (
+        <div className="container mt-5">
+            <div className="alert alert-danger">
+                Invalid session. Please start the password reset process again.
+            </div>
+        </div>
+    );
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,18 +45,33 @@ function SetPasswordForm({ setToken }: Props) {
     setIsLoading(true);
 
     try {
-      // MODIFIED: Pass password and the special token to the API
-      const response = await setPassword(password, passwordSetToken);
+      // --- UPDATED ---
+      // Use the Hono RPC client to set the password.
+      // The passwordSetToken is sent as a Bearer token in the header.
+      const res = await api['set-password'].$post({ json: { password } }, {
+        headers: {
+          Authorization: `Bearer ${passwordSetToken}`
+        }
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new ApiError(errorData.error || 'Failed to set password', res.status);
+      }
+
+      const response = await res.json();
+      // --- END UPDATE ---
+
       setToken(response.token);
       navigate('/dashboard', { replace: true });
     } catch (err: any) {
       setError(err instanceof ApiError ? err.message : 'An unexpected error occurred.');
     } finally {
-      setIsLoading(false);
+      setIsLoading(true);
     }
   };
 
-  // MODIFIED: The form is much simpler now. We don't need to load user info.
+  // No changes needed to the JSX render logic below
   return (
     <div className="container mt-5">
       <div className="row justify-content-center">

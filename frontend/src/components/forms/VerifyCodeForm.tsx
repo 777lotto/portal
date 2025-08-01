@@ -1,9 +1,8 @@
-// File: 777lotto/portal/portal-bet/frontend/src/components/VerifyCodeForm.tsx
-
 import { useState, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { verifyResetCode } from '../lib/api';
-import { ApiError } from '../../lib/fetchJson';
+// Import the new 'api' client
+import { api } from '../lib/api';
+import { ApiError } from '../lib/fetchJson';
 import StyledDigitInput from './StyledDigitInput';
 
 function VerifyCodeForm() {
@@ -15,8 +14,16 @@ function VerifyCodeForm() {
   const location = useLocation();
   const identifier = location.state?.identifier;
 
+  // If the user lands here without an identifier, redirect them.
   if (!identifier) {
-    navigate('/forgot-password', { replace: true });
+    // A simple way to handle this is to show an error and a link back.
+    return (
+        <div className="container mt-5">
+            <div className="alert alert-danger">
+                Invalid session. Please <Link to="/forgot-password">start the password reset process</Link> again.
+            </div>
+        </div>
+    );
   }
 
   const handleSubmit = useCallback(async (submittedCode: string) => {
@@ -24,7 +31,15 @@ function VerifyCodeForm() {
     setIsLoading(true);
 
     try {
-      const response = await verifyResetCode(identifier, submittedCode);
+      // --- UPDATED ---
+      const res = await api['verify-reset-code'].$post({ json: { identifier, code: submittedCode } });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new ApiError(errorData.error || 'Failed to verify code', res.status);
+      }
+      const response = await res.json();
+      // --- END UPDATE ---
+
       if (response.passwordSetToken) {
         navigate('/set-password', { state: { passwordSetToken: response.passwordSetToken }, replace: true });
       } else {
@@ -37,6 +52,7 @@ function VerifyCodeForm() {
     }
   }, [identifier, navigate]);
 
+  // No changes needed to the JSX render logic below
   return (
     <div className="container mt-5">
       <div className="row justify-content-center">
