@@ -322,7 +322,6 @@ export const handleAdminCompleteJob = async (c: HonoContext<WorkerAppEnv>) => {
             auto_advance: false,
         });
 
-        // CORRECTED: Added a check to ensure draftInvoice.id exists.
         if (!draftInvoice.id) {
             return errorResponse("Failed to create a draft invoice.", 500);
         }
@@ -333,7 +332,6 @@ export const handleAdminCompleteJob = async (c: HonoContext<WorkerAppEnv>) => {
                 invoice: draftInvoice.id,
                 description: item.description,
                 quantity: item.quantity,
-                // CORRECTED: 'unit_amount' is not a valid property here. It should be 'amount'.
                 amount: item.unit_total_amount_cents,
                 currency: 'usd',
             });
@@ -341,7 +339,6 @@ export const handleAdminCompleteJob = async (c: HonoContext<WorkerAppEnv>) => {
 
         const finalInvoice = await stripe.invoices.finalizeInvoice(draftInvoice.id);
 
-        // CORRECTED: Added a check to ensure finalInvoice.id exists.
         if (!finalInvoice?.id) {
             throw new Error('Failed to finalize invoice: No ID returned from Stripe.');
         }

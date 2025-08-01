@@ -213,7 +213,7 @@ function JobsPage() {
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <Link to={`/admin/jobs/${item.id}`} className="btn btn-sm btn-secondary mr-2">View</Link>
                             {item.status === 'pending_quote' && <button onClick={() => openQuoteModal(item)} className="btn btn-sm btn-primary">Respond to Quote</button>}
-                            {item.stripe_invoice_id && item.status !== 'paid' && item.status !== 'completed' && !item.status.includes('quote') && (
+                            {item.stripe_invoice_id && item.status === 'payment_needed' && (
                               <button onClick={() => handleMarkAsPaid(item.stripe_invoice_id!)} className="btn btn-sm btn-success" disabled={isUpdating === item.stripe_invoice_id}>
                                 {isUpdating === item.stripe_invoice_id ? 'Updating...' : 'Mark Paid'}
                               </button>
