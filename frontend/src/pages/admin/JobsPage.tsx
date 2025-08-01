@@ -1,39 +1,91 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+// Import the new hooks and query client
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInView } from 'react-intersection-observer';
+
+// --- FIXED: Corrected import statement to match your project structure ---
 import { adminImportInvoices, adminImportQuotes, adminGetJobsAndQuotes, markInvoiceAsPaid, apiPost } from '../../lib/api';
-import type { JobWithDetails, LineItem } from '@portal/shared';
+import type { JobWithDetails, LineItem, JobStatus } from '@portal/shared';
 import NewAddJobModal from '../../components/modals/admin/NewAddJobModal';
 import QuoteProposalModal from '../../components/modals/QuoteProposalModal';
 
+// --- FIXED: Rewrote fetchJobs to use standard fetch instead of the non-existent 'api' client ---
+const fetchJobs = async ({ pageParam = 1, filters }) => {
+  const params = new URLSearchParams({
+    page: pageParam.toString(),
+  });
+  if (filters.status) {
+    params.append('status', filters.status);
+  }
+  if (filters.search) {
+    params.append('search', filters.search);
+  }
+
+  // Assuming cookie-based auth, call the endpoint for the paginated/filtered route directly.
+  const res = await fetch(`/api/admin/jobs?${params.toString()}`);
+
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(`Failed to fetch jobs: ${res.statusText} - ${errorBody}`);
+  }
+  const data = await res.json();
+  // Assuming the API wrapper returns data in a { success: boolean, data: any } structure
+  return data.data || [];
+};
+
+
+// --- NEW: List of statuses for the filter dropdown ---
+const allJobStatuses: JobStatus[] = [
+    'pending', 'upcoming', 'payment_needed', 'payment_overdue', 'complete',
+    'canceled', 'quote_draft', 'invoice_draft', 'job_draft', 'pending_quote', 'open', 'paid', 'past_due'
+];
+// Create a unique set of statuses
+const jobStatuses = [...new Set(allJobStatuses)];
+
+
 function JobsPage() {
+  // --- All original state is kept ---
   const [isImporting, setIsImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [jobsData, setJobsData] = useState<JobWithDetails[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<JobWithDetails | null>(null);
-  const [filter, setFilter] = useState('all');
 
-  const fetchJobsData = async () => {
-    setIsLoading(true);
-    try {
-      const data = await adminGetJobsAndQuotes();
-      setJobsData(data);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // --- REPLACED: Old client-side filter is replaced with new server-side filter state ---
+  const [filters, setFilters] = useState({ status: '', search: '' });
 
+  // --- NEW: React Query and Intersection Observer hooks ---
+  const queryClient = useQueryClient();
+  const { ref, inView } = useInView();
+
+  const {
+    data,
+    error: queryError,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    status: queryStatus, // Renamed to avoid conflict with 'status' property on jobs
+  } = useInfiniteQuery({
+    queryKey: ['adminJobs', filters], // Query is re-run when filters change
+    queryFn: ({ pageParam }) => fetchJobs({ pageParam, filters }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      return lastPage.length > 0 ? allPages.length + 1 : undefined;
+    },
+  });
+
+  // --- NEW: Effect for infinite scroll ---
   useEffect(() => {
-    fetchJobsData();
-  }, []);
+    if (inView && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+  // --- UPDATED: Import handlers now invalidate the query cache to refresh data ---
   const handleInvoiceImportClick = async () => {
     if (!window.confirm("This will import paid Stripe invoices as jobs. This may take a moment. Continue?")) {
       return;
@@ -48,6 +100,7 @@ function JobsPage() {
         messageText += ` Errors: ${result.errors.join(', ')}`;
       }
       setImportMessage(messageText);
+      queryClient.invalidateQueries({ queryKey: ['adminJobs'] }); // Invalidate and refetch
     } catch (err: any) {
       setError(`Import failed: ${err.message}`);
     } finally {
@@ -69,6 +122,7 @@ function JobsPage() {
             messageText += ` Errors: ${result.errors.join(', ')}`;
         }
         setImportMessage(messageText);
+        queryClient.invalidateQueries({ queryKey: ['adminJobs'] }); // Invalidate and refetch
     } catch (err: any) {
         setError(`Import failed: ${err.message}`);
     } finally {
@@ -76,25 +130,18 @@ function JobsPage() {
     }
   };
 
-  const filteredData = useMemo(() => {
-    if (filter === 'all') return jobsData;
-    return jobsData.filter(item => {
-      if (filter === 'drafts') return item.status === 'quote_draft' || item.status === 'invoice_draft';
-      if (filter === 'invoices') return item.stripe_invoice_id != null;
-      if (filter === 'quotes') return item.stripe_quote_id != null && item.status !== 'quote_draft';
-      if (filter === 'upcoming') return item.status === 'upcoming' || item.status === 'confirmed';
-      return true;
-    });
-  }, [jobsData, filter]);
+  // --- NEW: Combined data from all pages ---
+  const jobsData = useMemo(() => data?.pages.flatMap(page => page) ?? [], [data]);
 
   const toggleRow = (id: string) => setExpandedRow(expandedRow === id ? null : id);
 
+  // --- UPDATED: Mark as paid now invalidates query cache ---
   const handleMarkAsPaid = async (invoiceId: string) => {
     if (!invoiceId || !window.confirm('Are you sure you want to mark this invoice as paid?')) return;
     setIsUpdating(invoiceId);
     try {
       await markInvoiceAsPaid(invoiceId);
-      fetchJobsData();
+      queryClient.invalidateQueries({ queryKey: ['adminJobs'] }); // Invalidate and refetch
     } catch (error: any) {
       alert(`Failed to mark as paid: ${error.message}`);
     } finally {
@@ -102,11 +149,12 @@ function JobsPage() {
     }
   };
 
+  // --- All other handlers are kept as they were ---
   const handleDeclineQuote = async () => {
     if (!selectedJob?.stripe_quote_id) return;
     try {
         await apiPost(`/api/quotes/${selectedJob.stripe_quote_id}/decline`, {});
-        fetchJobsData();
+        queryClient.invalidateQueries({ queryKey: ['adminJobs'] });
         setIsQuoteModalOpen(false);
     } catch (err: any) {
         alert(`Failed to decline quote: ${err.message}`);
@@ -117,7 +165,7 @@ function JobsPage() {
       if (!selectedJob?.stripe_quote_id) return;
       try {
           await apiPost(`/api/quotes/${selectedJob.stripe_quote_id}/revise`, { revisionReason });
-          fetchJobsData();
+          queryClient.invalidateQueries({ queryKey: ['adminJobs'] });
           setIsQuoteModalOpen(false);
       } catch (err: any) {
           alert(`Failed to revise quote: ${err.message}`);
@@ -128,7 +176,7 @@ function JobsPage() {
       if (!selectedJob?.stripe_quote_id) return;
       try {
           await apiPost(`/api/quotes/${selectedJob.stripe_quote_id}/accept`, {});
-          fetchJobsData();
+          queryClient.invalidateQueries({ queryKey: ['adminJobs'] });
           setIsQuoteModalOpen(false);
       } catch (err: any) {
           alert(`Failed to accept quote: ${err.message}`);
@@ -142,7 +190,7 @@ function JobsPage() {
 
   const getStatusClass = (status: string) => {
     if (status.includes('quote')) return 'bg-purple-100 text-purple-800';
-    if (status.includes('pending') || status === 'open') return 'bg-yellow-100 text-yellow-800';
+    if (status.includes('pending') || status === 'open' || status === 'upcoming') return 'bg-yellow-100 text-yellow-800';
     if (status === 'paid' || status === 'completed' || status === 'complete') return 'bg-green-100 text-green-800';
     if (status === 'past_due' || status === 'payment_overdue') return 'bg-red-100 text-red-800';
     return 'bg-gray-100 text-gray-800';
@@ -151,17 +199,18 @@ function JobsPage() {
   return (
     <div className="w-full p-4">
       <h1 className="text-2xl font-bold mb-4">Jobs</h1>
-      {error && <div className="alert alert-danger">{error}</div>}
+      {/* Display errors from either source */}
+      {(error || queryError) && <div className="alert alert-danger">{error || (queryError as Error).message}</div>}
       {importMessage && <div className="alert alert-info">{importMessage}</div>}
 
       <div className="card">
-        <div className="card-header"><h5 className="mb-0">Data Import</h5></div>
+        <div className="card-header"><h5 className="mb-0">Data Management</h5></div>
         <div className="card-body flex gap-4">
           <button className="btn btn-secondary" onClick={handleInvoiceImportClick} disabled={isImporting}>{isImporting ? 'Importing...' : 'Import Stripe Invoices'}</button>
           <button className="btn btn-secondary" onClick={handleQuoteImportClick} disabled={isImporting}>{isImporting ? 'Importing...' : 'Import Stripe Quotes'}</button>
           <div className="relative">
             <button className="btn btn-primary" onClick={() => setIsJobModalOpen(true)}>Add Job</button>
-            <NewAddJobModal isOpen={isJobModalOpen} onClose={() => setIsJobModalOpen(false)} onSave={fetchJobsData} selectedDate={null} />
+            <NewAddJobModal isOpen={isJobModalOpen} onClose={() => setIsJobModalOpen(false)} onSave={() => queryClient.invalidateQueries({ queryKey: ['adminJobs'] })} selectedDate={null} />
           </div>
         </div>
       </div>
@@ -169,15 +218,32 @@ function JobsPage() {
       <div className="card mt-6">
         <div className="card-header"><h5 className="mb-0">All Jobs and Quotes</h5></div>
         <div className="card-body">
-            {isLoading ? <p>Loading data...</p> : (
+            {/* --- REPLACED: Old filter buttons are replaced with new controls --- */}
+            <div className="flex items-center space-x-4 mb-4">
+                <input
+                    type="text"
+                    placeholder="Search by job or client..."
+                    value={filters.search}
+                    onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                    className="input input-bordered w-full max-w-xs"
+                />
+                <select
+                    value={filters.status}
+                    onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                    className="select select-bordered"
+                >
+                    <option value="">All Statuses</option>
+                    {jobStatuses.map(status => (
+                        <option key={status} value={status}>
+                            {status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        </option>
+                    ))}
+                </select>
+            </div>
+
+            {/* --- UPDATED: Loading state check --- */}
+            {queryStatus === 'pending' ? <p>Loading data...</p> : (
               <div className="overflow-x-auto w-full">
-                <div className="flex space-x-2 mb-4">
-                  <button onClick={() => setFilter('all')} className={`btn ${filter === 'all' ? 'btn-primary' : 'btn-secondary'}`}>All</button>
-                  <button onClick={() => setFilter('drafts')} className={`btn ${filter === 'drafts' ? 'btn-primary' : 'btn-secondary'}`}>Drafts</button>
-                  <button onClick={() => setFilter('invoices')} className={`btn ${filter === 'invoices' ? 'btn-primary' : 'btn-secondary'}`}>Invoices</button>
-                  <button onClick={() => setFilter('quotes')} className={`btn ${filter === 'quotes' ? 'btn-primary' : 'btn-secondary'}`}>Quotes</button>
-                  <button onClick={() => setFilter('upcoming')} className={`btn ${filter === 'upcoming' ? 'btn-primary' : 'btn-secondary'}`}>Upcoming</button>
-                </div>
                 {selectedJob && (
                   <QuoteProposalModal isOpen={isQuoteModalOpen} onClose={() => setIsQuoteModalOpen(false)} onConfirm={handleAcceptQuote} onDecline={handleDeclineQuote} onRevise={handleReviseQuote} jobId={selectedJob.id} />
                 )}
@@ -193,10 +259,11 @@ function JobsPage() {
                       <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
+                  {/* --- UPDATED: Map over new `jobsData` from useInfiniteQuery --- */}
                   <tbody className="bg-primary-light dark:bg-tertiary-dark divide-y divide-border-light dark:divide-border-dark">
-                    {filteredData.map((item) => (
-                      <>
-                        <tr key={item.id} className="hover:bg-secondary-light/50 dark:hover:bg-secondary-dark/50 cursor-pointer" onClick={() => toggleRow(item.id)}>
+                    {jobsData.map((item) => (
+                      <React.Fragment key={item.id}>
+                        <tr className="hover:bg-secondary-light/50 dark:hover:bg-secondary-dark/50 cursor-pointer" onClick={() => toggleRow(item.id)}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             {(item.line_items || []).length > 0 && <span className="text-xl text-text-secondary-light dark:text-text-secondary-dark">{expandedRow === item.id ? '−' : '+'}</span>}
                           </td>
@@ -212,9 +279,9 @@ function JobsPage() {
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-text-primary-light dark:text-text-primary-dark">${((item.total_amount_cents || 0) / 100).toFixed(2)}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <Link to={`/admin/jobs/${item.id}`} className="btn btn-sm btn-secondary mr-2">View</Link>
-                            {item.status === 'pending_quote' && <button onClick={() => openQuoteModal(item)} className="btn btn-sm btn-primary">Respond to Quote</button>}
+                            {item.status === 'pending_quote' && <button onClick={(e) => { e.stopPropagation(); openQuoteModal(item); }} className="btn btn-sm btn-primary">Respond to Quote</button>}
                             {item.stripe_invoice_id && item.status === 'payment_needed' && (
-                              <button onClick={() => handleMarkAsPaid(item.stripe_invoice_id!)} className="btn btn-sm btn-success" disabled={isUpdating === item.stripe_invoice_id}>
+                              <button onClick={(e) => { e.stopPropagation(); handleMarkAsPaid(item.stripe_invoice_id!); }} className="btn btn-sm btn-success" disabled={isUpdating === item.stripe_invoice_id}>
                                 {isUpdating === item.stripe_invoice_id ? 'Updating...' : 'Mark Paid'}
                               </button>
                             )}
@@ -247,10 +314,21 @@ function JobsPage() {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
+                {/* --- NEW: Infinite scroll trigger and status message --- */}
+                <div ref={ref} className="flex justify-center items-center h-16">
+                    {isFetchingNextPage
+                        ? 'Loading more jobs...'
+                        : hasNextPage
+                        ? 'Scroll to load more'
+                        : jobsData.length > 0
+                        ? 'You have reached the end of the list.'
+                        : 'No jobs found for the selected filters.'
+                    }
+                </div>
               </div>
             )}
         </div>

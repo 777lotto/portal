@@ -6,19 +6,51 @@ import { errorResponse, successResponse } from '../../utils.js';
 import type { Job, LineItem, JobWithDetails } from '@portal/shared';
 import { CreateJobPayloadSchema } from '@portal/shared';
 
-// This function remains as it was, used for fetching and displaying data.
 export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
   try {
-    const dbResponse = await c.env.DB.prepare(
-      `SELECT
+    const { page = '1', status, search } = c.req.query();
+    const pageNumber = parseInt(page, 10);
+    const limit = 20;
+    const offset = (pageNumber - 1) * limit;
+
+    // Base query
+    let query = `
+      SELECT
         j.id, j.title, j.createdAt as start, j.due as end, j.status,
         u.name as userName, u.id as userId
       FROM jobs j
       JOIN users u ON j.user_id = u.id
-      ORDER BY j.createdAt DESC`
-    ).all();
+    `;
+
+    // Dynamically build WHERE clause
+    const conditions = [];
+    const params = [];
+
+    if (status) {
+      conditions.push('j.status = ?');
+      params.push(status);
+    }
+
+    if (search) {
+      // Search by job title or user name
+      conditions.push('(j.title LIKE ? OR u.name LIKE ?)');
+      const searchTerm = `%${search}%`;
+      params.push(searchTerm, searchTerm);
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
+    }
+
+    // Add ordering and pagination
+    query += ` ORDER BY j.createdAt DESC LIMIT ? OFFSET ?`;
+    const finalParams = [...params, limit, offset];
+
+    const dbResponse = await c.env.DB.prepare(query).bind(...finalParams).all();
+
     const jobs = dbResponse?.results || [];
     return successResponse(jobs);
+
   } catch (e: any) {
     console.error("Error in handleGetAllJobs:", e);
     return errorResponse("Failed to fetch all jobs.", 500);
