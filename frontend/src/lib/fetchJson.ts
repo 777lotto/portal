@@ -1,4 +1,5 @@
-// frontend/src/lib/fetchJson.ts - Improved error handling and API communication
+// frontend/src/lib/fetchJson.ts - Updated to work with Hono RPC Client
+
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 interface ApiErrorResponse {
@@ -18,62 +19,46 @@ export class ApiError extends Error {
   }
 }
 
-export async function fetchJson<T = unknown>(
-  input: string,
-  init: RequestInit = {}
-): Promise<T> {
-  // Build full URL
-  let url: string;
-  if (input.startsWith('http')) {
-    url = input;
-  } else {
-    // Ensure proper path joining
-    const base = API_BASE || '';
-    const path = input.startsWith('/') ? input : `/${input}`;
-    url = base + path;
-  }
+// The function signature is updated to match the standard `fetch` API.
+// It now accepts a `Request` object or a URL, and returns a `Promise<Response>`.
+export async function fetchJson(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> {
+  const request = new Request(input, init);
 
-  console.log(`🌐 API Request: ${init.method || 'GET'} ${url}`);
-
-  // Merge headers safely
-  const headers = new Headers(init.headers);
-  
-  // Set default content type if not provided
-  if (!headers.has('Content-Type') && init.body && typeof init.body === 'string') {
-    headers.set('Content-Type', 'application/json');
-  }
-
-  // Add auth token if available
+  // Add auth token if available, creating a new request since they are immutable
   const token = localStorage.getItem("token");
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
+  if (token && !request.headers.has('Authorization')) {
+    request.headers.set('Authorization', `Bearer ${token}`);
     console.log('🔐 Added auth token to request');
   }
 
-  const requestOptions: RequestInit = {
-    ...init,
-    headers,
-    // Ensure cookies are sent in production
-    credentials: 'same-origin',
-  };
+  // Ensure cookies are sent in production
+  if (!request.credentials) {
+    (request as any).credentials = 'same-origin';
+  }
+
+  console.log(`🌐 API Request: ${request.method} ${request.url}`);
 
   try {
     const startTime = Date.now();
-    const res = await fetch(url, requestOptions);
+    const res = await fetch(request);
     const duration = Date.now() - startTime;
-    
+
     console.log(`📥 API Response: ${res.status} (${duration}ms)`);
-    
-    // Handle non-OK responses
+
     if (!res.ok) {
       let errorMessage: string = `HTTP ${res.status}`;
       let errorDetails: any = undefined;
-      
+
       const contentType = res.headers.get("content-type") || "";
-      
+
+      // We still want to parse the JSON from an error response to get a good message.
       if (contentType.includes("application/json")) {
         try {
-          const errorData = await res.json() as ApiErrorResponse;
+          // Clone the response to read it, as the body can only be read once.
+          const errorData = await res.clone().json() as ApiErrorResponse;
           errorMessage = errorData.error || errorData.message || errorMessage;
           errorDetails = errorData.details;
           console.error('❌ API Error:', errorData);
@@ -82,16 +67,14 @@ export async function fetchJson<T = unknown>(
           errorMessage = `${res.status} - ${res.statusText}`;
         }
       } else {
-        const text = await res.text();
+        const text = await res.clone().text();
         if (text) {
-          errorMessage = text.substring(0, 200); // Limit error message length
+          errorMessage = text.substring(0, 200);
         }
       }
-      
-      // Handle specific status codes
+
       if (res.status === 401) {
-        // A 401 from any page OTHER than login means the session is expired.
-        if (!url.endsWith('/api/login')) {
+        if (!request.url.endsWith('/api/login')) {
           console.log('🚪 401 Unauthorized - clearing token and redirecting to login');
           localStorage.removeItem("token");
 
@@ -107,47 +90,27 @@ export async function fetchJson<T = unknown>(
         }
       }
 
-      // For all other errors, including a 401 from the login page,
-      // throw the actual error message from the API.
       throw new ApiError(errorMessage, res.status, errorDetails);
     }
 
-    // Parse response based on content type
-    const responseContentType = res.headers.get("content-type") || "";
-    
-    if (responseContentType.includes("application/json")) {
-      const data = await res.json() as T;
-      console.log('✅ API Success:', data);
-      return data;
-    } else if (responseContentType.includes("text/")) {
-      const text = await res.text();
-      return text as T;
-    } else if (responseContentType.includes("text/calendar")) {
-      // Handle iCal responses
-      const text = await res.text();
-      return text as T;
-    } else {
-      // No content or unknown type
-      console.log('📭 No content or unknown content type:', responseContentType);
-      return {} as T;
-    }
+    // On success, we now return the raw `Response` object.
+    // The Hono client will handle reading the JSON body from here.
+    return res;
+
   } catch (error) {
     console.error('❌ Fetch error:', error);
-    
-    // Network errors
+
     if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
       throw new ApiError(
         'Unable to connect to server. Please check your internet connection.',
         0
       );
     }
-    
-    // Re-throw ApiErrors as-is
+
     if (error instanceof ApiError) {
       throw error;
     }
-    
-    // Wrap other errors
+
     throw new ApiError(
       error instanceof Error ? error.message : 'An unexpected error occurred',
       0

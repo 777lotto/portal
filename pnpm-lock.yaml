@@ -73,7 +73,7 @@ importers:
         specifier: ^4.1.0
         version: 4.1.0
       hono:
-        specifier: ^4.7.10
+        specifier: ^4.7.11
         version: 4.7.11
       jwt-decode:
         specifier: ^4.0.0

@@ -1,7 +1,7 @@
-// 777lotto/portal/portal-bet/frontend/src/lib/push.ts
-import { apiGet, apiPost } from './api';
+// frontend/src/lib/push.ts - Updated for Hono RPC Client
+import { api } from './api';
 
-// Helper to convert VAPID key
+// Helper to convert VAPID key (no changes needed here)
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding)
@@ -30,7 +30,13 @@ export async function subscribeUser() {
     return;
   }
 
-  const vapidPublicKey = await apiGet<string>('/api/notifications/vapid-key');
+  // Updated: Use the Hono RPC client to get the VAPID key
+  const vapidRes = await api.notifications['vapid-key'].$get();
+  if (!vapidRes.ok) {
+    throw new Error('Failed to fetch VAPID key from server.');
+  }
+  // The VAPID key is returned as plain text
+  const vapidPublicKey = await vapidRes.text();
   const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
 
   const newSubscription = await registration.pushManager.subscribe({
@@ -38,7 +44,12 @@ export async function subscribeUser() {
     applicationServerKey: convertedVapidKey
   });
 
-  await apiPost('/api/notifications/subscribe', newSubscription);
+  // Updated: Use the Hono RPC client to send the subscription to the server
+  const subRes = await api.notifications.subscribe.$post({ json: newSubscription });
+  if (!subRes.ok) {
+      throw new Error('Failed to send subscription to server.');
+  }
+
   console.log('User subscribed successfully.');
 }
 

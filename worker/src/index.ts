@@ -260,6 +260,9 @@ app.get('*', serveStatic({ path: './index.html', manifest }));
 
 import { handleScheduled } from './cron/cron.js';
 
+// Export the type of the API routes for the Hono RPC client
+export type ApiRoutes = typeof api;
+
 export default {
   fetch: app.fetch,
   scheduled: handleScheduled,
