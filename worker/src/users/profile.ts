@@ -1,167 +1,152 @@
-// 777lotto/portal/portal-bet/worker/src/handlers/profile.ts
-import { Context as ProfileContext } from 'hono';
+import { createFactory } from 'hono/factory';
+import { clerkAuth, getAuth } from '@hono/clerk-auth';
+import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
-import { AppEnv as ProfileAppEnv } from '../index.js';
-import { errorResponse as profileErrorResponse, successResponse as profileSuccessResponse } from '../utils.js';
-import { UserSchema, type User, type UINotification } from '@portal/shared';
-import { verifyPassword, hashPassword } from '../security/auth.js';
-import { getStripe, listPaymentMethods, createSetupIntent } from '../stripe/index.js';
+import { db } from '../../db';
+import { users, uiNotifications } from '../../db/schema';
+import { eq } from 'drizzle-orm';
+import { UserSchema, type UINotification } from '@portal/shared';
+import { verifyPassword, hashPassword } from '../../security/auth';
+import { getStripe, listPaymentMethods, createSetupIntent } from '../../stripe';
 
+const factory = createFactory();
+
+// --- Zod Schemas for Validation ---
 const UpdateProfilePayload = UserSchema.pick({
-    name: true,
-    email: true,
-    phone: true,
-    company_name: true,
-    address: true,
-    email_notifications_enabled: true,
-    sms_notifications_enabled: true,
-    preferred_contact_method: true
+	name: true,
+	email: true,
+	phone: true,
+	company_name: true,
+	address: true,
+	email_notifications_enabled: true,
+	sms_notifications_enabled: true,
+	preferred_contact_method: true,
 }).partial();
 
 const ChangePasswordPayload = z.object({
-  currentPassword: z.string(),
-  newPassword: z.string().min(8),
+	currentPassword: z.string(),
+	newPassword: z.string().min(8),
 });
 
+// --- Middleware to get the full user object from the database ---
+const userMiddleware = factory.createMiddleware(async (c, next) => {
+	const auth = getAuth(c);
+	if (!auth?.userId) {
+		throw new HTTPException(401, { message: 'Unauthorized' });
+	}
+	const database = db(c.env.DB);
+	const user = await database.select().from(users).where(eq(users.clerk_id, auth.userId)).get();
+	if (!user) {
+		throw new HTTPException(404, { message: 'User not found' });
+	}
+	c.set('user', user);
+	await next();
+});
 
-export const handleGetProfile = async (c: ProfileContext<ProfileAppEnv>) => {
-  const user = c.get('user');
-  // To ensure the client gets the latest data, let's re-fetch from the DB
-  const freshUser = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(user.id).first<User>();
-  return profileSuccessResponse(freshUser);
-};
+// --- Route Handlers ---
 
-export const handleUpdateProfile = async (c: ProfileContext<ProfileAppEnv>) => {
-    const user = c.get('user');
-    const body = await c.req.json();
-    const parsed = UpdateProfilePayload.safeParse(body);
+export const getProfile = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	return c.json({ profile: user });
+});
 
-    if (!parsed.success) {
-        return profileErrorResponse("Invalid data", 400, parsed.error.flatten());
-    }
+export const updateProfile = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	const body = await c.req.json();
+	const parsed = UpdateProfilePayload.safeParse(body);
 
-    const { name, email, phone, company_name, address, email_notifications_enabled, sms_notifications_enabled, preferred_contact_method } = parsed.data;
+	if (!parsed.success) {
+		throw new HTTPException(400, { message: 'Invalid data', cause: parsed.error });
+	}
 
-    try {
-        await c.env.DB.prepare(
-            `UPDATE users SET name = ?, email = ?, phone = ?, company_name = ?, address = ?, email_notifications_enabled = ?, sms_notifications_enabled = ?, preferred_contact_method = ? WHERE id = ?`
-        ).bind(
-            name ?? user.name,
-            email ?? user.email,
-            phone !== undefined ? phone : user.phone,
-            company_name !== undefined ? company_name : user.company_name,
-            address !== undefined ? address : user.address,
-            email_notifications_enabled,
-            sms_notifications_enabled,
-            preferred_contact_method ?? user.preferred_contact_method,
-            user.id
-        ).run();
+	const database = db(c.env.DB);
+	try {
+		const updatedUser = await database.update(users).set(parsed.data).where(eq(users.id, user.id)).returning().get();
 
-        if (user.stripe_customer_id && (name || company_name)) {
-            const stripe = getStripe(c.env);
-            await stripe.customers.update(user.stripe_customer_id, {
-                name: name,
-                // Stripe doesn't have a dedicated company name field, metadata is the standard place
-                metadata: { company_name: company_name || '' }
-            });
-        }
+		// Also update Stripe customer if necessary
+		if (user.stripe_customer_id && (parsed.data.name || parsed.data.company_name)) {
+			const stripe = getStripe(c.env);
+			await stripe.customers.update(user.stripe_customer_id, {
+				name: parsed.data.name,
+				metadata: { company_name: parsed.data.company_name || '' },
+			});
+		}
 
-        const updatedUser = { ...user, ...parsed.data };
-        return profileSuccessResponse(updatedUser);
-    } catch (e: any) {
-        if (e.message?.includes('UNIQUE constraint failed')) {
-            return profileErrorResponse('That email or phone number is already in use by another account.', 409);
-        }
-        console.error("Failed to update profile:", e);
-        return profileErrorResponse("Failed to update profile", 500);
-    }
-};
+		return c.json({ profile: updatedUser });
+	} catch (e: any) {
+		if (e.message?.includes('UNIQUE constraint failed')) {
+			throw new HTTPException(409, { message: 'That email or phone number is already in use.' });
+		}
+		console.error('Failed to update profile:', e);
+		throw new HTTPException(500, { message: 'Failed to update profile' });
+	}
+});
 
+export const changePassword = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	const body = await c.req.json();
+	const parsed = ChangePasswordPayload.safeParse(body);
 
-export const handleChangePassword = async (c: ProfileContext<ProfileAppEnv>) => {
-    const user = c.get('user');
-    const body = await c.req.json();
-    const parsed = ChangePasswordPayload.safeParse(body);
+	if (!parsed.success) {
+		throw new HTTPException(400, { message: 'Invalid password data', cause: parsed.error });
+	}
 
-    if (!parsed.success) {
-        return profileErrorResponse("Invalid password data", 400, parsed.error.flatten());
-    }
+	if (!user.password_hash) {
+		throw new HTTPException(400, { message: 'User does not have a password set.' });
+	}
 
-    const { currentPassword, newPassword } = parsed.data;
+	const isCorrect = await verifyPassword(parsed.data.currentPassword, user.password_hash);
+	if (!isCorrect) {
+		throw new HTTPException(401, { message: 'Incorrect current password.' });
+	}
 
-    const fullUser = await c.env.DB.prepare('SELECT password_hash FROM users WHERE id = ?').bind(user.id).first<{password_hash: string}>();
+	const newHashedPassword = await hashPassword(parsed.data.newPassword);
+	const database = db(c.env.DB);
+	await database.update(users).set({ password_hash: newHashedPassword }).where(eq(users.id, user.id)).run();
 
-    if (!fullUser?.password_hash) {
-        return profileErrorResponse("User does not have a password set.", 400);
-    }
+	return c.json({ success: true, message: 'Password updated successfully.' });
+});
 
-    const isCorrect = await verifyPassword(currentPassword, fullUser.password_hash);
+export const getPaymentMethods = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	if (!user.stripe_customer_id) {
+		return c.json({ paymentMethods: [] });
+	}
+	const stripe = getStripe(c.env);
+	const paymentMethods = await listPaymentMethods(stripe, user.stripe_customer_id);
+	return c.json({ paymentMethods: paymentMethods.data });
+});
 
-    if (!isCorrect) {
-        return profileErrorResponse("Incorrect current password.", 401);
-    }
+export const createStripeSetupIntent = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	if (!user.stripe_customer_id) {
+		throw new HTTPException(400, { message: 'User is not a Stripe customer' });
+	}
+	const stripe = getStripe(c.env);
+	const setupIntent = await createSetupIntent(stripe, user.stripe_customer_id);
+	return c.json({ clientSecret: setupIntent.client_secret });
+});
 
-    const newHashedPassword = await hashPassword(newPassword);
+export const getNotifications = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	const database = db(c.env.DB);
+	try {
+		const notifications = await database.select().from(uiNotifications).where(eq(uiNotifications.user_id, user.id)).orderBy(uiNotifications.createdAt).limit(20).all();
+		return c.json({ notifications });
+	} catch (e: any) {
+		console.error('Failed to get notifications:', e);
+		throw new HTTPException(500, { message: 'Failed to retrieve notifications' });
+	}
+});
 
-    await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
-        .bind(newHashedPassword, user.id)
-        .run();
-
-    return profileSuccessResponse({ message: 'Password updated successfully.' });
-};
-
-export const handleListPaymentMethods = async (c: ProfileContext<ProfileAppEnv>) => {
-    const user = c.get('user');
-    if (!user.stripe_customer_id) {
-        return profileSuccessResponse([]);
-    }
-    const stripe = getStripe(c.env);
-    const paymentMethods = await listPaymentMethods(stripe, user.stripe_customer_id);
-    return profileSuccessResponse(paymentMethods.data);
-};
-
-export const handleCreateSetupIntent = async (c: ProfileContext<ProfileAppEnv>) => {
-    const user = c.get('user');
-    if (!user.stripe_customer_id) {
-        return profileErrorResponse("User is not a Stripe customer", 400);
-    }
-    const stripe = getStripe(c.env);
-    const setupIntent = await createSetupIntent(stripe, user.stripe_customer_id);
-    return profileSuccessResponse({ clientSecret: setupIntent.client_secret });
-};
-
-export const handleGetNotifications = async (c: ProfileContext<ProfileAppEnv>) => {
-    const user = c.get('user');
-    try {
-        // NOTE: This assumes a 'ui_notifications' table exists.
-        // In a real scenario, a migration would be created for this.
-        const { results } = await c.env.DB.prepare(
-            `SELECT id, user_id, type, message, link, is_read, createdAt FROM ui_notifications WHERE user_id = ? ORDER BY createdAt DESC LIMIT 20`
-        ).bind(user.id).all<UINotification>();
-        return profileSuccessResponse(results || []);
-    } catch (e: any) {
-        console.error("Failed to get notifications:", e);
-        // Fallback to empty array if table doesn't exist
-        if (e.message.includes('no such table')) {
-            return profileSuccessResponse([]);
-        }
-        return profileErrorResponse("Failed to retrieve notifications", 500);
-    }
-};
-
-export const handleMarkAllNotificationsRead = async (c: ProfileContext<ProfileAppEnv>) => {
-    const user = c.get('user');
-    try {
-        // NOTE: This assumes a 'ui_notifications' table exists.
-        await c.env.DB.prepare(
-            `UPDATE ui_notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0`
-        ).bind(user.id).run();
-        return profileSuccessResponse({ success: true });
-    } catch (e: any) {
-        // Silently fail if table doesn't exist
-        if (e.message.includes('no such table')) {
-            return profileSuccessResponse({ success: true });
-        }
-        return profileErrorResponse("Failed to mark all notifications as read", 500);
-    }
-};
+export const markAllNotificationsRead = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	const database = db(c.env.DB);
+	try {
+		await database.update(uiNotifications).set({ is_read: true }).where(eq(uiNotifications.user_id, user.id)).run();
+		return c.json({ success: true });
+	} catch (e: any) {
+		console.error('Failed to mark notifications as read:', e);
+		throw new HTTPException(500, { message: 'Failed to mark notifications as read' });
+	}
+});
