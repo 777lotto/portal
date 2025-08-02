@@ -23,14 +23,24 @@ const BellIcon = () => (
   </svg>
 );
 
-// --- REFACTORED SWR Fetcher ---
-const notificationsFetcher = () => api.notifications.$get();
+// --- REPAIRED SWR Fetcher ---
+// This function now correctly fetches the response and then parses the JSON.
+const notificationsFetcher = async () => {
+  const res = await api.notifications.$get();
+  if (!res.ok) {
+    throw new Error('Failed to fetch notifications');
+  }
+  return await res.json();
+};
 
 function NotificationBell() {
-  const { data: notifications, mutate } = useSWR<UINotification[]>('/api/notifications', notificationsFetcher, { refreshInterval: 30000 });
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Now, useSWR will receive a proper array or an error.
+  const { data: notifications, mutate } = useSWR<UINotification[]>('/api/notifications', notificationsFetcher, { refreshInterval: 30000 });
+
+  // This line will no longer crash the app.
   const unreadCount = notifications?.filter(n => !n.is_read).length || 0;
 
   useEffect(() => {
@@ -68,7 +78,6 @@ function NotificationBell() {
               )}
           </button>
           {isOpen && (
-              // ... Notification dropdown JSX is unchanged ...
               <div className="absolute right-0 z-10 mt-2 w-80 origin-top-right rounded-md bg-white dark:bg-gray-800 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
                   <div className="flex justify-between items-center px-4 py-2 border-b border-gray-200 dark:border-gray-700">
                        <h6 className="font-semibold text-gray-800 dark:text-gray-200">Notifications</h6>
@@ -146,7 +155,6 @@ export default function Navbar({ token, setToken, user }: Props) {
 
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
-  // ... Styles and JSX are unchanged ...
   const linkStyle = "px-3 py-2 rounded-md text-sm font-medium text-text-primary-dark/70 dark:text-text-primary-dark/60 hover:bg-tertiary-dark hover:text-white";
   const activeLinkStyle = "px-3 py-2 rounded-md text-sm font-medium text-white bg-tertiary-dark";
   const mobileLinkStyle = "block px-3 py-2 rounded-md text-base font-medium text-text-primary-dark/70 dark:text-text-primary-dark/60 hover:bg-tertiary-dark hover:text-white";

@@ -4,20 +4,24 @@ import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useInView } from 'react-intersection-observer';
 import { api } from '../../lib/api';
 import { HTTPException } from 'hono/http-exception';
-import type { JobWithDetails, JobStatus } from '@portal/shared';
+import type { JobWithDetails, JobStatus, LineItem } from '@portal/shared';
 import NewAddJobModal from '../../components/modals/admin/NewAddJobModal';
 import QuoteProposalModal from '../../components/modals/QuoteProposalModal';
 
-// --- REFACTORED React Query Fetcher ---
-// The queryFn now directly calls the api client.
-const fetchJobs = ({ pageParam = 1, queryKey }: any) => {
+// --- REPAIRED React Query Fetcher ---
+// The queryFn now correctly gets the response and parses the JSON.
+const fetchJobs = async ({ pageParam = 1, queryKey }: any) => {
   const [_key, filters] = queryKey;
-  return api.admin.jobs.$get({
+  const res = await api.admin.jobs.$get({
     query: {
       page: pageParam.toString(),
       ...filters,
     },
   });
+  if (!res.ok) {
+    throw new Error('Failed to fetch jobs');
+  }
+  return await res.json();
 };
 
 const allJobStatuses: JobStatus[] = [
@@ -51,7 +55,9 @@ function JobsPage() {
     queryKey: ['adminJobs', filters],
     queryFn: fetchJobs,
     initialPageParam: 1,
-    getNextPageParam: (lastPage, allPages) => {
+    getNextPageParam: (lastPage: JobWithDetails[], allPages) => {
+      // Assuming the API returns an array of jobs for each page.
+      // If the last page has items, there might be a next page.
       return lastPage.length > 0 ? allPages.length + 1 : undefined;
     },
   });
@@ -77,7 +83,8 @@ function JobsPage() {
     setImportMessage(null);
     setError(null);
     try {
-      const result = await api.admin.invoices.import.$post({});
+      const res = await api.admin.invoices.import.$post({});
+      const result = await res.json();
       setImportMessage(`Invoice import complete! ${result.imported} created, ${result.skipped} skipped.`);
       queryClient.invalidateQueries({ queryKey: ['adminJobs'] });
     } catch (err) {
@@ -93,7 +100,8 @@ function JobsPage() {
     setImportMessage(null);
     setError(null);
     try {
-        const result = await api.admin.quotes.import.$post({});
+        const res = await api.admin.quotes.import.$post({});
+        const result = await res.json();
         setImportMessage(`Quote import complete! ${result.imported} imported, ${result.skipped} skipped.`);
         queryClient.invalidateQueries({ queryKey: ['adminJobs'] });
     } catch (err) {
@@ -116,7 +124,6 @@ function JobsPage() {
     }
   };
 
-  // Handlers for Quote Modal
   const handleDeclineQuote = async () => {
     if (!selectedJob?.stripe_quote_id) return;
     try {
@@ -150,7 +157,7 @@ function JobsPage() {
       }
   };
 
-  const jobsData = useMemo(() => data?.pages.flatMap(page => page) ?? [], [data]);
+  const jobs = useMemo(() => data?.pages.flatMap(page => page) ?? [], [data]);
   const toggleRow = (id: string) => setExpandedRow(expandedRow === id ? null : id);
   const openQuoteModal = (job: JobWithDetails) => {
     setSelectedJob(job);
@@ -167,106 +174,111 @@ function JobsPage() {
   return (
     <div className="w-full p-4">
       <h1 className="text-2xl font-bold mb-4">Jobs</h1>
-      {error && <div className="alert alert-danger">{error}</div>}
-      {importMessage && <div className="alert alert-info">{importMessage}</div>}
+      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">{error}</div>}
+      {importMessage && <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded relative" role="alert">{importMessage}</div>}
 
-      <div className="card">
-        <div className="card-header"><h5 className="mb-0">Data Import</h5></div>
-        <div className="card-body flex gap-4">
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 mb-6">
+        <h5 className="mb-2 font-semibold">Data Import</h5>
+        <div className="flex gap-4">
           <button className="btn btn-secondary" onClick={handleInvoiceImportClick} disabled={isImporting}>{isImporting ? 'Importing...' : 'Import Stripe Invoices'}</button>
           <button className="btn btn-secondary" onClick={handleQuoteImportClick} disabled={isImporting}>{isImporting ? 'Importing...' : 'Import Stripe Quotes'}</button>
           <div className="relative">
             <button className="btn btn-primary" onClick={() => setIsJobModalOpen(true)}>Add Job</button>
-            <NewAddJobModal isOpen={isJobModalOpen} onClose={() => setIsJobModalOpen(false)} onSave={fetchJobsData} selectedDate={null} />
+            <NewAddJobModal isOpen={isJobModalOpen} onClose={() => setIsJobModalOpen(false)} onSave={() => queryClient.invalidateQueries({ queryKey: ['adminJobs'] })} selectedDate={null} />
           </div>
         </div>
       </div>
 
-      <div className="card mt-6">
-        <div className="card-header"><h5 className="mb-0">All Jobs and Quotes</h5></div>
-        <div className="card-body">
-            {isLoading ? <p>Loading data...</p> : (
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div className="p-4 border-b dark:border-gray-700">
+          <h5 className="mb-0 font-semibold">All Jobs and Quotes</h5>
+        </div>
+        <div className="p-4">
+            <div className="flex items-center space-x-4 mb-4">
+                <input type="text" placeholder="Search..." value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} className="form-input w-full md:w-1/3" />
+                <select value={filters.status} onChange={e => setFilters({...filters, status: e.target.value})} className="form-select">
+                    <option value="">All Statuses</option>
+                    {jobStatuses.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+                </select>
+            </div>
+            {queryStatus === 'pending' ? <p>Loading jobs...</p> : queryStatus === 'error' ? <p>Error loading jobs: {queryError.message}</p> : (
               <div className="overflow-x-auto w-full">
-                <div className="flex space-x-2 mb-4">
-                  <button onClick={() => setFilter('all')} className={`btn ${filter === 'all' ? 'btn-primary' : 'btn-secondary'}`}>All</button>
-                  <button onClick={() => setFilter('drafts')} className={`btn ${filter === 'drafts' ? 'btn-primary' : 'btn-secondary'}`}>Drafts</button>
-                  <button onClick={() => setFilter('invoices')} className={`btn ${filter === 'invoices' ? 'btn-primary' : 'btn-secondary'}`}>Invoices</button>
-                  <button onClick={() => setFilter('quotes')} className={`btn ${filter === 'quotes' ? 'btn-primary' : 'btn-secondary'}`}>Quotes</button>
-                  <button onClick={() => setFilter('upcoming')} className={`btn ${filter === 'upcoming' ? 'btn-primary' : 'btn-secondary'}`}>Upcoming</button>
-                </div>
                 {selectedJob && (
                   <QuoteProposalModal isOpen={isQuoteModalOpen} onClose={() => setIsQuoteModalOpen(false)} onConfirm={handleAcceptQuote} onDecline={handleDeclineQuote} onRevise={handleReviseQuote} jobId={selectedJob.id} />
                 )}
-                <table className="w-full divide-y divide-border-light dark:divide-border-dark">
-                  <thead className="bg-secondary-light dark:bg-secondary-dark">
+                <table className="w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
                     <tr>
-                      <th scope="col" className="w-12 px-6 py-3 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider"></th>
-                      <th scope="col" className="w-1/4 px-6 py-3 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Customer</th>
-                      <th scope="col" className="w-1/3 px-6 py-3 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Job/Quote Title</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Date</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Status</th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Total Amount</th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Actions</th>
+                      <th scope="col" className="w-12 px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"></th>
+                      <th scope="col" className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Customer</th>
+                      <th scope="col" className="w-1/3 px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Job/Quote Title</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Total Amount</th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-primary-light dark:bg-tertiary-dark divide-y divide-border-light dark:divide-border-dark">
-                    {filteredData.map((item) => (
-                      <>
-                        <tr key={item.id} className="hover:bg-secondary-light/50 dark:hover:bg-secondary-dark/50 cursor-pointer" onClick={() => toggleRow(item.id)}>
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {jobs.map((item) => (
+                      <React.Fragment key={item.id}>
+                        <tr className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" onClick={() => toggleRow(item.id)}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            {(item.line_items || []).length > 0 && <span className="text-xl text-text-secondary-light dark:text-text-secondary-dark">{expandedRow === item.id ? '−' : '+'}</span>}
+                            {(item.line_items || []).length > 0 && <span className="text-xl text-gray-500">{expandedRow === item.id ? '−' : '+'}</span>}
                           </td>
                           <td className="px-6 py-4">
-                            <div className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">{item.customerName}</div>
-                            <div className="text-sm text-text-secondary-light dark:text-text-secondary-dark">{item.customerAddress}</div>
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">{item.customerName}</div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">{item.customerAddress}</div>
                           </td>
-                          <td className="px-6 py-4 text-sm text-text-primary-light dark:text-text-primary-dark">{item.title}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary-light dark:text-text-secondary-dark">{new Date(item.createdAt || Date.now()).toLocaleDateString()}</td>
+                          <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">{item.title}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{new Date(item.createdAt || Date.now()).toLocaleDateString()}</td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(item.status)}`}>{item.status.replace(/_/g, ' ')}</span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-text-primary-light dark:text-text-primary-dark">${((item.total_amount_cents || 0) / 100).toFixed(2)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900 dark:text-white">${((item.total_amount_cents || 0) / 100).toFixed(2)}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <Link to={`/admin/jobs/${item.id}`} className="btn btn-sm btn-secondary mr-2">View</Link>
-                            {item.status === 'pending_quote' && <button onClick={() => openQuoteModal(item)} className="btn btn-sm btn-primary">Respond to Quote</button>}
+                            {item.status === 'pending_quote' && <button onClick={(e) => { e.stopPropagation(); openQuoteModal(item); }} className="btn btn-sm btn-primary">Respond to Quote</button>}
                             {item.stripe_invoice_id && item.status !== 'paid' && item.status !== 'completed' && !item.status.includes('quote') && (
-                              <button onClick={() => handleMarkAsPaid(item.stripe_invoice_id!)} className="btn btn-sm btn-success" disabled={isUpdating === item.stripe_invoice_id}>
+                              <button onClick={(e) => { e.stopPropagation(); handleMarkAsPaid(item.stripe_invoice_id!); }} className="btn btn-sm btn-success" disabled={isUpdating === item.stripe_invoice_id}>
                                 {isUpdating === item.stripe_invoice_id ? 'Updating...' : 'Mark Paid'}
                               </button>
                             )}
                           </td>
                         </tr>
                         {expandedRow === item.id && (
-                          <tr className="bg-gray-50 dark:bg-black/20">
+                          <tr className="bg-gray-50 dark:bg-gray-900/50">
                             <td colSpan={7} className="px-6 py-4">
                               <div className="pl-8">
-                                <h4 className="text-md font-semibold mb-2 text-text-primary-light dark:text-text-primary-dark">Line Items</h4>
+                                <h4 className="text-md font-semibold mb-2 text-gray-800 dark:text-gray-200">Line Items</h4>
                                 {(item.line_items || []).length > 0 ? (
                                   <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700">
-                                    <thead className="bg-gray-100 dark:bg-secondary-dark">
+                                    <thead className="bg-gray-100 dark:bg-gray-700">
                                       <tr>
-                                        <th className="px-4 py-2 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Description</th>
-                                        <th className="px-4 py-2 text-right text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Amount</th>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Description</th>
+                                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Amount</th>
                                       </tr>
                                     </thead>
-                                    <tbody className="bg-white dark:bg-tertiary-dark divide-y divide-gray-200 dark:divide-border-dark">
+                                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                       {(item.line_items || []).map((line_item: LineItem) => (
                                         <tr key={line_item.id}>
-                                          <td className="px-4 py-2 whitespace-nowrap text-sm text-text-secondary-light dark:text-text-secondary-dark">{line_item.description}</td>
-                                          <td className="px-4 py-2 whitespace-nowrap text-right text-sm text-text-primary-light dark:text-text-primary-dark">${((line_item.unit_total_amount_cents || 0) / 100).toFixed(2)}</td>
+                                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{line_item.description}</td>
+                                          <td className="px-4 py-2 whitespace-nowrap text-right text-sm text-gray-900 dark:text-white">${((line_item.unit_total_amount_cents || 0) / 100).toFixed(2)}</td>
                                         </tr>
                                       ))}
                                     </tbody>
                                   </table>
-                                ) : <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">No line items for this entry.</p>}
+                                ) : <p className="text-sm text-gray-500 dark:text-gray-400">No line items for this entry.</p>}
                               </div>
                             </td>
                           </tr>
                         )}
-                      </>
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
+                <div ref={ref} className="text-center p-4">
+                  {isFetchingNextPage ? 'Loading more...' : hasNextPage ? 'Scroll to load more' : 'Nothing more to load.'}
+                </div>
               </div>
             )}
         </div>

@@ -3,10 +3,9 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { User, Job, DashboardInvoice } from '@portal/shared';
-import { HTTPException } from 'hono/http-exception'; // Import Hono's error class
+import { HTTPException } from 'hono/http-exception';
 
 function Dashboard() {
-  // State hooks remain the same
   const [user, setUser] = useState<User | null>(null);
   const [upcomingJobs, setUpcomingJobs] = useState<Job[]>([]);
   const [openInvoices, setOpenInvoices] = useState<DashboardInvoice[]>([]);
@@ -16,19 +15,15 @@ function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
 
-  // The handleDownloadPdf function can be simplified slightly, as we don't need ApiError
   const handleDownloadPdf = async (invoiceId: string, invoiceNumber: string | null) => {
     setDownloadingInvoiceId(invoiceId);
     setError(null);
     try {
-      // The Hono client isn't used for file blobs, so direct fetch is correct here.
-      // We add the auth token manually.
       const response = await fetch(`/api/invoices/${invoiceId}/pdf`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem("token")}` }
       });
 
       if (!response.ok) {
-        // We can get a more specific error message from the response if available
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `Failed to download invoice. Please try again.`);
       }
@@ -55,42 +50,49 @@ function Dashboard() {
         setIsLoading(true);
         setError(null);
 
-        // --- REFACTORED DATA FETCHING ---
-        // The Hono client (`api`) automatically handles parsing JSON and throwing
-        // an `HTTPException` on failure. The `fetchAndParse` helper is no longer needed.
+        // --- REPAIRED DATA FETCHING ---
+        // Each API call now correctly awaits the .json() method to parse the response body.
 
-        const profileData = await api.profile.$get();
+        const profileRes = await api.profile.$get();
+        const profileData = await profileRes.json();
         setUser(profileData);
 
-        const quotesData = await api.quotes.pending.$get();
+        const quotesRes = await api.quotes.pending.$get();
+        const quotesData = await quotesRes.json();
         setPendingQuotes(quotesData);
 
         if (profileData.role === 'admin') {
-          const [jobsData, invoicesData, draftsData] = await Promise.all([
+          const [jobsRes, invoicesRes, draftsRes] = await Promise.all([
             api.admin.jobs.$get(),
             api.admin.invoices.open.$get(),
             api.admin.drafts.$get(),
           ]);
+
+          const jobsData = await jobsRes.json();
+          const invoicesData = await invoicesRes.json();
+          const draftsData = await draftsRes.json();
+
           setUpcomingJobs(jobsData.filter(j => j.status !== 'pending' && j.status !== 'draft').slice(0, 10));
           setOpenInvoices(invoicesData);
           setDrafts(draftsData);
         } else {
-          const [jobsData, invoicesData] = await Promise.all([
+          const [jobsRes, invoicesRes] = await Promise.all([
             api.jobs.$get(),
             api.invoices.open.$get(),
           ]);
+
+          const jobsData = await jobsRes.json();
+          const invoicesData = await invoicesRes.json();
+
           setUpcomingJobs(jobsData.filter(j => j.status !== 'pending' && j.status !== 'draft').slice(0, 5));
           setOpenInvoices(invoicesData);
         }
 
       } catch (err: any) {
-        // --- REFACTORED ERROR HANDLING ---
         if (err instanceof HTTPException) {
-          // If it's an HTTPException from Hono, we can get the error message from the response body
           const errorJson = await err.response.json();
           setError(errorJson.error || 'An error occurred.');
         } else {
-          // For any other type of error
           setError(err.message);
         }
       } finally {
@@ -100,7 +102,6 @@ function Dashboard() {
     loadDashboard();
   }, []);
 
-  // The JSX part of the component remains unchanged
   if (isLoading) return <div className="text-center p-8">Loading dashboard...</div>;
   if (error) return <div className="rounded-md bg-red-500/10 p-4 text-sm text-red-500">{error}</div>;
 
@@ -114,7 +115,6 @@ function Dashboard() {
           </Link>
         )}
       </header>
-      {/* ... rest of the JSX is the same ... */}
        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="card p-6">
           <h3 className="text-xl font-semibold mb-4 text-text-primary-light dark:text-text-primary-dark">
