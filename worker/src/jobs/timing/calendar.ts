@@ -1,225 +1,97 @@
-// worker/src/calendar.ts
+import { createFactory } from 'hono/factory';
+import { HTTPException } from 'hono/http-exception';
+import { db } from '../../../db';
+import { calendarEvents, jobs, users } from '../../../db/schema';
+import { eq, and } from 'drizzle-orm';
+import type { User } from '@portal/shared';
 
-import type { Env, User, Job } from "@portal/shared";
-import { v4 as uuidv4 } from 'uuid';
-import { JobSchema } from "@portal/shared";
+const factory = createFactory();
 
+// Middleware to get the authenticated user's full profile from the DB.
+const userMiddleware = factory.createMiddleware(async (c, next) => {
+	const auth = c.get('clerkUser');
+	if (!auth?.id) {
+		throw new HTTPException(401, { message: 'Unauthorized' });
+	}
+	const database = db(c.env.DB);
+	const user = await database.select().from(users).where(eq(users.clerk_id, auth.id)).get();
+	if (!user) {
+		throw new HTTPException(401, { message: 'User not found.' });
+	}
+	c.set('user', user);
+	await next();
+});
 
-interface JobRecord extends Job {}
+/* ========================================================================
+                           CALENDAR EVENT HANDLERS
+   ======================================================================== */
 
-// Get jobs for a specific customer
-export async function getCustomerJobs(env: Env, user_id: number): Promise<JobRecord[]> {
-  const { results } = await env.DB.prepare(
-    `SELECT * FROM jobs WHERE user_id = ? ORDER BY createdAt DESC`
-  ).bind(user_id).all<JobRecord>();
+/**
+ * Retrieves all calendar events for the authenticated user.
+ * If the user is an admin, it retrieves all events.
+ */
+export const getCalendarEvents = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	const database = db(c.env.DB);
 
-  return results || [];
-}
+	const query = database.select().from(calendarEvents);
 
-// Get a specific job by ID
-export async function getJob(env: Env, jobId: string, user_id?: number): Promise<JobRecord> {
-  const query = user_id
-    ? `SELECT * FROM jobs WHERE id = ? AND user_id = ?`
-    : `SELECT * FROM jobs WHERE id = ?`;
+	if (user.role !== 'admin') {
+		query.where(eq(calendarEvents.user_id, user.id));
+	}
 
-  const params = user_id
-    ? [jobId, user_id]
-    : [jobId];
+	const events = await query.all();
+	return c.json({ events });
+});
 
-  const job = await env.DB.prepare(query)
-    .bind(...params)
-    .first<JobRecord>();
+/**
+ * [ADMIN] Adds a new event to the calendar (e.g., blocking off a day).
+ */
+export const addCalendarEvent = factory.createHandlers(async (c) => {
+	const validatedData = c.req.valid('json'); // Assumes a Zod schema is used on the route
+	const database = db(c.env.DB);
 
-  if (!job) {
-    throw new Error("Job not found");
-  }
+	const [newEvent] = await database.insert(calendarEvents).values(validatedData).returning();
 
-  return job;
-}
+	return c.json({ event: newEvent }, 201);
+});
 
-// Create a new job
-export async function createJob(env: Env, jobData: any, user_id: number): Promise<JobRecord> {
-  // Parse and validate job data
-  const parsedJob = JobSchema.parse({
-    ...jobData,
-    id: jobData.id || uuidv4(),
-    user_id: user_id,
-    createdAt: jobData.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  });
+/**
+ * [ADMIN] Removes an event from the calendar.
+ */
+export const removeCalendarEvent = factory.createHandlers(async (c) => {
+	const { eventId } = c.req.param();
+	const database = db(c.env.DB);
 
-  // Insert into database
-  await env.DB.prepare(`
-    INSERT INTO jobs (
-      id, user_id, title, description, status,
-      recurrence, createdAt, updatedAt, due
-    ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?
-    )
-  `).bind(
-    parsedJob.id,
-    parsedJob.user_id,
-    parsedJob.title,
-    parsedJob.description || null,
-    parsedJob.status,
-    parsedJob.recurrence,
-    parsedJob.createdAt,
-    parsedJob.updatedAt,
-    parsedJob.due || null
-  ).run();
+	const result = await database.delete(calendarEvents).where(eq(calendarEvents.id, parseInt(eventId, 10)));
 
-  return parsedJob as JobRecord;
-}
+	if (result.rowCount === 0) {
+		throw new HTTPException(404, { message: 'Calendar event not found.' });
+	}
 
-// Update an existing job
-export async function updateJob(env: Env, jobId: string, updateData: any, user_id: number): Promise<JobRecord> {
-  // First check if job exists and belongs to customer
-  const existingJob = await getJob(env, jobId, user_id);
-  if (!existingJob) {
-    throw new Error("Job not found or you don't have permission to modify it");
-  }
+	return c.json({ success: true, message: 'Event removed from calendar.' });
+});
 
-  // Merge existing job with updates
-  const updatedJobData = {
-    ...existingJob,
-    ...updateData,
-    id: jobId, // ensure ID doesn't change
-    user_id: user_id, // ensure user ID doesn't change
-    updatedAt: new Date().toISOString() // always update the timestamp
-  };
+/**
+ * Creates a new booking from a public request.
+ * This handler would be used on a public-facing route.
+ */
+export const createBooking = factory.createHandlers(async (c) => {
+	const validatedData = c.req.valid('json'); // Assumes PublicBookingRequestSchema is used
+	const { name, email, phone, address, date, lineItems } = validatedData;
+	const database = db(c.env.DB);
 
-  // Validate the merged job
-  const parsedJob = JobSchema.parse(updatedJobData);
+	// This is a simplified booking process. A real-world scenario might involve:
+	// 1. Checking for an existing user with that email/phone.
+	// 2. Creating a new user if one doesn't exist.
+	// 3. Creating a job with a 'pending' or 'quote_draft' status.
+	// 4. Creating a calendar event.
+	// 5. Sending notifications.
 
-  // Update in database
-  await env.DB.prepare(`
-    UPDATE jobs SET
-      title = ?,
-      description = ?,
-      status = ?,
-      recurrence = ?,
-      updatedAt = ?,
-      due = ?
-    WHERE id = ? AND user_id = ?
-  `).bind(
-    parsedJob.title,
-    parsedJob.description || null,
-    parsedJob.status,
-    parsedJob.recurrence,
-    parsedJob.updatedAt,
-    parsedJob.due || null,
-    jobId,
-    user_id
-  ).run();
+	console.log('New booking request received:', validatedData);
 
-  return parsedJob as JobRecord;
-}
+	// For now, we'll just acknowledge the request.
+	// The full implementation would involve database inserts similar to `createJob`.
 
-// Delete a job
-export async function deleteJob(env: Env, jobId: string, user_id: number): Promise<{ success: boolean }> {
-  const result = await env.DB.prepare(
-    `DELETE FROM jobs WHERE id = ? AND user_id = ?`
-  ).bind(jobId, user_id).run();
-
-  // Check if any rows were affected using the meta property
-  if (result.meta.changes === 0) {
-    throw new Error("Job not found or you don't have permission to delete it");
-  }
-
-  return { success: true };
-}
-
-// Generate an iCal feed for a customer's jobs
-export async function generateCalendarFeed(env: Env, feedOwnerId: string): Promise<string> {
-  const portalBaseUrl = env.PORTAL_URL.replace('/dashboard', '');
-
-  // 1. Get the preferences of the user who owns the feed
-  const feedOwner = await env.DB.prepare(
-    `SELECT * FROM users WHERE id = ?`
-  ).bind(feedOwnerId).first<User>();
-
-  if (!feedOwner) {
-    throw new Error("User for calendar feed not found.");
-  }
-
-  // 2. Get all calendar events for that user
-  const { results: calendarEvents } = await env.DB.prepare(
-    `SELECT ce.*, j.title as job_title, j.description as job_description
-     FROM calendar_events ce
-     LEFT JOIN jobs j ON ce.job_id = j.id
-     WHERE ce.user_id = ? AND ce.type = 'job'`
-  ).bind(feedOwnerId).all<{
-    id: number;
-    title: string;
-    start: string;
-    end: string;
-    type: string;
-    job_id: string;
-    user_id: number;
-    job_title: string;
-    job_description: string;
-  }>();
-
-  // 3. Get the details of the customer for these jobs (which is the same as the feed owner)
-  const customer = feedOwner;
-
-  let icalContent = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//777 Solutions LLC//Gutter Portal//EN',
-    'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
-    `X-WR-CALNAME:777 Solutions Appointments for ${customer.name}`,
-    'X-WR-TIMEZONE:America/New_York',
-  ];
-
-  for (const event of (calendarEvents || [])) {
-    const startDate = new Date(event.start);
-    const endDate = new Date(event.end);
-    const formatDate = (date: Date) => date.toISOString().replace(/[-:]/g, '').replace(/\.\d+/g, '');
-
-    const eventId = `${event.id}-${event.job_id}`.replace(/-/g, '');
-    let description = `Status: Confirmed\n\n`;
-    let eventUrl = '';
-
-    // Create role-specific content
-    if (feedOwner.role === 'admin') {
-        description += `Customer: ${customer.name} (${customer.email})\n`;
-        description += `View User Profile: ${portalBaseUrl}/admin/users/${customer.id}`;
-        eventUrl = `${portalBaseUrl}/admin/users/${customer.id}`;
-    } else { // Customer view
-        description += `Service Details: ${event.job_description || event.job_title}\n`;
-        description += `View Job in Portal: ${portalBaseUrl}/jobs/${event.job_id}`;
-        eventUrl = `${portalBaseUrl}/jobs/${event.job_id}`;
-    }
-
-    icalContent.push('BEGIN:VEVENT');
-    icalContent.push(`UID:${eventId}@portal.777.foo`);
-    icalContent.push(`DTSTAMP:${formatDate(new Date())}`);
-    icalContent.push(`DTSTART:${formatDate(startDate)}`);
-    icalContent.push(`DTEND:${formatDate(endDate)}`);
-    icalContent.push(`SUMMARY:${event.job_title}`);
-    icalContent.push(`DESCRIPTION:${description}`);
-    if (eventUrl) {
-        icalContent.push(`URL;VALUE=URI:${eventUrl}`);
-    }
-    icalContent.push(`STATUS:CONFIRMED`);
-    icalContent.push(`SEQUENCE:0`);
-    icalContent.push(`TRANSP:OPAQUE`);
-
-    // Add reminder (VALARM) if enabled
-    if (feedOwner.calendar_reminders_enabled && feedOwner.calendar_reminder_minutes) {
-      icalContent.push('BEGIN:VALARM');
-      icalContent.push(`TRIGGER:-PT${feedOwner.calendar_reminder_minutes}M`);
-      icalContent.push('ACTION:DISPLAY');
-      icalContent.push(`DESCRIPTION:Reminder: ${event.job_title}`);
-      icalContent.push('END:VALARM');
-    }
-
-    icalContent.push('END:VEVENT');
-  }
-
-  icalContent.push('END:VCALENDAR');
-
-  return icalContent.filter(line => line).join('\r\n');
-}
+	return c.json({ success: true, message: 'Your booking request has been received. We will contact you shortly.' }, 201);
+});

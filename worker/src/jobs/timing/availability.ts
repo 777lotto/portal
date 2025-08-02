@@ -1,55 +1,74 @@
-// worker/src/handlers/availability.ts
-import { Context } from 'hono';
-import { AppEnv } from '../../index.js';
-import { successResponse, errorResponse } from '../../utils.js';
+import { createFactory } from 'hono/factory';
+import { HTTPException } from 'hono/http-exception';
+import { db } from '../../../db';
+import { calendarEvents, jobs, users } from '../../../db/schema';
+import { eq, or } from 'drizzle-orm';
+import type { User } from '@portal/shared';
 
-export const handleGetCustomerAvailability = async (c: Context<AppEnv>) => {
-  const user = c.get('user');
+const factory = createFactory();
 
-  try {
-    // Query has been updated to use `calendar_events` as the source of truth for scheduling.
-    // It fetches all of a user's job events and any globally blocked-off days.
-    // It joins with the `jobs` table to get the status for job-related events.
-    const dbResponse = await c.env.DB.prepare(
-      `SELECT
-        ce.start,
-        ce.type,
-        j.status
-      FROM calendar_events ce
-      LEFT JOIN jobs j ON ce.job_id = j.id
-      WHERE
-        (ce.user_id = ? AND ce.type = 'job') OR ce.type = 'blocked'`
-    ).bind(user.id).all<{ start: string; type: 'job' | 'blocked' | 'personal'; status: string | null }>();
+// Middleware to get the authenticated user's full profile from the DB.
+const userMiddleware = factory.createMiddleware(async (c, next) => {
+	const auth = c.get('clerkUser');
+	if (!auth?.id) {
+		throw new HTTPException(401, { message: 'Unauthorized' });
+	}
+	const database = db(c.env.DB);
+	const user = await database.select().from(users).where(eq(users.clerk_id, auth.id)).get();
+	if (!user) {
+		throw new HTTPException(401, { message: 'User not found.' });
+	}
+	c.set('user', user);
+	await next();
+});
 
-    const events = dbResponse?.results || [];
+/* ========================================================================
+                        CUSTOMER AVAILABILITY HANDLER
+   ======================================================================== */
 
-    const bookedDays = new Set<string>();
-    const pendingDays = new Set<string>();
-    const blockedDates = new Set<string>();
+/**
+ * Retrieves a customer's availability, categorizing days as booked, pending, or blocked.
+ */
+export const getAvailability = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	const database = db(c.env.DB);
 
-    events.forEach(event => {
-        const day = event.start.split('T')[0];
+	// Fetch all of a user's job events and any globally blocked-off days.
+	const events = await database
+		.select({
+			start: calendarEvents.start,
+			type: calendarEvents.type,
+			status: jobs.status,
+		})
+		.from(calendarEvents)
+		.leftJoin(jobs, eq(calendarEvents.job_id, jobs.id))
+		.where(or(eq(calendarEvents.user_id, user.id), eq(calendarEvents.type, 'blocked')))
+		.all();
 
-        if (event.type === 'blocked') {
-            blockedDates.add(day);
-        } else if (event.type === 'job') {
-            // Check the status from the joined jobs table.
-            if (event.status === 'pending_quote' || event.status === 'quote_sent') {
-                pendingDays.add(day);
-            } else if (event.status && !['cancelled', 'completed', 'quote_draft', 'invoice_draft'].includes(event.status)) {
-                // Any other active job status means the day is booked.
-                bookedDays.add(day);
-            }
-        }
-    });
+	const bookedDays = new Set<string>();
+	const pendingDays = new Set<string>();
+	const blockedDates = new Set<string>();
 
-    return successResponse({
-        bookedDays: Array.from(bookedDays),
-        pendingDays: Array.from(pendingDays),
-        blockedDates: Array.from(blockedDates)
-    });
-  } catch (e: any) {
-    console.error("Failed to get customer availability:", e);
-    return errorResponse("Failed to retrieve availability", 500);
-  }
-};
+	for (const event of events) {
+		const day = event.start.split('T')[0];
+
+		if (event.type === 'blocked') {
+			blockedDates.add(day);
+		} else if (event.type === 'job') {
+			if (event.status === 'pending' || event.status === 'quote_sent') {
+				pendingDays.add(day);
+			} else if (event.status && !['canceled', 'complete', 'quote_draft', 'invoice_draft'].includes(event.status)) {
+				// Any other active job status means the day is booked.
+				bookedDays.add(day);
+			}
+		}
+	}
+
+	return c.json({
+		availability: {
+			bookedDays: Array.from(bookedDays),
+			pendingDays: Array.from(pendingDays),
+			blockedDates: Array.from(blockedDates),
+		},
+	});
+});
