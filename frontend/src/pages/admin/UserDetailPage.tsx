@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import type { User, StripeInvoice } from '@portal/shared';
 
 type Message = { type: 'success' | 'danger'; text: string; };
@@ -14,7 +14,7 @@ export function UserDetailPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleApiError = async (err: any, defaultMessage: string) => {
-    if (err instanceof HTTPError) {
+    if (err instanceof HTTPException) {
         const errorJson = await err.response.json().catch(() => ({}));
         setMessage({ type: 'danger', text: errorJson.error || defaultMessage });
     } else {

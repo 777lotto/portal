@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
 import { api } from '../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import type { Job, LineItem } from '@portal/shared';
 
 interface QuoteDetails extends Job {
@@ -31,7 +31,7 @@ function QuoteProposalPage() {
 
     // Generic error handler for API calls
     const handleApiError = async (err: any, defaultMessage: string) => {
-        if (err instanceof HTTPError) {
+        if (err instanceof HTTPException) {
             const errorJson = await err.response.json();
             setActionError(errorJson.error || defaultMessage);
         } else {

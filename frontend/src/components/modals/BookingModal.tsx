@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import { format } from 'date-fns';
 import StyledDigitInput from '../forms/StyledDigitInput';
 import type { User, LineItem } from '@portal/shared';
@@ -71,7 +71,7 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
   };
 
   const handleApiError = async (err: any) => {
-    if (err instanceof HTTPError) {
+    if (err instanceof HTTPException) {
         const errorJson = await err.response.json().catch(() => ({}));
         // Preserve special logic for existing users trying to book publicly
         if (err.response.status === 409 && errorJson.details?.code === 'LOGIN_REQUIRED') {

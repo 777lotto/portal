@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import StyledDigitInput from './StyledDigitInput';
 
 // Declare the global Turnstile type
@@ -64,7 +64,7 @@ function AuthForm({ setToken }: Props) {
   }, [step]);
 
   const handleApiError = async (err: any, defaultMessage: string) => {
-    if (err instanceof HTTPError) {
+    if (err instanceof HTTPException) {
         const errorJson = await err.response.json().catch(() => ({}));
         setError(errorJson.error || defaultMessage);
     } else {

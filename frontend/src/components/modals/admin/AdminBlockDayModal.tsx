@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { api } from '../../../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 
 interface Props {
   isOpen: boolean;
@@ -26,7 +26,7 @@ function AdminBlockDayModal({ isOpen, onClose, selectedDate, isBlocked, eventId,
   }, [isOpen, reason]);
 
   const handleApiError = async (err: any, defaultMessage: string) => {
-    if (err instanceof HTTPError) {
+    if (err instanceof HTTPException) {
         const errorJson = await err.response.json().catch(() => ({}));
         setError(errorJson.error || defaultMessage);
     } else {

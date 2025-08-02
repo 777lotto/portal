@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 
 function ForgotPasswordForm() {
   const [identifier, setIdentifier] = useState('');
@@ -23,7 +23,7 @@ function ForgotPasswordForm() {
       // On success, navigate to the verify code form.
       navigate('/verify-code', { state: { identifier } });
     } catch (err: any) {
-        if (err instanceof HTTPError) {
+        if (err instanceof HTTPException) {
             const errorJson = await err.response.json().catch(() => ({}));
             setError(errorJson.error || 'Failed to send reset request');
         } else {

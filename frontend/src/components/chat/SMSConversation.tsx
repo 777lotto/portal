@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import type { SMSMessage } from '@portal/shared';
 
 function SMSConversation() {
@@ -32,7 +32,7 @@ function SMSConversation() {
         });
         setMessages(data);
       } catch (err: any) {
-        if (err instanceof HTTPError) {
+        if (err instanceof HTTPException) {
             const errorJson = await err.response.json().catch(() => ({}));
             setError(errorJson.error || 'Failed to fetch messages');
         } else {
@@ -58,7 +58,7 @@ function SMSConversation() {
       setMessages(prev => [...prev, sentMessage]);
       setNewMessage('');
     } catch(err: any) {
-        if (err instanceof HTTPError) {
+        if (err instanceof HTTPException) {
             const errorJson = await err.response.json().catch(() => ({}));
             setError(errorJson.error || 'Failed to send message');
         } else {

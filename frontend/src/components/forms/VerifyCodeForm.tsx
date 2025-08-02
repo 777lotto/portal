@@ -2,7 +2,7 @@
 import { useState, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import StyledDigitInput from './StyledDigitInput';
 
 function VerifyCodeForm() {
@@ -35,7 +35,7 @@ function VerifyCodeForm() {
         throw new Error("Verification failed: No token received.");
       }
     } catch (err: any) {
-        if (err instanceof HTTPError) {
+        if (err instanceof HTTPException) {
             const errorJson = await err.response.json().catch(() => ({}));
             setError(errorJson.error || 'Failed to verify code');
         } else {

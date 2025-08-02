@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { api } from '../lib/api';
 import { subscribeUser, unsubscribeUser } from '../lib/push';
 import type { User, PaymentMethod } from '@portal/shared';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
 const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
@@ -51,7 +51,7 @@ const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
 
             onSuccessfulAdd();
         } catch (err: any) {
-            if (err instanceof HTTPError) {
+            if (err instanceof HTTPException) {
                 const errorJson = await err.response.json();
                 setError(errorJson.error || 'Could not create setup intent.');
             } else {
@@ -97,7 +97,7 @@ function AccountPage() {
   const [isSendingCode, setIsSendingCode] = useState(false);
 
   const handleApiError = async (err: any, defaultMessage: string, setter: (msg: string) => void) => {
-      if (err instanceof HTTPError) {
+      if (err instanceof HTTPException) {
           const errorJson = await err.response.json();
           setter(errorJson.error || defaultMessage);
       } else {

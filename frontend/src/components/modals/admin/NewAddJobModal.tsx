@@ -1,7 +1,7 @@
 // frontend/src/components/modals/admin/NewAddJobModal.tsx
 import React, { useState, useEffect } from 'react';
 import { api } from '../../../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import type { User } from '@portal/shared';
 import { format } from 'date-fns';
 
@@ -112,7 +112,7 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
       onSave();
       onClose();
     } catch (err: any) {
-      if (err instanceof HTTPError) {
+      if (err instanceof HTTPException) {
         const errorJson = await err.response.json().catch(() => ({}));
         setError(errorJson.error || `Failed to create ${jobType}`);
       } else {

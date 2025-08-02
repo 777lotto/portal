@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { User, Job, DashboardInvoice } from '@portal/shared';
-import { HTTPError } from 'hono/client'; // Import Hono's error class
+import { HTTPException } from 'hono/http-exception'; // Import Hono's error class
 
 function Dashboard() {
   // State hooks remain the same
@@ -57,7 +57,7 @@ function Dashboard() {
 
         // --- REFACTORED DATA FETCHING ---
         // The Hono client (`api`) automatically handles parsing JSON and throwing
-        // an `HTTPError` on failure. The `fetchAndParse` helper is no longer needed.
+        // an `HTTPException` on failure. The `fetchAndParse` helper is no longer needed.
 
         const profileData = await api.profile.$get();
         setUser(profileData);
@@ -85,8 +85,8 @@ function Dashboard() {
 
       } catch (err: any) {
         // --- REFACTORED ERROR HANDLING ---
-        if (err instanceof HTTPError) {
-          // If it's an HTTPError from Hono, we can get the error message from the response body
+        if (err instanceof HTTPException) {
+          // If it's an HTTPException from Hono, we can get the error message from the response body
           const errorJson = await err.response.json();
           setError(errorJson.error || 'An error occurred.');
         } else {

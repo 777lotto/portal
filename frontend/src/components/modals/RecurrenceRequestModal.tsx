@@ -1,7 +1,7 @@
 // frontend/src/components/modals/RecurrenceRequestModal.tsx
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import type { Job } from '@portal/shared';
 
 interface Props {
@@ -52,7 +52,7 @@ function RecurrenceRequestModal({ isOpen, onClose, job, onSuccess }: Props) {
 			onSuccess();
 			onClose();
 		} catch (err: any) {
-            if (err instanceof HTTPError) {
+            if (err instanceof HTTPException) {
                 const errorJson = await err.response.json().catch(() => ({}));
                 setError(errorJson.error || 'Failed to submit recurrence request.');
             } else {

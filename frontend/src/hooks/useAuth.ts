@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import type { User } from '@portal/shared';
 
 export function useAuth() {
@@ -24,18 +24,18 @@ export function useAuth() {
       if (token) {
         try {
           // The Hono client directly returns the parsed JSON on success
-          // or throws an HTTPError on failure.
+          // or throws an HTTPException on failure.
           const profileData = await api.profile.$get();
           setUser(profileData);
           setError(null); // Clear any previous errors
         } catch (err) {
           // If the token is invalid, the API will return a 401, which Hono
-          // throws as an HTTPError. We catch it here and clear the user state.
+          // throws as an HTTPException. We catch it here and clear the user state.
           console.error("Authentication Error:", err);
           setUser(null);
           // We don't set a user-facing error because this is an expected state
           // when a token is expired or invalid. The UI will handle the redirect.
-          if (err instanceof HTTPError && err.response.status !== 401) {
+          if (err instanceof HTTPException && err.response.status !== 401) {
              setError('Failed to load your profile.');
           }
         } finally {

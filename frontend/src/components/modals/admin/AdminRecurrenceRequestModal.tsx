@@ -1,7 +1,7 @@
 // frontend/src/components/modals/admin/AdminRecurrenceRequestModal.tsx
 import { useState } from 'react';
 import { api } from '../../../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import type { JobRecurrenceRequest } from '@portal/shared';
 
 interface Props {
@@ -28,7 +28,7 @@ function AdminRecurrenceRequestModal({ isOpen, onClose, request, onUpdate }: Pro
       onUpdate();
       onClose();
     } catch (err: any) {
-      if (err instanceof HTTPError) {
+      if (err instanceof HTTPException) {
         const errorJson = await err.response.json().catch(() => ({}));
         setError(errorJson.error || 'Failed to update request');
       } else {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import type { Job, LineItem, Photo, Note } from '@portal/shared';
 import RecurrenceRequestModal from '../components/modals/RecurrenceRequestModal.js';
 import QuoteProposalModal from '../components/modals/QuoteProposalModal.js';
@@ -60,7 +60,7 @@ function JobInfo() {
       setPhotos(photosData);
       setNotes(notesData);
     } catch (err: any) {
-        if (err instanceof HTTPError) {
+        if (err instanceof HTTPException) {
             const errorJson = await err.response.json();
             setError(errorJson.error || 'Failed to fetch job details.');
         } else {
@@ -77,7 +77,7 @@ function JobInfo() {
   }, [jobId, fetchJobDetails]);
 
   const handleApiError = async (err: any, defaultMessage: string) => {
-    if (err instanceof HTTPError) {
+    if (err instanceof HTTPException) {
         const errorJson = await err.response.json();
         setError(errorJson.error || defaultMessage);
     } else {

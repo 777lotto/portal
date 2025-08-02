@@ -1,5 +1,5 @@
 import { api } from './api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 
 // Helper to convert VAPID key (no changes needed here)
 function urlBase64ToUint8Array(base64String: string) {
@@ -46,7 +46,7 @@ export async function subscribeUser() {
     console.log('User subscribed successfully.');
   } catch (err) {
     let errorMessage = 'Failed to subscribe user.';
-    if (err instanceof HTTPError) {
+    if (err instanceof HTTPException) {
         // Try to get a more specific error from the response
         const errorJson = await err.response.json().catch(() => ({}));
         errorMessage = errorJson.error || `Server responded with ${err.response.status}`;

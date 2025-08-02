@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 
 interface Props {
   setToken: (token: string) => void;
@@ -44,7 +44,7 @@ function SetPasswordForm({ setToken }: Props) {
       setToken(response.token);
       navigate('/dashboard', { replace: true });
     } catch (err: any) {
-        if (err instanceof HTTPError) {
+        if (err instanceof HTTPException) {
             const errorJson = await err.response.json().catch(() => ({}));
             setError(errorJson.error || 'Failed to set password');
         } else {

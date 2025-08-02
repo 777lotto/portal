@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { api } from '../../lib/api.js';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import type { Job, LineItem, Photo, Note, StripeInvoice, User } from '@portal/shared';
 import { jwtDecode } from 'jwt-decode';
 
@@ -35,7 +35,7 @@ function JobDetail() {
   }, []);
 
   const handleApiError = async (err: any, defaultMessage: string) => {
-    if (err instanceof HTTPError) {
+    if (err instanceof HTTPException) {
         const errorJson = await err.response.json().catch(() => ({}));
         setError(errorJson.error || defaultMessage);
     } else {

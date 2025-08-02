@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import type { Conversation } from '@portal/shared';
 
 function SMSConversations() {
@@ -18,7 +18,7 @@ function SMSConversations() {
         const data = await api.sms.conversations.$get();
         setConversations(data);
       } catch (err: any) {
-        if (err instanceof HTTPError) {
+        if (err instanceof HTTPException) {
             const errorJson = await err.response.json().catch(() => ({}));
             setError(errorJson.error || 'Failed to fetch conversations');
         } else {

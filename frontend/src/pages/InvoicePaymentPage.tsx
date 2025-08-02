@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import type { StripeInvoice, StripeInvoiceItem } from '@portal/shared';
 import { loadStripe } from '@stripe/stripe-js';
 import {
@@ -84,7 +84,7 @@ function InvoicePaymentPage() {
           setInvoice(invoiceData);
           setClientSecret(intentData.clientSecret);
         } catch (err: any) {
-            if (err instanceof HTTPError) {
+            if (err instanceof HTTPException) {
                 const errorJson = await err.response.json();
                 setError(errorJson.error || 'Failed to load invoice data.');
             } else {

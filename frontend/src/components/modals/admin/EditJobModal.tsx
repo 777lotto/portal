@@ -1,7 +1,7 @@
 // frontend/src/components/modals/admin/EditJobModal.tsx
 import { useState, useEffect } from 'react';
 import { api } from '../../../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import type { Job, User } from '@portal/shared';
 
 interface Props {
@@ -44,7 +44,7 @@ function EditJobModal({ isOpen, onClose, onJobUpdated, job }: Props) {
       onJobUpdated(updatedJob);
       onClose();
     } catch (err: any) {
-      if (err instanceof HTTPError) {
+      if (err instanceof HTTPException) {
         const errorJson = await err.response.json().catch(() => ({}));
         setError(errorJson.error || 'Failed to reassign job');
       } else {

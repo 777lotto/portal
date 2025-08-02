@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../lib/api.js';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import type { User } from '@portal/shared';
 import AddUserModal from '../../components/modals/admin/AddUserModal.js';
 
@@ -34,7 +34,7 @@ function UserDetailEditor({ user, onUserUpdated, onCancel }: { user: User; onUse
       });
       onUserUpdated(updatedUser);
     } catch (err: any) {
-        if (err instanceof HTTPError) {
+        if (err instanceof HTTPException) {
             const errorJson = await err.response.json();
             setError(errorJson.error || 'Failed to update user.');
         } else {
@@ -96,7 +96,7 @@ function UserListPage() {
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
 
   const handleApiError = async (err: any, defaultMessage: string) => {
-    if (err instanceof HTTPError) {
+    if (err instanceof HTTPException) {
         const errorJson = await err.response.json();
         setError(errorJson.error || defaultMessage);
     } else {

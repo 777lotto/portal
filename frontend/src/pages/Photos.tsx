@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../lib/api.js';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import type { PhotoWithNotes, User, Job, LineItem } from '@portal/shared';
 import { useDropzone } from 'react-dropzone';
 import { jwtDecode } from 'jwt-decode';
@@ -30,7 +30,7 @@ function CustomerPhotos() {
         const data = await api.photos.$get({ query: activeFilters });
         setPhotos(data);
       } catch (err: any) {
-        if (err instanceof HTTPError) {
+        if (err instanceof HTTPException) {
             const errorJson = await err.response.json();
             setError(errorJson.error || 'Failed to fetch photos.');
         } else {

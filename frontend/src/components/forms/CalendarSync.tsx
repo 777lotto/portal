@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import useSWR from 'swr';
 import { api } from '../../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 
 // The fetcher function for useSWR now uses the Hono client directly.
 const urlFetcher = () => api.calendar['secret-url'].$get();
@@ -28,7 +28,7 @@ function CalendarSync() {
       mutate(newData, false);
       setMessage({ type: 'success', text: 'New URL generated successfully!' });
     } catch (err: any) {
-        if (err instanceof HTTPError) {
+        if (err instanceof HTTPException) {
             const errorJson = await err.response.json().catch(() => ({}));
             setMessage({ type: 'danger', text: `Error: ${errorJson.error || 'Failed to regenerate URL'}` });
         } else {

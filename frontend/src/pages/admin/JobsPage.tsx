@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useInView } from 'react-intersection-observer';
 import { api } from '../../lib/api';
-import { HTTPError } from 'hono/client';
+import { HTTPException } from 'hono/http-exception';
 import type { JobWithDetails, JobStatus } from '@portal/shared';
 import NewAddJobModal from '../../components/modals/admin/NewAddJobModal';
 import QuoteProposalModal from '../../components/modals/QuoteProposalModal';
@@ -63,7 +63,7 @@ function JobsPage() {
   }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleApiError = async (err: any, defaultMessage: string) => {
-    if (err instanceof HTTPError) {
+    if (err instanceof HTTPException) {
         const errorJson = await err.response.json();
         setError(errorJson.error || defaultMessage);
     } else {
