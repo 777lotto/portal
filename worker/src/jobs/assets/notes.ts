@@ -1,55 +1,83 @@
-// 777lotto/portal/portal-fold/worker/src/handlers/notes.ts
-import { Context as NoteContext } from 'hono';
-import { AppEnv as NoteAppEnv } from '../../index.js';
-import { errorResponse as noteErrorResponse, successResponse as noteSuccessResponse } from '../../utils.js';
+import { createFactory } from 'hono/factory';
+import { HTTPException } from 'hono/http-exception';
+import { db } from '../../../db';
+import { notes, jobs, users } from '../../../db/schema';
+import { eq, and, desc } from 'drizzle-orm';
+import type { User } from '@portal/shared';
 
-export const handleGetNotesForJob = async (c: NoteContext<NoteAppEnv>) => {
-    const user = c.get('user');
-    const { id: jobId } = c.req.param(); // Correctly destructure 'id' and rename it to 'jobId'
-    try {
-        // First, get the job to verify ownership or admin status
-        const job = await c.env.DB.prepare(
-            `SELECT user_id FROM jobs WHERE id = ?`
-        ).bind(jobId).first<{ user_id: string }>();
+const factory = createFactory();
 
-        if (!job) {
-            return noteErrorResponse("Job not found", 404);
-        }
+// Middleware to get the authenticated user's full profile from the DB.
+const userMiddleware = factory.createMiddleware(async (c, next) => {
+	const auth = c.get('clerkUser');
+	if (!auth?.id) {
+		throw new HTTPException(401, { message: 'Unauthorized' });
+	}
+	const database = db(c.env.DB);
+	const user = await database.select().from(users).where(eq(users.clerk_id, auth.id)).get();
+	if (!user) {
+		throw new HTTPException(401, { message: 'User not found.' });
+	}
+	c.set('user', user);
+	await next();
+});
 
-        if (user.role !== 'admin' && job.user_id !== user.id.toString()) {
-            return noteErrorResponse("Access denied", 403);
-        }
+/* ========================================================================
+                           NOTE HANDLERS
+   ======================================================================== */
 
-        const dbResponse = await c.env.DB.prepare(
-            `SELECT * FROM notes WHERE job_id = ? ORDER BY createdAt DESC`
-        ).bind(jobId).all();
+/**
+ * Retrieves all notes for a specific job.
+ * Ensures the user is either an admin or the owner of the job.
+ */
+export const getNotes = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	const { jobId } = c.req.param();
+	const database = db(c.env.DB);
 
-        const notes = dbResponse?.results || [];
-        return noteSuccessResponse(notes);
-    } catch (e: any) {
-        return noteErrorResponse("Failed to retrieve notes", 500);
-    }
-};
+	// 1. Verify ownership or admin status for the job
+	const job = await database.select({ user_id: jobs.user_id }).from(jobs).where(eq(jobs.id, jobId)).get();
+	if (!job) {
+		throw new HTTPException(404, { message: 'Job not found' });
+	}
+	if (user.role !== 'admin' && job.user_id !== user.id.toString()) {
+		throw new HTTPException(403, { message: 'Access denied' });
+	}
 
-export const handleAdminAddNoteForUser = async (c: NoteContext<NoteAppEnv>) => {
-    const { user_id } = c.req.param();
-    const { content, job_id, photo_id } = await c.req.json();
+	// 2. Fetch notes for the job
+	const jobNotes = await database.select().from(notes).where(eq(notes.job_id, jobId)).orderBy(desc(notes.createdAt)).all();
 
-    if (!content) {
-        return noteErrorResponse("Note content cannot be empty", 400);
-    }
+	return c.json({ notes: jobNotes });
+});
 
-    try {
-        const { results } = await c.env.DB.prepare(
-            `INSERT INTO notes (user_id, content, job_id, photo_id) VALUES (?, ?, ?, ?) RETURNING *`
-        ).bind(parseInt(user_id, 10), content, job_id || null, photo_id || null).all();
+/**
+ * Adds a new note for a job or photo.
+ * Can be used by both admins and customers.
+ */
+export const addNote = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	const validatedData = c.req.valid('json'); // Assumes a Zod schema is used on the route
+	const { content, job_id, photo_id } = validatedData;
+	const database = db(c.env.DB);
 
-        if (!results || results.length === 0) {
-            return noteErrorResponse("Failed to add note after insert", 500);
-        }
-        return noteSuccessResponse(results[0], 201);
-    } catch (e: any) {
-        console.error("Failed to add note:", e);
-        return noteErrorResponse("Failed to add note", 500);
-    }
-};
+	// Security Check: Ensure the user has permission to add a note to this job/photo
+	if (job_id && user.role !== 'admin') {
+		const job = await database.select({ user_id: jobs.user_id }).from(jobs).where(eq(jobs.id, job_id)).get();
+		if (!job || job.user_id !== user.id.toString()) {
+			throw new HTTPException(403, { message: 'You do not have permission to add a note to this job.' });
+		}
+	}
+	// A similar check could be added for photo_id if necessary
+
+	const [newNote] = await database
+		.insert(notes)
+		.values({
+			user_id: user.id,
+			content,
+			job_id,
+			photo_id,
+		})
+		.returning();
+
+	return c.json({ note: newNote }, 201);
+});
