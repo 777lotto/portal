@@ -28,51 +28,57 @@ function UserDetailEditor({ user, onUserUpdated, onCancel }: { user: User; onUse
     setError(null);
     setIsSubmitting(true);
     try {
-      const updatedUser = await api.admin.users[':user_id'].$put({
+      const res = await api.admin.users[':user_id'].$put({
         param: { user_id: user.id.toString() },
         json: formData
       });
+      if (!res.ok) {
+        throw new Error('Failed to update user');
+      }
+      const updatedUser = await res.json();
       onUserUpdated(updatedUser);
-    } catch (err: any) {
-        if (err instanceof HTTPException) {
-            const errorJson = await err.response.json();
-            setError(errorJson.error || 'Failed to update user.');
-        } else {
-            setError(err.message || 'An unknown error occurred.');
-        }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    // ... UserDetailEditor JSX is unchanged ...
-    <form onSubmit={handleSubmit} className="p-4 space-y-4 bg-secondary-light dark:bg-secondary-dark rounded-b-lg">
-      {error && <div className="alert alert-danger">{error}</div>}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-        <div className="space-y-4">
-          <div>
-            <label htmlFor={`name-${user.id}`} className="form-label text-xs">Full Name</label>
-            <input type="text" id={`name-${user.id}`} name="name" className="form-control" value={formData.name} onChange={handleChange} />
-          </div>
-          <div>
-            <label htmlFor={`company_name-${user.id}`} className="form-label text-xs">Company Name</label>
-            <input type="text" id={`company_name-${user.id}`} name="company_name" value={formData.company_name} className="form-control" onChange={handleChange} />
-          </div>
+    <form onSubmit={handleSubmit} className="p-4 bg-gray-100 dark:bg-gray-800 rounded-b-lg">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Form fields */}
+        <div>
+          <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
+          <input type="text" name="name" id="name" value={formData.name} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
         </div>
-        <div className="space-y-4">
-          <div>
-            <label htmlFor={`email-${user.id}`} className="form-label text-xs">Email Address</label>
-            <input type="email" id={`email-${user.id}`} name="email" className="form-control" value={formData.email} onChange={handleChange} />
-          </div>
-          <div>
-            <label htmlFor={`phone-${user.id}`} className="form-label text-xs">Phone Number</label>
-            <input type="tel" id={`phone-${user.id}`} name="phone" className="form-control" value={formData.phone} onChange={handleChange} />
-          </div>
+        <div>
+          <label htmlFor="company_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Company Name</label>
+          <input type="text" name="company_name" id="company_name" value={formData.company_name} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+        </div>
+        <div>
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+          <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+        </div>
+        <div>
+          <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Phone</label>
+          <input type="tel" name="phone" id="phone" value={formData.phone} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+        </div>
+        <div className="md:col-span-2">
+          <label htmlFor="address" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Address</label>
+          <input type="text" name="address" id="address" value={formData.address} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+        </div>
+        <div>
+          <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Role</label>
+          <select name="role" id="role" value={formData.role} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="customer">Customer</option>
+            <option value="admin">Admin</option>
+          </select>
         </div>
       </div>
-      <div className="flex justify-end gap-2 pt-2">
-        <button type="button" className="btn btn-secondary" onClick={onCancel}>Cancel</button>
+      {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+      <div className="flex justify-end gap-2 mt-4">
+        <button type="button" onClick={onCancel} className="btn btn-secondary">Cancel</button>
         <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
           {isSubmitting ? 'Saving...' : 'Save Changes'}
         </button>
@@ -81,164 +87,173 @@ function UserDetailEditor({ user, onUserUpdated, onCancel }: { user: User; onUse
   );
 }
 
+
 function UserListPage() {
   const [users, setUsers] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [expandeduserId, setExpandedUserId] = useState<number | null>(null);
-  const [editinguserId, setEditingUserId] = useState<number | null>(null);
-  const [isImporting, setIsImporting] = useState(false);
-  const [importMessage, setImportMessage] = useState<string | null>(null);
-  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [isAddUserModalOpen, setAddUserModalOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [contactsToImport, setContactsToImport] = useState<any[]>([]);
-  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
+  const [expandeduserId, setExpandedUserId] = useState<string | null>(null);
+  const [editinguserId, setEditingUserId] = useState<string | null>(null);
 
-  const handleApiError = async (err: any, defaultMessage: string) => {
-    if (err instanceof HTTPException) {
-        const errorJson = await err.response.json();
-        setError(errorJson.error || defaultMessage);
-    } else {
-        setError(err.message || defaultMessage);
-    }
-  };
 
-  const fetchUsers = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await api.admin.users.$get();
-      setUsers(data);
-    } catch (err) {
-      handleApiError(err, 'An unknown error occurred.');
-    } finally {
-      setIsLoading(false);
-    }
+  const searchTerm = searchParams.get('q') || '';
+  const sortBy = searchParams.get('sortBy') || 'name';
+  const sortOrder = searchParams.get('sortOrder') || 'asc';
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await api.admin.users.$get();
+        if (!res.ok) {
+          throw new Error('Failed to fetch users');
+        }
+        const data = await res.json();
+        // FIX: The API returns an array of users directly.
+        // It is not wrapped in a { users: ... } object.
+        setUsers(data);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+      }
+    };
+
+    fetchUsers();
   }, []);
 
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+  const handleUserAdded = (newUser: User) => {
+    setUsers(currentUsers => [newUser, ...currentUsers]);
+  };
 
-  useEffect(() => {
-    const importToken = searchParams.get('import_token');
-    const processImportToken = async (token: string) => {
-        try {
-            const contacts = await api.admin['get-imported-contacts'].$post({ json: { token } });
-            setContactsToImport(contacts || []);
-        } catch (err) {
-            handleApiError(err, 'Could not retrieve contacts for import.');
-        } finally {
-            searchParams.delete('import_token');
-            setSearchParams(searchParams, { replace: true });
-        }
-    };
-    if (importToken) processImportToken(importToken);
-  }, [searchParams, setSearchParams]);
+  const handleSort = (column: string) => {
+    const newSortOrder = sortBy === column && sortOrder === 'asc' ? 'desc' : 'asc';
+    setSearchParams({ q: searchTerm, sortBy: column, sortOrder: newSortOrder });
+  };
 
-  const handleImportSelectedContacts = async () => {
-    setIsImporting(true);
-    setImportMessage(null);
-    setError(null);
-    const contactsToPost = contactsToImport.filter(c => selectedContacts.has(c.resourceName));
-    try {
-      const result = await api.admin['import-contacts'].$post({ json: { contacts: contactsToPost } });
-      setImportMessage(`Successfully imported ${result.importedCount} new contacts.`);
-      setContactsToImport([]);
-      setSelectedContacts(new Set());
-      fetchUsers();
-    } catch (err) {
-      handleApiError(err, 'Import failed');
-    } finally {
-      setIsImporting(false);
+  const filteredAndSortedUsers = useMemo(() => {
+    if (!Array.isArray(users)) {
+        return [];
+    }
+    let usersToSort = [...users];
+
+    if (searchTerm) {
+      usersToSort = usersToSort.filter(
+        (user) =>
+          user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.company_name?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    usersToSort.sort((a, b) => {
+      const aValue = a[sortBy as keyof User] ?? '';
+      const bValue = b[sortBy as keyof User] ?? '';
+
+      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return usersToSort;
+  }, [users, searchTerm, sortBy, sortOrder]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const usersPerPage = 10;
+  const totalPages = Math.ceil(filteredAndSortedUsers.length / usersPerPage);
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
     }
   };
 
-  const handleDeleteUser = async (userToDelete: User) => {
-    if (window.confirm(`Are you sure you want to permanently delete ${userToDelete.name || userToDelete.email}?`)) {
-      try {
-        await api.admin.users[':user_id'].$delete({ param: { user_id: userToDelete.id.toString() } });
-        setUsers(currentUsers => currentUsers.filter(user => user.id !== userToDelete.id));
-      } catch (err) {
-        handleApiError(err, `Failed to delete user`);
-      }
-    }
+  const handleRowClick = (userId: string) => {
+    if (editinguserId === userId) return; // Don't collapse if editing
+    setExpandedUserId(currentId => (currentId === userId ? null : userId));
+    setEditingUserId(null); // Close editor when expanding/collapsing
   };
 
   const handleUserUpdated = (updatedUser: User) => {
     setUsers(currentUsers => currentUsers.map(u => u.id === updatedUser.id ? updatedUser : u));
-    setEditingUserId(null);
+    setEditingUserId(null); // Exit editing mode
   };
 
-  const toggleRow = (userId: number) => {
-    if (editinguserId === userId) return;
-    setExpandedUserId(expandeduserId === userId ? null : userId);
+  const handleDeleteUser = async (userToDelete: User) => {
+    if (window.confirm(`Are you sure you want to delete ${userToDelete.name}?`)) {
+      try {
+        const res = await api.admin.users[':user_id'].$delete({
+          param: { user_id: userToDelete.id.toString() },
+        });
+        if (!res.ok) {
+          throw new Error('Failed to delete user');
+        }
+        setUsers(currentUsers => currentUsers.filter(u => u.id !== userToDelete.id));
+      } catch (error) {
+        console.error("Error deleting user:", error);
+        // You might want to show an error message to the user here
+      }
+    }
   };
 
-  const filteredUsers = useMemo(() => {
-    const lowercasedQuery = searchQuery.toLowerCase();
-    if (!lowercasedQuery) return users;
-    return users.filter(user =>
-      user.name?.toLowerCase().includes(lowercasedQuery) ||
-      user.company_name?.toLowerCase().includes(lowercasedQuery) ||
-      user.email?.toLowerCase().includes(lowercasedQuery) ||
-      user.phone?.toLowerCase().includes(lowercasedQuery)
-    );
-  }, [users, searchQuery]);
-
-  const handleUserAdded = (newUser: User) => setUsers(currentUsers => [newUser, ...currentUsers]);
-  const handleGoogleImportClick = () => { window.location.href = '/api/auth/google'; };
-
-  if (isLoading) return <div className="text-center p-8">Loading users...</div>;
 
   return (
     <>
-      <AddUserModal isOpen={isAddUserModalOpen} onClose={() => setIsAddUserModalOpen(false)} onUserAdded={handleUserAdded} />
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-2xl font-bold mb-4">Users</h1>
-        {error && <div className="alert alert-danger">{error}</div>}
-        {importMessage && <div className="alert alert-info">{importMessage}</div>}
-
-        <div className="mb-4 flex justify-between items-center">
-          <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search..." className="form-control" style={{width: '40%'}} />
-          <div className="flex items-center gap-2">
-            <button onClick={handleGoogleImportClick} className="btn btn-secondary">Import from Google</button>
-            <button onClick={() => setIsAddUserModalOpen(true)} className="btn btn-primary">Add User</button>
-          </div>
+      <AddUserModal
+        isOpen={isAddUserModalOpen}
+        onClose={() => setAddUserModalOpen(false)}
+        onUserAdded={handleUserAdded}
+      />
+      <div className="container mx-auto p-4">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold">Users</h1>
+          <button className="btn btn-primary" onClick={() => setAddUserModalOpen(true)}>
+            Add User
+          </button>
         </div>
 
-        <div className="card overflow-hidden">
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Search users..."
+            value={searchTerm}
+            onChange={(e) => setSearchParams({ q: e.target.value, sortBy, sortOrder })}
+            className="input input-bordered w-full max-w-xs"
+          />
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-x-auto">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-border-light dark:divide-border-dark">
-              {/* ... table structure is unchanged ... */}
-              <thead className="bg-secondary-light dark:bg-secondary-dark">
+            <table className="table w-full">
+              <thead>
                 <tr>
-                    <th className="px-6 py-4 w-12"></th>
-                    <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider">Name</th>
-                    <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider">Company</th>
-                    <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider">Contact</th>
-                    <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider">Role</th>
-                    <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider">Actions</th>
+                  <th onClick={() => handleSort('name')} className="cursor-pointer">
+                    Name {sortBy === 'name' && (sortOrder === 'asc' ? '▲' : '▼')}
+                  </th>
+                  <th onClick={() => handleSort('company_name')} className="cursor-pointer">
+                    Company {sortBy === 'company_name' && (sortOrder === 'asc' ? '▲' : '▼')}
+                  </th>
+                  <th onClick={() => handleSort('email')} className="cursor-pointer">
+                    Email {sortBy === 'email' && (sortOrder === 'asc' ? '▲' : '▼')}
+                  </th>
+                  <th>Phone</th>
+                  <th>Role</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border-light dark:divide-border-dark">
-                {filteredUsers.map(user => (
+              <tbody>
+                {filteredAndSortedUsers
+                  .slice((currentPage - 1) * usersPerPage, currentPage * usersPerPage)
+                  .map((user) => (
                     <React.Fragment key={user.id}>
-                      <tr className="hover:bg-secondary-light/50 dark:hover:bg-secondary-dark/50 cursor-pointer" onClick={() => toggleRow(user.id)}>
-                        <td className="px-6 py-4"><span className="text-xl">{expandeduserId === user.id ? '−' : '+'}</span></td>
-                        <td className="px-6 py-4">{user.name || 'N/A'}</td>
-                        <td className="px-6 py-4">{user.company_name || 'N/A'}</td>
-                        <td className="px-6 py-4">
-                          <div>{user.email}</div>
-                          <div>{user.phone}</div>
-                        </td>
-                        <td className="px-6 py-4"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === 'admin' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{user.role}</span></td>
-                        <td className="px-6 py-4">
-                           <div className="flex items-center gap-2">
-                             <Link to={`/admin/users/${user.id}`} className="btn btn-secondary !px-3 !py-1 !text-xs" onClick={(e) => e.stopPropagation()}>View</Link>
-                             <button onClick={(e) => { e.stopPropagation(); handleDeleteUser(user); }} className="btn !px-3 !py-1 !text-xs text-white bg-red-600 hover:bg-red-700">Delete</button>
-                           </div>
+                      <tr onClick={() => handleRowClick(user.id)} className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <td>{user.name}</td>
+                        <td>{user.company_name}</td>
+                        <td>{user.email}</td>
+                        <td>{user.phone}</td>
+                        <td><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === 'admin' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>{user.role}</span></td>
+                        <td>
+                          <div className="flex gap-2">
+                            <Link to={`/admin/users/${user.id}`} className="btn btn-secondary !px-3 !py-1 !text-xs" onClick={(e) => e.stopPropagation()}>View</Link>
+                            <button onClick={(e) => { e.stopPropagation(); handleDeleteUser(user); }} className="btn !px-3 !py-1 !text-xs text-white bg-red-600 hover:bg-red-700">Delete</button>
+                          </div>
                         </td>
                       </tr>
                       {expandeduserId === user.id && (
@@ -261,6 +276,16 @@ function UserListPage() {
             </table>
           </div>
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex justify-center mt-4">
+            <div className="btn-group">
+              <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="btn">«</button>
+              <button className="btn">Page {currentPage}</button>
+              <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="btn">»</button>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
