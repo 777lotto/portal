@@ -35,8 +35,6 @@ export const LineItemSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
 });
-
-// CORRECTED: The LineItem type is now correctly inferred from the schema.
 export type LineItem = z.infer<typeof LineItemSchema>;
 
 // Define the new, stricter set of statuses for a Job
@@ -71,15 +69,16 @@ export const JobSchema = z.object({
 export type Job = z.infer<typeof JobSchema>;
 
 
+// --- REFACTORED: Stricter validation for creating jobs ---
 export const CreateJobPayloadSchema = z.object({
-  user_id: z.string(),
-  title: z.string(),
+  user_id: z.string().min(1, { message: "User ID is required" }),
+  title: z.string().min(1, { message: "Title cannot be empty" }),
   description: z.string().optional(),
   lineItems: z.array(z.object({
-    description: z.string(),
-    unit_total_amount_cents: z.number().int(),
+    description: z.string().min(1, { message: "Line item description cannot be empty" }),
+    unit_total_amount_cents: z.number().int({ message: "Amount must be a valid number" }),
     quantity: z.number().int().default(1),
-  })),
+  })).min(1, { message: "At least one line item is required" }),
   jobType: z.enum(['quote', 'job', 'invoice']),
   recurrence: z.string().optional(),
   due: z.string().optional(),
@@ -100,7 +99,6 @@ export const JobRecurrenceRequestSchema = z.object({
 export type JobRecurrenceRequest = z.infer<typeof JobRecurrenceRequestSchema>;
 
 export interface JobWithDetails extends Job {
-  // CORRECTED: Changed 'lineItems' to 'line_items' to match expected property name.
   line_items: LineItem[];
   customerName: string;
   customerAddress: string;
@@ -112,16 +110,17 @@ export interface JobWithDetails extends Job {
   }[];
 }
 
+// --- REFACTORED: Stricter validation for public bookings ---
 export const PublicBookingRequestSchema = z.object({
-  name: z.string().min(2),
-  email: z.string().email(),
-  phone: z.string().min(10),
-  address: z.string().min(5),
+  name: z.string().min(2, { message: "Name must be at least 2 characters" }),
+  email: z.string().email({ message: "Please enter a valid email address" }),
+  phone: z.string().min(10, { message: "Please enter a valid phone number" }),
+  address: z.string().min(5, { message: "Please enter a valid address" }),
   date: z.string(),
   lineItems: z.array(z.object({
-      description: z.string(), // Changed from name to description
+      description: z.string().min(1, { message: "Service description cannot be empty" }),
       duration: z.number().optional().default(1)
-  })).min(1),
+  })).min(1, { message: "Please select at least one service" }),
 });
 export type PublicBookingRequest = z.infer<typeof PublicBookingRequestSchema>;
 
@@ -142,6 +141,11 @@ export const NoteSchema = z.object({
 });
 export type Note = z.infer<typeof NoteSchema>;
 
+// --- ADDED: Schema for creating a new note ---
+export const CreateNoteSchema = z.object({
+  content: z.string().min(1, { message: "Note content cannot be empty" }),
+});
+
 // A photo with its notes included
 export const PhotoWithNotesSchema = PhotoSchema.extend({
   notes: z.array(NoteSchema),
@@ -161,13 +165,19 @@ export type PhotoWithNotes = z.infer<typeof PhotoWithNotesSchema>;
 });
  export type CalendarEvent = z.infer<typeof CalendarEventSchema>;
 
+ // --- REFACTORED: Stricter validation for creating users ---
+ // This schema now ensures that either an email or a phone number is provided.
  export const AdminCreateUserSchema = z.object({
-  name: z.string().optional(),
+  name: z.string().min(1, { message: "Name is required" }).optional(),
   company_name: z.string().optional(),
-  email: z.string().email().optional(),
-  phone: z.string().optional(),
+  email: z.string().email({ message: "Invalid email format" }).optional(),
+  phone: z.string().min(10, { message: "Phone number seems too short" }).optional(),
   address: z.string().optional(),
   role: z.enum(['customer', 'admin', 'associate', 'guest']).default('customer'),
+}).refine(data => data.email || data.phone, {
+  message: "An email or a phone number is required to create a user.",
+  // This error will be associated with the 'email' field in forms.
+  path: ["email"],
 });
 export type AdminCreateUser = z.infer<typeof AdminCreateUserSchema>;
 
