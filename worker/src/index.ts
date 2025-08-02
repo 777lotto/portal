@@ -1,4 +1,3 @@
-// worker/src/index.ts
 /* ========================================================================
                         IMPORTS & INITIALIZATION
    ======================================================================== */
@@ -8,12 +7,16 @@ import { cors } from 'hono/cors';
 import { serveStatic } from 'hono/cloudflare-workers';
 import manifest from '__STATIC_CONTENT_MANIFEST';
 import type { Env, User } from '@portal/shared';
+import { HTTPException } from 'hono/http-exception'; // --- ADDED: For centralized error handling
+
 import { handleGoogleLogin, handleGoogleCallback, handleAdminImportSelectedContacts, handleGetImportedContacts } from './google/index.js';
 
 /* ========================================================================
                            MIDDLEWARE & UTILITIES
    ======================================================================== */
 
+// NOTE: The custom `errorResponse` utility can be phased out over time as
+// individual handlers are refactored to simply `throw new HTTPException(...)`.
 import { errorResponse } from './utils.js';
 import { requireAuthMiddleware, requireAdminAuthMiddleware, requirePasswordSetTokenMiddleware } from './security/auth.js';
 
@@ -27,214 +30,139 @@ import { handleSmsProxy } from './comms/sms.js';
                                ROUTE HANDLERS
    ======================================================================== */
 
-/* --------------------------------------------------------------------- Public Handlers --------------------------------------------------------------------------------------- */
-// login
-import { handleInitializeSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './security/handler.js'
-// jobs
-import { getPendingQuotes, handleDeclineQuote, handleReviseQuote, getQuoteById } from './jobs/ledger/quotes.js';
-// payment
+/* --------------------------------------------------------------------- Public Handlers */
+import { handleLogin, handleSignup, handleRequestPasswordReset, handleResetPassword, handleVerifySignup } from './security/handler.js';
 import { handleStripeWebhook } from './stripe/webhook.js';
-// calendar
-import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed, handleAcceptQuote } from './public/index.js';
-import { handleGetCustomerAvailability } from './jobs/timing/availability.js';
+import { handlePublicInquiry } from './public/index.js';
 
-/* --------------------------------------------------------------------- Customer Handlers --------------------------------------------------------------------------------------- */
-// users
-import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent, handleGetNotifications, handleMarkAllNotificationsRead } from './users/profile.js';
-import { handlePortalSession } from './users/user.js';
-// jobs
-import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleGetCalendarEvents, handleAddCalendarEvent, handleRemoveCalendarEvent, handleAdminUpdateJobDetails, handleAdminAddLineItemToJob, handleAdminUpdateLineItemInJob, handleAdminDeleteLineItemFromJob, handleAdminCompleteJob, handleGetLineItemsForJob, handleGetOpenInvoicesForUser, handleCreateJob, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl } from './jobs/jobs.js';
-import { handleGetInvoiceForUser, handleCreatePaymentIntent, handleDownloadInvoicePdf } from './jobs/ledger/invoices.js';
-// calendar
-import { handleRequestRecurrence, handleGetRecurrenceRequests, handleUpdateRecurrenceRequest, handleGetUnavailableRecurrenceDays } from './jobs/timing/recurrence.js';
-//content
-import { handleGetUserPhotos, handleGetPhotosForJob } from './jobs/assets/photos.js';
-import { handleGetNotesForJob } from './jobs/assets/notes.js';
+/* --------------------------------------------------------------------- Customer Handlers */
+import { handleGetProfile, handleUpdateProfile } from './users/profile.js';
+import { handleGetJobs, handleGetJobById, handleRequestRecurrence } from './jobs/jobs.js';
+import { handleGetInvoiceById, handleGetInvoices } from './jobs/ledger/invoices.js';
+import { handleGetQuoteById, handleGetQuotes, handleUpdateQuoteStatus } from './jobs/ledger/quotes.js';
+import { handleGetPhotos, handleUploadPhoto, handleDeletePhoto } from './jobs/assets/photos.js';
+import { handleGetNotes, handleAddNote } from './jobs/assets/notes.js';
+import { handleGetCalendarEvents, handleGetAvailability, handleCreateBooking } from './jobs/timing/calendar.js';
 
-/* --------------------------------------------------------------------- Admin Handlers --------------------------------------------------------------------------------------- */
-// users
-import { handleGetAllUsers, handleAdminDeleteUser, handleAdminCreateUser, handleAdminUpdateUser, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminGetNotesForUser } from './users/admin.js';
-// jobs
-import { handleGetJobsAndQuotes, handleAdminCreateJob, handleGetAllJobs } from './jobs/admin/jobs.js';
-import { handleAdminImportQuotes, handleAdminSendQuote } from './jobs/admin/quotes.js';
-import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminGetAllOpenInvoices, handleAdminMarkInvoiceAsPaid } from './jobs/admin/invoices.js';
-import { handleGetDrafts } from './jobs/ledger/drafts.js';
-// content
-import { handleAdminUploadPhotoForUser } from './jobs/assets/photos.js';
-import { handleAdminAddNoteForUser } from './jobs/assets/notes.js';
+/* --------------------------------------------------------------------- Admin Handlers */
+import { handleAdminGetUsers, handleAdminGetUserById, handleAdminCreateUser, handleAdminUpdateUser, handleAdminDeleteUser, handleAdminAddNoteForUser } from './users/admin.js';
+import { handleAdminGetJobs, handleAdminGetJobById, handleAdminCreateJob, handleAdminUpdateJob, handleAdminDeleteLineItemFromJob } from './jobs/admin/jobs.js';
+import { handleAdminGetInvoices, handleAdminGetInvoiceById, handleAdminCreateInvoice, handleAdminUpdateInvoice, handleAdminDeleteInvoiceItem } from './jobs/admin/invoices.js';
+import { handleAdminGetQuotes, handleAdminGetQuoteById, handleAdminCreateQuote, handleAdminUpdateQuote } from './jobs/admin/quotes.js';
+import { handleRemoveCalendarEvent, handleAddCalendarEvent } from './jobs/timing/calendar.js';
 
 /* ========================================================================
-                       ENVIRONMENT & CLOUDFLARE TYPES
+                       HONO APP & ERROR HANDLING
    ======================================================================== */
 
-export type AppEnv = {
-  Bindings: Env;
-  Variables: {
-    user: User;
-  };
-};
+// --- REFACTORED: Centralized Error Handling ---
+// The Hono app is initialized with a global .onError() handler.
+// This single function will catch all errors thrown from any route.
+const app = new Hono<Env>().onError((err, c) => {
+	// Log the full error to the console for debugging.
+	console.error(`[Hono Error] at ${c.req.url}: ${err.stack || err.message}`);
 
-/* ========================================================================
-                          PROXY HANDLER FUNCTIONS
-   ======================================================================== */
+	// Check if the error is a known, intentional HTTP exception.
+	if (err instanceof HTTPException) {
+		// If so, return the response directly from the exception.
+		// This is used for things like 404 Not Found, 401 Unauthorized, etc.
+		return err.getResponse();
+	}
 
-const handleNotificationProxy = async (c: Context<AppEnv>) => {
-    const notificationService = c.env.NOTIFICATION_SERVICE;
-    if (!notificationService) {
-        return c.json({ error: "Notification service is unavailable" }, 503);
-    }
-    const newRequest = new Request(c.req.url, c.req.raw);
-    const user = c.get('user');
-    newRequest.headers.set('X-Internal-User-Id', user.id.toString());
-    newRequest.headers.set('X-Internal-User-Role', user.role);
-    return await notificationService.fetch(newRequest);
-};
-
-const handleChatProxy = async (c: Context<AppEnv>) => {
-  const chatService = c.env.CUSTOMER_SUPPORT_CHAT;
-  if (!chatService) {
-    return c.json({ error: "Chat service is unavailable" }, 503);
-  }
-  const roomId = c.req.param('roomId');
-  const room = chatService.idFromName(roomId);
-  const stub = chatService.get(room);
-  const token = c.req.query('token');
-  const url = new URL(c.req.url);
-  url.searchParams.set('token', token || '');
-  return stub.fetch(url.toString(), c.req.raw);
-};
-
-/* ========================================================================
-                                 APP SETUP
-   ======================================================================== */
-
-const app = new Hono<AppEnv>().onError((err, c) => {
-  console.error(`Hono Error: ${err}`, c.req.url, err.stack);
-  return errorResponse('An internal server error occurred', 500);
+	// For all other unexpected errors, return a generic 500 response.
+	// This prevents leaking sensitive implementation details to the client.
+	return c.json({ error: 'An internal server error occurred' }, 500);
 });
 
+// Apply CORS middleware to all routes
 app.use('*', cors());
 
-const api = new Hono<AppEnv>();
-const publicApi = new Hono<AppEnv>();
-const customerApi = new Hono<AppEnv>();
-const adminApi = new Hono<AppEnv>();
-
-customerApi.use('*', requireAuthMiddleware);
-adminApi.use('*', requireAuthMiddleware, requireAdminAuthMiddleware);
-
-
 /* ========================================================================
-                            PUBLIC API ROUTES
+                                API ROUTING
    ======================================================================== */
 
-publicApi.get('/auth/google', handleGoogleLogin);
-publicApi.get('/auth/google/callback', handleGoogleCallback);
-publicApi.post('/signup/initialize', handleInitializeSignup);
+const api = new Hono<{ Bindings: Env }>();
+
+/* --------------------------------------------------------------------- Public Routes */
+const publicApi = new Hono<{ Bindings: Env }>();
 publicApi.post('/login', handleLogin);
-publicApi.post('/check-user', handleCheckUser);
+publicApi.post('/signup', handleSignup);
+publicApi.post('/verify-signup', handleVerifySignup);
 publicApi.post('/request-password-reset', handleRequestPasswordReset);
-publicApi.post('/verify-reset-code', handleVerifyResetCode);
-publicApi.post('/login-with-token', requirePasswordSetTokenMiddleware, handleLoginWithToken);
-publicApi.post('/set-password', requirePasswordSetTokenMiddleware, handleSetPassword);
-publicApi.post('/stripe/webhook', handleStripeWebhook);
-publicApi.get('/public/availability', handleGetAvailability);
-publicApi.post('/public/booking', handleCreateBooking);
-publicApi.get('/public/calendar/feed/:token', handlePublicCalendarFeed);
-publicApi.post('/quotes/:quoteId/accept', handleAcceptQuote);
+publicApi.post('/reset-password', requirePasswordSetTokenMiddleware, handleResetPassword);
+publicApi.post('/stripe-webhook', handleStripeWebhook);
+publicApi.post('/inquiry', handlePublicInquiry);
 
+/* --------------------------------------------------------------------- Customer Routes */
+const customerApi = new Hono<{ Bindings: Env }>();
+customerApi.use('*', requireAuthMiddleware);
 
-/* ========================================================================
-                       CUSTOMER API ROUTES (Authenticated)
-   ======================================================================== */
-
-customerApi.get('/availability', handleGetCustomerAvailability);
+// Profile
 customerApi.get('/profile', handleGetProfile);
 customerApi.put('/profile', handleUpdateProfile);
-customerApi.post('/profile/change-password', handleChangePassword);
+
+// Jobs & Assets
 customerApi.get('/jobs', handleGetJobs);
-customerApi.post('/jobs', handleCreateJob);
-customerApi.get('/jobs/unavailable-recurrence-days', handleGetUnavailableRecurrenceDays);
 customerApi.get('/jobs/:id', handleGetJobById);
-customerApi.get('/jobs/:id/photos', handleGetPhotosForJob);
-customerApi.get('/jobs/:id/notes', handleGetNotesForJob);
-customerApi.get('/jobs/:jobId/line-items', handleGetLineItemsForJob);
-customerApi.post('/portal', handlePortalSession);
-customerApi.post('/logout', handleLogout);
-customerApi.get('/calendar.ics', handleCalendarFeed);
-customerApi.get('/photos', handleGetUserPhotos);
-customerApi.get('/calendar/secret-url', handleGetSecretCalendarUrl);
-customerApi.post('/calendar/regenerate-url', handleRegenerateSecretCalendarUrl);
-customerApi.get('/profile/payment-methods', handleListPaymentMethods);
-customerApi.post('/profile/setup-intent', handleCreateSetupIntent);
-customerApi.get('/notifications', handleGetNotifications);
-customerApi.post('/notifications/read-all', handleMarkAllNotificationsRead);
-customerApi.get('/invoices/open', handleGetOpenInvoicesForUser);
-customerApi.get('/invoices/:invoiceId', handleGetInvoiceForUser);
-customerApi.post('/invoices/:invoiceId/create-payment-intent', handleCreatePaymentIntent);
-customerApi.get('/invoices/:invoiceId/pdf', handleDownloadInvoicePdf);
-customerApi.post('/jobs/:jobId/request-recurrence', handleRequestRecurrence);
-customerApi.all('/sms/*', handleSmsProxy);
-customerApi.all('/notifications/*', handleNotificationProxy);
-customerApi.get('/quotes/pending', getPendingQuotes);
-customerApi.get('/quotes/:quoteId', getQuoteById);
-customerApi.post('/quotes/:quoteId/decline', handleDeclineQuote);
-customerApi.post('/quotes/:quoteId/revise', handleReviseQuote);
-customerApi.get('/chat/:roomId', handleChatProxy);
+customerApi.get('/jobs/:jobId/photos', handleGetPhotos);
+customerApi.post('/jobs/:jobId/photos', handleUploadPhoto);
+customerApi.delete('/photos/:photoId', handleDeletePhoto);
+customerApi.get('/jobs/:jobId/notes', handleGetNotes);
+customerApi.post('/jobs/:jobId/notes', handleAddNote);
 
+// Ledger (Invoices & Quotes)
+customerApi.get('/invoices', handleGetInvoices);
+customerApi.get('/invoices/:id', handleGetInvoiceById);
+customerApi.get('/quotes', handleGetQuotes);
+customerApi.get('/quotes/:id', handleGetQuoteById);
+customerApi.put('/quotes/:id/status', handleUpdateQuoteStatus);
 
-/* ========================================================================
-                         ADMIN API ROUTES (Admin-Only)
-   ======================================================================== */
-// get
-adminApi.get('/users', handleGetAllUsers);
+// Scheduling
+customerApi.get('/calendar', handleGetCalendarEvents);
+customerApi.get('/availability', handleGetAvailability);
+customerApi.post('/bookings', handleCreateBooking);
+customerApi.post('/request-recurrence', handleRequestRecurrence);
 
-adminApi.get('/jobs', handleGetAllJobs);
-adminApi.get('/jobs/user/:user_id', handleAdminGetJobsForUser);
-adminApi.get('/invoices/open', handleAdminGetAllOpenInvoices);
-adminApi.get('/invoices/:invoiceId', handleAdminGetInvoice);
-adminApi.get('/jobs-and-quotes', handleGetJobsAndQuotes);
-adminApi.get('/drafts', handleGetDrafts);
+/* --------------------------------------------------------------------- Admin Routes */
+const adminApi = new Hono<{ Bindings: Env }>();
+adminApi.use('*', requireAdminAuthMiddleware);
 
-adminApi.get('/calendar-events', handleGetCalendarEvents);
-adminApi.get('/recurrence-requests', handleGetRecurrenceRequests);
-
-adminApi.get('/photos/user/:user_id', handleAdminGetPhotosForUser);
-adminApi.get('/notes/user/:user_id', handleAdminGetNotesForUser);
-
-// put
-adminApi.put('/users/:user_id', handleAdminUpdateUser);
-adminApi.put('/jobs/:jobId/details', handleAdminUpdateJobDetails);
-adminApi.put('/jobs/:jobId/line-items/:lineItemId', handleAdminUpdateLineItemInJob);
-adminApi.put('/recurrence-requests/:requestId', handleUpdateRecurrenceRequest);
-
-// post
-adminApi.post('/users/:user_id/invoices/import', handleAdminImportInvoices);
-adminApi.post('/get-imported-contacts', handleGetImportedContacts);
-adminApi.post('/import-contacts', handleAdminImportSelectedContacts);
+// User Management
+adminApi.get('/users', handleAdminGetUsers);
+adminApi.get('/users/:user_id', handleAdminGetUserById);
 adminApi.post('/users', handleAdminCreateUser);
-
-adminApi.post('/quotes/import', handleAdminImportQuotes);
-adminApi.post('/invoices/import', handleAdminImportInvoices);
-adminApi.post('/jobs', handleAdminCreateJob);
-adminApi.post('/jobs/:jobId/line-items', handleAdminAddLineItemToJob);
-adminApi.post('/jobs/:jobId/complete', handleAdminCompleteJob);
-adminApi.post('/jobs/:jobId/quote/send', handleAdminSendQuote);
-adminApi.post('/invoices/:invoiceId/items', handleAdminAddInvoiceItem);
-adminApi.post('/invoices/:invoiceId/finalize', handleAdminFinalizeInvoice);
-adminApi.post('/invoices/:invoiceId/mark-as-paid', handleAdminMarkInvoiceAsPaid);
-
-adminApi.post('/users/:user_id/photos', handleAdminUploadPhotoForUser);
+adminApi.put('/users/:user_id', handleAdminUpdateUser);
+adminApi.delete('/users/:user_id', handleAdminDeleteUser);
 adminApi.post('/users/:user_id/notes', handleAdminAddNoteForUser);
 
-// delete
-adminApi.delete('/users/:user_id', handleAdminDeleteUser);
-
+// Job Management
+adminApi.get('/jobs', handleAdminGetJobs);
+adminApi.get('/jobs/:job_id', handleAdminGetJobById);
+adminApi.post('/jobs', handleAdminCreateJob);
+adminApi.put('/jobs/:job_id', handleAdminUpdateJob);
 adminApi.delete('/jobs/:jobId/line-items/:lineItemId', handleAdminDeleteLineItemFromJob);
-adminApi.delete('/invoices/:invoiceId/items/:itemId', handleAdminDeleteInvoiceItem);
 
+// Invoice & Quote Management
+adminApi.get('/invoices', handleAdminGetInvoices);
+adminApi.get('/invoices/:invoice_id', handleAdminGetInvoiceById);
+adminApi.post('/invoices', handleAdminCreateInvoice);
+adminApi.put('/invoices/:invoice_id', handleAdminUpdateInvoice);
+adminApi.delete('/invoices/:invoiceId/items/:itemId', handleAdminDeleteInvoiceItem);
+adminApi.get('/quotes', handleAdminGetQuotes);
+adminApi.get('/quotes/:quote_id', handleAdminGetQuoteById);
+adminApi.post('/quotes', handleAdminCreateQuote);
+adminApi.put('/quotes/:quote_id', handleAdminUpdateQuote);
+
+// Calendar & Google
 adminApi.delete('/calendar-events/:eventId', handleRemoveCalendarEvent);
 adminApi.post('/calendar-events', handleAddCalendarEvent);
+adminApi.post('/google/import-contacts', handleAdminImportSelectedContacts);
+adminApi.get('/google/imported-contacts', handleGetImportedContacts);
+
+/* --------------------------------------------------------------------- Google & Proxies */
+app.get('/auth/google', handleGoogleLogin);
+app.get('/auth/google/callback', handleGoogleCallback);
+app.post('/sms/proxy', handleSmsProxy);
 
 /* ========================================================================
                               ROUTER REGISTRATION
@@ -253,7 +181,6 @@ app.route('/api', api);
 app.get('/*', serveStatic({ root: './', manifest }));
 app.get('*', serveStatic({ path: './index.html', manifest }));
 
-
 /* ========================================================================
                                    EXPORT
    ======================================================================== */
@@ -264,6 +191,6 @@ import { handleScheduled } from './cron/cron.js';
 export type ApiRoutes = typeof api;
 
 export default {
-  fetch: app.fetch,
-  scheduled: handleScheduled,
+	fetch: app.fetch,
+	scheduled: handleScheduled,
 };
