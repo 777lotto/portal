@@ -7,11 +7,7 @@ import { format } from 'date-fns';
 import StyledDigitInput from '../forms/StyledDigitInput';
 import type { User, LineItem } from '@portal/shared';
 
-declare global {
-  interface Window {
-    onTurnstileSuccess?: (token: string) => void;
-  }
-}
+
 
 interface Props {
   isOpen: boolean;
@@ -24,7 +20,7 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', address: '' });
   const [lineItemOptions, setLineItemOptions] = useState<LineItem[]>([]);
   const [selectedLineItems, setSelectedLineItems] = useState<LineItem[]>([]);
-  const [turnstileToken, setTurnstileToken] = useState('');
+
   const [error, setError] = useState<React.ReactNode>('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -49,13 +45,7 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
       };
       fetchLineItems();
 
-      if (!user) {
-        window.onTurnstileSuccess = (token: string) => setTurnstileToken(token);
-      }
     }
-    return () => {
-      if (!user) delete window.onTurnstileSuccess;
-    };
   }, [isOpen, user]);
 
   const handleLineItemChange = (lineItem: LineItem) => {
@@ -94,10 +84,6 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
       setError('Please select at least one service.');
       return;
     }
-    if (!user && !turnstileToken) {
-      setError("Please wait for the security check to complete.");
-      return;
-    }
     setError('');
     setSuccess('');
     setIsSubmitting(true);
@@ -117,7 +103,6 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
                 ...formData,
                 date: format(selectedDate, 'yyyy-MM-dd'),
                 services: selectedLineItems.map(({description}) => ({name: description, duration: 1})),
-                'cf-turnstile-response': turnstileToken,
             }
         });
         setSuccess('Your booking request has been sent! We will contact you shortly to confirm.');
@@ -126,7 +111,6 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
       setTimeout(() => {
         onClose();
         setSuccess('');
-        if(!user) setTurnstileToken('');
       }, 3000);
     } catch (err) {
       handleApiError(err);
@@ -138,7 +122,6 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
   if (!isOpen) return null;
 
   return (
-    // ... JSX is unchanged ...
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-tertiary-dark rounded-lg p-6 w-full max-w-lg max-h-full overflow-y-auto">
         <h2 className="text-2xl font-bold mb-4">Request Booking for {format(selectedDate, 'MMMM do, yyyy')}</h2>
@@ -172,12 +155,9 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
             </div>
             <input name="address" placeholder="Service Address" value={formData.address} onChange={handleChange} className="form-control md:col-span-2" required readOnly={!!user} />
           </div>
-          {!user && (
-            <div className="mb-3 flex justify-center" id="turnstile-container"></div>
-          )}
           <div className="flex justify-end space-x-4">
             <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={isSubmitting || (!user && !turnstileToken)}>
+            <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
               {isSubmitting ? 'Submitting...' : (user ? 'Schedule Booking' : 'Request Booking')}
             </button>
           </div>

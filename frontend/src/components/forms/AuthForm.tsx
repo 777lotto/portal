@@ -1,17 +1,10 @@
 // frontend/src/components/forms/AuthForm.tsx
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { HTTPException } from 'hono/http-exception';
 import StyledDigitInput from './StyledDigitInput';
 
-// Declare the global Turnstile type
-declare global {
-  interface Window {
-    renderCfTurnstile?: () => void;
-    onTurnstileSuccess?: (token: string) => void;
-  }
-}
 
 interface Props {
   setToken: (token: string) => void;
@@ -39,29 +32,10 @@ function AuthForm({ setToken }: Props) {
 
   const [contactInfo, setContactInfo] = useState<{ email?: string; phone?: string }>({});
   const [passwordSetToken, setPasswordSetToken] = useState('');
-  const [turnstileToken, setTurnstileToken] = useState('');
   const [error, setError] = useState<React.ReactNode>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    window.onTurnstileSuccess = (token: string) => setTurnstileToken(token);
-    if (import.meta.env.DEV && !import.meta.env.VITE_TURNSTILE_SITE_KEY) {
-      setTimeout(() => window.onTurnstileSuccess?.('mock-token-for-dev'), 100);
-    }
-    if (step === 'LOGIN_PASSWORD' || step === 'SET_PASSWORD' || step === 'SIGNUP_DETAILS') {
-        setTimeout(() => window.renderCfTurnstile?.(), 100);
-    }
-    return () => {
-      delete window.onTurnstileSuccess;
-      const container = document.getElementById('turnstile-container');
-      if (container) {
-        container.innerHTML = '';
-        delete container.dataset.rendered;
-      }
-    };
-  }, [step]);
 
   const handleApiError = async (err: any, defaultMessage: string) => {
     if (err instanceof HTTPException) {
@@ -120,10 +94,6 @@ function AuthForm({ setToken }: Props) {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!turnstileToken) {
-        setError("Please complete the security check.");
-        return;
-    }
     clearMessages();
     setIsLoading(true);
     try {
@@ -131,7 +101,6 @@ function AuthForm({ setToken }: Props) {
         json: {
           email: contactInfo.email || formData.identifier,
           password: formData.password,
-          'cf-turnstile-response': turnstileToken,
         }
       });
       if (response.token) {
@@ -142,7 +111,6 @@ function AuthForm({ setToken }: Props) {
       handleApiError(err, 'Login failed');
     } finally {
       setIsLoading(false);
-      setTurnstileToken('');
     }
   };
 
@@ -152,10 +120,6 @@ function AuthForm({ setToken }: Props) {
           setError("Please enter either your name or a company/community name.");
           return;
       }
-      if (!turnstileToken) {
-          setError("Please complete the security check.");
-          return;
-      }
       clearMessages();
       setIsLoading(true);
       try {
@@ -163,7 +127,6 @@ function AuthForm({ setToken }: Props) {
             json: {
                 name: formData.name, company_name: formData.company_name,
                 email: formData.email, phone: formData.phone,
-                'cf-turnstile-response': turnstileToken,
             }
         });
 
@@ -182,7 +145,6 @@ function AuthForm({ setToken }: Props) {
         handleApiError(err, 'An error occurred during signup.');
       } finally {
         setIsLoading(false);
-        setTurnstileToken('');
       }
   }
 
@@ -241,10 +203,6 @@ function AuthForm({ setToken }: Props) {
       setError('Passwords do not match.');
       return;
     }
-    if (!turnstileToken) {
-      setError("Please complete the security check.");
-      return;
-    }
     clearMessages();
     setIsLoading(true);
     try {
@@ -261,7 +219,6 @@ function AuthForm({ setToken }: Props) {
       handleApiError(err, 'An unexpected error occurred.');
     } finally {
       setIsLoading(false);
-      setTurnstileToken('');
     }
   };
 
@@ -294,9 +251,8 @@ function AuthForm({ setToken }: Props) {
             <label htmlFor="password">Password</label>
             <input type="password" id="password" name="password" value={formData.password} onChange={handleChange} className="form-control" required autoComplete="current-password" autoFocus/>
         </div>
-        <div className="flex justify-center" id="turnstile-container"></div>
         <div>
-            <button type="submit" className="w-full btn btn-primary" disabled={isLoading || !turnstileToken}>
+            <button type="submit" className="w-full btn btn-primary" disabled={isLoading}>
                 {isLoading ? 'Signing In...' : 'Sign In'}
             </button>
         </div>
@@ -349,9 +305,8 @@ function AuthForm({ setToken }: Props) {
               <label htmlFor="email" className="block text-sm font-medium">Email Address</label>
               <input type="email" id="email" name="email" value={formData.email} onChange={handleChange} className="form-control mt-1" />
           </div>
-          <div className="flex justify-center" id="turnstile-container"></div>
           <div>
-              <button type="submit" className="w-full btn btn-primary" disabled={isLoading || !turnstileToken || (!formData.name && !formData.company_name)}>
+              <button type="submit" className="w-full btn btn-primary" disabled={isLoading || (!formData.name && !formData.company_name)}>
                   {isLoading ? 'Initializing...' : 'Continue'}
               </button>
           </div>
@@ -441,9 +396,8 @@ function AuthForm({ setToken }: Props) {
              <label htmlFor="confirmPassword">Confirm Password</label>
              <input type="password" id="confirmPassword" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} className="form-control mt-1" required autoComplete="new-password"/>
          </div>
-         <div className="flex justify-center" id="turnstile-container"></div>
          <div>
-             <button type="submit" className="w-full btn btn-primary" disabled={isLoading || !turnstileToken}>
+             <button type="submit" className="w-full btn btn-primary" disabled={isLoading}>
                 {isLoading ? 'Saving...' : 'Complete and Sign In'}
             </button>
          </div>

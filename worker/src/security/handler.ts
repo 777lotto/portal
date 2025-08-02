@@ -1,9 +1,9 @@
-// 777lotto/portal/portal-bet/worker/src/handlers/auth.ts
+// worker/src/security/handler.ts
 import { Context } from 'hono';
 import { z } from 'zod';
 import { AppEnv } from '../index.js';
 import { User, UserSchema } from '@portal/shared';
-import { createJwtToken, hashPassword, verifyPassword, validateTurnstileToken, getJwtSecretKey } from './auth.js';
+import { createJwtToken, hashPassword, verifyPassword, getJwtSecretKey } from './auth.js';
 import { errorResponse, successResponse } from '../utils.js';
 import { deleteCookie } from 'hono/cookie';
 import { getStripe, createStripeCustomer } from '../stripe/index.js';
@@ -13,25 +13,15 @@ import { SignJWT } from "jose";
 
 // ADD: New schema for initializing the signup process
 const InitializeSignupPayload = UserSchema.pick({ name: true, email: true, phone: true, company_name: true }).extend({
-    'cf-turnstile-response': z.string(),
 });
 
 const CheckUserPayload = z.object({
     identifier: z.string().min(1),
 });
 
-// REMOVED: The old SignupPayload is no longer needed as we use the initialize payload now.
-/*
-const SignupPayload = UserSchema.pick({ name: true, email: true, phone: true, company_name: true }).extend({
-    password: z.string().min(8),
-    'cf-turnstile-response': z.string(),
-});
-*/
-
 const LoginPayload = z.object({
     email: z.string().email(),
     password: z.string(),
-    'cf-turnstile-response': z.string(),
 });
 
 const RequestPasswordResetPayload = z.object({
@@ -61,12 +51,6 @@ export const handleInitializeSignup = async (c: Context<AppEnv>) => {
     const parsed = InitializeSignupPayload.safeParse(body);
     if (!parsed.success) {
         return errorResponse("Invalid data provided.", 400, parsed.error.flatten());
-    }
-
-    const ip = c.req.header('CF-Connecting-IP') || '127.0.0.1';
-    const turnstileSuccess = await validateTurnstileToken(parsed.data['cf-turnstile-response'], ip, c.env);
-    if (!turnstileSuccess) {
-        return errorResponse("Invalid security token. Please try again.", 403);
     }
 
     const { name, email, company_name, phone } = parsed.data;
@@ -201,24 +185,12 @@ export const handleCheckUser = async (c: Context<AppEnv>) => {
     }
 };
 
-// REMOVED: This function is insecure and is replaced by the new flow.
-/*
-export const handleSignup = async (c: Context<AppEnv>) => {
-    // ...
-};
-*/
 
 export const handleLogin = async (c: Context<AppEnv>) => {
     const body = await c.req.json();
     const parsed = LoginPayload.safeParse(body);
     if (!parsed.success) {
         return errorResponse("Invalid login data", 400);
-    }
-
-    const ip = c.req.header('CF-Connecting-IP') || '127.0.0.1';
-    const turnstileSuccess = await validateTurnstileToken(parsed.data['cf-turnstile-response'], ip, c.env);
-    if (!turnstileSuccess) {
-        return errorResponse("Invalid Turnstile token. Please try again.", 403);
     }
 
     const { email, password } = parsed.data;

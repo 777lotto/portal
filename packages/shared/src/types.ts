@@ -122,7 +122,6 @@ export const PublicBookingRequestSchema = z.object({
       description: z.string(), // Changed from name to description
       duration: z.number().optional().default(1)
   })).min(1),
-  'cf-turnstile-response': z.string(),
 });
 export type PublicBookingRequest = z.infer<typeof PublicBookingRequestSchema>;
 

@@ -5,7 +5,6 @@ import { AppEnv } from '../index.js';
 import { PublicBookingRequestSchema, User } from '@portal/shared';
 import { errorResponse, successResponse } from '../utils.js';
 import { createJob, generateCalendarFeed } from '../jobs/timing/calendar.js';
-import { validateTurnstileToken } from '../security/auth.js';
 import { getStripe } from '../stripe/index.js';
 
 export async function handleAcceptQuote(c: Context<AppEnv>) {
@@ -78,12 +77,6 @@ export const handleCreateBooking = async (c: Context<AppEnv>) => {
 
   if (!parsed.success) {
     return errorResponse("Invalid booking data", 400, parsed.error.flatten());
-  }
-
-  const ip = c.req.header('CF-Connecting-IP') || '127.0.0.1';
-  const turnstileSuccess = await validateTurnstileToken(parsed.data['cf-turnstile-response'], ip, c.env);
-  if (!turnstileSuccess) {
-      return errorResponse("Invalid security token. Please try again.", 403);
   }
 
   // --- UPDATED ---

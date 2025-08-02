@@ -2,7 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { Context, Next } from 'hono';
 import type { AppEnv } from '../index.js';
-import type { Env, User } from "@portal/shared";
+import type { User } from "@portal/shared";
 
 export function getJwtSecretKey(secret: string): Uint8Array {
   const encoder = new TextEncoder();
@@ -79,31 +79,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return await bcrypt.compare(password, hash);
 }
 
-export async function validateTurnstileToken(token: string, ip: string, env: Env): Promise<boolean> {
-  if (!token) return false;
-  try {
-    const turnstileSecretKey = env.TURNSTILE_SECRET_KEY;
-    if (!turnstileSecretKey) {
-      console.warn('⚠️ Turnstile secret key not configured');
-      return false;
-    }
-    const formData = new FormData();
-    formData.append('secret', turnstileSecretKey);
-    formData.append('response', token);
-    formData.append('remoteip', ip);
-    const result = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-      method: 'POST',
-      body: formData
-    });
-    const outcome = await result.json() as { success: boolean };
-    return outcome.success === true;
-  } catch (error) {
-    console.error('Turnstile validation error:', error);
-    return false;
-  }
-}
-
-// CORRECTED: Middleware to check for the special password-set token
+// Middleware to check for the special password-set token
 export const requirePasswordSetTokenMiddleware = async (c: Context<AppEnv>, next: Next) => {
     const authHeader = c.req.header("Authorization") || "";
     if (!authHeader.startsWith("Bearer ")) {
