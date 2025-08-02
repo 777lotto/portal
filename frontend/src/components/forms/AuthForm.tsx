@@ -56,63 +56,78 @@ function AuthForm({ setToken }: Props) {
       setMessage(null);
   }
 
-  const handleIdentify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    clearMessages();
-    setIsLoading(true);
-    try {
-      const isEmail = formData.identifier.includes('@');
-      const finalIdentifier = isEmail ? formData.identifier : formData.identifier.replace(/\D/g, '').slice(-10);
-      const response = await api['check-user'].$post({ json: { identifier: finalIdentifier } });
+const handleIdentify = async (e: React.FormEvent) => {
+  e.preventDefault();
+  clearMessages();
+  setIsLoading(true);
+  try {
+    const isEmail = formData.identifier.includes('@');
+    // Using the full identifier as previously discussed
+    const finalIdentifier = isEmail ? formData.identifier : formData.identifier.replace(/\D/g, '');
 
-      setContactInfo({ email: response.email, phone: response.phone });
+    // 1. Get the raw response object from the API call
+    const response = await api['check-user'].$post({ json: { identifier: finalIdentifier } });
 
-      if (response.status === 'EXISTING_WITH_PASSWORD') {
-        setFlowContext('LOGIN');
-        setFormData(prev => ({ ...prev, identifier: finalIdentifier }));
-        setStep('LOGIN_PASSWORD');
-      } else if (response.status === 'EXISTING_NO_PASSWORD') {
-        setFlowContext('PASSWORD_RESET');
-        setFormData(prev => ({ ...prev, identifier: finalIdentifier }));
-        setStep('CHOOSE_VERIFY_METHOD');
-      } else { // 'NEW'
-        setFlowContext('SIGNUP');
-        setFormData(prev => ({
-            ...prev,
-            identifier: finalIdentifier,
-            email: isEmail ? finalIdentifier : '',
-            phone: !isEmail ? finalIdentifier : ''
-        }));
-        setStep('SIGNUP_DETAILS');
-      }
-    } catch (err) {
-      handleApiError(err, 'An error occurred.');
-    } finally {
-      setIsLoading(false);
+    // 2. This is the new, critical line: Parse the JSON body from the response
+    const data = await response.json();
+
+    // 3. Now, use the 'data' object for all your logic
+    setContactInfo({ email: data.email, phone: data.phone });
+
+    if (data.status === 'EXISTING_WITH_PASSWORD') {
+      setFlowContext('LOGIN');
+      setFormData(prev => ({ ...prev, identifier: finalIdentifier }));
+      setStep('LOGIN_PASSWORD');
+    } else if (data.status === 'EXISTING_NO_PASSWORD') {
+      setFlowContext('PASSWORD_RESET');
+      setFormData(prev => ({ ...prev, identifier: finalIdentifier }));
+      setStep('CHOOSE_VERIFY_METHOD');
+    } else { // 'NEW'
+      setFlowContext('SIGNUP');
+      setFormData(prev => ({
+          ...prev,
+          identifier: finalIdentifier,
+          email: isEmail ? finalIdentifier : '',
+          phone: !isEmail ? finalIdentifier : ''
+      }));
+      setStep('SIGNUP_DETAILS');
     }
-  };
+  } catch (err) {
+    handleApiError(err, 'An error occurred.');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    clearMessages();
-    setIsLoading(true);
-    try {
-      const response = await api.login.$post({
-        json: {
-          email: contactInfo.email || formData.identifier,
-          password: formData.password,
-        }
-      });
-      if (response.token) {
-        setToken(response.token);
-        navigate('/dashboard');
+  e.preventDefault();
+  clearMessages();
+  setIsLoading(true);
+  try {
+    // 1. Get the raw response object
+    const response = await api.login.$post({
+      json: {
+        email: formData.identifier,
+        password: formData.password,
       }
-    } catch (err) {
-      handleApiError(err, 'Login failed');
-    } finally {
-      setIsLoading(false);
+    });
+
+    // 2. This is the crucial fix: Await the JSON data
+    const data = await response.json();
+
+    // 3. Use the parsed 'data' object
+    if (data.token) {
+      setToken(data.token);
+      navigate('/dashboard');
+    } else {
+      throw new Error("Login failed: No token received.");
     }
-  };
+  } catch (err) {
+    handleApiError(err, 'Login failed. Please check your email and password.');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleDetailsSubmit = async (e: React.FormEvent) => {
       e.preventDefault();

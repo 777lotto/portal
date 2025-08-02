@@ -14,6 +14,12 @@ bucket = "../frontend/dist"
 enabled = true
 head_sampling_rate = 1
 
+[[d1_databases]]
+binding = "DB"
+database_name = "777pd1"
+database_id = "4c83ab6f-3912-4e76-99f3-7d86d6cd6518"
+migrations_dir = "./migrations"
+
 # ===============================================================
 #      DEVELOPMENT-SPECIFIC CONFIGURATION
 # ===============================================================

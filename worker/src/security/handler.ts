@@ -164,20 +164,23 @@ export const handleCheckUser = async (c: Context<AppEnv>) => {
     const lowercasedIdentifier = identifier.toLowerCase();
 
     try {
-        const user = await c.env.DB.prepare(
-            `SELECT email, phone, password_hash FROM users WHERE email = ? OR phone = ?`
-        ).bind(lowercasedIdentifier, identifier).first<{ email?: string; phone?: string; password_hash?: string }>();
+    const user = await c.env.DB.prepare(
+        `SELECT email, phone, password_hash FROM users WHERE email = ? OR phone = ?`
+    ).bind(lowercasedIdentifier, identifier).first<{ email?: string; phone?: string; password_hash?: string }>();
 
-        if (!user) {
-            return successResponse({ status: 'NEW' });
-        }
-        const responsePayload: { status: string; email?: string; phone?: string } = {
-            status: user.password_hash ? 'EXISTING_WITH_PASSWORD' : 'EXISTING_NO_PASSWORD',
-            email: user.email,
-            phone: user.phone,
-        };
+    // Add this line for debugging
+    console.log(`[DEBUG] User object from D1 for identifier "${identifier}": ${JSON.stringify(user)}`);
 
-        return successResponse(responsePayload);
+    if (!user) {
+        return successResponse({ status: 'NEW' });
+    }
+    const responsePayload: { status: string; email?: string; phone?: string } = {
+        status: user.password_hash ? 'EXISTING_WITH_PASSWORD' : 'EXISTING_NO_PASSWORD',
+        email: user.email,
+        phone: user.phone,
+    };
+
+    return successResponse(responsePayload);
 
     } catch (e: any) {
         console.error("Check user error:", e);
