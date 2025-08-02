@@ -1,192 +1,84 @@
-import { Context } from 'hono';
+import { createFactory } from 'hono/factory';
+import { HTTPException } from 'hono/http-exception';
 import Stripe from 'stripe';
-import { v4 as uuidv4 } from 'uuid';
-import { AppEnv } from '../../index.js';
-import { errorResponse, successResponse } from '../../utils.js';
-import { getStripe, createStripeQuote } from '../../stripe/index.js';
-import type { Job, LineItem, User } from '@portal/shared';
+import { db } from '../../../db';
+import { jobs, lineItems, users } from '../../../db/schema';
+import { eq } from 'drizzle-orm';
+import { getStripe, createStripeQuote } from '../../../stripe';
 
-export async function handleAdminCreateQuote(c: Context<AppEnv>) {
-    const { jobId } = c.req.param();
-    const db = c.env.DB;
-    const stripe = getStripe(c.env);
+const factory = createFactory();
 
-    try {
-        const job = await db.prepare(`SELECT * FROM jobs WHERE id = ?`).bind(jobId).first<Job>();
-        if (!job) return errorResponse("Job not found.", 404);
+/* ========================================================================
+                           ADMIN QUOTE HANDLERS
+   ======================================================================== */
 
-        const user = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(job.user_id).first<User>();
-        if (!user || !user.stripe_customer_id) {
-            return errorResponse("User or Stripe customer ID not found.", 404);
-        }
+/**
+ * Creates a Stripe quote from a job in the local database.
+ */
+export const createQuote = factory.createHandlers(async (c) => {
+	const { jobId } = c.req.param();
+	const database = db(c.env.DB);
+	const stripe = getStripe(c.env);
 
-        const { results: lineItems } = await db.prepare(`SELECT * FROM line_items WHERE job_id = ?`).bind(jobId).all<LineItem>();
-        if (!lineItems || lineItems.length === 0) {
-            return errorResponse("Cannot create a quote for a job with no line items.", 400);
-        }
+	const job = await database.select().from(jobs).where(eq(jobs.id, jobId)).get();
+	if (!job) {
+		throw new HTTPException(404, { message: 'Job not found.' });
+	}
 
-        const quote = await createStripeQuote(stripe, user.stripe_customer_id, lineItems);
+	const user = await database.select().from(users).where(eq(users.id, parseInt(job.user_id, 10))).get();
+	if (!user?.stripe_customer_id) {
+		throw new HTTPException(404, { message: 'User or Stripe customer ID not found.' });
+	}
 
-        await db.prepare(`UPDATE jobs SET stripe_quote_id = ?, status = 'quote_sent' WHERE id = ?`)
-            .bind(quote.id, jobId)
-            .run();
+	const jobLineItems = await database.select().from(lineItems).where(eq(lineItems.job_id, jobId)).all();
+	if (jobLineItems.length === 0) {
+		throw new HTTPException(400, { message: 'Cannot create a quote for a job with no line items.' });
+	}
 
-        return successResponse({ quoteId: quote.id });
+	const quote = await createStripeQuote(stripe, user.stripe_customer_id, jobLineItems);
 
-    } catch (e: any) {
-        console.error(`Failed to create quote for job ${jobId}:`, e);
-        return errorResponse(`Failed to create quote: ${e.message}`, 500);
-    }
-}
+	// Update the job with the new quote ID and status
+	await database.update(jobs).set({ stripe_quote_id: quote.id, status: 'quote_sent' }).where(eq(jobs.id, jobId));
 
+	return c.json({ quote });
+});
 
-export async function handleAdminImportQuotes(c: Context<AppEnv>) {
-    const stripe = getStripe(c.env);
-    const db = c.env.DB;
-    let importedCount = 0;
-    let skippedCount = 0;
-    const errors: string[] = [];
-    let hasMore = true;
-    let startingAfter: string | undefined = undefined;
+/**
+ * Finalizes and sends a draft quote that is associated with a job.
+ */
+export const sendQuote = factory.createHandlers(async (c) => {
+	const { jobId } = c.req.param();
+	const database = db(c.env.DB);
+	const stripe = getStripe(c.env);
 
-    try {
-        while (hasMore) {
-            const quotes: Stripe.ApiList<Stripe.Quote> = await stripe.quotes.list({
-                status: 'accepted',
-                limit: 100,
-                starting_after: startingAfter,
-                expand: ['data.customer', 'data.line_items.data'],
-            });
+	const job = await database.select().from(jobs).where(eq(jobs.id, jobId)).get();
+	if (!job) {
+		throw new HTTPException(404, { message: 'Job not found.' });
+	}
+	if (job.status !== 'quote_draft' || !job.stripe_quote_id) {
+		throw new HTTPException(400, { message: 'Job does not have a draft quote associated with it.' });
+	}
 
-            if (quotes.data.length === 0) {
-                hasMore = false;
-                break;
-            }
+	const user = await database.select().from(users).where(eq(users.id, parseInt(job.user_id, 10))).get();
+	if (!user) {
+		throw new HTTPException(404, { message: 'User for this job not found.' });
+	}
 
-            for (const quote of quotes.data) {
-                if (!quote.line_items || !quote.line_items.data || quote.line_items.data.length === 0) {
-                    skippedCount++;
-                    continue;
-                }
+	const finalizedQuote = await stripe.quotes.finalizeQuote(job.stripe_quote_id);
 
-                if (!quote.customer || typeof quote.customer !== 'object' || quote.customer.deleted) {
-                    skippedCount++;
-                    continue;
-                }
+	await database.update(jobs).set({ status: 'pending' }).where(eq(jobs.id, jobId));
 
-                let user: User | { id: number } | null = await db.prepare(`SELECT id FROM users WHERE stripe_customer_id = ?`).bind(quote.customer.id).first<User>();
-                if (!user) {
-                    const stripeCustomer = quote.customer as Stripe.Customer;
-                    const { name, email, phone } = stripeCustomer;
-                    const { results } = await db.prepare(
-                        `INSERT INTO users (name, email, phone, stripe_customer_id, role) VALUES (?, ?, ?, ?, 'guest') RETURNING id`
-                    ).bind(
-                        name || 'Stripe Customer',
-                        email,
-                        phone,
-                        quote.customer.id,
-                    ).all<{ id: number }>();
+	// Enqueue a notification for the user
+	await c.env.NOTIFICATION_QUEUE.send({
+		type: 'quote_created',
+		user_id: user.id,
+		data: {
+			quoteId: finalizedQuote.id,
+			quoteUrl: (finalizedQuote as any).hosted_details_url, // URL is available after finalization
+			customerName: user.name,
+		},
+		channels: ['email'],
+	});
 
-                    if (!results || results.length === 0) {
-                        errors.push(`Failed to create user for Stripe customer ${quote.customer.id}`);
-                        skippedCount++;
-                        continue;
-                    }
-                    user = { id: results[0].id };
-                }
-
-
-                const existingJob = await db.prepare(`SELECT id FROM jobs WHERE stripe_quote_id = ?`).bind(quote.id).first();
-                if (existingJob) {
-                    skippedCount++;
-                    continue;
-                }
-
-                const jobTitle = quote.line_items.data[0]?.description || `Imported Job ${quote.id}`;
-                const newJobId = uuidv4();
-
-                await db.prepare(
-                    `INSERT INTO jobs (id, user_id, title, description, status, recurrence, stripe_quote_id, total_amount_cents, due) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-                ).bind(
-                    newJobId,
-                    user.id,
-                    jobTitle,
-                    quote.description || `Imported from Stripe Quote #${quote.number}`,
-                    'pending',
-                    'none',
-                    quote.id,
-                    quote.amount_total,
-                    quote.expires_at ? new Date(quote.expires_at * 1000).toISOString() : null
-                ).run();
-
-                const lineItemInserts = quote.line_items.data.map(item => {
-                    return db.prepare(
-                        `INSERT INTO line_items (job_id, description, quantity, unit_total_amount_cents) VALUES (?, ?, ?, ?)`
-                    ).bind(
-                        newJobId,
-                        item.description || 'Imported Item',
-                        item.quantity || 1,
-                        item.price?.unit_amount || 0
-                    );
-                });
-
-                await db.batch(lineItemInserts);
-                importedCount++;
-            }
-
-            startingAfter = quotes.data[quotes.data.length - 1].id;
-            hasMore = quotes.has_more;
-        }
-
-        return successResponse({ message: `Import complete.`, imported: importedCount, skipped: skippedCount, errors });
-
-    } catch (e: any) {
-        console.error("Failed to import Stripe quotes:", e);
-        return errorResponse(`Failed to import quotes: ${e.message}`, 500);
-    }
-}
-
-export async function handleAdminSendQuote(c: Context<AppEnv>) {
-    const { jobId } = c.req.param();
-    const db = c.env.DB;
-    const stripe = getStripe(c.env);
-
-    try {
-        const job = await db.prepare(`SELECT * FROM jobs WHERE id = ?`).bind(jobId).first<Job>();
-        if (!job) return errorResponse("Job not found.", 404);
-
-        if (job.status !== 'quote_draft') {
-            return errorResponse("This job does not have a draft quote.", 400);
-        }
-
-        if (!job.stripe_quote_id) {
-            return errorResponse("This job does not have a quote associated with it.", 400);
-        }
-
-        const user = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(job.user_id).first<User>();
-        if (!user) return errorResponse("User for this job not found.", 404);
-
-        const finalizedQuote = await stripe.quotes.finalizeQuote(job.stripe_quote_id) as Stripe.Quote;
-
-        await db.prepare(`UPDATE jobs SET status = 'pending' WHERE id = ?`)
-            .bind(jobId)
-            .run();
-
-        await c.env.NOTIFICATION_QUEUE.send({
-          type: 'quote_created',
-          user_id: user.id,
-          data: {
-              quoteId: finalizedQuote.id,
-              quoteUrl: (finalizedQuote as any).hosted_details_url,
-              customerName: user.name,
-          },
-          channels: ['email']
-        });
-
-        return successResponse({ quoteId: finalizedQuote.id });
-
-    } catch (e: any) {
-        console.error(`Failed to send quote for job ${jobId}:`, e);
-        return errorResponse(`Failed to send quote: ${e.message}`, 500);
-    }
-}
+	return c.json({ quote: finalizedQuote });
+});

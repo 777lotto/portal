@@ -1,27 +1,34 @@
-// worker/src/handlers/admin/drafts.ts
-import { Context as HonoContext } from 'hono';
-import { AppEnv as WorkerAppEnv } from '../../index.js';
-import { errorResponse, successResponse } from '../../utils.js';
-import type { Job } from '@portal/shared';
+import { createFactory } from 'hono/factory';
+import { db } from '../../../db';
+import { jobs, users } from '../../../db/schema';
+import { eq, inArray, desc } from 'drizzle-orm';
 
-interface DraftJob extends Job {
-  customerName: string;
-}
+const factory = createFactory();
 
-export const handleGetDrafts = async (c: HonoContext<WorkerAppEnv>) => {
-    try {
-        const dbResponse = await c.env.DB.prepare(
-            `SELECT j.*, u.name as customerName
-             FROM jobs j
-             JOIN users u ON j.user_id = u.id
-             WHERE j.status IN ('quote_draft', 'invoice_draft')
-             ORDER BY j.updatedAt DESC`
-        ).all<DraftJob>();
+/* ========================================================================
+                           ADMIN DRAFT HANDLER
+   ======================================================================== */
 
-        const drafts = dbResponse?.results || [];
-        return successResponse(drafts);
-    } catch (e: any) {
-        console.error("Failed to retrieve drafts:", e);
-        return errorResponse("Failed to retrieve drafts", 500);
-    }
-};
+/**
+ * Retrieves all jobs that are in a draft status ('quote_draft' or 'invoice_draft').
+ * This is an admin-only endpoint.
+ */
+export const getDrafts = factory.createHandlers(async (c) => {
+	const database = db(c.env.DB);
+
+	const draftJobs = await database
+		.select({
+			id: jobs.id,
+			title: jobs.title,
+			status: jobs.status,
+			updatedAt: jobs.updatedAt,
+			customerName: users.name,
+		})
+		.from(jobs)
+		.leftJoin(users, eq(jobs.user_id, users.id.toString()))
+		.where(inArray(jobs.status, ['quote_draft', 'invoice_draft']))
+		.orderBy(desc(jobs.updatedAt))
+		.all();
+
+	return c.json({ drafts: draftJobs });
+});

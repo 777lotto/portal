@@ -1,121 +1,139 @@
-// worker/src/handlers/quotes.ts
+import { createFactory } from 'hono/factory';
+import { HTTPException } from 'hono/http-exception';
+import { db } from '../../../db';
+import { jobs, lineItems, notes, users } from '../../../db/schema';
+import { eq, and, desc } from 'drizzle-orm';
+import type { User } from '@portal/shared';
 
-import { Context } from 'hono';
-import { AppEnv } from '../../index.js';
-import { errorResponse, successResponse } from '../../utils.js';
-import type { Job } from '@portal/shared';
+const factory = createFactory();
 
-export async function getPendingQuotes(c: Context<AppEnv>) {
-    const user = c.get('user');
-    const env = c.env;
+// Middleware to get the authenticated user's full profile from the DB.
+const userMiddleware = factory.createMiddleware(async (c, next) => {
+	const auth = c.get('clerkUser');
+	if (!auth?.id) {
+		throw new HTTPException(401, { message: 'Unauthorized' });
+	}
+	const database = db(c.env.DB);
+	const user = await database.select().from(users).where(eq(users.clerk_id, auth.id)).get();
+	if (!user) {
+		throw new HTTPException(401, { message: 'User not found.' });
+	}
+	c.set('user', user);
+	await next();
+});
 
-    let jobs;
-    if (user.role === 'admin') {
-        // FIX: Changed j.user_id to j.user_id to match the database schema.
-        jobs = await env.DB.prepare(
-            `SELECT j.*, u.name as customerName FROM jobs j JOIN users u ON j.user_id = u.id WHERE j.status = 'pending'`
-        ).all();
-    } else {
-        // FIX: Changed user_id to user_id to match the database schema.
-        jobs = await env.DB.prepare(
-            `SELECT * FROM jobs WHERE user_id = ? AND status = 'pending'`
-        ).bind(user.id).all();
-    }
+/* ========================================================================
+                        CUSTOMER-FACING QUOTE HANDLERS
+   ======================================================================== */
 
-    return c.json(jobs.results);
-}
+/**
+ * Retrieves a list of jobs with a 'pending' status for the user.
+ * If the user is an admin, it retrieves all pending jobs.
+ */
+export const getQuotes = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	const database = db(c.env.DB);
 
-export async function getQuoteById(c: Context<AppEnv>) {
-    const { quoteId } = c.req.param();
-    const user = c.get('user');
-    const env = c.env;
+	const query = database
+		.select({
+			// Select specific fields to avoid exposing sensitive data
+			id: jobs.id,
+			title: jobs.title,
+			status: jobs.status,
+			total_amount_cents: jobs.total_amount_cents,
+			createdAt: jobs.createdAt,
+			customerName: users.name,
+		})
+		.from(jobs)
+		.leftJoin(users, eq(jobs.user_id, users.id.toString()))
+		.where(eq(jobs.status, 'pending'))
+		.orderBy(desc(jobs.createdAt));
 
-    let job;
-    if (user.role === 'admin') {
-        // Admins can view any job/quote regardless of status
-        // FIX: Changed j.user_id to j.user_id
-        job = await env.DB.prepare(
-            `SELECT j.*, u.name as customerName FROM jobs j JOIN users u ON j.user_id = u.id WHERE j.id = ?`
-        ).bind(quoteId).first();
-    } else {
-        // Customers can only view jobs that are pending quotes
-        // FIX: Changed user_id to user_id
-        job = await env.DB.prepare(
-            `SELECT * FROM jobs WHERE id = ? AND user_id = ? AND status = 'pending'`
-        ).bind(quoteId, user.id).first();
-    }
+	if (user.role !== 'admin') {
+		query.where(eq(jobs.user_id, user.id.toString()));
+	}
 
-    if (!job) {
-        return errorResponse("Quote not found.", 404);
-    }
+	const pendingQuotes = await query.all();
+	return c.json({ quotes: pendingQuotes });
+});
 
-    // Fetch from the 'line_items' table instead of 'services'.
-    const lineItems = await env.DB.prepare(
-        `SELECT * FROM line_items WHERE job_id = ?`
-    ).bind(quoteId).all();
+/**
+ * Retrieves a single job/quote by its ID, including line items.
+ * Ensures the user is either an admin or the owner of the job.
+ */
+export const getQuote = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	const { quoteId } = c.req.param();
+	const database = db(c.env.DB);
 
-    // Return the job object with a 'lineItems' property.
-    return successResponse({ ...job, lineItems: lineItems.results });
-}
+	const job = await database.select().from(jobs).where(eq(jobs.id, quoteId)).get();
 
-export async function handleDeclineQuote(c: Context<AppEnv>) {
-    const { quoteId } = c.req.param();
-    const db = c.env.DB;
-    const user = c.get('user');
+	if (!job) {
+		throw new HTTPException(404, { message: 'Quote not found.' });
+	}
 
-    try {
-        const job = await db.prepare(`SELECT * FROM jobs WHERE id = ?`).bind(quoteId).first<Job>();
-        if (!job) {
-            return errorResponse("Job with this quote not found.", 404);
-        }
+	// Security check
+	if (user.role !== 'admin' && job.user_id !== user.id.toString()) {
+		throw new HTTPException(403, { message: 'Access denied.' });
+	}
 
-        // FIX: Changed user_id to user_id
-        if (job.user_id.toString() !== user.id.toString() && user.role !== 'admin') {
-            return errorResponse("You are not authorized to decline this quote.", 403);
-        }
+	const jobLineItems = await database.select().from(lineItems).where(eq(lineItems.job_id, quoteId)).all();
 
-        await db.prepare(`UPDATE jobs SET status = 'quote_declined' WHERE id = ?`).bind(job.id).run();
+	return c.json({ quote: { ...job, lineItems: jobLineItems } });
+});
 
-        return successResponse({ message: "Quote declined." });
-    } catch (e: any) {
-        console.error(`Failed to decline quote ${quoteId}:`, e);
-        return errorResponse(`Failed to decline quote: ${e.message}`, 500);
-    }
-}
+/**
+ * Updates a job's status to 'quote_declined'.
+ */
+export const declineQuote = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	const { quoteId } = c.req.param();
+	const database = db(c.env.DB);
 
-export async function handleReviseQuote(c: Context<AppEnv>) {
-    const { quoteId } = c.req.param();
-    const { revisionReason } = await c.req.json();
-    const db = c.env.DB;
-    const user = c.get('user');
+	const job = await database.select({ user_id: jobs.user_id }).from(jobs).where(eq(jobs.id, quoteId)).get();
+	if (!job) {
+		throw new HTTPException(404, { message: 'Quote not found.' });
+	}
+	if (user.role !== 'admin' && job.user_id !== user.id.toString()) {
+		throw new HTTPException(403, { message: 'Access denied.' });
+	}
 
-    if (!revisionReason) {
-        return errorResponse("Revision reason is required.", 400);
-    }
+	await database.update(jobs).set({ status: 'quote_declined' }).where(eq(jobs.id, quoteId));
 
-    try {
-        const job = await db.prepare(`SELECT * FROM jobs WHERE id = ?`).bind(quoteId).first<Job>();
-        if (!job) {
-            return errorResponse("Job with this quote not found.", 404);
-        }
+	return c.json({ success: true, message: 'Quote has been declined.' });
+});
 
-        // FIX: Changed user_id to user_id
-        if (job.user_id.toString() !== user.id.toString() && user.role !== 'admin') {
-            return errorResponse("You are not authorized to revise this quote.", 403);
-        }
+/**
+ * Updates a job's status to 'quote_revised' and adds a note with the reason.
+ */
+export const requestQuoteRevision = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	const { quoteId } = c.req.param();
+	const { revisionReason } = await c.req.json(); // A Zod schema can be added for this
 
-        await db.prepare(`UPDATE jobs SET status = 'quote_revised' WHERE id = ?`).bind(job.id).run();
+	if (!revisionReason) {
+		throw new HTTPException(400, { message: 'Revision reason is required.' });
+	}
 
-        // Add the revision reason as a note
-        await db.prepare(`INSERT INTO notes (job_id, user_id, content) VALUES (?, ?, ?)`).bind(
-            job.id,
-            user.id,
-            `Quote revision requested: ${revisionReason}`
-        ).run();
+	const database = db(c.env.DB);
 
-        return successResponse({ message: "Quote revision requested." });
-    } catch (e: any) {
-        console.error(`Failed to request revision for quote ${quoteId}:`, e);
-        return errorResponse(`Failed to request revision for quote: ${e.message}`, 500);
-    }
-}
+	const job = await database.select({ user_id: jobs.user_id }).from(jobs).where(eq(jobs.id, quoteId)).get();
+	if (!job) {
+		throw new HTTPException(404, { message: 'Quote not found.' });
+	}
+	if (user.role !== 'admin' && job.user_id !== user.id.toString()) {
+		throw new HTTPException(403, { message: 'Access denied.' });
+	}
+
+	// Use a transaction to ensure both operations succeed
+	await database.transaction(async (tx) => {
+		await tx.update(jobs).set({ status: 'quote_revised' }).where(eq(jobs.id, quoteId));
+		await tx.insert(notes).values({
+			job_id: quoteId,
+			user_id: user.id,
+			content: `Quote revision requested: ${revisionReason}`,
+		});
+	});
+
+	return c.json({ success: true, message: 'Quote revision has been requested.' });
+});

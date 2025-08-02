@@ -1,96 +1,105 @@
-// 777lotto/portal/portal-fold/worker/src/handlers/invoices.ts
-import { Context } from 'hono';
-import { AppEnv } from '../../index.js';
-import { errorResponse, successResponse } from '../../utils.js';
-import { getStripe } from '../../stripe/index.js';
+import { createFactory } from 'hono/factory';
+import { HTTPException } from 'hono/http-exception';
+import { db } from '../../../db';
+import { users } from '../../../db/schema';
+import { eq } from 'drizzle-orm';
+import { getStripe } from '../../../stripe';
+import type { User } from '@portal/shared';
 
-export const handleGetInvoiceForUser = async (c: Context<AppEnv>) => {
-    const user = c.get('user');
-    const { invoiceId } = c.req.param();
-    const stripe = getStripe(c.env);
+const factory = createFactory();
 
-    try {
-        const invoice = await stripe.invoices.retrieve(invoiceId);
-        if (invoice.customer !== user.stripe_customer_id) {
-            return errorResponse("Invoice not found.", 404);
-        }
-        return successResponse(invoice);
-    } catch (e: any) {
-        return errorResponse(e.message, 500);
-    }
-};
+// Middleware to get the authenticated user's full profile from the DB.
+const userMiddleware = factory.createMiddleware(async (c, next) => {
+	const auth = c.get('clerkUser');
+	if (!auth?.id) {
+		throw new HTTPException(401, { message: 'Unauthorized' });
+	}
+	const database = db(c.env.DB);
+	const user = await database.select().from(users).where(eq(users.clerk_id, auth.id)).get();
+	if (!user) {
+		throw new HTTPException(401, { message: 'User not found.' });
+	}
+	c.set('user', user);
+	await next();
+});
 
-export const handleCreatePaymentIntent = async (c: Context<AppEnv>) => {
-    const user = c.get('user');
-    const { invoiceId } = c.req.param();
-    const stripe = getStripe(c.env);
+/* ========================================================================
+                      CUSTOMER-FACING INVOICE HANDLERS
+   ======================================================================== */
 
-    try {
-        const invoice = await stripe.invoices.retrieve(invoiceId);
-        if (invoice.customer !== user.stripe_customer_id) {
-            return errorResponse("Invoice not found.", 404);
-        }
+/**
+ * Retrieves a single Stripe invoice, ensuring it belongs to the authenticated user.
+ */
+export const getInvoice = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	const { invoiceId } = c.req.param();
+	const stripe = getStripe(c.env);
 
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount: invoice.amount_remaining,
-            currency: invoice.currency,
-            customer: user.stripe_customer_id ?? undefined,
-            metadata: { invoice_id: invoice.id as string },
-        });
+	const invoice = await stripe.invoices.retrieve(invoiceId);
+	if (invoice.customer !== user.stripe_customer_id) {
+		throw new HTTPException(404, { message: 'Invoice not found.' });
+	}
 
-        return successResponse({ clientSecret: paymentIntent.client_secret });
-    } catch (e: any) {
-        return errorResponse(e.message, 500);
-    }
-};
+	return c.json({ invoice });
+});
 
-export const handleDownloadInvoicePdf = async (c: Context<AppEnv>) => {
-    const user = c.get('user');
-    const { invoiceId } = c.req.param();
-    const stripe = getStripe(c.env);
+/**
+ * Creates a Stripe Payment Intent for a given invoice to facilitate payment.
+ */
+export const createPaymentIntent = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	const { invoiceId } = c.req.param();
+	const stripe = getStripe(c.env);
 
-    try {
-        // 1. Verify the invoice belongs to the requesting user
-        const invoice = await stripe.invoices.retrieve(invoiceId);
-        if (invoice.customer !== user.stripe_customer_id) {
-            return errorResponse("Invoice not found.", 404);
-        }
+	const invoice = await stripe.invoices.retrieve(invoiceId);
+	if (invoice.customer !== user.stripe_customer_id) {
+		throw new HTTPException(404, { message: 'Invoice not found.' });
+	}
+	if (invoice.status !== 'open') {
+		throw new HTTPException(400, { message: 'This invoice is not open for payment.' });
+	}
 
-        // --- FIX START ---
-        // The invoice object contains a URL to the PDF.
-        if (!invoice.invoice_pdf) {
-            return errorResponse("A PDF is not available for this invoice.", 404);
-        }
+	const paymentIntent = await stripe.paymentIntents.create({
+		amount: invoice.amount_remaining,
+		currency: invoice.currency,
+		customer: user.stripe_customer_id ?? undefined,
+		metadata: { invoice_id: invoice.id },
+	});
 
-        // 2. Fetch the PDF from the URL provided by Stripe
-        const pdfResponse = await fetch(invoice.invoice_pdf);
+	return c.json({ clientSecret: paymentIntent.client_secret });
+});
 
-        if (!pdfResponse.ok) {
-            console.error('Stripe PDF download error:', await pdfResponse.text());
-            throw new Error('Failed to download invoice PDF from Stripe URL.');
-        }
-        // --- FIX END ---
+/**
+ * Securely streams the PDF of an invoice from Stripe to the client.
+ */
+export const downloadInvoicePdf = factory.createHandlers(userMiddleware, async (c) => {
+	const user = c.get('user');
+	const { invoiceId } = c.req.param();
+	const stripe = getStripe(c.env);
 
-        // 3. Stream the PDF back to the client with appropriate headers to trigger a download
-        const headers = new Headers();
-        headers.set('Content-Type', 'application/pdf');
-        headers.set('Content-Disposition', `attachment; filename="invoice-${invoice.number || invoice.id}.pdf"`);
+	const invoice = await stripe.invoices.retrieve(invoiceId);
+	if (invoice.customer !== user.stripe_customer_id) {
+		throw new HTTPException(404, { message: 'Invoice not found.' });
+	}
+	if (!invoice.invoice_pdf) {
+		throw new HTTPException(404, { message: 'A PDF is not available for this invoice.' });
+	}
 
-        const contentLength = pdfResponse.headers.get('content-length');
-        if (contentLength) {
-            headers.set('content-length', contentLength);
-        }
+	// Fetch the PDF from the URL provided by Stripe
+	const pdfResponse = await fetch(invoice.invoice_pdf);
+	if (!pdfResponse.ok) {
+		console.error('Stripe PDF download error:', await pdfResponse.text());
+		throw new HTTPException(502, { message: 'Failed to download invoice PDF from provider.' });
+	}
 
-        return new Response(pdfResponse.body, {
-            status: 200,
-            headers: headers
-        });
+	// Stream the PDF back to the client with appropriate headers
+	const headers = new Headers();
+	headers.set('Content-Type', 'application/pdf');
+	headers.set('Content-Disposition', `attachment; filename="invoice-${invoice.number || invoice.id}.pdf"`);
+	const contentLength = pdfResponse.headers.get('content-length');
+	if (contentLength) {
+		headers.set('content-length', contentLength);
+	}
 
-    } catch (e: any) {
-        console.error(`Failed to download PDF for invoice ${invoiceId}:`, e);
-        return errorResponse(e.message, 500);
-    }
-};
-
-
-
+	return new Response(pdfResponse.body, { status: 200, headers: headers });
+});
