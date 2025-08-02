@@ -1,5 +1,5 @@
-// frontend/src/lib/push.ts - Updated for Hono RPC Client
 import { api } from './api';
+import { HTTPError } from 'hono/client';
 
 // Helper to convert VAPID key (no changes needed here)
 function urlBase64ToUint8Array(base64String: string) {
@@ -30,39 +30,49 @@ export async function subscribeUser() {
     return;
   }
 
-  // Updated: Use the Hono RPC client to get the VAPID key
-  const vapidRes = await api.notifications['vapid-key'].$get();
-  if (!vapidRes.ok) {
-    throw new Error('Failed to fetch VAPID key from server.');
+  try {
+    // The VAPID key is returned as plain text, not JSON.
+    const vapidPublicKey = await api.notifications['vapid-key'].$get();
+    const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
+
+    const newSubscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: convertedVapidKey
+    });
+
+    // Send the new subscription to the server.
+    await api.notifications.subscribe.$post({ json: newSubscription });
+
+    console.log('User subscribed successfully.');
+  } catch (err) {
+    let errorMessage = 'Failed to subscribe user.';
+    if (err instanceof HTTPError) {
+        // Try to get a more specific error from the response
+        const errorJson = await err.response.json().catch(() => ({}));
+        errorMessage = errorJson.error || `Server responded with ${err.response.status}`;
+    } else if (err instanceof Error) {
+        errorMessage = err.message;
+    }
+    console.error('Subscription Error:', errorMessage);
+    throw new Error(errorMessage);
   }
-  // The VAPID key is returned as plain text
-  const vapidPublicKey = await vapidRes.text();
-  const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
-
-  const newSubscription = await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: convertedVapidKey
-  });
-
-  // Updated: Use the Hono RPC client to send the subscription to the server
-  const subRes = await api.notifications.subscribe.$post({ json: newSubscription });
-  if (!subRes.ok) {
-      throw new Error('Failed to send subscription to server.');
-  }
-
-  console.log('User subscribed successfully.');
 }
 
 export async function unsubscribeUser() {
     if (!('serviceWorker' in navigator)) return;
 
-    const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.getSubscription();
+    try {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
 
-    if (subscription) {
-        await subscription.unsubscribe();
-        // We can also send a request to the backend to delete the subscription
-        // but the backend will handle expired subscriptions automatically.
-        console.log('User unsubscribed successfully.');
+        if (subscription) {
+            await subscription.unsubscribe();
+            // Optionally, notify the backend that the subscription was removed.
+            // await api.notifications.unsubscribe.$post({ json: { endpoint: subscription.endpoint } });
+            console.log('User unsubscribed successfully.');
+        }
+    } catch (err) {
+        console.error('Unsubscription failed:', err);
+        throw new Error('Could not unsubscribe.');
     }
 }

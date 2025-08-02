@@ -1,9 +1,8 @@
 // frontend/src/components/chat/SMSConversation.tsx
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-// Import the new 'api' client.
 import { api } from '../../lib/api';
-import { ApiError } from '../../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 import type { SMSMessage } from '@portal/shared';
 
 function SMSConversation() {
@@ -28,21 +27,17 @@ function SMSConversation() {
       try {
         setIsLoading(true);
         setError(null);
-
-        // --- UPDATED ---
-        const res = await api.sms.conversation[':phoneNumber'].$get({
+        const data = await api.sms.conversation[':phoneNumber'].$get({
           param: { phoneNumber }
         });
-        if (!res.ok) {
-          const errorData = await res.json();
-          throw new ApiError(errorData.error || 'Failed to fetch messages', res.status);
-        }
-        const data = await res.json();
-        // --- END UPDATE ---
-
         setMessages(data);
       } catch (err: any) {
-        setError(err.message);
+        if (err instanceof HTTPError) {
+            const errorJson = await err.response.json().catch(() => ({}));
+            setError(errorJson.error || 'Failed to fetch messages');
+        } else {
+            setError(err.message);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -57,22 +52,18 @@ function SMSConversation() {
     try {
       setIsSending(true);
       setError(null);
-
-      // --- UPDATED ---
-      const res = await api.sms.send.$post({
+      const sentMessage = await api.sms.send.$post({
         json: { to: phoneNumber, message: newMessage }
       });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new ApiError(errorData.error || 'Failed to send message', res.status);
-      }
-      const sentMessage = await res.json();
-      // --- END UPDATE ---
-
       setMessages(prev => [...prev, sentMessage]);
       setNewMessage('');
     } catch(err: any) {
-      setError(err.message);
+        if (err instanceof HTTPError) {
+            const errorJson = await err.response.json().catch(() => ({}));
+            setError(errorJson.error || 'Failed to send message');
+        } else {
+            setError(err.message);
+        }
     } finally {
       setIsSending(false);
     }
@@ -82,7 +73,7 @@ function SMSConversation() {
 
   return (
     <div className="container mt-4">
-      <Link to="/sms">&larr; Back to Conversations</Link>
+      <Link to="/chat">&larr; Back to Conversations</Link>
       <h2 className="mt-2">Conversation with {phoneNumber}</h2>
       {error && <div className="alert alert-danger">{error}</div>}
       <div className="card mt-3">

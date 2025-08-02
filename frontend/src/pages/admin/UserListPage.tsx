@@ -1,20 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-// Import the new 'api' client.
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../lib/api.js';
-import { ApiError } from '../../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 import type { User } from '@portal/shared';
 import AddUserModal from '../../components/modals/admin/AddUserModal.js';
 
-// Helper to fetch and parse data
-const fetchAndParse = async (promise: Promise<Response>) => {
-    const res = await promise;
-    if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new ApiError(errorData.error || `Request failed`, res.status);
-    }
-    return res.json();
-}
+// No longer need fetchAndParse helper
 
 function UserDetailEditor({ user, onUserUpdated, onCancel }: { user: User; onUserUpdated: (updatedUser: User) => void; onCancel: () => void; }) {
   const [formData, setFormData] = useState({
@@ -37,21 +28,25 @@ function UserDetailEditor({ user, onUserUpdated, onCancel }: { user: User; onUse
     setError(null);
     setIsSubmitting(true);
     try {
-      // --- UPDATED ---
-      const updatedUser = await fetchAndParse(api.admin.users[':user_id'].$put({
+      const updatedUser = await api.admin.users[':user_id'].$put({
         param: { user_id: user.id.toString() },
         json: formData
-      }));
-      // --- END UPDATE ---
+      });
       onUserUpdated(updatedUser);
     } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.');
+        if (err instanceof HTTPError) {
+            const errorJson = await err.response.json();
+            setError(errorJson.error || 'Failed to update user.');
+        } else {
+            setError(err.message || 'An unknown error occurred.');
+        }
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
+    // ... UserDetailEditor JSX is unchanged ...
     <form onSubmit={handleSubmit} className="p-4 space-y-4 bg-secondary-light dark:bg-secondary-dark rounded-b-lg">
       {error && <div className="alert alert-danger">{error}</div>}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
@@ -86,8 +81,7 @@ function UserDetailEditor({ user, onUserUpdated, onCancel }: { user: User; onUse
   );
 }
 
-function AdminDashboard() {
-  const navigate = useNavigate();
+function UserListPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -100,18 +94,24 @@ function AdminDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [contactsToImport, setContactsToImport] = useState<any[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
-  const [contactSearchQuery, setContactSearchQuery] = useState('');
+
+  const handleApiError = async (err: any, defaultMessage: string) => {
+    if (err instanceof HTTPError) {
+        const errorJson = await err.response.json();
+        setError(errorJson.error || defaultMessage);
+    } else {
+        setError(err.message || defaultMessage);
+    }
+  };
 
   const fetchUsers = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      // --- UPDATED ---
-      const data = await fetchAndParse<User[]>(api.admin.users.$get());
-      // --- END UPDATE ---
+      const data = await api.admin.users.$get();
       setUsers(data);
-    } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.');
+    } catch (err) {
+      handleApiError(err, 'An unknown error occurred.');
     } finally {
       setIsLoading(false);
     }
@@ -125,12 +125,10 @@ function AdminDashboard() {
     const importToken = searchParams.get('import_token');
     const processImportToken = async (token: string) => {
         try {
-            // --- UPDATED ---
-            const contacts = await fetchAndParse(api.admin['get-imported-contacts'].$post({ json: { token } }));
-            // --- END UPDATE ---
+            const contacts = await api.admin['get-imported-contacts'].$post({ json: { token } });
             setContactsToImport(contacts || []);
-        } catch (e: any) {
-            setError(e.message || 'Could not retrieve contacts for import.');
+        } catch (err) {
+            handleApiError(err, 'Could not retrieve contacts for import.');
         } finally {
             searchParams.delete('import_token');
             setSearchParams(searchParams, { replace: true });
@@ -145,15 +143,13 @@ function AdminDashboard() {
     setError(null);
     const contactsToPost = contactsToImport.filter(c => selectedContacts.has(c.resourceName));
     try {
-      // --- UPDATED ---
-      const result = await fetchAndParse(api.admin['import-contacts'].$post({ json: { contacts: contactsToPost } }));
-      // --- END UPDATE ---
+      const result = await api.admin['import-contacts'].$post({ json: { contacts: contactsToPost } });
       setImportMessage(`Successfully imported ${result.importedCount} new contacts.`);
       setContactsToImport([]);
       setSelectedContacts(new Set());
       fetchUsers();
-    } catch (err: any) {
-      setError(`Import failed: ${err.message}`);
+    } catch (err) {
+      handleApiError(err, 'Import failed');
     } finally {
       setIsImporting(false);
     }
@@ -162,12 +158,10 @@ function AdminDashboard() {
   const handleDeleteUser = async (userToDelete: User) => {
     if (window.confirm(`Are you sure you want to permanently delete ${userToDelete.name || userToDelete.email}?`)) {
       try {
-        // --- UPDATED ---
         await api.admin.users[':user_id'].$delete({ param: { user_id: userToDelete.id.toString() } });
-        // --- END UPDATE ---
         setUsers(currentUsers => currentUsers.filter(user => user.id !== userToDelete.id));
-      } catch (err: any) {
-        setError(`Failed to delete user: ${err.message}`);
+      } catch (err) {
+        handleApiError(err, `Failed to delete user`);
       }
     }
   };
@@ -217,7 +211,17 @@ function AdminDashboard() {
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-border-light dark:divide-border-dark">
-              {/* ... table structure ... */}
+              {/* ... table structure is unchanged ... */}
+              <thead className="bg-secondary-light dark:bg-secondary-dark">
+                <tr>
+                    <th className="px-6 py-4 w-12"></th>
+                    <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider">Name</th>
+                    <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider">Company</th>
+                    <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider">Contact</th>
+                    <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider">Role</th>
+                    <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
               <tbody className="divide-y divide-border-light dark:divide-border-dark">
                 {filteredUsers.map(user => (
                     <React.Fragment key={user.id}>
@@ -262,4 +266,4 @@ function AdminDashboard() {
   );
 }
 
-export default AdminDashboard;
+export default UserListPage;

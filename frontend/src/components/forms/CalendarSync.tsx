@@ -1,23 +1,13 @@
+// frontend/src/components/forms/CalendarSync.tsx
 import { useState } from 'react';
 import useSWR from 'swr';
-// Import the new 'api' client.
 import { api } from '../../lib/api';
-import { ApiError } from '../../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 
-// The fetcher function for useSWR now uses the Hono client.
-// It calls the endpoint and returns the parsed JSON.
-const urlFetcher = async () => {
-  const res = await api.calendar['secret-url'].$get();
-  if (!res.ok) {
-    const errorData = await res.json();
-    throw new ApiError(errorData.error || 'Failed to fetch URL', res.status);
-  }
-  return res.json();
-};
+// The fetcher function for useSWR now uses the Hono client directly.
+const urlFetcher = () => api.calendar['secret-url'].$get();
 
 function CalendarSync() {
-  // useSWR now uses the new fetcher function.
-  // The key can remain the same string, as SWR uses it for caching.
   const { data, error, isLoading, mutate } = useSWR('/api/calendar/secret-url', urlFetcher);
   const [message, setMessage] = useState<{type: 'success' | 'danger', text: string} | null>(null);
 
@@ -29,25 +19,21 @@ function CalendarSync() {
   };
 
   const handleRegenerate = async () => {
-    // I've replaced the window.confirm with a less blocking UI pattern in a comment,
-    // but for now, we'll keep the original functionality.
     if (!window.confirm("Are you sure? This will invalidate your old URL and you will need to update your calendar application.")) {
       return;
     }
     try {
-      // Updated: Use the Hono RPC client to regenerate the URL.
-      const res = await api.calendar['regenerate-url'].$post({});
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new ApiError(errorData.error || 'Failed to regenerate URL', res.status);
-      }
-      const newData = await res.json();
-
+      const newData = await api.calendar['regenerate-url'].$post({});
       // Update the local SWR cache with the new URL without re-fetching.
       mutate(newData, false);
       setMessage({ type: 'success', text: 'New URL generated successfully!' });
     } catch (err: any) {
-      setMessage({ type: 'danger', text: `Error: ${err.message}` });
+        if (err instanceof HTTPError) {
+            const errorJson = await err.response.json().catch(() => ({}));
+            setMessage({ type: 'danger', text: `Error: ${errorJson.error || 'Failed to regenerate URL'}` });
+        } else {
+            setMessage({ type: 'danger', text: `Error: ${err.message}` });
+        }
     }
   };
 
@@ -70,13 +56,13 @@ function CalendarSync() {
         <div className="mt-4 flex flex-wrap gap-4">
            <button
             onClick={handleCopy}
-            className="inline-block px-4 py-2 text-white font-semibold rounded-md transition bg-event-blue hover:bg-event-blue/90"
+            className="inline-block px-4 py-2 text-white font-semibold rounded-md transition bg-blue-600 hover:bg-blue-700"
           >
             Copy URL
           </button>
            <button
             onClick={handleRegenerate}
-            className="inline-block px-4 py-2 text-white font-semibold rounded-md transition bg-event-red hover:bg-event-red/90"
+            className="inline-block px-4 py-2 text-white font-semibold rounded-md transition bg-red-600 hover:bg-red-700"
           >
             Regenerate URL
           </button>

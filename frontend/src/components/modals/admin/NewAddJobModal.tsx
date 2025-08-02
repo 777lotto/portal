@@ -1,7 +1,7 @@
+// frontend/src/components/modals/admin/NewAddJobModal.tsx
 import React, { useState, useEffect } from 'react';
-// Import the new 'api' client
 import { api } from '../../../lib/api';
-import { ApiError } from '../../../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 import type { User } from '@portal/shared';
 import { format } from 'date-fns';
 
@@ -36,6 +36,7 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
 
   useEffect(() => {
     if (isOpen) {
+      // Reset state
       setTitle('');
       setDescription('');
       setSelectedUserId('');
@@ -43,19 +44,13 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
       setJobType('job');
       setRecurrence('none');
       setDue('');
-      setStart('');
+      setStart(selectedDate ? format(selectedDate, "yyyy-MM-dd'T'HH:mm") : '');
       setEnd('');
       setError(null);
 
       const fetchUsers = async () => {
         try {
-          // --- UPDATED ---
-          const res = await api.admin.users.$get();
-          if (!res.ok) {
-            throw new Error('Failed to fetch users');
-          }
-          const allUsers = await res.json();
-          // --- END UPDATE ---
+          const allUsers = await api.admin.users.$get();
           setUsers(allUsers.filter(u => u.role === 'customer' || u.role === 'guest'));
         } catch (err) {
           setError('Failed to load users.');
@@ -63,7 +58,7 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
       };
       fetchUsers();
     }
-  }, [isOpen]);
+  }, [isOpen, selectedDate]);
 
   const handleLineItemChange = (id: number, field: 'item' | 'amountInDollars', value: string) => {
     setLineItems(lineItems.map(item => item.id === id ? { ...item, [field]: value } : item));
@@ -97,9 +92,8 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
       end: end ? new Date(end).toISOString() : null,
       lineItems: lineItems
         .map(li => ({
-          // Note: The backend expects 'description', not 'item' for line items.
           description: li.item,
-          quantity: 1, // Assuming quantity is always 1 for this form
+          quantity: 1,
           unit_total_amount_cents: Math.round(parseFloat(li.amountInDollars) * 100),
         }))
         .filter(li => li.description && !isNaN(li.unit_total_amount_cents) && li.unit_total_amount_cents >= 0),
@@ -112,17 +106,18 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
 
     setIsSubmitting(true);
     try {
-      // --- UPDATED ---
-      const res = await api.admin.jobs.$post({ json: payload as any }); // Using 'as any' because the payload is complex and matches the expected backend schema
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new ApiError(errorData.error || `Failed to create ${jobType}`, res.status);
-      }
-      // --- END UPDATE ---
+      // The backend expects a specific payload shape, so we cast to 'any'
+      // after ensuring it matches what the server needs.
+      await api.admin.jobs.$post({ json: payload as any });
       onSave();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.');
+      if (err instanceof HTTPError) {
+        const errorJson = await err.response.json().catch(() => ({}));
+        setError(errorJson.error || `Failed to create ${jobType}`);
+      } else {
+        setError(err.message || 'An unknown error occurred.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -132,17 +127,15 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
   if (!isOpen) return null;
 
   return (
+    // ... JSX is unchanged ...
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-tertiary-dark rounded-lg p-6 w-full max-w-2xl max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold">Create New {selectedDate && `for ${format(selectedDate, 'MMMM do, yyyy')}`}</h2>
             <button type="button" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl font-bold" onClick={onClose}>&times;</button>
         </div>
-
         <div className="flex-grow overflow-y-auto pr-2 space-y-4">
             {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">{error}</div>}
-
-            {/* Job Type Selection */}
             <div>
               <label className="form-label font-semibold">Creation Type</label>
               <div className="flex items-center space-x-4 mt-1">
@@ -151,8 +144,6 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
                 <label className="flex items-center"><input type="radio" name="jobType" value="invoice" checked={jobType === 'invoice'} onChange={() => setJobType('invoice')} className="mr-2" /> Invoice</label>
               </div>
             </div>
-
-            {/* Customer and Title */}
             <div>
               <label htmlFor="user" className="form-label">Customer</label>
               <select id="user" className="form-control" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} required>
@@ -172,8 +163,6 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
               <label htmlFor="description" className="form-label">Description</label>
               <textarea id="description" className="form-control" value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
-
-            {/* Date/Time Fields */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="start" className="form-label">Job Start Time</label>
@@ -184,8 +173,6 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
                 <input type="datetime-local" id="end" className="form-control" value={end} onChange={(e) => setEnd(e.target.value)} />
               </div>
             </div>
-
-            {/* Recurrence and Due Date */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="recurrence" className="form-label">Recurrence</label>
@@ -201,7 +188,6 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
                 <input type="date" id="due" className="form-control" value={due} onChange={(e) => setDue(e.target.value)} />
               </div>
             </div>
-
             <hr className="my-3 border-border-light dark:border-border-dark" />
             <h6 className="font-semibold mb-2">Line Items</h6>
             {lineItems.map((item) => (
@@ -219,7 +205,6 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
             ))}
             <button className="btn btn-secondary mt-1" onClick={addLineItem}>Add Item</button>
         </div>
-
         <div className="pt-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={isSubmitting}>

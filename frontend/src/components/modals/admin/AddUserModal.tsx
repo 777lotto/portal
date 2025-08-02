@@ -1,7 +1,7 @@
+// frontend/src/components/modals/admin/AddUserModal.tsx
 import { useState } from 'react';
-// Import the new 'api' client.
 import { api } from '../../../lib/api';
-import { ApiError } from '../../../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 import type { User } from '@portal/shared';
 
 interface Props {
@@ -40,19 +40,16 @@ function AddUserModal({ isOpen, onClose, onUserAdded }: Props) {
 
     setIsSubmitting(true);
     try {
-      // --- UPDATED ---
-      const res = await api.admin.users.$post({ json: formData });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new ApiError(errorData.error || 'Failed to create user', res.status);
-      }
-      const newUser = await res.json();
-      // --- END UPDATE ---
-
+      const newUser = await api.admin.users.$post({ json: formData });
       onUserAdded(newUser);
       onClose();
     } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.');
+      if (err instanceof HTTPError) {
+        const errorJson = await err.response.json().catch(() => ({}));
+        setError(errorJson.error || 'Failed to create user');
+      } else {
+        setError(err.message || 'An unknown error occurred.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -60,8 +57,8 @@ function AddUserModal({ isOpen, onClose, onUserAdded }: Props) {
 
   if (!isOpen) return null;
 
-  // No changes needed for the JSX below
- return (
+  return (
+    // ... JSX is unchanged ...
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-tertiary-dark rounded-lg w-full max-w-lg">
         <form onSubmit={handleSubmit}>
@@ -92,8 +89,6 @@ function AddUserModal({ isOpen, onClose, onUserAdded }: Props) {
               <select id="role" name="role" className="form-control" value={formData.role} onChange={handleChange}>
                 <option value="customer">Customer</option>
                 <option value="admin">Admin</option>
-                <option value="associate">Associate</option>
-                <option value="guest">Guest</option>
               </select>
             </div>
           </div>

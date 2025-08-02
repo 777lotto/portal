@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-// Import the new 'api' client.
 import { api } from '../lib/api.js';
-import { ApiError } from '../lib/fetchJson.js';
+import { HTTPError } from 'hono/client';
 import type { Job, LineItem, Photo, Note } from '@portal/shared';
 import RecurrenceRequestModal from '../components/modals/RecurrenceRequestModal.js';
 import QuoteProposalModal from '../components/modals/QuoteProposalModal.js';
@@ -30,7 +29,6 @@ const parseRRule = (rrule: string | null | undefined): string => {
     return description;
 };
 
-
 function JobInfo() {
   const { id: jobId } = useParams<{ id: string }>();
   const [job, setJob] = useState<Job | null>(null);
@@ -47,33 +45,27 @@ function JobInfo() {
     if (!jobId) return;
     try {
       setError(null);
-      // --- UPDATED ---
-      const [jobRes, lineItemsRes, photosRes, notesRes] = await Promise.all([
+
+      // --- REFACTORED ---
+      // Promise.all is much cleaner now. Hono client handles parsing.
+      const [jobData, lineItemsData, photosData, notesData] = await Promise.all([
         api.jobs[':id'].$get({ param: { id: jobId } }),
         api.jobs[':id']['line-items'].$get({ param: { id: jobId } }),
         api.jobs[':id'].photos.$get({ param: { id: jobId } }),
         api.jobs[':id'].notes.$get({ param: { id: jobId } })
       ]);
 
-      if (!jobRes.ok) throw new Error('Failed to fetch job details');
-      if (!lineItemsRes.ok) throw new Error('Failed to fetch line items');
-      if (!photosRes.ok) throw new Error('Failed to fetch photos');
-      if (!notesRes.ok) throw new Error('Failed to fetch notes');
-
-      const [jobData, lineItemsData, photosData, notesData] = await Promise.all([
-        jobRes.json(),
-        lineItemsRes.json(),
-        photosRes.json(),
-        notesRes.json()
-      ]);
-      // --- END UPDATE ---
-
       setJob(jobData);
       setLineItems(lineItemsData);
       setPhotos(photosData);
       setNotes(notesData);
     } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.');
+        if (err instanceof HTTPError) {
+            const errorJson = await err.response.json();
+            setError(errorJson.error || 'Failed to fetch job details.');
+        } else {
+            setError(err.message || 'An unknown error occurred.');
+        }
     } finally {
       setIsLoading(false);
     }
@@ -84,46 +76,50 @@ function JobInfo() {
     fetchJobDetails();
   }, [jobId, fetchJobDetails]);
 
-  // --- UPDATED ---
+  const handleApiError = async (err: any, defaultMessage: string) => {
+    if (err instanceof HTTPError) {
+        const errorJson = await err.response.json();
+        setError(errorJson.error || defaultMessage);
+    } else {
+        setError(err.message || defaultMessage);
+    }
+  };
+
   const handleAcceptQuote = async () => {
     if (!job?.id) return;
     try {
-        const res = await api.quotes[':quoteId'].accept.$post({ param: { quoteId: job.id } });
-        if (!res.ok) throw new Error('Failed to accept quote');
+        await api.quotes[':quoteId'].accept.$post({ param: { quoteId: job.id } });
         fetchJobDetails();
         setIsQuoteModalOpen(false);
-    } catch (err: any) {
-        setError(`Failed to accept quote: ${err.message}`);
+    } catch (err) {
+        handleApiError(err, 'Failed to accept quote');
     }
   };
 
   const handleDeclineQuote = async () => {
       if (!job?.id) return;
       try {
-          const res = await api.quotes[':quoteId'].decline.$post({ param: { quoteId: job.id } });
-          if (!res.ok) throw new Error('Failed to decline quote');
+          await api.quotes[':quoteId'].decline.$post({ param: { quoteId: job.id } });
           fetchJobDetails();
           setIsQuoteModalOpen(false);
-      } catch (err: any) {
-          setError(`Failed to decline quote: ${err.message}`);
+      } catch (err) {
+          handleApiError(err, 'Failed to decline quote');
       }
   };
 
   const handleReviseQuote = async (revisionReason: string) => {
       if (!job?.id) return;
       try {
-          const res = await api.quotes[':quoteId'].revise.$post({
+          await api.quotes[':quoteId'].revise.$post({
             param: { quoteId: job.id },
             json: { revisionReason }
           });
-          if (!res.ok) throw new Error('Failed to revise quote');
           fetchJobDetails();
           setIsQuoteModalOpen(false);
-      } catch (err: any) {
-          setError(`Failed to revise quote: ${err.message}`);
+      } catch (err) {
+          handleApiError(err, 'Failed to revise quote');
       }
   };
-  // --- END UPDATE ---
 
   const statusStyle = (status: string) => {
       switch (status.toLowerCase()) {
@@ -167,6 +163,7 @@ function JobInfo() {
           onRevise={handleReviseQuote}
           jobId={jobId!}
       />
+      {/* ... Rest of JSX is unchanged ... */}
       <div className="max-w-7xl mx-auto space-y-6">
         {error && <div className="alert alert-danger mb-4">{error}</div>}
         {successMessage && <div className="alert alert-success mb-4">{successMessage}</div>}

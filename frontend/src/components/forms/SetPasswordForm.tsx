@@ -1,10 +1,8 @@
 // frontend/src/components/forms/SetPasswordForm.tsx
-
 import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-// Import the new 'api' client
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { ApiError } from '../../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 
 interface Props {
   setToken: (token: string) => void;
@@ -13,7 +11,6 @@ interface Props {
 function SetPasswordForm({ setToken }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
-
   const passwordSetToken = location.state?.passwordSetToken;
 
   const [password, setPasswordState] = useState('');
@@ -21,15 +18,11 @@ function SetPasswordForm({ setToken }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // If the user lands here without a token, redirect them.
   if (!passwordSetToken) {
-    // We can't call navigate directly in the render body.
-    // A simple solution is to return null and let an effect handle the redirect.
-    // Or for this case, just show an error.
     return (
         <div className="container mt-5">
             <div className="alert alert-danger">
-                Invalid session. Please start the password reset process again.
+                Invalid session. Please <Link to="/forgot-password">start the password reset process</Link> again.
             </div>
         </div>
     );
@@ -45,34 +38,25 @@ function SetPasswordForm({ setToken }: Props) {
     setIsLoading(true);
 
     try {
-      // --- UPDATED ---
-      // Use the Hono RPC client to set the password.
-      // The passwordSetToken is sent as a Bearer token in the header.
-      const res = await api['set-password'].$post({ json: { password } }, {
-        headers: {
-          Authorization: `Bearer ${passwordSetToken}`
-        }
+      const response = await api['set-password'].$post({ json: { password } }, {
+        headers: { Authorization: `Bearer ${passwordSetToken}` }
       });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new ApiError(errorData.error || 'Failed to set password', res.status);
-      }
-
-      const response = await res.json();
-      // --- END UPDATE ---
-
       setToken(response.token);
       navigate('/dashboard', { replace: true });
     } catch (err: any) {
-      setError(err instanceof ApiError ? err.message : 'An unexpected error occurred.');
+        if (err instanceof HTTPError) {
+            const errorJson = await err.response.json().catch(() => ({}));
+            setError(errorJson.error || 'Failed to set password');
+        } else {
+            setError('An unexpected error occurred.');
+        }
     } finally {
-      setIsLoading(true);
+      setIsLoading(false); // Changed from true to false
     }
   };
 
-  // No changes needed to the JSX render logic below
   return (
+    // ... JSX is unchanged ...
     <div className="container mt-5">
       <div className="row justify-content-center">
         <div className="col-md-6">

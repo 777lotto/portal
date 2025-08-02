@@ -1,9 +1,8 @@
 // frontend/src/components/forms/AuthForm.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-// Import the new 'api' client. All other api functions are no longer needed.
 import { api } from '../../lib/api';
-import { ApiError } from '../../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 import StyledDigitInput from './StyledDigitInput';
 
 // Declare the global Turnstile type
@@ -34,14 +33,8 @@ function AuthForm({ setToken }: Props) {
   const [verificationChannel, setVerificationChannel] = useState<'email' | 'sms' | null>(null);
 
   const [formData, setFormData] = useState({
-    identifier: '',
-    name: '',
-    company_name: '',
-    email: '',
-    phone: '',
-    password: '',
-    confirmPassword: '',
-    code: '',
+    identifier: '', name: '', company_name: '', email: '', phone: '',
+    password: '', confirmPassword: '', code: '',
   });
 
   const [contactInfo, setContactInfo] = useState<{ email?: string; phone?: string }>({});
@@ -54,19 +47,12 @@ function AuthForm({ setToken }: Props) {
 
   useEffect(() => {
     window.onTurnstileSuccess = (token: string) => setTurnstileToken(token);
-
     if (import.meta.env.DEV && !import.meta.env.VITE_TURNSTILE_SITE_KEY) {
       setTimeout(() => window.onTurnstileSuccess?.('mock-token-for-dev'), 100);
     }
-
     if (step === 'LOGIN_PASSWORD' || step === 'SET_PASSWORD' || step === 'SIGNUP_DETAILS') {
-        setTimeout(() => {
-            if (window.renderCfTurnstile) {
-                window.renderCfTurnstile();
-            }
-        }, 100);
+        setTimeout(() => window.renderCfTurnstile?.(), 100);
     }
-
     return () => {
       delete window.onTurnstileSuccess;
       const container = document.getElementById('turnstile-container');
@@ -77,6 +63,14 @@ function AuthForm({ setToken }: Props) {
     };
   }, [step]);
 
+  const handleApiError = async (err: any, defaultMessage: string) => {
+    if (err instanceof HTTPError) {
+        const errorJson = await err.response.json().catch(() => ({}));
+        setError(errorJson.error || defaultMessage);
+    } else {
+        setError(err.message || defaultMessage);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
@@ -92,16 +86,10 @@ function AuthForm({ setToken }: Props) {
     e.preventDefault();
     clearMessages();
     setIsLoading(true);
-
     try {
       const isEmail = formData.identifier.includes('@');
       const finalIdentifier = isEmail ? formData.identifier : formData.identifier.replace(/\D/g, '').slice(-10);
-
-      // --- UPDATED ---
-      const res = await api['check-user'].$post({ json: { identifier: finalIdentifier } });
-      if (!res.ok) throw new ApiError((await res.json()).error || 'Failed to check user', res.status);
-      const response = await res.json();
-      // --- END UPDATE ---
+      const response = await api['check-user'].$post({ json: { identifier: finalIdentifier } });
 
       setContactInfo({ email: response.email, phone: response.phone });
 
@@ -123,8 +111,8 @@ function AuthForm({ setToken }: Props) {
         }));
         setStep('SIGNUP_DETAILS');
       }
-    } catch (err: any) {
-      setError(err.message || 'An error occurred.');
+    } catch (err) {
+      handleApiError(err, 'An error occurred.');
     } finally {
       setIsLoading(false);
     }
@@ -138,26 +126,20 @@ function AuthForm({ setToken }: Props) {
     }
     clearMessages();
     setIsLoading(true);
-
     try {
-      // --- UPDATED ---
-      const res = await api.login.$post({
+      const response = await api.login.$post({
         json: {
           email: contactInfo.email || formData.identifier,
           password: formData.password,
           'cf-turnstile-response': turnstileToken,
         }
       });
-      if (!res.ok) throw new ApiError((await res.json()).error || 'Login failed', res.status);
-      const response = await res.json();
-      // --- END UPDATE ---
-
       if (response.token) {
         setToken(response.token);
         navigate('/dashboard');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      handleApiError(err, 'Login failed');
     } finally {
       setIsLoading(false);
       setTurnstileToken('');
@@ -176,39 +158,28 @@ function AuthForm({ setToken }: Props) {
       }
       clearMessages();
       setIsLoading(true);
-
       try {
-        // --- UPDATED ---
-        const initRes = await api.signup.initialize.$post({
+        const initResponse = await api.signup.initialize.$post({
             json: {
-                name: formData.name,
-                company_name: formData.company_name,
-                email: formData.email,
-                phone: formData.phone,
+                name: formData.name, company_name: formData.company_name,
+                email: formData.email, phone: formData.phone,
                 'cf-turnstile-response': turnstileToken,
             }
         });
-        if (!initRes.ok) throw new ApiError((await initRes.json()).error || 'Signup initialization failed', initRes.status);
-        const initResponse = await initRes.json();
-        // --- END UPDATE ---
 
         const channel = formData.email ? 'email' : 'sms';
         const identifier = channel === 'email' ? initResponse.email : initResponse.phone;
 
         if (identifier) {
-            // --- UPDATED ---
-             const reqPassRes = await api['request-password-reset'].$post({ json: { identifier, channel } });
-             if (!reqPassRes.ok) throw new ApiError((await reqPassRes.json()).error || 'Failed to request password reset', reqPassRes.status);
-            // --- END UPDATE ---
+             await api['request-password-reset'].$post({ json: { identifier, channel } });
              setVerificationChannel(channel);
              setMessage(`A verification code has been sent to your ${channel}.`);
              setStep('VERIFY_CODE');
         } else {
             throw new Error("Could not determine where to send verification code.");
         }
-
-      } catch(err: any) {
-        setError(err.message || 'An error occurred during signup.');
+      } catch(err) {
+        handleApiError(err, 'An error occurred during signup.');
       } finally {
         setIsLoading(false);
         setTurnstileToken('');
@@ -222,15 +193,12 @@ function AuthForm({ setToken }: Props) {
         const identifier = flowContext === 'SIGNUP'
             ? (channel === 'email' ? formData.email : formData.phone)
             : formData.identifier;
-        // --- UPDATED ---
-        const res = await api['request-password-reset'].$post({ json: { identifier, channel } });
-        if (!res.ok) throw new ApiError((await res.json()).error || 'Failed to request code', res.status);
-        // --- END UPDATE ---
+        await api['request-password-reset'].$post({ json: { identifier, channel } });
         setVerificationChannel(channel);
         setMessage(`A verification code has been sent to your ${channel}.`);
         setStep('VERIFY_CODE');
-    } catch (err: any) {
-        setError(err.message);
+    } catch (err) {
+        handleApiError(err, 'Failed to request code');
     } finally {
         setIsLoading(false);
     }
@@ -244,21 +212,13 @@ function AuthForm({ setToken }: Props) {
             ? (verificationChannel === 'email' ? formData.email : formData.phone)
             : formData.identifier;
 
-        // --- UPDATED ---
-        const verifyRes = await api['verify-reset-code'].$post({ json: { identifier, code } });
-        if (!verifyRes.ok) throw new ApiError((await verifyRes.json()).error || 'Code verification failed', verifyRes.status);
-        const response = await verifyRes.json();
-        // --- END UPDATE ---
+        const response = await api['verify-reset-code'].$post({ json: { identifier, code } });
 
         if (response.passwordSetToken) {
             if (flowContext === 'LOGIN') {
-                // --- UPDATED ---
-                const sessionRes = await api['login-with-token'].$post({}, {
+                const sessionResponse = await api['login-with-token'].$post({}, {
                     headers: { Authorization: `Bearer ${response.passwordSetToken}` }
                 });
-                if (!sessionRes.ok) throw new ApiError((await sessionRes.json()).error || 'Login with token failed', sessionRes.status);
-                const sessionResponse = await sessionRes.json();
-                // --- END UPDATE ---
                 setToken(sessionResponse.token);
                 navigate('/dashboard', { replace: true });
             } else {
@@ -268,8 +228,8 @@ function AuthForm({ setToken }: Props) {
         } else {
             throw new Error("Verification failed to return a token.");
         }
-    } catch (err: any) {
-        setError(err instanceof ApiError ? err.message : 'An unexpected error occurred.');
+    } catch (err) {
+        handleApiError(err, 'An unexpected error occurred.');
     } finally {
         setIsLoading(false);
     }
@@ -287,24 +247,18 @@ function AuthForm({ setToken }: Props) {
     }
     clearMessages();
     setIsLoading(true);
-
     try {
-      // --- UPDATED ---
-      const res = await api['set-password'].$post({ json: { password: formData.password } }, {
+      const response = await api['set-password'].$post({ json: { password: formData.password } }, {
           headers: { Authorization: `Bearer ${passwordSetToken}` }
       });
-      if (!res.ok) throw new ApiError((await res.json()).error || 'Failed to set password', res.status);
-      const response = await res.json();
-      // --- END UPDATE ---
-
       if (response.token) {
         setToken(response.token);
         navigate('/dashboard', { replace: true });
       } else {
         throw new Error("Authentication failed: No token received.");
       }
-    } catch (err: any) {
-      setError(err instanceof ApiError ? err.message : 'An unexpected error occurred.');
+    } catch (err) {
+      handleApiError(err, 'An unexpected error occurred.');
     } finally {
       setIsLoading(false);
       setTurnstileToken('');
@@ -312,7 +266,6 @@ function AuthForm({ setToken }: Props) {
   };
 
   // --- No changes needed to any of the render functions below this line ---
-
   const renderIdentify = () => (
     <form onSubmit={handleIdentify} className="space-y-6">
       <div className="text-center">

@@ -1,8 +1,7 @@
 // frontend/src/components/modals/admin/EditJobModal.tsx
 import { useState, useEffect } from 'react';
-// Import the new 'api' client.
 import { api } from '../../../lib/api';
-import { ApiError } from '../../../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 import type { Job, User } from '@portal/shared';
 
 interface Props {
@@ -20,14 +19,10 @@ function EditJobModal({ isOpen, onClose, onJobUpdated, job }: Props) {
 
   useEffect(() => {
     if (isOpen) {
-      setSelectedUserId(job.user_id); // Reset selection when modal opens
+      setSelectedUserId(job.user_id);
       const fetchUsers = async () => {
         try {
-          // --- UPDATED ---
-          const res = await api.admin.users.$get();
-          if (!res.ok) throw new Error('Failed to fetch users');
-          const allUsers = await res.json();
-          // --- END UPDATE ---
+          const allUsers = await api.admin.users.$get();
           setUsers(allUsers);
         } catch (err) {
           setError('Failed to load users.');
@@ -42,24 +37,19 @@ function EditJobModal({ isOpen, onClose, onJobUpdated, job }: Props) {
     setError(null);
     setIsSubmitting(true);
     try {
-      // --- UPDATED ---
-      // Assumes reassigning is part of updating job details.
-      const res = await api.admin.jobs[':jobId'].details.$put({
+      const updatedJob = await api.admin.jobs[':jobId'].details.$put({
         param: { jobId: job.id.toString() },
         json: { user_id: selecteduserId }
       });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new ApiError(errorData.error || 'Failed to reassign job', res.status);
-      }
-      const updatedJob = await res.json();
-      // --- END UPDATE ---
-
       onJobUpdated(updatedJob);
       onClose();
     } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.');
+      if (err instanceof HTTPError) {
+        const errorJson = await err.response.json().catch(() => ({}));
+        setError(errorJson.error || 'Failed to reassign job');
+      } else {
+        setError(err.message || 'An unknown error occurred.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -68,6 +58,7 @@ function EditJobModal({ isOpen, onClose, onJobUpdated, job }: Props) {
   if (!isOpen) return null;
 
   return (
+    // ... JSX is unchanged ...
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-tertiary-dark rounded-lg shadow-xl w-full max-w-lg">
         <form onSubmit={handleSubmit}>

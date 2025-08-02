@@ -1,9 +1,8 @@
 // frontend/src/components/forms/ForgotPasswordForm.tsx
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-// Import the new 'api' client
 import { api } from '../../lib/api';
-import { ApiError } from '../../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 
 function ForgotPasswordForm() {
   const [identifier, setIdentifier] = useState('');
@@ -20,26 +19,23 @@ function ForgotPasswordForm() {
     setIsLoading(true);
 
     try {
-      // --- UPDATED ---
-      const res = await api['request-password-reset'].$post({ json: { identifier, channel } });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new ApiError(errorData.error || 'Failed to send reset request', res.status);
-      }
-      // --- END UPDATE ---
-
-      // On success, navigate to the verify code form instead of just showing a message.
-      // Pass the identifier so the next form knows who is verifying.
+      await api['request-password-reset'].$post({ json: { identifier, channel } });
+      // On success, navigate to the verify code form.
       navigate('/verify-code', { state: { identifier } });
     } catch (err: any) {
-      setError(err.message);
+        if (err instanceof HTTPError) {
+            const errorJson = await err.response.json().catch(() => ({}));
+            setError(errorJson.error || 'Failed to send reset request');
+        } else {
+            setError(err.message);
+        }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // No changes needed to the JSX render logic below
   return (
+    // ... JSX is unchanged ...
     <div className="container mt-5">
       <div className="row justify-content-center">
         <div className="col-md-6">
@@ -59,48 +55,24 @@ function ForgotPasswordForm() {
                     required
                   />
                 </div>
-
                 <div className="mb-3">
                   <label className="form-label">Send code via:</label>
                   <div className="form-check">
-                    <input
-                      className="form-check-input"
-                      type="radio"
-                      name="channel"
-                      id="channelEmail"
-                      value="email"
-                      checked={channel === 'email'}
-                      onChange={() => setChannel('email')}
-                    />
-                    <label className="form-check-label" htmlFor="channelEmail">
-                      Email
-                    </label>
+                    <input className="form-check-input" type="radio" name="channel" id="channelEmail" value="email" checked={channel === 'email'} onChange={() => setChannel('email')} />
+                    <label className="form-check-label" htmlFor="channelEmail">Email</label>
                   </div>
                   <div className="form-check">
-                    <input
-                      className="form-check-input"
-                      type="radio"
-                      name="channel"
-                      id="channelSms"
-                      value="sms"
-                      checked={channel === 'sms'}
-                      onChange={() => setChannel('sms')}
-                    />
-                    <label className="form-check-label" htmlFor="channelSms">
-                      Text Message (SMS)
-                    </label>
+                    <input className="form-check-input" type="radio" name="channel" id="channelSms" value="sms" checked={channel === 'sms'} onChange={() => setChannel('sms')} />
+                    <label className="form-check-label" htmlFor="channelSms">Text Message (SMS)</label>
                   </div>
                 </div>
-
                 {message && <div className="alert alert-success">{message}</div>}
                 {error && <div className="alert alert-danger">{error}</div>}
-
                 <div className="d-grid">
                   <button type="submit" className="btn btn-primary" disabled={isLoading}>
                     {isLoading ? 'Sending...' : 'Send Reset Code'}
                   </button>
                 </div>
-
                 <div className="text-center mt-3">
                   <p><Link to="/login">Back to Login</Link></p>
                 </div>

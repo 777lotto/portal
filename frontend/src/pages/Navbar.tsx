@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import useSWR from 'swr';
 import { formatDistanceToNow } from 'date-fns';
-// Import the new 'api' client.
 import { api } from '../lib/api';
 import { UINotification } from '@portal/shared';
 import companyLogo from '../assets/777-solutions.svg';
@@ -24,12 +23,8 @@ const BellIcon = () => (
   </svg>
 );
 
-// --- SWR Fetcher for Notifications ---
-const notificationsFetcher = async () => {
-    const res = await api.notifications.$get();
-    if (!res.ok) throw new Error('Failed to fetch notifications');
-    return res.json();
-};
+// --- REFACTORED SWR Fetcher ---
+const notificationsFetcher = () => api.notifications.$get();
 
 function NotificationBell() {
   const { data: notifications, mutate } = useSWR<UINotification[]>('/api/notifications', notificationsFetcher, { refreshInterval: 30000 });
@@ -49,15 +44,16 @@ function NotificationBell() {
   }, []);
 
   const handleMarkAllAsRead = async () => {
+      const originalNotifications = notifications;
+      const updatedNotifications = notifications?.map(n => ({...n, is_read: 1 as 0 | 1}));
       // Optimistically update the UI
-      const updatedNotifications = notifications?.map(n => ({...n, is_read: 1}));
       mutate(updatedNotifications, false);
       try {
-          // --- UPDATED ---
           await api.notifications['read-all'].$post({});
-          // --- END UPDATE ---
+          // No re-fetch needed on success, the optimistic update is correct.
       } catch (error) {
-          mutate(); // Revert on error
+          // Revert on error
+          mutate(originalNotifications);
           console.error("Failed to mark all as read", error);
       }
   }
@@ -68,14 +64,15 @@ function NotificationBell() {
               <span className="sr-only">View notifications</span>
               <BellIcon />
               {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 block h-4 w-4 rounded-full bg-event-red text-white text-xs flex items-center justify-center">{unreadCount}</span>
+                  <span className="absolute top-1 right-1 block h-4 w-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">{unreadCount}</span>
               )}
           </button>
           {isOpen && (
+              // ... Notification dropdown JSX is unchanged ...
               <div className="absolute right-0 z-10 mt-2 w-80 origin-top-right rounded-md bg-white dark:bg-gray-800 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
                   <div className="flex justify-between items-center px-4 py-2 border-b border-gray-200 dark:border-gray-700">
                        <h6 className="font-semibold text-gray-800 dark:text-gray-200">Notifications</h6>
-                       {unreadCount > 0 && <button onClick={handleMarkAllAsRead} className="text-sm text-event-blue hover:underline">Mark all as read</button>}
+                       {unreadCount > 0 && <button onClick={handleMarkAllAsRead} className="text-sm text-blue-600 hover:underline">Mark all as read</button>}
                   </div>
                   <div className="max-h-96 overflow-y-auto">
                       {notifications && notifications.length > 0 ? (
@@ -127,11 +124,9 @@ export default function Navbar({ token, setToken, user }: Props) {
 
   const handleLogout = async () => {
     try {
-      // --- UPDATED ---
       await api.logout.$post({});
-      // --- END UPDATE ---
     } catch (error) {
-      console.error("Server logout failed:", error);
+      console.error("Server logout failed, logging out client-side anyway.", error);
     } finally {
       setToken(null);
       setIsUserMenuOpen(false);
@@ -151,6 +146,7 @@ export default function Navbar({ token, setToken, user }: Props) {
 
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
+  // ... Styles and JSX are unchanged ...
   const linkStyle = "px-3 py-2 rounded-md text-sm font-medium text-text-primary-dark/70 dark:text-text-primary-dark/60 hover:bg-tertiary-dark hover:text-white";
   const activeLinkStyle = "px-3 py-2 rounded-md text-sm font-medium text-white bg-tertiary-dark";
   const mobileLinkStyle = "block px-3 py-2 rounded-md text-base font-medium text-text-primary-dark/70 dark:text-text-primary-dark/60 hover:bg-tertiary-dark hover:text-white";

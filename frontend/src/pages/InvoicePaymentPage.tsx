@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-// Import the new 'api' client.
 import { api } from '../lib/api';
-import { ApiError } from '../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 import type { StripeInvoice, StripeInvoiceItem } from '@portal/shared';
 import { loadStripe } from '@stripe/stripe-js';
 import {
@@ -77,23 +76,20 @@ function InvoicePaymentPage() {
     if (invoiceId) {
       const fetchData = async () => {
         try {
-          // --- UPDATED ---
-          const [invoiceRes, intentRes] = await Promise.all([
+          const [invoiceData, intentData] = await Promise.all([
             api.invoices[':invoiceId'].$get({ param: { invoiceId } }),
             api.invoices[':invoiceId']['create-payment-intent'].$post({ param: { invoiceId } })
           ]);
 
-          if (!invoiceRes.ok) throw new Error('Failed to fetch invoice data');
-          if (!intentRes.ok) throw new Error('Failed to create payment intent');
-
-          const invoiceData = await invoiceRes.json();
-          const intentData = await intentRes.json();
-          // --- END UPDATE ---
-
           setInvoice(invoiceData);
           setClientSecret(intentData.clientSecret);
         } catch (err: any) {
-          setError(err.message);
+            if (err instanceof HTTPError) {
+                const errorJson = await err.response.json();
+                setError(errorJson.error || 'Failed to load invoice data.');
+            } else {
+                setError(err.message || 'An unknown error occurred.');
+            }
         } finally {
           setIsLoading(false);
         }
@@ -107,14 +103,13 @@ function InvoicePaymentPage() {
     setIsDownloading(true);
     setError(null);
     try {
-      // This uses fetch directly to handle the file blob response.
-      // Our custom fetchJson adds the auth header automatically.
       const response = await fetch(`/api/invoices/${invoiceId}/pdf`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem("token")}` }
       });
 
       if (!response.ok) {
-        throw new Error('Failed to download invoice.');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to download invoice.');
       }
 
       const blob = await response.blob();
@@ -140,6 +135,7 @@ function InvoicePaymentPage() {
   const showPaymentStatus = searchParams.has('payment_intent');
 
   return (
+    // ... JSX is unchanged ...
     <div className="max-w-4xl mx-auto">
       <div className="card">
         <div className="card-header flex justify-between items-center">

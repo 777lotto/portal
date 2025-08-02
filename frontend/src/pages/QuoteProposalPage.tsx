@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
-// Import the new 'api' client.
 import { api } from '../lib/api';
-import { ApiError } from '../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 import type { Job, LineItem } from '@portal/shared';
 
 interface QuoteDetails extends Job {
@@ -11,78 +10,82 @@ interface QuoteDetails extends Job {
     customerName?: string;
 }
 
-// --- SWR Fetcher for Quote Details ---
-const quoteFetcher = async (url: string) => {
+// --- REFACTORED SWR Fetcher ---
+// The fetcher now directly calls the api client. Hono handles JSON parsing and errors.
+const quoteFetcher = (url: string) => {
     const quoteId = url.split('/').pop();
     if (!quoteId) throw new Error('Invalid quote ID');
-    const res = await api.quotes[':quoteId'].$get({ param: { quoteId } });
-    if (!res.ok) throw new Error('Failed to fetch quote details');
-    return res.json();
-}
+    return api.quotes[':quoteId'].$get({ param: { quoteId } });
+};
 
 function QuoteProposalPage() {
     const { quoteId } = useParams<{ quoteId: string }>();
     const navigate = useNavigate();
+    // SWR usage remains the same, but the fetcher is cleaner.
     const { data: quote, error, mutate } = useSWR<QuoteDetails>(quoteId ? `/api/quotes/${quoteId}` : null, quoteFetcher);
+
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
     const [revisionReason, setRevisionReason] = useState('');
     const [isRevising, setIsRevising] = useState(false);
 
+    // Generic error handler for API calls
+    const handleApiError = async (err: any, defaultMessage: string) => {
+        if (err instanceof HTTPError) {
+            const errorJson = await err.response.json();
+            setActionError(errorJson.error || defaultMessage);
+        } else {
+            setActionError(err.message || defaultMessage);
+        }
+    };
+
     const handleAccept = async () => {
+        if (!quoteId) return;
         setActionError(null);
         setIsSubmitting(true);
         try {
-            // --- UPDATED ---
-            const res = await api.quotes[':quoteId'].accept.$post({ param: { quoteId: quoteId! } });
-            if (!res.ok) throw new Error('Failed to accept quote');
-            // --- END UPDATE ---
-            mutate();
+            await api.quotes[':quoteId'].accept.$post({ param: { quoteId } });
+            mutate(); // Re-fetch data
             navigate('/dashboard', { state: { message: 'Quote accepted successfully!' } });
-        } catch (err: any) {
-            setActionError(err.message || 'Failed to accept quote.');
+        } catch (err) {
+            handleApiError(err, 'Failed to accept quote.');
         } finally {
             setIsSubmitting(false);
         }
     };
 
     const handleDecline = async () => {
+        if (!quoteId) return;
         setActionError(null);
         setIsSubmitting(true);
         try {
-            // --- UPDATED ---
-            const res = await api.quotes[':quoteId'].decline.$post({ param: { quoteId: quoteId! } });
-            if (!res.ok) throw new Error('Failed to decline quote');
-            // --- END UPDATE ---
+            await api.quotes[':quoteId'].decline.$post({ param: { quoteId } });
             mutate();
             navigate('/dashboard', { state: { message: 'Quote declined.' } });
-        } catch (err: any) {
-            setActionError(err.message || 'Failed to decline quote.');
+        } catch (err) {
+            handleApiError(err, 'Failed to decline quote.');
         } finally {
             setIsSubmitting(false);
         }
     };
 
     const handleRevisionSubmit = async () => {
-        if (!revisionReason) {
+        if (!quoteId || !revisionReason) {
             setActionError('Please provide a reason for the revision.');
             return;
         }
         setActionError(null);
         setIsSubmitting(true);
         try {
-            // --- UPDATED ---
-            const res = await api.quotes[':quoteId'].revise.$post({
-                param: { quoteId: quoteId! },
+            await api.quotes[':quoteId'].revise.$post({
+                param: { quoteId },
                 json: { revisionReason }
             });
-            if (!res.ok) throw new Error('Failed to submit revision');
-            // --- END UPDATE ---
             mutate();
             setIsRevising(false);
             navigate('/dashboard', { state: { message: 'Revision request submitted.' } });
-        } catch (err: any) {
-            setActionError(err.message || 'Failed to submit revision request.');
+        } catch (err) {
+            handleApiError(err, 'Failed to submit revision request.');
         } finally {
             setIsSubmitting(false);
         }
@@ -92,7 +95,6 @@ function QuoteProposalPage() {
     if (!quote) return <div className="text-center p-8">Loading...</div>;
 
     const total = quote.lineItems.reduce((acc, item) => acc + (item.unit_total_amount_cents || 0) * item.quantity, 0);
-
     const isActionable = quote.status === 'pending';
 
     return (
@@ -100,6 +102,7 @@ function QuoteProposalPage() {
             <h1 className="text-3xl font-bold mb-2 text-text-primary-light dark:text-text-primary-dark">Quote Proposal</h1>
             <p className="text-text-secondary-light dark:text-text-secondary-dark mb-6">For: {quote.title}</p>
 
+            {/* ... Rest of JSX is unchanged ... */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                 <div>
                     <h5 className="font-semibold">Status</h5>

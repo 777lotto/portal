@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-// Import the new 'api' client.
 import { api } from '../lib/api.js';
-import { ApiError } from '../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 import type { PhotoWithNotes, User, Job, LineItem } from '@portal/shared';
 import { useDropzone } from 'react-dropzone';
 import { jwtDecode } from 'jwt-decode';
@@ -10,23 +9,11 @@ interface UserPayload {
   role: 'customer' | 'admin';
 }
 
-// Helper function to handle API responses
-async function fetchAndParse<T>(promise: Promise<Response>): Promise<T> {
-    const res = await promise;
-    if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: 'An unknown error occurred' }));
-        throw new ApiError(errorData.error || `Request failed with status ${res.status}`, res.status);
-    }
-    return res.json() as Promise<T>;
-}
+// The fetchAndParse helper function has been removed.
 
 function CustomerPhotos() {
   const [photos, setPhotos] = useState<PhotoWithNotes[]>([]);
-  const [filters, setFilters] = useState({
-    createdAt: '',
-    job_id: '',
-    item_id: '',
-  });
+  const [filters, setFilters] = useState({ createdAt: '', job_id: '', item_id: '' });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,13 +26,16 @@ function CustomerPhotos() {
           Object.entries(filters).filter(([, value]) => value !== '')
         );
 
-        // --- UPDATED ---
-        const data = await fetchAndParse<PhotoWithNotes[]>(api.photos.$get({ query: activeFilters }));
-        // --- END UPDATE ---
-
+        // --- REFACTORED ---
+        const data = await api.photos.$get({ query: activeFilters });
         setPhotos(data);
       } catch (err: any) {
-        setError(err.message);
+        if (err instanceof HTTPError) {
+            const errorJson = await err.response.json();
+            setError(errorJson.error || 'Failed to fetch photos.');
+        } else {
+            setError(err.message || 'An unknown error occurred.');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -61,6 +51,7 @@ function CustomerPhotos() {
   if (error) return <div className="alert alert-danger">{error}</div>;
 
   return (
+    // ... CustomerPhotos JSX is unchanged ...
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
       <h2 className="text-2xl font-bold mb-4">Your Photos</h2>
       <div className="card mb-4">
@@ -130,12 +121,12 @@ function AdminPhotos() {
   const [message, setMessage] = useState<{ type: 'success' | 'danger', text: string } | null>(null);
 
   useEffect(() => {
-    fetchAndParse<User[]>(api.admin.users.$get()).then(setUsers);
+    api.admin.users.$get().then(setUsers).catch(console.error);
   }, []);
 
   useEffect(() => {
     if (selectedUser) {
-      fetchAndParse<Job[]>(api.admin.jobs['user'][':user_id'].$get({ param: { user_id: selectedUser } })).then(setJobs);
+      api.admin.jobs.user[':user_id'].$get({ param: { user_id: selectedUser } }).then(setJobs).catch(console.error);
     } else {
       setJobs([]);
     }
@@ -144,7 +135,7 @@ function AdminPhotos() {
 
   useEffect(() => {
     if (selectedJob) {
-      fetchAndParse<LineItem[]>(api.jobs[':id']['line-items'].$get({ param: { id: selectedJob } })).then(setLineItems);
+      api.jobs[':id']['line-items'].$get({ param: { id: selectedJob } }).then(setLineItems).catch(console.error);
     } else {
       setLineItems([]);
     }
@@ -166,14 +157,17 @@ function AdminPhotos() {
         if (selectedJob) formData.append('job_id', selectedJob);
         if (selectedItem) formData.append('item_id', selectedItem);
         if (notes) formData.append('notes', notes);
-        // For file uploads, it's often easier to use a dedicated fetch call
-        // that is configured to handle multipart/form-data.
+
+        // Direct fetch is correct for multipart/form-data
         return fetch(`/api/admin/users/${selectedUser}/photos`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`},
           body: formData,
-        }).then(res => {
-            if (!res.ok) throw new Error('Upload failed');
+        }).then(async res => {
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Upload failed');
+            }
             return res.json();
         });
       });
@@ -202,6 +196,7 @@ function AdminPhotos() {
   }, [users, userSearch]);
 
   return (
+    // ... AdminPhotos JSX is unchanged ...
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
       <h2 className="text-2xl font-bold mb-4">Upload Photos for a User</h2>
       {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}

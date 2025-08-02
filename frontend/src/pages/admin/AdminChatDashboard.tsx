@@ -1,30 +1,21 @@
 // frontend/src/pages/admin/AdminChatDashboard.tsx
 import { useState } from 'react';
 import useSWR from 'swr';
-// Import the new 'api' client.
 import { api } from '../../lib/api';
 import type { User } from '@portal/shared';
 import SupportChatWidget from '../../components/chat/SupportChatWidget';
 import { useAuth } from '../../hooks/useAuth';
 
-// --- SWR Fetcher for Admin Users ---
-const usersFetcher = async () => {
-    const res = await api.admin.users.$get();
-    if (!res.ok) throw new Error('Failed to fetch users');
-    return res.json();
-};
+const usersFetcher = () => api.admin.users.$get();
 
 const AdminChatDashboard = () => {
   const { user: adminUser } = useAuth();
-  // --- UPDATED ---
   const { data: users, error } = useSWR<User[]>('/api/admin/users', usersFetcher);
-  // --- END UPDATE ---
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-  if (error) return <div>Failed to load users</div>;
+  if (error) return <div>Failed to load users: {error.message}</div>;
   if (!users) return <div>Loading users...</div>;
   if (!adminUser) return <div>Authenticating...</div>;
-
 
   if (selectedUser) {
     return (
@@ -32,13 +23,13 @@ const AdminChatDashboard = () => {
         <button onClick={() => setSelectedUser(null)} className="btn btn-secondary mb-4">
           &larr; Back to User List
         </button>
-        {/* SupportChatWidget uses WebSockets and does not need changes */}
         <SupportChatWidget user={selectedUser} />
       </div>
     );
   }
 
   return (
+    // ... AdminChatDashboard JSX is unchanged ...
     <div>
       <h1 className="text-2xl font-bold mb-4">Chat with a User</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

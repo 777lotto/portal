@@ -1,9 +1,7 @@
 // frontend/src/components/modals/admin/AddJobModal.tsx
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-// Import the new 'api' client.
 import { api } from '../../../lib/api';
-import { ApiError } from '../../../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 import type { User } from '@portal/shared';
 import { format } from 'date-fns';
 
@@ -15,14 +13,12 @@ interface Props {
   jobType: 'quote' | 'job' | 'invoice';
 }
 
-// A simple interface for the line item state within this component.
 interface LineItemState {
   notes: string;
   total_amount_cents: number;
 }
 
 function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) {
-  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [selecteduserId, setSelectedUserId] = useState<string>('');
   const [lineItems, setLineItems] = useState<LineItemState[]>([{ notes: '', total_amount_cents: 0 }]);
@@ -33,18 +29,16 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
 
   useEffect(() => {
     if (isOpen) {
+      // Reset state on open
       setTitle('');
       setSelectedUserId('');
       setLineItems([{ notes: '', total_amount_cents: 0 }]);
       setError(null);
       setDaysUntilExpiry(7);
+
       const fetchUsers = async () => {
         try {
-          // --- UPDATED ---
-          const res = await api.admin.users.$get();
-          if (!res.ok) throw new Error('Failed to fetch users');
-          const allUsers = await res.json();
-          // --- END UPDATE ---
+          const allUsers = await api.admin.users.$get();
           setUsers(allUsers.filter(u => u.role === 'customer' || u.role === 'guest'));
         } catch (err) {
           setError('Failed to load users.');
@@ -70,8 +64,10 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
   };
 
   const removeLineItem = (index: number) => {
-    const newLineItems = lineItems.filter((_, i) => i !== index);
-    setLineItems(newLineItems);
+    if (lineItems.length > 1) {
+        const newLineItems = lineItems.filter((_, i) => i !== index);
+        setLineItems(newLineItems);
+    }
   };
 
   const handleSubmit = async (action: 'draft' | 'send_proposal' | 'send_invoice' | 'post' | 'send_finalized') => {
@@ -82,14 +78,12 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
     }
     setIsSubmitting(true);
     try {
-      // --- UPDATED ---
-      const res = await api.admin.jobs.$post({
+      await api.admin.jobs.$post({
         json: {
           user_id: selecteduserId,
           jobType,
           title,
           start: selectedDate.toISOString(),
-          // The backend expects 'services' with this shape
           services: lineItems.map(item => ({
               notes: item.notes || '',
               total_amount_cents: item.total_amount_cents || 0
@@ -98,17 +92,15 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
           action: action,
         }
       });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new ApiError(errorData.error || `Failed to create ${jobType}`, res.status);
-      }
-      // --- END UPDATE ---
-
       onSave();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.');
+      if (err instanceof HTTPError) {
+        const errorJson = await err.response.json().catch(() => ({}));
+        setError(errorJson.error || `Failed to create ${jobType}`);
+      } else {
+        setError(err.message || 'An unknown error occurred.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -123,13 +115,13 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
   }[jobType];
 
   return (
+    // ... JSX is unchanged ...
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-tertiary-dark rounded-lg p-6 w-full max-w-2xl max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold">{modalTitle} for {format(selectedDate, 'MMMM do, yyyy')}</h2>
             <button type="button" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl font-bold" onClick={onClose}>&times;</button>
         </div>
-
         <div className="flex-grow overflow-y-auto pr-2">
             {error && <div className="alert alert-danger">{error}</div>}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -170,7 +162,6 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, jobType }: Props) 
             ))}
             <button className="btn btn-secondary mt-1" onClick={addLineItem}>Add Item</button>
         </div>
-
         <div className="pt-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
           {jobType === 'quote' && (

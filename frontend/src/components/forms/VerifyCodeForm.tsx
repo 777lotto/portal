@@ -1,8 +1,8 @@
+// frontend/src/components/forms/VerifyCodeForm.tsx
 import { useState, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-// Import the new 'api' client
 import { api } from '../lib/api';
-import { ApiError } from '../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 import StyledDigitInput from './StyledDigitInput';
 
 function VerifyCodeForm() {
@@ -14,9 +14,7 @@ function VerifyCodeForm() {
   const location = useLocation();
   const identifier = location.state?.identifier;
 
-  // If the user lands here without an identifier, redirect them.
   if (!identifier) {
-    // A simple way to handle this is to show an error and a link back.
     return (
         <div className="container mt-5">
             <div className="alert alert-danger">
@@ -29,31 +27,27 @@ function VerifyCodeForm() {
   const handleSubmit = useCallback(async (submittedCode: string) => {
     setError(null);
     setIsLoading(true);
-
     try {
-      // --- UPDATED ---
-      const res = await api['verify-reset-code'].$post({ json: { identifier, code: submittedCode } });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new ApiError(errorData.error || 'Failed to verify code', res.status);
-      }
-      const response = await res.json();
-      // --- END UPDATE ---
-
+      const response = await api['verify-reset-code'].$post({ json: { identifier, code: submittedCode } });
       if (response.passwordSetToken) {
         navigate('/set-password', { state: { passwordSetToken: response.passwordSetToken }, replace: true });
       } else {
         throw new Error("Verification failed: No token received.");
       }
     } catch (err: any) {
-        setError(err instanceof ApiError ? err.message : 'An unexpected error occurred.');
+        if (err instanceof HTTPError) {
+            const errorJson = await err.response.json().catch(() => ({}));
+            setError(errorJson.error || 'Failed to verify code');
+        } else {
+            setError('An unexpected error occurred.');
+        }
     } finally {
       setIsLoading(false);
     }
   }, [identifier, navigate]);
 
-  // No changes needed to the JSX render logic below
   return (
+    // ... JSX is unchanged ...
     <div className="container mt-5">
       <div className="row justify-content-center">
         <div className="col-md-6">
@@ -74,15 +68,12 @@ function VerifyCodeForm() {
                     format="code"
                   />
                 </div>
-
                 {error && <div className="alert alert-danger">{error}</div>}
-
                 <div className="d-grid">
                   <button type="submit" className="btn btn-primary" disabled={isLoading}>
                     {isLoading ? 'Verifying...' : 'Verify and Continue'}
                   </button>
                 </div>
-
                 <div className="text-center mt-3">
                   <p><Link to="/forgot-password">Request a new code</Link></p>
                 </div>

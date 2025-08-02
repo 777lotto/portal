@@ -1,22 +1,12 @@
 // frontend/src/pages/Dashboard.tsx
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-// Import the new 'api' client.
 import { api } from '../lib/api';
-import { ApiError } from '../lib/fetchJson';
 import type { User, Job, DashboardInvoice } from '@portal/shared';
-
-// Helper function to handle API responses
-async function fetchAndParse<T>(promise: Promise<Response>): Promise<T> {
-    const res = await promise;
-    if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: 'An unknown error occurred' }));
-        throw new ApiError(errorData.error || `Request failed with status ${res.status}`, res.status);
-    }
-    return res.json() as Promise<T>;
-}
+import { HTTPError } from 'hono/client'; // Import Hono's error class
 
 function Dashboard() {
+  // State hooks remain the same
   const [user, setUser] = useState<User | null>(null);
   const [upcomingJobs, setUpcomingJobs] = useState<Job[]>([]);
   const [openInvoices, setOpenInvoices] = useState<DashboardInvoice[]>([]);
@@ -26,22 +16,21 @@ function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
 
-
+  // The handleDownloadPdf function can be simplified slightly, as we don't need ApiError
   const handleDownloadPdf = async (invoiceId: string, invoiceNumber: string | null) => {
     setDownloadingInvoiceId(invoiceId);
     setError(null);
     try {
-      // --- UPDATED ---
-      // This still uses fetch directly because it's handling a blob (file),
-      // but we can use our custom fetchJson wrapper which adds the auth header.
-      // Note: The custom fetchJson needs to be able to handle non-JSON responses.
+      // The Hono client isn't used for file blobs, so direct fetch is correct here.
+      // We add the auth token manually.
       const response = await fetch(`/api/invoices/${invoiceId}/pdf`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem("token")}` }
       });
-      // --- END UPDATE ---
 
       if (!response.ok) {
-        throw new Error('Failed to download invoice. Please try again.');
+        // We can get a more specific error message from the response if available
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to download invoice. Please try again.`);
       }
 
       const blob = await response.blob();
@@ -60,41 +49,50 @@ function Dashboard() {
     }
   };
 
-
   useEffect(() => {
     const loadDashboard = async () => {
       try {
         setIsLoading(true);
         setError(null);
 
-        // --- UPDATED ---
-        const profileData = await fetchAndParse<User>(api.profile.$get());
+        // --- REFACTORED DATA FETCHING ---
+        // The Hono client (`api`) automatically handles parsing JSON and throwing
+        // an `HTTPError` on failure. The `fetchAndParse` helper is no longer needed.
+
+        const profileData = await api.profile.$get();
         setUser(profileData);
 
-        const quotesData = await fetchAndParse<Job[]>(api.quotes.pending.$get());
+        const quotesData = await api.quotes.pending.$get();
         setPendingQuotes(quotesData);
 
         if (profileData.role === 'admin') {
           const [jobsData, invoicesData, draftsData] = await Promise.all([
-            fetchAndParse<Job[]>(api.admin.jobs.$get()),
-            fetchAndParse<DashboardInvoice[]>(api.admin.invoices.open.$get()),
-            fetchAndParse<any[]>(api.admin.drafts.$get()),
+            api.admin.jobs.$get(),
+            api.admin.invoices.open.$get(),
+            api.admin.drafts.$get(),
           ]);
           setUpcomingJobs(jobsData.filter(j => j.status !== 'pending' && j.status !== 'draft').slice(0, 10));
           setOpenInvoices(invoicesData);
           setDrafts(draftsData);
         } else {
           const [jobsData, invoicesData] = await Promise.all([
-            fetchAndParse<Job[]>(api.jobs.$get()),
-            fetchAndParse<DashboardInvoice[]>(api.invoices.open.$get()),
+            api.jobs.$get(),
+            api.invoices.open.$get(),
           ]);
           setUpcomingJobs(jobsData.filter(j => j.status !== 'pending' && j.status !== 'draft').slice(0, 5));
           setOpenInvoices(invoicesData);
         }
-        // --- END UPDATE ---
 
       } catch (err: any) {
-        setError(err.message);
+        // --- REFACTORED ERROR HANDLING ---
+        if (err instanceof HTTPError) {
+          // If it's an HTTPError from Hono, we can get the error message from the response body
+          const errorJson = await err.response.json();
+          setError(errorJson.error || 'An error occurred.');
+        } else {
+          // For any other type of error
+          setError(err.message);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -102,8 +100,9 @@ function Dashboard() {
     loadDashboard();
   }, []);
 
+  // The JSX part of the component remains unchanged
   if (isLoading) return <div className="text-center p-8">Loading dashboard...</div>;
-  if (error) return <div className="rounded-md bg-event-red/10 p-4 text-sm text-event-red">{error}</div>;
+  if (error) return <div className="rounded-md bg-red-500/10 p-4 text-sm text-red-500">{error}</div>;
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -115,7 +114,8 @@ function Dashboard() {
           </Link>
         )}
       </header>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* ... rest of the JSX is the same ... */}
+       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="card p-6">
           <h3 className="text-xl font-semibold mb-4 text-text-primary-light dark:text-text-primary-dark">
             {user?.role === 'admin' ? "All Upcoming Jobs" : "Your Upcoming Jobs"}
@@ -188,7 +188,7 @@ function Dashboard() {
                       </div>
                       {invoice.due_date && <small className="text-text-secondary-light dark:text-text-secondary-dark">Due: {new Date(invoice.due_date * 1000).toLocaleDateString()}</small>}
                     </Link>
-                    {user?.role === 'customer' && (
+                    {user?.role !== 'admin' && (
                       <button
                         onClick={() => handleDownloadPdf(invoice.id, invoice.number)}
                         className="btn btn-secondary ml-4"

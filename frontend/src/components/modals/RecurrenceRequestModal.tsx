@@ -1,5 +1,7 @@
+// frontend/src/components/modals/RecurrenceRequestModal.tsx
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
+import { HTTPError } from 'hono/client';
 import type { Job } from '@portal/shared';
 
 interface Props {
@@ -10,18 +12,15 @@ interface Props {
 }
 
 const weekDays = [
-	{ label: 'Sunday', value: 0 },
-	{ label: 'Monday', value: 1 },
-	{ label: 'Tuesday', value: 2 },
-	{ label: 'Wednesday', value: 3 },
-	{ label: 'Thursday', value: 4 },
-	{ label: 'Friday', value: 5 },
+	{ label: 'Sunday', value: 0 }, { label: 'Monday', value: 1 },
+	{ label: 'Tuesday', value: 2 }, { label: 'Wednesday', value: 3 },
+	{ label: 'Thursday', value: 4 }, { label: 'Friday', value: 5 },
 	{ label: 'Saturday', value: 6 },
 ];
 
 function RecurrenceRequestModal({ isOpen, onClose, job, onSuccess }: Props) {
 	const [frequency, setFrequency] = useState(30);
-	const [requestedDay, setRequestedDay] = useState<number | undefined>(new Date(job.start_time).getDay());
+	const [requestedDay, setRequestedDay] = useState<number | undefined>(new Date(job.start).getDay());
 	const [unavailableDays, setUnavailableDays] = useState<number[]>([]);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -30,11 +29,7 @@ function RecurrenceRequestModal({ isOpen, onClose, job, onSuccess }: Props) {
 		if (isOpen) {
 			const fetchUnavailableDays = async () => {
 				try {
-					const res = await api.jobs.recurrence['unavailable-days'].$get();
-					if (!res.ok) {
-						throw new Error('Failed to fetch unavailable days.');
-					}
-					const data = await res.json();
+					const data = await api.jobs.recurrence['unavailable-days'].$get();
 					setUnavailableDays(data.unavailableDays || []);
 				} catch (err) {
 					console.error(err);
@@ -50,22 +45,19 @@ function RecurrenceRequestModal({ isOpen, onClose, job, onSuccess }: Props) {
 		setError(null);
 		setIsSubmitting(true);
 		try {
-			const res = await api.jobs.recurrence.request[':id'].$post({
+			await api.jobs.recurrence.request[':id'].$post({
 				param: { id: job.id.toString() },
-				json: {
-					frequency,
-					requested_day: requestedDay,
-				},
+				json: { frequency, requested_day: requestedDay },
 			});
-
-			if (!res.ok) {
-				const errorData = await res.json();
-				throw new Error(errorData.message || 'Failed to submit recurrence request.');
-			}
 			onSuccess();
 			onClose();
 		} catch (err: any) {
-			setError(err.message || 'An unknown error occurred.');
+            if (err instanceof HTTPError) {
+                const errorJson = await err.response.json().catch(() => ({}));
+                setError(errorJson.error || 'Failed to submit recurrence request.');
+            } else {
+			    setError(err.message || 'An unknown error occurred.');
+            }
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -74,6 +66,7 @@ function RecurrenceRequestModal({ isOpen, onClose, job, onSuccess }: Props) {
 	if (!isOpen) return null;
 
 	return (
+        // ... JSX is unchanged ...
 		<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
 			<div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl">
 				<h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">Request Recurrence for "{job.title}"</h2>

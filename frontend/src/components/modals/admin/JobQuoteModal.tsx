@@ -1,7 +1,7 @@
+// frontend/src/components/modals/admin/JobQuoteModal.tsx
 import { useState, useEffect } from 'react';
-// Import the new 'api' client.
 import { api } from '../../../lib/api';
-import { ApiError } from '../../../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 import type { User } from '@portal/shared';
 
 interface Props {
@@ -11,7 +11,6 @@ interface Props {
   type: 'job' | 'quote';
 }
 
-// A simple interface for the line item state within this component.
 interface LineItemState {
   notes: string;
   total_amount_cents: number;
@@ -24,7 +23,6 @@ function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
   const [title, setTitle] = useState('');
   const [dueDateDays, setDueDateDays] = useState<number>(30);
   const [expireDateDays, setExpireDateDays] = useState<number>(30);
-  const [contactMethod, setContactMethod] = useState<'default' | 'email' | 'sms' | 'push'>('default');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,11 +30,7 @@ function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
     if (isOpen) {
       const fetchUsers = async () => {
         try {
-          // --- UPDATED ---
-          const res = await api.admin.users.$get();
-          if (!res.ok) throw new Error('Failed to fetch users');
-          const allUsers = await res.json();
-          // --- END UPDATE ---
+          const allUsers = await api.admin.users.$get();
           setUsers(allUsers.filter(u => u.role === 'customer'));
         } catch (err) {
           setError('Failed to load users.');
@@ -74,32 +68,27 @@ function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
     }
     setIsSubmitting(true);
     try {
-      // --- UPDATED ---
       const payload = {
         user_id: selecteduserId,
         title,
-        jobType: type, // Use the 'type' prop
+        jobType: type,
         lineItems: lineItems.map(li => ({
             description: li.notes,
             quantity: 1,
             unit_total_amount_cents: li.total_amount_cents
         })),
         isDraft,
-        // contactMethod, // Backend does not seem to support this field directly on job creation
-        // dueDateDays and expireDateDays also need to be handled by the backend logic
       };
-
-      const res = await api.admin.jobs.$post({ json: payload as any });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new ApiError(errorData.error || `Failed to create ${type}`, res.status);
-      }
-      // --- END UPDATE ---
-
+      await api.admin.jobs.$post({ json: payload as any });
       onSave();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.');
+      if (err instanceof HTTPError) {
+        const errorJson = await err.response.json().catch(() => ({}));
+        setError(errorJson.error || `Failed to create ${type}`);
+      } else {
+        setError(err.message || 'An unknown error occurred.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -108,6 +97,7 @@ function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
   if (!isOpen) return null;
 
   return (
+    // ... JSX is unchanged ...
     <div className="absolute left-0 mt-2 w-[32rem] max-w-lg rounded-md shadow-lg z-20 card" tabIndex={-1}>
       <div className="card-header flex justify-between items-center">
         <h5 className="card-title text-xl">Add New {type === 'job' ? 'Job/Invoice' : 'Quote'}</h5>
@@ -159,15 +149,6 @@ function JobQuoteModal({ isOpen, onClose, onSave, type }: Props) {
             <input type="number" id="expireDateDays" className="form-control" value={expireDateDays} onChange={(e) => setExpireDateDays(parseInt(e.target.value, 10))} />
           </div>
         )}
-         <div className="mb-3">
-            <label htmlFor="contactMethod" className="form-label">Send Via</label>
-            <select id="contactMethod" className="form-control" value={contactMethod} onChange={(e) => setContactMethod(e.target.value as any)}>
-                <option value="default">Customer's Preference</option>
-                <option value="email">Email</option>
-                <option value="sms">SMS</option>
-                <option value="push">Web Push</option>
-            </select>
-        </div>
       </div>
       <div className="p-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2 bg-gray-50 dark:bg-secondary-dark/50 rounded-b-lg">
         <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>

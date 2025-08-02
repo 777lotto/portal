@@ -1,9 +1,8 @@
 // frontend/src/components/chat/SMSConversations.tsx
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-// Import the new 'api' client.
 import { api } from '../../lib/api';
-import { ApiError } from '../../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 import type { Conversation } from '@portal/shared';
 
 function SMSConversations() {
@@ -16,19 +15,15 @@ function SMSConversations() {
       try {
         setIsLoading(true);
         setError(null);
-
-        // --- UPDATED ---
-        const res = await api.sms.conversations.$get();
-        if (!res.ok) {
-          const errorData = await res.json();
-          throw new ApiError(errorData.error || 'Failed to fetch conversations', res.status);
-        }
-        const data = await res.json();
-        // --- END UPDATE ---
-
+        const data = await api.sms.conversations.$get();
         setConversations(data);
       } catch (err: any) {
-        setError(err.message);
+        if (err instanceof HTTPError) {
+            const errorJson = await err.response.json().catch(() => ({}));
+            setError(errorJson.error || 'Failed to fetch conversations');
+        } else {
+            setError(err.message || 'An unknown error occurred.');
+        }
       } finally {
         setIsLoading(false);
       }

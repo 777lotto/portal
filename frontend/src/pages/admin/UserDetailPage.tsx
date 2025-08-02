@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+// frontend/src/pages/admin/UserDetailPage.tsx
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-// Import the new 'api' client.
 import { api } from '../../lib/api';
-import { ApiError } from '../../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 import type { User, StripeInvoice } from '@portal/shared';
-// import { InvoiceEditor } from './InvoiceEditor'; // This component was not provided
 
 type Message = { type: 'success' | 'danger'; text: string; };
 
@@ -13,19 +12,23 @@ export function UserDetailPage() {
   const [user, setUser] = useState<User | null>(null);
   const [message, setMessage] = useState<Message | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeInvoice, setActiveInvoice] = useState<StripeInvoice | null>(null);
+
+  const handleApiError = async (err: any, defaultMessage: string) => {
+    if (err instanceof HTTPError) {
+        const errorJson = await err.response.json().catch(() => ({}));
+        setMessage({ type: 'danger', text: errorJson.error || defaultMessage });
+    } else {
+        setMessage({ type: 'danger', text: err.message || defaultMessage });
+    }
+  };
 
   const fetchData = useCallback(async () => {
     if (!user_id) return;
     try {
-      // --- UPDATED ---
-      const res = await api.admin.users[':user_id'].$get({ param: { user_id } });
-      if (!res.ok) throw new Error('Failed to fetch user data');
-      const userData = await res.json();
-      // --- END UPDATE ---
+      const userData = await api.admin.users[':user_id'].$get({ param: { user_id } });
       setUser(userData);
-    } catch (err: any)      {
-      setMessage({ type: 'danger', text: `Failed to fetch user data: ${err.message}` });
+    } catch (err) {
+      handleApiError(err, 'Failed to fetch user data');
     }
   }, [user_id]);
 
@@ -33,21 +36,16 @@ export function UserDetailPage() {
     fetchData();
   }, [fetchData]);
 
-  // These handlers were in the original file but not fully implemented.
-  // They are preserved here for you to connect to your UI/modals.
   const handleCreateInvoiceClick = async () => {
     if (!user_id) return;
     setIsSubmitting(true);
     setMessage(null);
     try {
-        // Example of how this might be implemented:
-        // const res = await api.admin.users[':user_id'].invoices.$post({ param: { user_id } });
-        // const { invoice } = await res.json();
-        // setActiveInvoice(invoice);
-        // fetchData(); // or mutate
+        await api.admin.users[':user_id'].invoices.$post({ param: { user_id } });
         setMessage({ type: 'success', text: 'Draft invoice created!' });
-    } catch (err: any) {
-        setMessage({ type: 'danger', text: `Failed to create invoice: ${err.message}` });
+        fetchData(); // Re-fetch to show new data if needed
+    } catch (err) {
+        handleApiError(err, 'Failed to create invoice');
     } finally {
         setIsSubmitting(false);
     }
@@ -58,25 +56,22 @@ export function UserDetailPage() {
       setIsSubmitting(true);
       setMessage(null);
       try {
-          // const res = await api.admin.users[':user_id'].invoices.import.$post({ param: { user_id } });
-          // const result = await res.json();
-          // setMessage({ type: 'success', text: `Imported ${result.imported} invoices.` });
-          // fetchData(); // or mutate
-      } catch (err: any) {
-          setMessage({ type: 'danger', text: `Failed to import invoices: ${err.message}` });
+          const result = await api.admin.users[':user_id'].invoices.import.$post({ param: { user_id } });
+          setMessage({ type: 'success', text: `Imported ${result.imported} invoices.` });
+          fetchData();
+      } catch (err) {
+          handleApiError(err, 'Failed to import invoices');
       } finally {
           setIsSubmitting(false);
       }
   };
 
-  if (!user) {
-    return <div className="text-center p-8">Loading user details...</div>;
-  }
+  if (!user) return <div className="text-center p-8">Loading user details...</div>;
 
   return (
+    // ... UserDetailPage JSX is unchanged ...
     <div className="container-fluid p-4">
       {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
-
       <div className="card">
         <div className="card-header">
             <h1 className="text-2xl font-bold">{user.company_name || user.name}</h1>
@@ -92,9 +87,7 @@ export function UserDetailPage() {
                     {isSubmitting ? 'Importing...' : 'Import from Stripe'}
                 </button>
             </div>
-
             <hr />
-
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
               <div className="card bg-gray-50 dark:bg-gray-800">
                 <div className="card-body">
@@ -105,7 +98,6 @@ export function UserDetailPage() {
                   </div>
                 </div>
               </div>
-
               <div className="card bg-gray-50 dark:bg-gray-800">
                 <div className="card-body">
                   <h2 className="card-title">Photos</h2>
@@ -115,7 +107,6 @@ export function UserDetailPage() {
                   </div>
                 </div>
               </div>
-
               <div className="card bg-gray-50 dark:bg-gray-800">
                 <div className="card-body">
                   <h2 className="card-title">Notes</h2>
@@ -128,7 +119,6 @@ export function UserDetailPage() {
             </div>
         </div>
       </div>
-      {/* {activeInvoice && <InvoiceEditor invoice={activeInvoice} onClose={() => setActiveInvoice(null)} onUpdate={fetchData} />} */}
     </div>
   );
 }

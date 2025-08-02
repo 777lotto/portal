@@ -1,8 +1,7 @@
 // frontend/src/components/modals/admin/EditUserModal.tsx
 import { useState, useEffect } from 'react';
-// Import the new 'api' client.
 import { api } from '../../../lib/api';
-import { ApiError } from '../../../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 import type { User } from '@portal/shared';
 
 interface Props {
@@ -14,12 +13,8 @@ interface Props {
 
 function EditUserModal({ isOpen, onClose, onUserUpdated, user }: Props) {
   const [formData, setFormData] = useState({
-    name: '',
-    company_name: '',
-    email: '',
-    phone: '',
-    address: '',
-    role: 'customer'
+    name: '', company_name: '', email: '',
+    phone: '', address: '', role: 'customer'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,12 +22,9 @@ function EditUserModal({ isOpen, onClose, onUserUpdated, user }: Props) {
   useEffect(() => {
     if (user) {
       setFormData({
-        name: user.name || '',
-        company_name: user.company_name || '',
-        email: user.email || '',
-        phone: user.phone || '',
-        address: user.address || '',
-        role: user.role || 'customer'
+        name: user.name || '', company_name: user.company_name || '',
+        email: user.email || '', phone: user.phone || '',
+        address: user.address || '', role: user.role || 'customer'
       });
     }
   }, [user, isOpen]);
@@ -44,35 +36,26 @@ function EditUserModal({ isOpen, onClose, onUserUpdated, user }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    // Create a payload with only the fields that have values.
-    const payload: Partial<User> = {};
-    if (formData.name) payload.name = formData.name;
-    if (formData.company_name) payload.company_name = formData.company_name;
-    if (formData.email) payload.email = formData.email;
-    if (formData.phone) payload.phone = formData.phone;
-    if (formData.address) payload.address = formData.address;
-    if (formData.role) payload.role = formData.role as User['role'];
+    const payload: Partial<User> = Object.fromEntries(
+        Object.entries(formData).filter(([, value]) => value !== '')
+    );
+    payload.role = formData.role as User['role'];
 
     setIsSubmitting(true);
     try {
-      // --- UPDATED ---
-      const res = await api.admin.users[':user_id'].$put({
+      const updatedUser = await api.admin.users[':user_id'].$put({
         param: { user_id: user.id.toString() },
         json: payload
       });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new ApiError(errorData.error || 'Failed to update user', res.status);
-      }
-      const updatedUser = await res.json();
-      // --- END UPDATE ---
-
       onUserUpdated(updatedUser);
       onClose();
     } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.');
+      if (err instanceof HTTPError) {
+        const errorJson = await err.response.json().catch(() => ({}));
+        setError(errorJson.error || 'Failed to update user');
+      } else {
+        setError(err.message || 'An unknown error occurred.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -81,6 +64,7 @@ function EditUserModal({ isOpen, onClose, onUserUpdated, user }: Props) {
   if (!isOpen) return null;
 
   return (
+    // ... JSX is unchanged ...
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-tertiary-dark rounded-lg shadow-xl w-full max-w-lg">
         <form onSubmit={handleSubmit}>

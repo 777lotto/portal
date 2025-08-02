@@ -1,17 +1,9 @@
-/* ========================================================================
-                            IMPORTS & TYPES
-   ======================================================================== */
 import { useState, useEffect, useMemo } from 'react';
-// Import the new 'api' client.
 import { api } from '../lib/api';
 import { subscribeUser, unsubscribeUser } from '../lib/push';
 import type { User, PaymentMethod } from '@portal/shared';
-import { ApiError } from '../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
-
-/* ========================================================================
-                               COMPONENT
-   ======================================================================== */
 
 const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
     const stripe = useStripe();
@@ -44,35 +36,30 @@ const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
         event.preventDefault();
         if (!stripe || !elements) return;
         setIsProcessing(true);
+        setError(null);
 
-        // --- UPDATED ---
-        const intentRes = await api.profile['setup-intent'].$post({});
-        if (!intentRes.ok) {
-            setError('Could not create setup intent.');
-            setIsProcessing(false);
-            return;
-        }
-        const { clientSecret } = await intentRes.json();
-        // --- END UPDATE ---
+        try {
+            const { clientSecret } = await api.profile['setup-intent'].$post({});
+            const cardElement = elements.getElement(CardElement);
+            if (!cardElement) throw new Error("Card element not found");
 
-        const cardElement = elements.getElement(CardElement);
-        if (!cardElement) {
-            setError("Card element not found");
-            setIsProcessing(false);
-            return;
-        }
+            const { error: stripeError } = await stripe.confirmCardSetup(clientSecret, {
+                payment_method: { card: cardElement },
+            });
 
-        const { error, setupIntent } = await stripe.confirmCardSetup(clientSecret, {
-            payment_method: { card: cardElement },
-        });
+            if (stripeError) throw stripeError;
 
-        if (error) {
-            setError(error.message || 'An unexpected error occurred.');
-        } else {
-            setError(null);
             onSuccessfulAdd();
+        } catch (err: any) {
+            if (err instanceof HTTPError) {
+                const errorJson = await err.response.json();
+                setError(errorJson.error || 'Could not create setup intent.');
+            } else {
+                setError(err.message || 'An unexpected error occurred.');
+            }
+        } finally {
+            setIsProcessing(false);
         }
-        setIsProcessing(false);
     };
 
     return (
@@ -89,9 +76,6 @@ const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
 };
 
 function AccountPage() {
-/* ========================================================================
-                                 STATE
-   ======================================================================== */
   const [user, setUser] = useState<User | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [showAddPaymentMethod, setShowAddPaymentMethod] = useState(false);
@@ -112,31 +96,29 @@ function AccountPage() {
   const [passwordMessage, setPasswordMessage] = useState<{type: 'success'|'danger', text: string} | null>(null);
   const [isSendingCode, setIsSendingCode] = useState(false);
 
-/* ========================================================================
-                                EFFECTS
-   ======================================================================== */
-  const fetchPaymentMethods = async () => {
+  const handleApiError = async (err: any, defaultMessage: string, setter: (msg: string) => void) => {
+      if (err instanceof HTTPError) {
+          const errorJson = await err.response.json();
+          setter(errorJson.error || defaultMessage);
+      } else {
+          setter(err.message || defaultMessage);
+      }
+  };
+
+  const fetchPaymentMethods = useCallback(async () => {
     try {
-        // --- UPDATED ---
-        const res = await api.profile['payment-methods'].$get();
-        if (!res.ok) throw new Error('Failed to fetch payment methods');
-        const methods = await res.json();
-        // --- END UPDATE ---
+        const methods = await api.profile['payment-methods'].$get();
         setPaymentMethods(methods);
     } catch (err: any) {
-        setError(err.message);
+        handleApiError(err, 'Failed to fetch payment methods', setError);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         setIsLoading(true);
-        // --- UPDATED ---
-        const profileRes = await api.profile.$get();
-        if (!profileRes.ok) throw new Error('Failed to fetch profile');
-        const profileData = await profileRes.json();
-        // --- END UPDATE ---
+        const profileData = await api.profile.$get();
         setUser(profileData);
         setFormData({
             name: profileData.name,
@@ -149,7 +131,7 @@ function AccountPage() {
         });
         fetchPaymentMethods();
       } catch (err: any) {
-        setError(err.message);
+        handleApiError(err, 'Failed to fetch profile', setError);
       } finally {
         setIsLoading(false);
       }
@@ -164,19 +146,8 @@ function AccountPage() {
         });
       });
     }
-  }, []);
+  }, [fetchPaymentMethods]);
 
-  useEffect(() => {
-    if (formData.preferred_contact_method === 'email' && !formData.email_notifications_enabled) {
-        setFormData(prev => ({ ...prev, email_notifications_enabled: true }));
-    } else if (formData.preferred_contact_method === 'sms' && !formData.sms_notifications_enabled) {
-        setFormData(prev => ({ ...prev, sms_notifications_enabled: true }));
-    }
-  }, [formData.preferred_contact_method, formData.email_notifications_enabled, formData.sms_notifications_enabled]);
-
-/* ========================================================================
-                                HANDLERS
-   ======================================================================== */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const isCheckbox = type === 'checkbox';
@@ -190,17 +161,11 @@ function AccountPage() {
     setSuccess(null);
     try {
       const payload = { ...formData, calendar_reminder_minutes: Number(formData.calendar_reminder_minutes) };
-      // --- UPDATED ---
-      const res = await api.profile.$put({ json: payload });
-      if (!res.ok) throw new Error('Failed to update profile');
-      const updatedUser = await res.json();
-      // --- END UPDATE ---
+      const updatedUser = await api.profile.$put({ json: payload });
       setUser(updatedUser);
       setSuccess('Profile and notification settings saved!');
-      setTimeout(() => setSuccess(null), 5000);
     } catch (err: any) {
-      setError(err.message);
-      setTimeout(() => setError(null), 5000);
+      handleApiError(err, 'Failed to update profile', setError);
     }
   };
 
@@ -216,19 +181,11 @@ function AccountPage() {
     }
     setPasswordMessage(null);
     try {
-        // --- UPDATED ---
-        const res = await api.profile['change-password'].$post({ json: passwordData });
-        if (!res.ok) {
-            const errorData = await res.json();
-            throw new ApiError(errorData.error || 'Failed to change password', res.status);
-        }
-        // --- END UPDATE ---
+        await api.profile['change-password'].$post({ json: passwordData });
         setPasswordMessage({type: 'success', text: 'Password changed successfully!'});
         setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-        setTimeout(() => setPasswordMessage(null), 5000);
     } catch (err: any) {
-        setPasswordMessage({type: 'danger', text: err instanceof ApiError ? err.message : 'An unexpected error occurred.'});
-        setTimeout(() => setPasswordMessage(null), 5000);
+        handleApiError(err, 'An unexpected error occurred.', (msg) => setPasswordMessage({type: 'danger', text: msg}));
     }
   };
 
@@ -242,13 +199,10 @@ function AccountPage() {
     setIsSendingCode(true);
     setPasswordMessage(null);
     try {
-        // --- UPDATED ---
-        const res = await api['request-password-reset'].$post({ json: { identifier, channel } });
-        if (!res.ok) throw new Error('Failed to send reset code');
-        // --- END UPDATE ---
+        await api['request-password-reset'].$post({ json: { identifier, channel } });
         setPasswordMessage({type: 'success', text: `A verification code has been sent. Please use the "Forgot Password" option on the login page to complete the password change.`})
     } catch (err: any) {
-        setPasswordMessage({type: 'danger', text: (err as Error).message});
+        handleApiError(err, 'Failed to send reset code', (msg) => setPasswordMessage({type: 'danger', text: msg}));
     } finally {
         setIsSendingCode(false);
     }
@@ -267,20 +221,16 @@ function AccountPage() {
         setPushState(prev => ({ ...prev, isSubscribed: true }));
         setSuccess("Successfully subscribed to web notifications!");
       }
-      setTimeout(() => setSuccess(null), 5000);
     } catch (err: any) {
       setError(err.message || "An error occurred with push notifications.");
-       setTimeout(() => setError(null), 5000);
     }
   };
 
-/* ========================================================================
-                             RENDER LOGIC
-   ======================================================================== */
   if (isLoading) return <div className="text-center p-8">Loading account details...</div>;
   if (error && !user) return <div className="alert alert-danger">{error}</div>;
 
   return (
+    // ... JSX is unchanged ...
     <div className="container max-w-7xl mx-auto mt-4">
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold">Account Settings</h1>
@@ -329,7 +279,7 @@ function AccountPage() {
                 </div>
             </div>
 
-              {user?.role === 'customer' && (
+              {user?.role !== 'admin' && (
                   <div className="card">
                       <div className="card-header"><h2 className="card-title text-xl">Payment Methods</h2></div>
                       <div className="card-body">
@@ -442,7 +392,4 @@ function AccountPage() {
   );
 }
 
-/* ========================================================================
-                                EXPORT
-   ======================================================================== */
 export default AccountPage;

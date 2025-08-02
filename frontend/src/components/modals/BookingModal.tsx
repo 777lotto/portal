@@ -1,8 +1,8 @@
+// frontend/src/components/modals/BookingModal.tsx
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-// Import the new 'api' client.
 import { api } from '../../lib/api';
-import { ApiError } from '../../lib/fetchJson';
+import { HTTPError } from 'hono/client';
 import { format } from 'date-fns';
 import StyledDigitInput from '../forms/StyledDigitInput';
 import type { User, LineItem } from '@portal/shared';
@@ -33,26 +33,15 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
     if (isOpen) {
       if (user) {
         setFormData({
-          name: user.name || '',
-          email: user.email || '',
-          phone: user.phone || '',
-          address: user.address || '',
+          name: user.name || '', email: user.email || '',
+          phone: user.phone || '', address: user.address || '',
         });
       }
 
       const fetchLineItems = async () => {
         try {
-          // --- UPDATED ---
-          // NOTE: Your backend 'worker/src/index.ts' does not seem to have a public
-          // endpoint for '/api/line-items'. I am assuming one will be added.
-          // The RPC call would look like this:
-          const res = await api['line-items'].$get();
-          if (!res.ok) {
-            throw new Error('Failed to load services');
-          }
-          const lineItems = await res.json();
-          // --- END UPDATE ---
-
+          // Assuming a public endpoint for line items exists or will be created.
+          const lineItems = await api['line-items'].$get();
           setLineItemOptions(lineItems);
         } catch (err) {
           setError('Failed to load services. Please try again.');
@@ -61,15 +50,11 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
       fetchLineItems();
 
       if (!user) {
-        window.onTurnstileSuccess = (token: string) => {
-          setTurnstileToken(token);
-        };
+        window.onTurnstileSuccess = (token: string) => setTurnstileToken(token);
       }
     }
     return () => {
-      if (!user) {
-        delete window.onTurnstileSuccess;
-      }
+      if (!user) delete window.onTurnstileSuccess;
     };
   }, [isOpen, user]);
 
@@ -85,6 +70,24 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const handleApiError = async (err: any) => {
+    if (err instanceof HTTPError) {
+        const errorJson = await err.response.json().catch(() => ({}));
+        // Preserve special logic for existing users trying to book publicly
+        if (err.response.status === 409 && errorJson.details?.code === 'LOGIN_REQUIRED') {
+            setError(
+              <span>
+                An account already exists with this information. Please <Link to="/auth" className="text-blue-600 font-bold">log in</Link> to book.
+              </span>
+            );
+        } else {
+            setError(errorJson.error || 'An unknown error occurred.');
+        }
+    } else {
+        setError(err.message || 'An unknown error occurred.');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedLineItems.length === 0) {
@@ -95,29 +98,21 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
       setError("Please wait for the security check to complete.");
       return;
     }
-
     setError('');
     setSuccess('');
     setIsSubmitting(true);
 
     try {
       if (user) {
-        // --- UPDATED: Logic for existing customer ---
-        const res = await api.jobs.$post({
+        await api.jobs.$post({
           json: {
             title: selectedLineItems.map(s => s.description).join(', '),
             lineItems: selectedLineItems.map(s => ({ id: s.id, description: s.description, quantity: s.quantity, unit_total_amount_cents: s.unit_total_amount_cents })),
           }
         });
-        if (!res.ok) {
-            const errorData = await res.json();
-            throw new ApiError(errorData.error || 'Failed to create job', res.status);
-        }
-        // --- END UPDATE ---
         setSuccess('Your booking has been scheduled!');
       } else {
-        // --- UPDATED: Logic for public booking ---
-        const res = await api.public.booking.$post({
+        await api.public.booking.$post({
             json: {
                 ...formData,
                 date: format(selectedDate, 'yyyy-MM-dd'),
@@ -125,15 +120,6 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
                 'cf-turnstile-response': turnstileToken,
             }
         });
-        if (!res.ok) {
-            const errorData = await res.json();
-            // Preserve the special error case for existing users
-            if (res.status === 409 && errorData.details?.code === 'LOGIN_REQUIRED') {
-                 throw new ApiError(errorData.message, res.status, errorData.details);
-            }
-            throw new ApiError(errorData.error || 'Failed to create booking request', res.status);
-        }
-        // --- END UPDATE ---
         setSuccess('Your booking request has been sent! We will contact you shortly to confirm.');
       }
 
@@ -142,16 +128,8 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
         setSuccess('');
         if(!user) setTurnstileToken('');
       }, 3000);
-    } catch (err: any) {
-      if (err instanceof ApiError && err.details?.code === 'LOGIN_REQUIRED') {
-        setError(
-          <span>
-            An account already exists with this information. Please <Link to="/auth" className="text-event-blue font-bold">log in</Link> to book.
-          </span>
-        );
-      } else {
-        setError(err.message || 'An unknown error occurred.');
-      }
+    } catch (err) {
+      handleApiError(err);
     } finally {
       setIsSubmitting(false);
     }
@@ -160,12 +138,12 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
   if (!isOpen) return null;
 
   return (
+    // ... JSX is unchanged ...
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-tertiary-dark rounded-lg p-6 w-full max-w-lg max-h-full overflow-y-auto">
         <h2 className="text-2xl font-bold mb-4">Request Booking for {format(selectedDate, 'MMMM do, yyyy')}</h2>
         {error && <div className="alert alert-danger">{error}</div>}
         {success && <div className="alert alert-success">{success}</div>}
-
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
             <label className="font-bold">Services</label>
@@ -178,11 +156,9 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
               ))}
             </div>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <input name="name" placeholder="Full Name" value={formData.name} onChange={handleChange} className="form-control" required readOnly={!!user} />
             <input name="email" type="email" placeholder="Email Address" value={formData.email} onChange={handleChange} className="form-control" required readOnly={!!user} />
-
             <div className="md:col-span-2">
               <StyledDigitInput
                 id="phone"
@@ -194,14 +170,11 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
                 autoComplete="tel"
               />
             </div>
-
             <input name="address" placeholder="Service Address" value={formData.address} onChange={handleChange} className="form-control md:col-span-2" required readOnly={!!user} />
           </div>
-
           {!user && (
             <div className="mb-3 flex justify-center" id="turnstile-container"></div>
           )}
-
           <div className="flex justify-end space-x-4">
             <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={isSubmitting || (!user && !turnstileToken)}>
