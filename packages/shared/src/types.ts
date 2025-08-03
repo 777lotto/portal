@@ -28,10 +28,10 @@ export type User = z.infer<typeof UserSchema>;
 // Defines a line item record, matching the database schema.
 export const LineItemSchema = z.object({
   id: z.number(),
-  job_id: z.string(),
+  jobId: z.string(),
   description: z.string(),
   quantity: z.number(),
-  unit_total_amount_cents: z.number(),
+  unitTotalAmountCents: z.number(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -47,23 +47,27 @@ export const JobStatusEnum = z.enum([
   'canceled',
   'quote_draft',
   'invoice_draft',
-  'job_draft'
+  'job_draft',
+  'quote_sent',
+  'scheduled',
+  'invoiced',
+  'draft'
 ]);
 export type JobStatus = z.infer<typeof JobStatusEnum>;
 
 // This resolves the majority of the frontend errors.
 export const JobSchema = z.object({
   id: z.string(), // TEXT (UUID)
-  user_id: z.string(), // TEXT (Corresponds to users.auth_user_id)
+  userId: z.string(), // TEXT (Corresponds to users.auth_user_id)
   title: z.string(),
   description: z.string().nullable(),
   status: z.string(),
-  recurrence: z.string(),
+  recurrence: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
-  stripe_invoice_id: z.string().nullable(),
-  stripe_quote_id: z.string().nullable(),
-  total_amount_cents: z.number().int().nullable(),
+  stripeInvoiceId: z.string().nullable(),
+  stripeQuoteId: z.string().nullable(),
+  totalAmountCents: z.number().int().nullable(),
   due: z.string().nullable(),
 });
 export type Job = z.infer<typeof JobSchema>;
@@ -88,8 +92,8 @@ export const CreateJobPayloadSchema = z.object({
 
 export const JobRecurrenceRequestSchema = z.object({
     id: z.number(),
-    job_id: z.string(),
-    user_id: z.number(),
+    jobId: z.string(),
+    userId: z.number(),
     frequency: z.number(),
     requested_day: z.number().optional(),
     status: z.enum(['pending', 'accepted', 'declined', 'countered']),
@@ -99,7 +103,7 @@ export const JobRecurrenceRequestSchema = z.object({
 export type JobRecurrenceRequest = z.infer<typeof JobRecurrenceRequestSchema>;
 
 export interface JobWithDetails extends Job {
-  line_items: LineItem[];
+  lineItems: LineItem[];
   customerName: string;
   customerAddress: string;
   recurrence_requests?: {
@@ -129,7 +133,7 @@ export const PhotoSchema = z.object({
     id: z.string(),
     url: z.string().url(),
     createdAt: z.string(),
-    job_id: z.string().optional().nullable(),
+    jobId: z.string().optional().nullable(),
 });
 export type Photo = z.infer<typeof PhotoSchema>;
 
@@ -159,8 +163,8 @@ export type PhotoWithNotes = z.infer<typeof PhotoWithNotesSchema>;
   start: z.string(),
   end: z.string(),
   type: z.enum(['job', 'blocked', 'personal']),
-  job_id: z.string().optional().nullable(),
-  user_id: z.number().optional().nullable(),
+  jobId: z.string().optional().nullable(),
+  userId: z.number().optional().nullable(),
   createdAt: z.string(),
 });
  export type CalendarEvent = z.infer<typeof CalendarEventSchema>;
@@ -180,6 +184,16 @@ export type PhotoWithNotes = z.infer<typeof PhotoWithNotesSchema>;
   path: ["email"],
 });
 export type AdminCreateUser = z.infer<typeof AdminCreateUserSchema>;
+
+
+// --- ADDED: Schema for validating pagination and search query parameters ---
+export const PaginationSearchQuerySchema = z.object({
+  page: z.preprocess((val) => Number(val), z.number().min(1).default(1)),
+  limit: z.preprocess((val) => Number(val), z.number().min(1).max(100).default(10)),
+  status: JobStatusEnum.optional(),
+  search: z.string().optional(),
+});
+
 
  /* ========================================================================
                               STRIPE-SPECIFIC MODELS
@@ -212,7 +226,7 @@ export const StripeInvoiceSchema = z.object({
 export type StripeInvoice = z.infer<typeof StripeInvoiceSchema>;
 
 export const DashboardInvoiceSchema = StripeInvoiceSchema.extend({
-    user_id: z.number().optional(),
+    userId: z.number().optional(),
     customerName: z.string().optional(),
 });
 export type DashboardInvoice = z.infer<typeof DashboardInvoiceSchema>;
