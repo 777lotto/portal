@@ -1,58 +1,76 @@
-// frontend/src/components/chat/SMSConversations.tsx
-import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { HTTPException } from 'hono/http-exception';
 import type { Conversation } from '@portal/shared';
+import { useQuery } from '@tanstack/react-query';
+
+// Helper to get a user-friendly error message
+async function getErrorMessage(err: unknown): Promise<string> {
+    if (err instanceof HTTPException) {
+        try {
+            const errorJson = await err.response.json();
+            return errorJson.error || 'Failed to fetch conversations';
+        } catch {
+            return 'An unexpected server error occurred.';
+        }
+    } else if (err instanceof Error) {
+        return err.message;
+    }
+    return 'An unknown error occurred.';
+}
 
 function SMSConversations() {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchConversations = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const data = await api.sms.conversations.$get();
-        setConversations(data);
-      } catch (err: any) {
-        if (err instanceof HTTPException) {
-            const errorJson = await err.response.json().catch(() => ({}));
-            setError(errorJson.error || 'Failed to fetch conversations');
-        } else {
-            setError(err.message || 'An unknown error occurred.');
-        }
-      } finally {
-        setIsLoading(false);
+  const { data: conversations, isLoading, error } = useQuery<Conversation[], Error>({
+    queryKey: ['sms', 'conversations'],
+    queryFn: async () => {
+      const res = await api.sms.conversations.$get();
+      if (!res.ok) {
+        throw new HTTPException(res.status, { res });
       }
-    };
-    fetchConversations();
-  }, []);
+      return res.json();
+    },
+    // Poll for new conversations or updates every 30 seconds
+    refetchInterval: 30000,
+  });
 
-  if (isLoading) return <div className="container mt-4">Loading conversations...</div>;
-  if (error) return <div className="container mt-4 alert alert-danger">{error}</div>;
+  if (isLoading) {
+    return (
+        <div className="flex justify-center items-center h-64">
+            <span className="loading loading-spinner loading-lg"></span>
+        </div>
+    );
+  }
+
+  if (error) {
+    return <div className="alert alert-error shadow-lg"><div><span>Error: {error.message}</span></div></div>;
+  }
 
   return (
-    <div className="container mt-4">
-      <h2>SMS Conversations</h2>
-      <div className="list-group">
-        {conversations.length > 0 ? (
+    <div className="p-4">
+      <h2 className="text-2xl font-bold mb-4">SMS Conversations</h2>
+      <div className="space-y-2">
+        {conversations && conversations.length > 0 ? (
           conversations.map(convo => (
-            <Link key={convo.phone_number} to={`/sms/${convo.phone_number}`} className="list-group-item list-group-item-action">
-              <div className="d-flex w-100 justify-content-between">
-                <h5 className="mb-1">{convo.phone_number}</h5>
-                <small>{new Date(convo.last_message_at).toLocaleString()}</small>
+            <Link key={convo.phone_number} to={`/admin/chat/${convo.phone_number}`} className="card bg-base-100 shadow-md hover:shadow-lg transition-shadow">
+              <div className="card-body">
+                <div className="flex w-full justify-between items-center">
+                  <h5 className="card-title">{convo.phone_number}</h5>
+                  <small className="text-base-content/70">{new Date(convo.last_message_at).toLocaleString()}</small>
+                </div>
+                <p className="mb-1 text-base-content/80">Messages: {convo.message_count}</p>
               </div>
-              <p className="mb-1">Messages: {convo.message_count}</p>
             </Link>
           ))
         ) : (
-          <p>No SMS conversations found.</p>
+          <div className="card bg-base-100 shadow-md">
+            <div className="card-body">
+                <p>No SMS conversations found.</p>
+            </div>
+          </div>
         )}
       </div>
     </div>
   );
 }
+
 export default SMSConversations;

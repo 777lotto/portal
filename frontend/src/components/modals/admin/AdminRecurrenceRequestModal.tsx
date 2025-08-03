@@ -1,8 +1,8 @@
-// frontend/src/components/modals/admin/AdminRecurrenceRequestModal.tsx
 import { useState } from 'react';
 import { api } from '../../../lib/api';
 import { HTTPException } from 'hono/http-exception';
 import type { JobRecurrenceRequest } from '@portal/shared';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface Props {
   isOpen: boolean;
@@ -13,40 +13,58 @@ interface Props {
 
 const weekDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+const getErrorMessage = async (error: unknown): Promise<string> => {
+  if (error instanceof HTTPException) {
+    try {
+      const data = await error.response.json();
+      return data.message || data.error || 'An unexpected error occurred.';
+    } catch (e) {
+      return 'An unexpected error occurred parsing the error response.';
+    }
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'An unknown error occurred.';
+};
+
 function AdminRecurrenceRequestModal({ isOpen, onClose, request, onUpdate }: Props) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
 
-  const handleUpdate = async (status: 'accepted' | 'declined') => {
-    setError(null);
-    setIsSubmitting(true);
-    try {
-      await api.admin['recurrence-requests'][':requestId'].$put({
+  const { mutate: updateRequest, isPending: isSubmitting } = useMutation({
+    mutationFn: (status: 'accepted' | 'declined') => {
+      return api.admin['recurrence-requests'][':requestId'].$put({
         param: { requestId: request.id.toString() },
         json: { status }
       });
+    },
+    onSuccess: (res) => {
+      if (!res.ok) {
+        throw new HTTPException(res.status, { res });
+      }
+      queryClient.invalidateQueries({ queryKey: ['admin', 'recurrence-requests'] });
       onUpdate();
       onClose();
-    } catch (err: any) {
-      if (err instanceof HTTPException) {
-        const errorJson = await err.response.json().catch(() => ({}));
-        setError(errorJson.error || 'Failed to update request');
-      } else {
-        setError(err.message || 'An unknown error occurred.');
-      }
-    } finally {
-      setIsSubmitting(false);
+    },
+    onError: async (err) => {
+      const message = await getErrorMessage(err);
+      setError(message);
     }
+  });
+
+  const handleUpdate = (status: 'accepted' | 'declined') => {
+    setError(null);
+    updateRequest(status);
   };
 
   if (!isOpen) return null;
 
   return (
-    // ... JSX is unchanged ...
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-tertiary-dark rounded-lg p-6 w-full max-w-md">
+      <div className="bg-base-100 rounded-lg p-6 w-full max-w-md">
         <h2 className="text-xl font-bold mb-4">Review Recurrence Request</h2>
-        {error && <div className="alert alert-danger">{error}</div>}
+        {error && <div className="alert alert-error shadow-lg"><div><span>{error}</span></div></div>}
         <div className="space-y-3 text-sm">
           <p><strong>Customer:</strong> {request.customer_name || 'N/A'}</p>
           <p><strong>Job:</strong> {request.job_title || 'N/A'}</p>
@@ -56,14 +74,16 @@ function AdminRecurrenceRequestModal({ isOpen, onClose, request, onUpdate }: Pro
           )}
         </div>
         <div className="flex justify-end items-center mt-6 space-x-3">
-          <button type="button" onClick={onClose} className="btn btn-secondary">
+          <button type="button" onClick={onClose} className="btn btn-ghost">
             Cancel
           </button>
-          <button onClick={() => handleUpdate('declined')} className="btn btn-danger" disabled={isSubmitting}>
-            {isSubmitting ? '...' : 'Decline'}
+          <button onClick={() => handleUpdate('declined')} className="btn btn-error" disabled={isSubmitting}>
+            {isSubmitting && <span className="loading loading-spinner"></span>}
+            Decline
           </button>
           <button onClick={() => handleUpdate('accepted')} className="btn btn-success" disabled={isSubmitting}>
-            {isSubmitting ? '...' : 'Accept'}
+            {isSubmitting && <span className="loading loading-spinner"></span>}
+            Accept
           </button>
         </div>
       </div>

@@ -1,45 +1,73 @@
-// frontend/src/components/forms/CalendarSync.tsx
 import { useState } from 'react';
-import useSWR from 'swr';
 import { api } from '../../lib/api';
 import { HTTPException } from 'hono/http-exception';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-// The fetcher function for useSWR now uses the Hono client directly.
-const urlFetcher = () => api.calendar['secret-url'].$get();
+// Helper to get a user-friendly error message
+const getErrorMessage = async (err: unknown): Promise<string> => {
+    if (err instanceof HTTPException) {
+        try {
+            const errorJson = await err.response.json();
+            return errorJson.error || 'An unexpected server error occurred.';
+        } catch {
+            return 'Failed to parse server error response.';
+        }
+    } else if (err instanceof Error) {
+        return err.message;
+    }
+    return 'An unknown error occurred.';
+};
+
 
 function CalendarSync() {
-  const { data, error, isLoading, mutate } = useSWR('/api/calendar/secret-url', urlFetcher);
+  const queryClient = useQueryClient();
   const [message, setMessage] = useState<{type: 'success' | 'danger', text: string} | null>(null);
+
+  const { data, error, isLoading } = useQuery({
+    queryKey: ['calendar', 'secret-url'],
+    queryFn: async () => {
+        const res = await api.calendar['secret-url'].$get();
+        if (!res.ok) throw new HTTPException(res.status, { res });
+        return res.json();
+    }
+  });
+
+  const regenerateMutation = useMutation({
+    mutationFn: () => api.calendar['regenerate-url'].$post({}),
+    onSuccess: async (res) => {
+        if (!res.ok) throw new HTTPException(res.status, { res });
+        const newData = await res.json();
+        // Update the query cache with the new data without a refetch
+        queryClient.setQueryData(['calendar', 'secret-url'], newData);
+        setMessage({ type: 'success', text: 'New URL generated successfully!' });
+    },
+    onError: async (err) => {
+        const text = await getErrorMessage(err);
+        setMessage({ type: 'danger', text });
+    }
+  });
 
   const handleCopy = () => {
     if (!data?.url) return;
-    navigator.clipboard.writeText(data.url);
-    setMessage({ type: 'success', text: 'URL copied to clipboard!' });
-    setTimeout(() => setMessage(null), 3000);
+    navigator.clipboard.writeText(data.url)
+        .then(() => {
+            setMessage({ type: 'success', text: 'URL copied to clipboard!' });
+            setTimeout(() => setMessage(null), 3000);
+        })
+        .catch(() => {
+            setMessage({ type: 'danger', text: 'Failed to copy URL.' });
+        });
   };
 
-  const handleRegenerate = async () => {
-    if (!window.confirm("Are you sure? This will invalidate your old URL and you will need to update your calendar application.")) {
-      return;
-    }
-    try {
-      const newData = await api.calendar['regenerate-url'].$post({});
-      // Update the local SWR cache with the new URL without re-fetching.
-      mutate(newData, false);
-      setMessage({ type: 'success', text: 'New URL generated successfully!' });
-    } catch (err: any) {
-        if (err instanceof HTTPException) {
-            const errorJson = await err.response.json().catch(() => ({}));
-            setMessage({ type: 'danger', text: `Error: ${errorJson.error || 'Failed to regenerate URL'}` });
-        } else {
-            setMessage({ type: 'danger', text: `Error: ${err.message}` });
-        }
+  const handleRegenerate = () => {
+    if (window.confirm("Are you sure? This will invalidate your old URL and you will need to update your calendar application.")) {
+      regenerateMutation.mutate();
     }
   };
 
   const renderContent = () => {
-    if (isLoading) return <p>Loading your secure feed URL...</p>;
-    if (error) return <div className="p-3 my-3 rounded-md text-sm bg-red-100 text-red-800">{error.message}</div>;
+    if (isLoading) return <div className="flex justify-center p-4"><span className="loading loading-spinner"></span></div>;
+    if (error) return <div className="alert alert-error">Error: {error.message}</div>;
     if (!data?.url) return <p>Could not load your calendar URL.</p>;
 
     return (
@@ -48,43 +76,38 @@ function CalendarSync() {
           <input
             type="text"
             readOnly
-            className="w-full px-3 py-2 bg-gray-100 dark:bg-secondary-dark border border-border-light dark:border-border-dark rounded-md focus:outline-none"
+            className="input input-bordered w-full"
             value={data.url}
             onFocus={(e) => e.target.select()}
           />
         </div>
         <div className="mt-4 flex flex-wrap gap-4">
-           <button
-            onClick={handleCopy}
-            className="inline-block px-4 py-2 text-white font-semibold rounded-md transition bg-blue-600 hover:bg-blue-700"
-          >
+           <button onClick={handleCopy} className="btn btn-primary">
             Copy URL
           </button>
-           <button
-            onClick={handleRegenerate}
-            className="inline-block px-4 py-2 text-white font-semibold rounded-md transition bg-red-600 hover:bg-red-700"
-          >
+           <button onClick={handleRegenerate} className="btn btn-error" disabled={regenerateMutation.isPending}>
+            {regenerateMutation.isPending && <span className="loading loading-spinner"></span>}
             Regenerate URL
           </button>
         </div>
-         {message && <div className={`p-3 my-3 rounded-md text-sm ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{message.text}</div>}
       </>
     );
   }
 
   return (
     <div className="max-w-4xl mx-auto p-4">
-      <h2 className="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark mb-6">Calendar Sync</h2>
-      <div className="space-y-8">
-        <div className="bg-white dark:bg-tertiary-dark shadow-md rounded-lg p-6">
-          <h5 className="text-lg font-semibold text-text-primary-light dark:text-text-primary-dark">Your Personal Calendar Feed</h5>
-          <p className="mt-1 text-sm text-text-secondary-light dark:text-text-secondary-dark">
-            Copy this secret URL and paste it into your calendar application (e.g., Google Calendar, Apple Calendar) under "Add from URL" or "Subscribe to Calendar" to keep your jobs in sync.
-          </p>
-           <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-            <strong>Warning:</strong> Treat this URL like a password. Anyone with this link can see your job schedule. If you think it has been compromised, regenerate it immediately.
-          </p>
-          {renderContent()}
+      <div className="card bg-base-100 shadow-xl">
+        <div className="card-body">
+            <h2 className="card-title text-2xl">Calendar Sync</h2>
+            <p className="text-base-content/70">
+                Copy this secret URL and paste it into your calendar application (e.g., Google Calendar, Apple Calendar) under "Add from URL" or "Subscribe to Calendar" to see your upcoming jobs.
+            </p>
+            <div className="alert alert-warning mt-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                <span><strong>Warning:</strong> Treat this URL like a password. Anyone with this link can see your job schedule. If you think it has been compromised, regenerate it immediately.</span>
+            </div>
+            {message && <div className={`alert alert-${message.type === 'success' ? 'success' : 'error'} mt-4`}><div><span>{message.text}</span></div></div>}
+            {renderContent()}
         </div>
       </div>
     </div>

@@ -1,59 +1,119 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { api } from '../../lib/api';
+import { HTTPException } from 'hono/http-exception';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface QuoteProposalModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
-  onDecline: () => void;
-  onRevise: (revisionReason: string) => void;
   jobId: string;
 }
 
-const QuoteProposalModal: React.FC<QuoteProposalModalProps> = ({ isOpen, onClose, onConfirm, onDecline, onRevise }) => {
-  const [revisionReason, setRevisionReason] = React.useState('');
+const getErrorMessage = async (error: unknown): Promise<string> => {
+  if (error instanceof HTTPException) {
+    try {
+      const data = await error.response.json();
+      return data.message || data.error || 'An unexpected error occurred.';
+    } catch (e) {
+      return 'An unexpected error occurred parsing the error response.';
+    }
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'An unknown error occurred.';
+};
+
+const QuoteProposalModal: React.FC<QuoteProposalModalProps> = ({ isOpen, onClose, jobId }) => {
+  const queryClient = useQueryClient();
+  const [revisionReason, setRevisionReason] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    queryClient.invalidateQueries({ queryKey: ['quotes'] });
+    queryClient.invalidateQueries({ queryKey: ['job', jobId] });
+    onClose();
+  };
+
+  const handleError = async (err: unknown) => {
+    const message = await getErrorMessage(err);
+    setError(message);
+  };
+
+  const confirmMutation = useMutation({
+    mutationFn: () => api.quotes[':quoteId'].accept.$post({ param: { quoteId: jobId } }),
+    onSuccess: (res) => {
+      if (!res.ok) throw new HTTPException(res.status, { res });
+      handleSuccess();
+    },
+    onError: handleError,
+  });
+
+  const declineMutation = useMutation({
+    mutationFn: () => api.quotes[':quoteId'].decline.$post({ param: { quoteId: jobId } }),
+    onSuccess: (res) => {
+      if (!res.ok) throw new HTTPException(res.status, { res });
+      handleSuccess();
+    },
+    onError: handleError,
+  });
+
+  const reviseMutation = useMutation({
+    mutationFn: (reason: string) => api.quotes[':quoteId'].revise.$post({ param: { quoteId: jobId }, json: { reason } }),
+    onSuccess: (res) => {
+      if (!res.ok) throw new HTTPException(res.status, { res });
+      handleSuccess();
+    },
+    onError: handleError,
+  });
+
+  const handleRevise = () => {
+    if (revisionReason.trim()) {
+      reviseMutation.mutate(revisionReason);
+    }
+  };
+
+  const isSubmitting = confirmMutation.isPending || declineMutation.isPending || reviseMutation.isPending;
 
   if (!isOpen) {
     return null;
   }
 
-  const handleRevise = () => {
-    if (revisionReason.trim()) {
-      onRevise(revisionReason);
-    }
-  };
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
-      <div className="bg-white p-6 rounded-lg shadow-xl">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+      <div className="bg-base-100 p-6 rounded-lg shadow-xl w-full max-w-md">
         <h2 className="text-xl font-bold mb-4">Quote Proposal</h2>
         <p className="mb-4">What would you like to do with this quote?</p>
-        
-        <div className="mb-4">
-          <label htmlFor="revision-reason" className="block text-sm font-medium text-gray-700">
-            Reason for Revision (if applicable)
+
+        {error && <div className="alert alert-error shadow-lg mb-4"><div><span>{error}</span></div></div>}
+
+        <div className="form-control">
+          <label htmlFor="revision-reason" className="label">
+            <span className="label-text">Reason for Revision (if applicable)</span>
           </label>
           <textarea
             id="revision-reason"
             value={revisionReason}
             onChange={(e) => setRevisionReason(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            className="textarea textarea-bordered"
             rows={3}
             placeholder="e.g., Please adjust the pricing for service X."
           />
         </div>
 
-        <div className="flex justify-end space-x-4">
-          <button onClick={onClose} className="bg-gray-300 hover:bg-gray-400 text-black font-bold py-2 px-4 rounded">
+        <div className="flex justify-end space-x-2 mt-6">
+          <button onClick={onClose} className="btn btn-ghost" disabled={isSubmitting}>
             Cancel
           </button>
-          <button onClick={onDecline} className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
-            Decline
+          <button onClick={() => declineMutation.mutate()} className="btn btn-error" disabled={isSubmitting}>
+            {declineMutation.isPending ? <span className="loading loading-spinner"></span> : "Decline"}
           </button>
-          <button onClick={handleRevise} disabled={!revisionReason.trim()} className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded disabled:bg-gray-400">
-            Revise
+          <button onClick={handleRevise} disabled={!revisionReason.trim() || isSubmitting} className="btn btn-warning">
+            {reviseMutation.isPending ? <span className="loading loading-spinner"></span> : "Revise"}
           </button>
-          <button onClick={onConfirm} className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
-            Accept
+          <button onClick={() => confirmMutation.mutate()} className="btn btn-success">
+            {confirmMutation.isPending ? <span className="loading loading-spinner"></span> : "Accept"}
           </button>
         </div>
       </div>

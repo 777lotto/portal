@@ -1,4 +1,3 @@
-// frontend/src/components/modals/BookingModal.tsx
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
@@ -6,8 +5,7 @@ import { HTTPException } from 'hono/http-exception';
 import { format } from 'date-fns';
 import StyledDigitInput from '../forms/StyledDigitInput';
 import type { User, LineItem } from '@portal/shared';
-
-
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface Props {
   isOpen: boolean;
@@ -16,14 +14,83 @@ interface Props {
   user?: User | null;
 }
 
-function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', address: '' });
-  const [lineItemOptions, setLineItemOptions] = useState<LineItem[]>([]);
-  const [selectedLineItems, setSelectedLineItems] = useState<LineItem[]>([]);
+const getErrorMessage = async (error: unknown): Promise<React.ReactNode> => {
+  if (error instanceof HTTPException) {
+    try {
+      const data = await error.response.json();
+      if (error.response.status === 409 && data.details?.code === 'LOGIN_REQUIRED') {
+        return (
+          <span>
+            An account already exists with this information. Please <Link to="/auth" className="link link-primary font-bold">log in</Link> to book.
+          </span>
+        );
+      }
+      return data.message || data.error || 'An unexpected error occurred.';
+    } catch (e) {
+      return 'An unexpected error occurred parsing the error response.';
+    }
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'An unknown error occurred.';
+};
 
+function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
+  const queryClient = useQueryClient();
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', address: '' });
+  const [selectedLineItems, setSelectedLineItems] = useState<LineItem[]>([]);
   const [error, setError] = useState<React.ReactNode>('');
   const [success, setSuccess] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { data: lineItemOptions, isLoading: isLoadingLineItems } = useQuery<LineItem[], Error>({
+    queryKey: ['line-items'],
+    queryFn: async () => {
+      const res = await api['line-items'].$get();
+      if (!res.ok) throw new HTTPException(res.status, { res });
+      return res.json();
+    },
+    enabled: isOpen,
+  });
+
+  const { mutate: submitBooking, isPending: isSubmitting } = useMutation({
+    mutationFn: async () => {
+      if (user) {
+        // Authenticated user booking
+        return api.jobs.$post({
+          json: {
+            title: selectedLineItems.map(s => s.description).join(', '),
+            lineItems: selectedLineItems.map(s => ({ id: s.id, description: s.description, quantity: s.quantity, unit_total_amount_cents: s.unit_total_amount_cents })),
+            start: selectedDate.toISOString(),
+            jobType: 'job',
+          }
+        });
+      } else {
+        // Public user booking
+        return api.public.booking.$post({
+            json: {
+                ...formData,
+                date: format(selectedDate, 'yyyy-MM-dd'),
+                services: selectedLineItems.map(({description}) => ({name: description, duration: 1})),
+            }
+        });
+      }
+    },
+    onSuccess: (res) => {
+      if (!res.ok) throw new HTTPException(res.status, { res });
+      setSuccess(user ? 'Your booking has been scheduled!' : 'Your booking request has been sent! We will contact you shortly to confirm.');
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'jobs'] });
+      setTimeout(() => {
+        onClose();
+        setSuccess('');
+      }, 3000);
+    },
+    onError: async (err) => {
+      const message = await getErrorMessage(err);
+      setError(message);
+    }
+  });
 
   useEffect(() => {
     if (isOpen) {
@@ -32,19 +99,12 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
           name: user.name || '', email: user.email || '',
           phone: user.phone || '', address: user.address || '',
         });
+      } else {
+        setFormData({ name: '', email: '', phone: '', address: '' });
       }
-
-      const fetchLineItems = async () => {
-        try {
-          // Assuming a public endpoint for line items exists or will be created.
-          const lineItems = await api['line-items'].$get();
-          setLineItemOptions(lineItems);
-        } catch (err) {
-          setError('Failed to load services. Please try again.');
-        }
-      };
-      fetchLineItems();
-
+      setSelectedLineItems([]);
+      setError('');
+      setSuccess('');
     }
   }, [isOpen, user]);
 
@@ -60,88 +120,41 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleApiError = async (err: any) => {
-    if (err instanceof HTTPException) {
-        const errorJson = await err.response.json().catch(() => ({}));
-        // Preserve special logic for existing users trying to book publicly
-        if (err.response.status === 409 && errorJson.details?.code === 'LOGIN_REQUIRED') {
-            setError(
-              <span>
-                An account already exists with this information. Please <Link to="/auth" className="text-blue-600 font-bold">log in</Link> to book.
-              </span>
-            );
-        } else {
-            setError(errorJson.error || 'An unknown error occurred.');
-        }
-    } else {
-        setError(err.message || 'An unknown error occurred.');
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedLineItems.length === 0) {
       setError('Please select at least one service.');
       return;
     }
     setError('');
-    setSuccess('');
-    setIsSubmitting(true);
-
-    try {
-      if (user) {
-        await api.jobs.$post({
-          json: {
-            title: selectedLineItems.map(s => s.description).join(', '),
-            lineItems: selectedLineItems.map(s => ({ id: s.id, description: s.description, quantity: s.quantity, unit_total_amount_cents: s.unit_total_amount_cents })),
-          }
-        });
-        setSuccess('Your booking has been scheduled!');
-      } else {
-        await api.public.booking.$post({
-            json: {
-                ...formData,
-                date: format(selectedDate, 'yyyy-MM-dd'),
-                services: selectedLineItems.map(({description}) => ({name: description, duration: 1})),
-            }
-        });
-        setSuccess('Your booking request has been sent! We will contact you shortly to confirm.');
-      }
-
-      setTimeout(() => {
-        onClose();
-        setSuccess('');
-      }, 3000);
-    } catch (err) {
-      handleApiError(err);
-    } finally {
-      setIsSubmitting(false);
-    }
+    submitBooking();
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-tertiary-dark rounded-lg p-6 w-full max-w-lg max-h-full overflow-y-auto">
+      <div className="bg-base-100 rounded-lg p-6 w-full max-w-lg max-h-full overflow-y-auto">
         <h2 className="text-2xl font-bold mb-4">Request Booking for {format(selectedDate, 'MMMM do, yyyy')}</h2>
-        {error && <div className="alert alert-danger">{error}</div>}
-        {success && <div className="alert alert-success">{success}</div>}
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="font-bold">Services</label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-              {lineItemOptions.map(lineItem => (
-                <label key={lineItem.id} className="flex items-center space-x-2 p-2 border rounded-md">
-                  <input type="checkbox" onChange={() => handleLineItemChange(lineItem)} />
-                  <span>{lineItem.description}</span>
-                </label>
-              ))}
-            </div>
+        {error && <div className="alert alert-error shadow-lg"><div>{error}</div></div>}
+        {success && <div className="alert alert-success shadow-lg"><div><span>{success}</span></div></div>}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="label"><span className="label-text font-bold">Services</span></label>
+            {isLoadingLineItems ? <span className="loading loading-spinner"></span> : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                {lineItemOptions?.map(lineItem => (
+                  <label key={lineItem.id} className="flex items-center space-x-2 p-2 border rounded-md cursor-pointer">
+                    <input type="checkbox" className="checkbox" onChange={() => handleLineItemChange(lineItem)} checked={selectedLineItems.some(s => s.id === lineItem.id)} />
+                    <span>{lineItem.description}</span>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <input name="name" placeholder="Full Name" value={formData.name} onChange={handleChange} className="form-control" required readOnly={!!user} />
-            <input name="email" type="email" placeholder="Email Address" value={formData.email} onChange={handleChange} className="form-control" required readOnly={!!user} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input name="name" placeholder="Full Name" value={formData.name} onChange={handleChange} className="input input-bordered" required readOnly={!!user} />
+            <input name="email" type="email" placeholder="Email Address" value={formData.email} onChange={handleChange} className="input input-bordered" required readOnly={!!user} />
             <div className="md:col-span-2">
               <StyledDigitInput
                 id="phone"
@@ -151,14 +164,16 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
                 digitCount={10}
                 format="phone"
                 autoComplete="tel"
+                readOnly={!!user}
               />
             </div>
-            <input name="address" placeholder="Service Address" value={formData.address} onChange={handleChange} className="form-control md:col-span-2" required readOnly={!!user} />
+            <input name="address" placeholder="Service Address" value={formData.address} onChange={handleChange} className="input input-bordered md:col-span-2" required readOnly={!!user} />
           </div>
           <div className="flex justify-end space-x-4">
-            <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
+            <button type="button" onClick={onClose} className="btn btn-ghost">Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-              {isSubmitting ? 'Submitting...' : (user ? 'Schedule Booking' : 'Request Booking')}
+              {isSubmitting && <span className="loading loading-spinner"></span>}
+              {user ? 'Schedule Booking' : 'Request Booking'}
             </button>
           </div>
         </form>

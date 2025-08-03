@@ -1,10 +1,8 @@
-// frontend/src/App.tsx
 import { Routes, Route, Navigate } from "react-router-dom";
-import { useEffect, useState, lazy, Suspense } from "react";
-import { jwtDecode } from 'jwt-decode';
+import { useEffect, lazy, Suspense } from "react";
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
-import SupportChatWidget from './components/chat/SupportChatWidget';
+import { useAuth } from "./hooks/useAuth";
 
 // --- Page Components ---
 import Navbar from "./pages/Navbar";
@@ -26,123 +24,76 @@ const UserDetailPage = lazy(() => import("./pages/admin/UserDetailPage"));
 const JobsPage = lazy(() => import("./pages/admin/JobsPage"));
 const ChatPage = lazy(() => import("./pages/ChatPage"));
 
-
-interface UserPayload {
-  id: number;
-  email: string;
-  name: string;
-  role: 'customer' | 'admin';
-}
-
 function LoadingFallback() {
-  return <div className="p-8 text-center">Loading...</div>;
+  return (
+    <div className="flex justify-center items-center h-screen">
+      <span className="loading loading-spinner loading-lg"></span>
+    </div>
+  );
 }
 
+// Initialize Stripe outside of the component to avoid re-creating it on every render.
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PK);
 
-function App() {
-  const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<UserPayload | null>(null);
-  const [isReady, setIsReady] = useState(false);
+// A wrapper for routes that require authentication.
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return <LoadingFallback />;
+  return isAuthenticated ? <>{children}</> : <Navigate to="/auth" replace />;
+}
 
+// A wrapper for admin-only routes.
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading, isAuthenticated } = useAuth();
+  if (isLoading) return <LoadingFallback />;
+  if (!isAuthenticated) return <Navigate to="/auth" replace />;
+  return user?.role === 'admin' ? <>{children}</> : <Navigate to="/dashboard" replace />;
+}
+
+function App() {
+  const { user, isLoading, isAuthenticated } = useAuth();
+
+  // Effect for managing the dark mode theme.
   useEffect(() => {
     const useDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    if (useDark) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-
-    const initializeApp = async () => {
-      try {
-        const storedToken = localStorage.getItem("token");
-        setToken(storedToken);
-
-        if (storedToken) {
-          try {
-            const decodedUser = jwtDecode<UserPayload>(storedToken);
-            setUser(decodedUser);
-          } catch (error) {
-            console.error("Invalid token:", error);
-            localStorage.removeItem("token");
-            setToken(null);
-            setUser(null);
-          }
-        }
-
-      } catch (error) {
-        console.error('App initialization error:', error);
-      } finally {
-        setIsReady(true);
-      }
-    };
-
-    initializeApp();
+    document.documentElement.classList.toggle('dark', useDark);
   }, []);
 
-  const handleSetToken = (newToken: string | null) => {
-    setToken(newToken);
-    if (newToken) {
-      localStorage.setItem("token", newToken);
-      try {
-        setUser(jwtDecode<UserPayload>(newToken));
-      } catch (error) {
-        console.error("Failed to decode new token:", error);
-        setUser(null);
-      }
-    } else {
-      localStorage.removeItem("token");
-      setUser(null);
-    }
-  };
-
-  if (!isReady) {
+  // Show a loading spinner while the initial authentication check is in progress.
+  if (isLoading) {
     return <LoadingFallback />;
   }
 
   return (
-    <div className="min-h-screen bg-primary-light dark:bg-secondary-dark">
-      <Navbar token={token} user={user} setToken={handleSetToken} />
+    <div className="min-h-screen bg-base-200">
+      <Navbar />
       <main className="p-4 sm:p-6 lg:p-8">
         <Elements stripe={stripePromise}>
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
               {/* --- Public Routes --- */}
               <Route path="/booking" element={<BookingPage />} />
-              <Route path="/auth" element={token ? <Navigate to="/dashboard" replace /> : <AuthForm setToken={handleSetToken} />} />
-              <Route path="/" element={<Navigate to={token ? "/dashboard" : "/auth"} replace />} />
+              <Route path="/auth" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <AuthForm />} />
 
-              {/* --- Customer-facing Routes --- */}
-              <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/auth" replace />} />
-              <Route path="/calendar" element={token ? <UnifiedCalendar /> : <Navigate to="/auth" replace />} />
-              <Route path="/photos" element={token ? <Photos /> : <Navigate to="/auth" replace />} />
-              <Route path="/jobs/:id" element={token ? <JobInfo /> : <Navigate to="/auth" replace />} />
-              <Route path="/quotes/:quoteId" element={token ? <QuoteProposalPage /> : <Navigate to="/auth" replace />} />
-              <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/auth" replace />} />
-              <Route path="/account" element={token ? <AccountPage /> : <Navigate to="/auth" replace />} />
-              <Route path="/pay-invoice/:invoiceId" element={token ? <InvoicePaymentPage /> : <Navigate to="/auth" replace />} />
-              <Route path="/chat" element={token ? <ChatPage /> : <Navigate to="/auth" replace />} />
-              
+              {/* --- Authenticated Routes --- */}
+              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/calendar" element={<ProtectedRoute><UnifiedCalendar /></ProtectedRoute>} />
+              <Route path="/photos" element={<ProtectedRoute><Photos /></ProtectedRoute>} />
+              <Route path="/jobs/:id" element={<ProtectedRoute><JobInfo /></ProtectedRoute>} />
+              <Route path="/quotes/:quoteId" element={<ProtectedRoute><QuoteProposalPage /></ProtectedRoute>} />
+              <Route path="/calendar-sync" element={<ProtectedRoute><CalendarSync /></ProtectedRoute>} />
+              <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
+              <Route path="/pay-invoice/:invoiceId" element={<ProtectedRoute><InvoicePaymentPage /></ProtectedRoute>} />
+              <Route path="/chat"  element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
 
               {/* --- Admin Routes --- */}
-              <Route
-                path="/admin/users"
-                element={user?.role === 'admin' ? <UserListPage /> : <Navigate to="/dashboard" replace />}
-              />
-              <Route
-                path="/admin/users/:user_id"
-                element={user?.role === 'admin' ? <UserDetailPage /> : <Navigate to="/dashboard" replace />}
-              />
-              <Route
-                path="/admin/jobs"
-                element={user?.role === 'admin' ? <JobsPage /> : <Navigate to="/dashboard" replace />}
-              />
-              <Route
-                path="/admin/jobs/:id"
-                element={user?.role === 'admin' ? <JobDetail /> : <Navigate to="/dashboard" replace />}
-              />
+              <Route path="/admin/users" element={<AdminRoute><UserListPage /></AdminRoute>} />
+              <Route path="/admin/users/:user_id" element={<AdminRoute><UserDetailPage /></AdminRoute>} />
+              <Route path="/admin/jobs" element={<AdminRoute><JobsPage /></AdminRoute>} />
+              <Route path="/admin/jobs/:id" element={<AdminRoute><JobDetail /></AdminRoute>} />
 
-              {/* --- Catch-all redirect --- */}
+              {/* --- Root and Catch-all --- */}
+              <Route path="/" element={<Navigate to={isAuthenticated ? "/dashboard" : "/auth"} replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>

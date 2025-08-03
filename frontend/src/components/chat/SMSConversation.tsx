@@ -1,105 +1,104 @@
-// frontend/src/components/chat/SMSConversation.tsx
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { HTTPException } from 'hono/http-exception';
 import type { SMSMessage } from '@portal/shared';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 function SMSConversation() {
   const { phoneNumber } = useParams<{ phoneNumber: string }>();
-  const [messages, setMessages] = useState<SMSMessage[]>([]);
+  const queryClient = useQueryClient();
   const [newMessage, setNewMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSending, setIsSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<null | HTMLDivElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
-
-  useEffect(scrollToBottom, [messages]);
-
-  useEffect(() => {
-    if (!phoneNumber) return;
-
-    const fetchMessages = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const data = await api.sms.conversation[':phoneNumber'].$get({
-          param: { phoneNumber }
-        });
-        setMessages(data);
-      } catch (err: any) {
-        if (err instanceof HTTPException) {
-            const errorJson = await err.response.json().catch(() => ({}));
-            setError(errorJson.error || 'Failed to fetch messages');
-        } else {
-            setError(err.message);
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchMessages();
-  }, [phoneNumber]);
-
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!phoneNumber || !newMessage.trim()) return;
-
-    try {
-      setIsSending(true);
-      setError(null);
-      const sentMessage = await api.sms.send.$post({
-        json: { to: phoneNumber, message: newMessage }
+  const { data: messages, isLoading, error } = useQuery<SMSMessage[], Error>({
+    queryKey: ['sms', 'conversation', phoneNumber],
+    queryFn: async () => {
+      if (!phoneNumber) return [];
+      const res = await api.sms.conversation[':phoneNumber'].$get({
+        param: { phoneNumber }
       });
-      setMessages(prev => [...prev, sentMessage]);
+      if (!res.ok) throw new HTTPException(res.status, { res });
+      return res.json();
+    },
+    enabled: !!phoneNumber,
+    // Poll for new messages every 5 seconds when the window is focused
+    refetchInterval: 5000,
+  });
+
+  const sendMessageMutation = useMutation({
+    mutationFn: (messageText: string) => {
+      if (!phoneNumber) throw new Error("Phone number is missing.");
+      return api.sms.send.$post({
+        json: { to: phoneNumber, message: messageText }
+      });
+    },
+    onSuccess: async (res) => {
+      if (!res.ok) throw new HTTPException(res.status, { res });
       setNewMessage('');
-    } catch(err: any) {
-        if (err instanceof HTTPException) {
-            const errorJson = await err.response.json().catch(() => ({}));
-            setError(errorJson.error || 'Failed to send message');
-        } else {
-            setError(err.message);
-        }
-    } finally {
-      setIsSending(false);
-    }
+      // Invalidate both the specific conversation and the list of conversations
+      // to ensure the UI updates everywhere.
+      await queryClient.invalidateQueries({ queryKey: ['sms', 'conversation', phoneNumber] });
+      await queryClient.invalidateQueries({ queryKey: ['sms', 'conversations'] });
+    },
+  });
+
+  // Effect to scroll to the bottom of the message list when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSend = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+    sendMessageMutation.mutate(newMessage);
   };
 
-  if (isLoading) return <div className="container mt-4">Loading messages...</div>;
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+          <span className="loading loading-spinner loading-lg"></span>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mt-4">
-      <Link to="/chat">&larr; Back to Conversations</Link>
-      <h2 className="mt-2">Conversation with {phoneNumber}</h2>
-      {error && <div className="alert alert-danger">{error}</div>}
-      <div className="card mt-3">
-        <div className="card-body" style={{ height: '60vh', overflowY: 'auto' }}>
-          {messages.map((msg, index) => (
-            <div key={msg.id || index} className={`d-flex mb-2 ${msg.direction === 'outgoing' ? 'justify-content-end' : 'justify-content-start'}`}>
-              <div className={`p-2 rounded shadow-sm ${msg.direction === 'outgoing' ? 'bg-primary text-white' : 'bg-light'}`} style={{ maxWidth: '75%' }}>
-                <p className="mb-1">{msg.message}</p>
-                <small className={`d-block ${msg.direction === 'outgoing' ? 'text-light' : 'text-muted'}`}>{new Date(msg.createdAt).toLocaleTimeString()}</small>
+    <div className="p-4 flex flex-col h-[calc(100vh-8rem)]">
+      <Link to="/admin/chat" className="btn btn-ghost mb-4 self-start">&larr; Back to Conversations</Link>
+      <h2 className="text-2xl font-bold mb-4">Conversation with {phoneNumber}</h2>
+
+      {(error || sendMessageMutation.error) && (
+        <div className="alert alert-error shadow-lg">
+          <div>
+            <span>Error: {error?.message || sendMessageMutation.error?.message}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="card bg-base-100 shadow-xl flex-grow flex flex-col">
+        <div className="card-body overflow-y-auto p-4 space-y-4">
+          {messages?.map((msg) => (
+            <div key={msg.id} className={`chat ${msg.direction === 'outgoing' ? 'chat-end' : 'chat-start'}`}>
+              <div className={`chat-bubble ${msg.direction === 'outgoing' ? 'chat-bubble-primary' : ''}`}>
+                <p>{msg.message}</p>
+                <time className="text-xs opacity-50">{new Date(msg.createdAt).toLocaleTimeString()}</time>
               </div>
             </div>
           ))}
           <div ref={messagesEndRef} />
         </div>
-        <div className="card-footer">
-          <form onSubmit={handleSend} className="d-flex">
+        <div className="card-footer p-4 border-t">
+          <form onSubmit={handleSend} className="flex gap-2">
             <input
               type="text"
-              className="form-control me-2"
+              className="input input-bordered flex-grow"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder="Type a message..."
-              disabled={isSending}
+              disabled={sendMessageMutation.isPending}
             />
-            <button type="submit" className="btn btn-primary" disabled={isSending || !newMessage.trim()}>
-              {isSending ? 'Sending...' : 'Send'}
+            <button type="submit" className="btn btn-primary" disabled={sendMessageMutation.isPending || !newMessage.trim()}>
+              {sendMessageMutation.isPending ? <span className="loading loading-spinner"></span> : 'Send'}
             </button>
           </form>
         </div>
