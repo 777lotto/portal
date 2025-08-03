@@ -1,0 +1,1171 @@
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "prevId": "",
+  "version": "6",
+  "dialect": "sqlite",
+  "tables": {
+    "d1_migrations": {
+      "name": "d1_migrations",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": false
+        },
+        "name": {
+          "autoincrement": false,
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "applied_at": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "applied_at",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {},
+      "indexes": {},
+      "foreignKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "users_check_1": {
+          "name": "users_check_1",
+          "value": "preferred_contact_method IN ('email', 'sms'"
+        },
+        "notifications_check_2": {
+          "name": "notifications_check_2",
+          "value": "status IN ('pending', 'sent', 'failed'"
+        },
+        "job_recurrence_requests_check_3": {
+          "name": "job_recurrence_requests_check_3",
+          "value": "status IN ('pending', 'accepted', 'declined', 'countered'"
+        },
+        "calendar_events_check_4": {
+          "name": "calendar_events_check_4",
+          "value": "type IN ('job', 'blocked', 'personal'"
+        }
+      }
+    },
+    "users": {
+      "name": "users",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": false
+        },
+        "email": {
+          "autoincrement": false,
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "autoincrement": false,
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password_hash": {
+          "autoincrement": false,
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripe_customer_id": {
+          "autoincrement": false,
+          "name": "stripe_customer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone": {
+          "autoincrement": false,
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "role": {
+          "default": "'customer'",
+          "autoincrement": false,
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "address": {
+          "autoincrement": false,
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "company_name": {
+          "autoincrement": false,
+          "name": "company_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email_notifications_enabled": {
+          "default": 1,
+          "autoincrement": false,
+          "name": "email_notifications_enabled",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sms_notifications_enabled": {
+          "default": 1,
+          "autoincrement": false,
+          "name": "sms_notifications_enabled",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "preferred_contact_method": {
+          "default": "'email'",
+          "autoincrement": false,
+          "name": "preferred_contact_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "calendar_reminders_enabled": {
+          "default": 1,
+          "autoincrement": false,
+          "name": "calendar_reminders_enabled",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "calendar_reminder_minutes": {
+          "default": 60,
+          "autoincrement": false,
+          "name": "calendar_reminder_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {},
+      "indexes": {
+        "idx_users_phone": {
+          "name": "idx_users_phone",
+          "columns": [
+            "phone"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "users_check_1": {
+          "name": "users_check_1",
+          "value": "preferred_contact_method IN ('email', 'sms'"
+        },
+        "notifications_check_2": {
+          "name": "notifications_check_2",
+          "value": "status IN ('pending', 'sent', 'failed'"
+        },
+        "job_recurrence_requests_check_3": {
+          "name": "job_recurrence_requests_check_3",
+          "value": "status IN ('pending', 'accepted', 'declined', 'countered'"
+        },
+        "calendar_events_check_4": {
+          "name": "calendar_events_check_4",
+          "value": "type IN ('job', 'blocked', 'personal'"
+        }
+      }
+    },
+    "jobs": {
+      "name": "jobs",
+      "columns": {
+        "id": {
+          "autoincrement": false,
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": false
+        },
+        "user_id": {
+          "autoincrement": false,
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "autoincrement": false,
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "autoincrement": false,
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "autoincrement": false,
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recurrence": {
+          "autoincrement": false,
+          "name": "recurrence",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "default": "(datetime('now'))",
+          "autoincrement": false,
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "default": "(datetime('now'))",
+          "autoincrement": false,
+          "name": "updatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stripe_invoice_id": {
+          "autoincrement": false,
+          "name": "stripe_invoice_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripe_quote_id": {
+          "autoincrement": false,
+          "name": "stripe_quote_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_amount_cents": {
+          "autoincrement": false,
+          "name": "total_amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "due": {
+          "autoincrement": false,
+          "name": "due",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {},
+      "indexes": {},
+      "foreignKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "users_check_1": {
+          "name": "users_check_1",
+          "value": "preferred_contact_method IN ('email', 'sms'"
+        },
+        "notifications_check_2": {
+          "name": "notifications_check_2",
+          "value": "status IN ('pending', 'sent', 'failed'"
+        },
+        "job_recurrence_requests_check_3": {
+          "name": "job_recurrence_requests_check_3",
+          "value": "status IN ('pending', 'accepted', 'declined', 'countered'"
+        },
+        "calendar_events_check_4": {
+          "name": "calendar_events_check_4",
+          "value": "type IN ('job', 'blocked', 'personal'"
+        }
+      }
+    },
+    "line_items": {
+      "name": "line_items",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": false
+        },
+        "job_id": {
+          "autoincrement": false,
+          "name": "job_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "autoincrement": false,
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unit_total_amount_cents": {
+          "autoincrement": false,
+          "name": "unit_total_amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quantity": {
+          "default": 1,
+          "autoincrement": false,
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {},
+      "indexes": {
+        "idx_line_items_job_id": {
+          "name": "idx_line_items_job_id",
+          "columns": [
+            "job_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "line_items_job_id_jobs_id_fk": {
+          "name": "line_items_job_id_jobs_id_fk",
+          "tableFrom": "line_items",
+          "tableTo": "jobs",
+          "columnsFrom": [
+            "job_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "users_check_1": {
+          "name": "users_check_1",
+          "value": "preferred_contact_method IN ('email', 'sms'"
+        },
+        "notifications_check_2": {
+          "name": "notifications_check_2",
+          "value": "status IN ('pending', 'sent', 'failed'"
+        },
+        "job_recurrence_requests_check_3": {
+          "name": "job_recurrence_requests_check_3",
+          "value": "status IN ('pending', 'accepted', 'declined', 'countered'"
+        },
+        "calendar_events_check_4": {
+          "name": "calendar_events_check_4",
+          "value": "type IN ('job', 'blocked', 'personal'"
+        }
+      }
+    },
+    "photos": {
+      "name": "photos",
+      "columns": {
+        "id": {
+          "autoincrement": false,
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": false
+        },
+        "user_id": {
+          "autoincrement": false,
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invoice_id": {
+          "autoincrement": false,
+          "name": "invoice_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "item_id": {
+          "autoincrement": false,
+          "name": "item_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "job_id": {
+          "autoincrement": false,
+          "name": "job_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "url": {
+          "autoincrement": false,
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "default": "(datetime('now'))",
+          "autoincrement": false,
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {},
+      "indexes": {},
+      "foreignKeys": {
+        "photos_job_id_jobs_id_fk": {
+          "name": "photos_job_id_jobs_id_fk",
+          "tableFrom": "photos",
+          "tableTo": "jobs",
+          "columnsFrom": [
+            "job_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "photos_item_id_line_items_id_fk": {
+          "name": "photos_item_id_line_items_id_fk",
+          "tableFrom": "photos",
+          "tableTo": "line_items",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "photos_user_id_users_id_fk": {
+          "name": "photos_user_id_users_id_fk",
+          "tableFrom": "photos",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "users_check_1": {
+          "name": "users_check_1",
+          "value": "preferred_contact_method IN ('email', 'sms'"
+        },
+        "notifications_check_2": {
+          "name": "notifications_check_2",
+          "value": "status IN ('pending', 'sent', 'failed'"
+        },
+        "job_recurrence_requests_check_3": {
+          "name": "job_recurrence_requests_check_3",
+          "value": "status IN ('pending', 'accepted', 'declined', 'countered'"
+        },
+        "calendar_events_check_4": {
+          "name": "calendar_events_check_4",
+          "value": "type IN ('job', 'blocked', 'personal'"
+        }
+      }
+    },
+    "notifications": {
+      "name": "notifications",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": false
+        },
+        "user_id": {
+          "autoincrement": false,
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "autoincrement": false,
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "message": {
+          "autoincrement": false,
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "link": {
+          "autoincrement": false,
+          "name": "link",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_read": {
+          "default": 0,
+          "autoincrement": false,
+          "name": "is_read",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channels": {
+          "autoincrement": false,
+          "name": "channels",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "autoincrement": false,
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "metadata": {
+          "autoincrement": false,
+          "name": "metadata",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "push_subscription_json": {
+          "autoincrement": false,
+          "name": "push_subscription_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "default": "(datetime('now'))",
+          "autoincrement": false,
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {},
+      "indexes": {
+        "idx_notifications_user_id": {
+          "name": "idx_notifications_user_id",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "notifications_user_id_users_id_fk": {
+          "name": "notifications_user_id_users_id_fk",
+          "tableFrom": "notifications",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "users_check_1": {
+          "name": "users_check_1",
+          "value": "preferred_contact_method IN ('email', 'sms'"
+        },
+        "notifications_check_2": {
+          "name": "notifications_check_2",
+          "value": "status IN ('pending', 'sent', 'failed'"
+        },
+        "job_recurrence_requests_check_3": {
+          "name": "job_recurrence_requests_check_3",
+          "value": "status IN ('pending', 'accepted', 'declined', 'countered'"
+        },
+        "calendar_events_check_4": {
+          "name": "calendar_events_check_4",
+          "value": "type IN ('job', 'blocked', 'personal'"
+        }
+      }
+    },
+    "job_recurrence_requests": {
+      "name": "job_recurrence_requests",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": false
+        },
+        "job_id": {
+          "autoincrement": false,
+          "name": "job_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "autoincrement": false,
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "frequency": {
+          "autoincrement": false,
+          "name": "frequency",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requested_day": {
+          "autoincrement": false,
+          "name": "requested_day",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "default": "'pending'",
+          "autoincrement": false,
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "default": "(datetime('now'))",
+          "autoincrement": false,
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "default": "(datetime('now'))",
+          "autoincrement": false,
+          "name": "updatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {},
+      "indexes": {
+        "idx_job_recurrence_requests_status": {
+          "name": "idx_job_recurrence_requests_status",
+          "columns": [
+            "status"
+          ],
+          "isUnique": false
+        },
+        "idx_job_recurrence_requests_job_id": {
+          "name": "idx_job_recurrence_requests_job_id",
+          "columns": [
+            "job_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "job_recurrence_requests_user_id_users_id_fk": {
+          "name": "job_recurrence_requests_user_id_users_id_fk",
+          "tableFrom": "job_recurrence_requests",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "job_recurrence_requests_job_id_jobs_id_fk": {
+          "name": "job_recurrence_requests_job_id_jobs_id_fk",
+          "tableFrom": "job_recurrence_requests",
+          "tableTo": "jobs",
+          "columnsFrom": [
+            "job_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "users_check_1": {
+          "name": "users_check_1",
+          "value": "preferred_contact_method IN ('email', 'sms'"
+        },
+        "notifications_check_2": {
+          "name": "notifications_check_2",
+          "value": "status IN ('pending', 'sent', 'failed'"
+        },
+        "job_recurrence_requests_check_3": {
+          "name": "job_recurrence_requests_check_3",
+          "value": "status IN ('pending', 'accepted', 'declined', 'countered'"
+        },
+        "calendar_events_check_4": {
+          "name": "calendar_events_check_4",
+          "value": "type IN ('job', 'blocked', 'personal'"
+        }
+      }
+    },
+    "password_reset_tokens": {
+      "name": "password_reset_tokens",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": false
+        },
+        "user_id": {
+          "autoincrement": false,
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token": {
+          "autoincrement": false,
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "due": {
+          "autoincrement": false,
+          "name": "due",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "default": "(datetime('now'))",
+          "autoincrement": false,
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {},
+      "indexes": {},
+      "foreignKeys": {
+        "password_reset_tokens_user_id_users_id_fk": {
+          "name": "password_reset_tokens_user_id_users_id_fk",
+          "tableFrom": "password_reset_tokens",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "users_check_1": {
+          "name": "users_check_1",
+          "value": "preferred_contact_method IN ('email', 'sms'"
+        },
+        "notifications_check_2": {
+          "name": "notifications_check_2",
+          "value": "status IN ('pending', 'sent', 'failed'"
+        },
+        "job_recurrence_requests_check_3": {
+          "name": "job_recurrence_requests_check_3",
+          "value": "status IN ('pending', 'accepted', 'declined', 'countered'"
+        },
+        "calendar_events_check_4": {
+          "name": "calendar_events_check_4",
+          "value": "type IN ('job', 'blocked', 'personal'"
+        }
+      }
+    },
+    "calendar_tokens": {
+      "name": "calendar_tokens",
+      "columns": {
+        "token": {
+          "autoincrement": false,
+          "name": "token",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "autoincrement": false,
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "default": "(datetime('now'))",
+          "autoincrement": false,
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {},
+      "indexes": {
+        "idx_calendar_tokens_user_id": {
+          "name": "idx_calendar_tokens_user_id",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "calendar_tokens_user_id_users_id_fk": {
+          "name": "calendar_tokens_user_id_users_id_fk",
+          "tableFrom": "calendar_tokens",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "users_check_1": {
+          "name": "users_check_1",
+          "value": "preferred_contact_method IN ('email', 'sms'"
+        },
+        "notifications_check_2": {
+          "name": "notifications_check_2",
+          "value": "status IN ('pending', 'sent', 'failed'"
+        },
+        "job_recurrence_requests_check_3": {
+          "name": "job_recurrence_requests_check_3",
+          "value": "status IN ('pending', 'accepted', 'declined', 'countered'"
+        },
+        "calendar_events_check_4": {
+          "name": "calendar_events_check_4",
+          "value": "type IN ('job', 'blocked', 'personal'"
+        }
+      }
+    },
+    "notes": {
+      "name": "notes",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": false
+        },
+        "user_id": {
+          "autoincrement": false,
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "photo_id": {
+          "autoincrement": false,
+          "name": "photo_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "item_id": {
+          "autoincrement": false,
+          "name": "item_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "job_id": {
+          "autoincrement": false,
+          "name": "job_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content": {
+          "autoincrement": false,
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "default": "(datetime('now'))",
+          "autoincrement": false,
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "default": "(datetime('now'))",
+          "autoincrement": false,
+          "name": "updatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {},
+      "indexes": {},
+      "foreignKeys": {
+        "notes_job_id_jobs_id_fk": {
+          "name": "notes_job_id_jobs_id_fk",
+          "tableFrom": "notes",
+          "tableTo": "jobs",
+          "columnsFrom": [
+            "job_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "notes_item_id_line_items_id_fk": {
+          "name": "notes_item_id_line_items_id_fk",
+          "tableFrom": "notes",
+          "tableTo": "line_items",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "notes_photo_id_photos_id_fk": {
+          "name": "notes_photo_id_photos_id_fk",
+          "tableFrom": "notes",
+          "tableTo": "photos",
+          "columnsFrom": [
+            "photo_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "notes_user_id_users_id_fk": {
+          "name": "notes_user_id_users_id_fk",
+          "tableFrom": "notes",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "users_check_1": {
+          "name": "users_check_1",
+          "value": "preferred_contact_method IN ('email', 'sms'"
+        },
+        "notifications_check_2": {
+          "name": "notifications_check_2",
+          "value": "status IN ('pending', 'sent', 'failed'"
+        },
+        "job_recurrence_requests_check_3": {
+          "name": "job_recurrence_requests_check_3",
+          "value": "status IN ('pending', 'accepted', 'declined', 'countered'"
+        },
+        "calendar_events_check_4": {
+          "name": "calendar_events_check_4",
+          "value": "type IN ('job', 'blocked', 'personal'"
+        }
+      }
+    },
+    "calendar_events": {
+      "name": "calendar_events",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": false
+        },
+        "title": {
+          "autoincrement": false,
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start": {
+          "autoincrement": false,
+          "name": "start",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end": {
+          "autoincrement": false,
+          "name": "end",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "autoincrement": false,
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "job_id": {
+          "autoincrement": false,
+          "name": "job_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_id": {
+          "autoincrement": false,
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "default": "(datetime('now'))",
+          "autoincrement": false,
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {},
+      "indexes": {},
+      "foreignKeys": {
+        "calendar_events_job_id_jobs_id_fk": {
+          "name": "calendar_events_job_id_jobs_id_fk",
+          "tableFrom": "calendar_events",
+          "tableTo": "jobs",
+          "columnsFrom": [
+            "job_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "calendar_events_user_id_users_id_fk": {
+          "name": "calendar_events_user_id_users_id_fk",
+          "tableFrom": "calendar_events",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "users_check_1": {
+          "name": "users_check_1",
+          "value": "preferred_contact_method IN ('email', 'sms'"
+        },
+        "notifications_check_2": {
+          "name": "notifications_check_2",
+          "value": "status IN ('pending', 'sent', 'failed'"
+        },
+        "job_recurrence_requests_check_3": {
+          "name": "job_recurrence_requests_check_3",
+          "value": "status IN ('pending', 'accepted', 'declined', 'countered'"
+        },
+        "calendar_events_check_4": {
+          "name": "calendar_events_check_4",
+          "value": "type IN ('job', 'blocked', 'personal'"
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  }
+}
