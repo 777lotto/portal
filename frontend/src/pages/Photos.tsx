@@ -1,57 +1,36 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { api } from '../lib/api.js';
-import { HTTPException } from 'hono/http-exception';
-import type { PhotoWithNotes, User, Job, LineItem } from '@portal/shared';
+// frontend/src/pages/Photos.tsx
+import { useState, useMemo, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
-import { jwtDecode } from 'jwt-decode';
+import { api } from '../lib/api';
+import { useAuth } from '../hooks/useAuth';
+import type { PhotoWithNotes, User, Job, LineItem } from '@portal/shared';
+import { handleApiError } from '../lib/utils';
 
-interface UserPayload {
-  role: 'customer' | 'admin';
-}
+// --- REFACTORED: Customer Photos Component ---
 
-// The fetchAndParse helper function has been removed.
+const fetchCustomerPhotos = async (filters: Record<string, string>) => {
+  const activeFilters = Object.fromEntries(
+    Object.entries(filters).filter(([, value]) => value !== '')
+  );
+  const res = await api.photos.$get({ query: activeFilters });
+  if (!res.ok) throw await handleApiError(res, 'Failed to fetch photos.');
+  const data = await res.json();
+  return data.photos;
+};
 
 function CustomerPhotos() {
-  const [photos, setPhotos] = useState<PhotoWithNotes[]>([]);
   const [filters, setFilters] = useState({ createdAt: '', job_id: '', item_id: '' });
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: photos, isLoading, error } = useQuery({
+    queryKey: ['customerPhotos', filters],
+    queryFn: () => fetchCustomerPhotos(filters),
+  });
 
-  useEffect(() => {
-    const fetchPhotos = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const activeFilters = Object.fromEntries(
-          Object.entries(filters).filter(([, value]) => value !== '')
-        );
-
-        // --- REFACTORED ---
-        const data = await api.photos.$get({ query: activeFilters });
-        setPhotos(data);
-      } catch (err: any) {
-        if (err instanceof HTTPException) {
-            const errorJson = await err.response.json();
-            setError(errorJson.error || 'Failed to fetch photos.');
-        } else {
-            setError(err.message || 'An unknown error occurred.');
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchPhotos();
-  }, [filters]);
-
-  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFilters({ ...filters, [e.target.name]: e.target.value });
+  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setFilters(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  if (isLoading) return <p>Loading photos...</p>;
-  if (error) return <div className="alert alert-danger">{error}</div>;
-
   return (
-    // ... CustomerPhotos JSX is unchanged ...
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
       <h2 className="text-2xl font-bold mb-4">Your Photos</h2>
       <div className="card mb-4">
@@ -73,8 +52,10 @@ function CustomerPhotos() {
           </div>
         </div>
       </div>
+      {isLoading && <p>Loading photos...</p>}
+      {error && <div className="alert alert-danger">{(error as Error).message}</div>}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {photos.length > 0 ? (
+        {photos && photos.length > 0 ? (
           photos.map(photo => (
             <div key={photo.id} className="card h-100">
                 <a href={photo.url} target="_blank" rel="noopener noreferrer">
@@ -101,55 +82,45 @@ function CustomerPhotos() {
               </div>
           ))
         ) : (
-          <p>No photos found matching your criteria.</p>
+          !isLoading && <p>No photos found matching your criteria.</p>
         )}
       </div>
     </div>
   );
 }
 
+// --- REFACTORED: Admin Photos Component ---
+
 function AdminPhotos() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [lineItems, setLineItems] = useState<LineItem[]>([]);
-  const [selectedUser, setSelectedUser] = useState<string>('');
-  const [selectedJob, setSelectedJob] = useState<string>('');
-  const [selectedItem, setSelectedItem] = useState<string>('');
+  const [selectedUser, setSelectedUser] = useState('');
+  const [selectedJob, setSelectedJob] = useState('');
+  const [selectedItem, setSelectedItem] = useState('');
   const [notes, setNotes] = useState('');
   const [userSearch, setUserSearch] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'danger', text: string } | null>(null);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    api.admin.users.$get().then(setUsers).catch(console.error);
-  }, []);
+  const { data: users = [] } = useQuery({
+    queryKey: ['adminUsers'],
+    queryFn: async () => (await api.admin.users.$get()).json().then(d => d.users),
+  });
 
-  useEffect(() => {
-    if (selectedUser) {
-      api.admin.jobs.user[':user_id'].$get({ param: { user_id: selectedUser } }).then(setJobs).catch(console.error);
-    } else {
-      setJobs([]);
-    }
-    setSelectedJob('');
-  }, [selectedUser]);
+  const { data: jobs = [] } = useQuery({
+    queryKey: ['userJobs', selectedUser],
+    queryFn: async () => api.admin.jobs.user[':user_id'].$get({ param: { user_id: selectedUser } }).then(res => res.json()).then(d => d.jobs),
+    enabled: !!selectedUser,
+  });
 
-  useEffect(() => {
-    if (selectedJob) {
-      api.jobs[':id']['line-items'].$get({ param: { id: selectedJob } }).then(setLineItems).catch(console.error);
-    } else {
-      setLineItems([]);
-    }
-    setSelectedItem('');
-  }, [selectedJob]);
+  const { data: lineItems = [] } = useQuery({
+    queryKey: ['jobLineItems', selectedJob],
+    queryFn: async () => api.jobs[':id']['line-items'].$get({ param: { id: selectedJob } }).then(res => res.json()).then(d => d.lineItems),
+    enabled: !!selectedJob,
+  });
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (!selectedUser) {
-      setMessage({ type: 'danger', text: 'Please select a user before uploading.' });
-      return;
-    }
-    setMessage(null);
-    setIsSubmitting(true);
-    try {
+  const uploadMutation = useMutation({
+    mutationFn: async (acceptedFiles: File[]) => {
+      if (!selectedUser) throw new Error('Please select a user before uploading.');
+
       const uploadPromises = acceptedFiles.map(file => {
         const formData = new FormData();
         formData.append('photo', file);
@@ -158,30 +129,35 @@ function AdminPhotos() {
         if (selectedItem) formData.append('item_id', selectedItem);
         if (notes) formData.append('notes', notes);
 
-        // Direct fetch is correct for multipart/form-data
+        // Hono RPC client doesn't support multipart/form-data, so we use fetch directly here.
+        // This is a known pattern for file uploads.
         return fetch(`/api/admin/users/${selectedUser}/photos`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`},
           body: formData,
         }).then(async res => {
-            if (!res.ok) {
-                const errorData = await res.json().catch(() => ({}));
-                throw new Error(errorData.error || 'Upload failed');
-            }
+            if (!res.ok) throw await handleApiError(res, 'Upload failed');
             return res.json();
         });
       });
-      await Promise.all(uploadPromises);
-      setMessage({ type: 'success', text: `${acceptedFiles.length} photo(s) uploaded successfully!` });
+      return Promise.all(uploadPromises);
+    },
+    onSuccess: (data, variables) => {
+      setMessage({ type: 'success', text: `${variables.length} photo(s) uploaded successfully!` });
+      queryClient.invalidateQueries({ queryKey: ['customerPhotos'] }); // Invalidate customer view
       setSelectedJob('');
       setSelectedItem('');
       setNotes('');
-    } catch (err: any) {
-      setMessage({ type: 'danger', text: `Upload failed: ${err.message}` });
-    } finally {
-      setIsSubmitting(false);
+    },
+    onError: (error: Error) => {
+      setMessage({ type: 'danger', text: `Upload failed: ${error.message}` });
     }
-  }, [selectedUser, selectedJob, selectedItem, notes]);
+  });
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    setMessage(null);
+    uploadMutation.mutate(acceptedFiles);
+  }, [uploadMutation]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: { 'image/*': [] } });
 
@@ -196,7 +172,6 @@ function AdminPhotos() {
   }, [users, userSearch]);
 
   return (
-    // ... AdminPhotos JSX is unchanged ...
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
       <h2 className="text-2xl font-bold mb-4">Upload Photos for a User</h2>
       {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
@@ -205,10 +180,10 @@ function AdminPhotos() {
           <div>
             <label htmlFor="userSearch" className="form-label">Search and Select a User</label>
             <input type="text" id="userSearch" className="form-control mb-2" placeholder="Search by name, email, or phone..." value={userSearch} onChange={e => setUserSearch(e.target.value)} />
-            <select id="user" className="form-control" value={selectedUser} onChange={e => setSelectedUser(e.target.value)} required>
+            <select id="user" className="form-control" value={selectedUser} onChange={e => { setSelectedUser(e.target.value); setSelectedJob(''); setSelectedItem(''); }} required>
               <option value="">-- Select a User --</option>
               {filteredUsers.map(user => (
-                <option key={user.id} value={user.id.toString()}>
+                <option key={user.id} value={user.id}>
                   {user.name || user.company_name} ({user.email || user.phone})
                 </option>
               ))}
@@ -217,10 +192,10 @@ function AdminPhotos() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="job" className="form-label">Associate with Job (Optional)</label>
-              <select id="job" className="form-control" value={selectedJob} onChange={e => setSelectedJob(e.target.value)} disabled={!selectedUser}>
+              <select id="job" className="form-control" value={selectedJob} onChange={e => { setSelectedJob(e.target.value); setSelectedItem(''); }} disabled={!selectedUser}>
                 <option value="">-- Select a Job --</option>
                 {jobs.map(job => (
-                  <option key={job.id} value={job.id}>{job.title} - {new Date(job.start).toLocaleDateString()}</option>
+                  <option key={job.id} value={job.id}>{job.job_title} - {new Date(job.job_start_time).toLocaleDateString()}</option>
                 ))}
               </select>
             </div>
@@ -229,7 +204,7 @@ function AdminPhotos() {
               <select id="item" className="form-control" value={selectedItem} onChange={e => setSelectedItem(e.target.value)} disabled={!selectedJob}>
                 <option value="">-- Select an Item --</option>
                 {lineItems.map(item => (
-                  <option key={item.id} value={item.id.toString()}>{item.description}</option>
+                  <option key={item.id} value={item.id}>{item.description}</option>
                 ))}
               </select>
             </div>
@@ -248,22 +223,10 @@ function AdminPhotos() {
   );
 }
 
+// --- Main Photos Component ---
 function Photos() {
-  const [userRole, setUserRole] = useState<string | null>(null);
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      try {
-        const decoded = jwtDecode<UserPayload>(token);
-        setUserRole(decoded.role);
-      } catch (e) {
-        console.error("Invalid token:", e);
-      }
-    }
-  }, []);
-
-  if (userRole === 'admin') return <AdminPhotos />;
+  const { user } = useAuth();
+  if (user?.role === 'admin') return <AdminPhotos />;
   return <CustomerPhotos />;
 }
 

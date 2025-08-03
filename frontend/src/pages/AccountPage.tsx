@@ -1,16 +1,35 @@
+// frontend/src/pages/AccountPage.tsx
 import { useState, useEffect, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { subscribeUser, unsubscribeUser } from '../lib/push';
-import type { User, PaymentMethod } from '@portal/shared';
-import { HTTPException } from 'hono/http-exception';
+import type { User, PaymentMethod, UpdateProfilePayload } from '@portal/shared';
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { handleApiError } from '../lib/utils'; // Assuming a utility for consistent error handling
+
+// --- REFACTORED: Data Fetching Functions ---
+
+const fetchProfile = async (): Promise<User> => {
+  const res = await api.profile.$get();
+  if (!res.ok) throw await handleApiError(res, 'Failed to fetch profile');
+  const data = await res.json();
+  return data.user;
+};
+
+const fetchPaymentMethods = async (): Promise<PaymentMethod[]> => {
+  const res = await api.profile['payment-methods'].$get();
+  if (!res.ok) throw await handleApiError(res, 'Failed to fetch payment methods');
+  const data = await res.json();
+  return data.paymentMethods;
+};
+
+// --- REFACTORED: CheckoutForm Component ---
 
 const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
     const stripe = useStripe();
     const elements = useElements();
-    const [error, setError] = useState<string | null>(null);
-    const [isProcessing, setIsProcessing] = useState(false);
     const [isDarkMode, setIsDarkMode] = useState(false);
+    const queryClient = useQueryClient();
 
     useEffect(() => {
         const checkDarkMode = () => document.documentElement.classList.contains('dark');
@@ -32,14 +51,13 @@ const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
         },
     }), [isDarkMode]);
 
-    const handleSubmit = async (event: React.SyntheticEvent) => {
-        event.preventDefault();
-        if (!stripe || !elements) return;
-        setIsProcessing(true);
-        setError(null);
+    const addPaymentMethodMutation = useMutation({
+        mutationFn: async () => {
+            if (!stripe || !elements) throw new Error("Stripe is not initialized.");
+            const res = await api.profile['setup-intent'].$post({});
+            if (!res.ok) throw await handleApiError(res, 'Could not create setup intent.');
+            const { clientSecret } = await res.json();
 
-        try {
-            const { clientSecret } = await api.profile['setup-intent'].$post({});
             const cardElement = elements.getElement(CardElement);
             if (!cardElement) throw new Error("Card element not found");
 
@@ -47,19 +65,21 @@ const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
                 payment_method: { card: cardElement },
             });
 
-            if (stripeError) throw stripeError;
-
+            if (stripeError) throw new Error(stripeError.message);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['paymentMethods'] });
             onSuccessfulAdd();
-        } catch (err: any) {
-            if (err instanceof HTTPException) {
-                const errorJson = await err.response.json();
-                setError(errorJson.error || 'Could not create setup intent.');
-            } else {
-                setError(err.message || 'An unexpected error occurred.');
-            }
-        } finally {
-            setIsProcessing(false);
+        },
+        onError: (error: Error) => {
+            // You can use a toast library here for better UX
+            alert(`Error: ${error.message}`);
         }
+    });
+
+    const handleSubmit = (event: React.SyntheticEvent) => {
+        event.preventDefault();
+        addPaymentMethodMutation.mutate();
     };
 
     return (
@@ -67,77 +87,101 @@ const CheckoutForm = ({ onSuccessfulAdd }: { onSuccessfulAdd: () => void }) => {
             <div className="p-3 border rounded-md border-border-light dark:border-border-dark bg-white dark:bg-secondary-dark">
                  <CardElement options={cardElementOptions} />
             </div>
-            <button type="button" onClick={handleSubmit} className="btn btn-primary mt-4" disabled={!stripe || isProcessing}>
-                {isProcessing ? 'Saving...' : 'Save Card'}
+            <button type="button" onClick={handleSubmit} className="btn btn-primary mt-4" disabled={!stripe || addPaymentMethodMutation.isPending}>
+                {addPaymentMethodMutation.isPending ? 'Saving...' : 'Save Card'}
             </button>
-            {error && <div className="alert alert-danger mt-2">{error}</div>}
+            {addPaymentMethodMutation.error && <div className="alert alert-danger mt-2">{addPaymentMethodMutation.error.message}</div>}
         </div>
     );
 };
 
+
+// --- REFACTORED: Main AccountPage Component ---
+
 function AccountPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const queryClient = useQueryClient();
   const [showAddPaymentMethod, setShowAddPaymentMethod] = useState(false);
-  const [formData, setFormData] = useState({
-      name: '',
-      company_name: '',
-      email_notifications_enabled: true,
-      sms_notifications_enabled: true,
-      preferred_contact_method: 'email',
-      calendar_reminders_enabled: true,
-      calendar_reminder_minutes: 60,
-  });
+  const [formData, setFormData] = useState<Partial<UpdateProfilePayload>>({});
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [pushState, setPushState] = useState({ isSubscribed: false, isSupported: false });
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [passwordMessage, setPasswordMessage] = useState<{type: 'success'|'danger', text: string} | null>(null);
-  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [message, setMessage] = useState<{type: 'success'|'danger', text: string} | null>(null);
 
-  const handleApiError = async (err: any, defaultMessage: string, setter: (msg: string) => void) => {
-      if (err instanceof HTTPException) {
-          const errorJson = await err.response.json();
-          setter(errorJson.error || defaultMessage);
-      } else {
-          setter(err.message || defaultMessage);
-      }
-  };
+  // --- REFACTORED: Data fetching with useQuery ---
+  const { data: user, isLoading: isProfileLoading, error: profileError } = useQuery({
+    queryKey: ['profile'],
+    queryFn: fetchProfile,
+  });
 
-  const fetchPaymentMethods = useCallback(async () => {
-    try {
-        const methods = await api.profile['payment-methods'].$get();
-        setPaymentMethods(methods);
-    } catch (err: any) {
-        handleApiError(err, 'Failed to fetch payment methods', setError);
-    }
-  }, []);
+  const { data: paymentMethods } = useQuery({
+    queryKey: ['paymentMethods'],
+    queryFn: fetchPaymentMethods,
+    enabled: !!user && user.role !== 'admin',
+  });
 
+  // --- REFACTORED: Mutations for updates ---
+  const updateProfileMutation = useMutation({
+    mutationFn: (payload: UpdateProfilePayload) => api.profile.$put({ json: payload }),
+    onSuccess: (res) => {
+        if (!res.ok) return handleApiError(res, 'Failed to update profile').then(err => { throw err });
+        queryClient.invalidateQueries({ queryKey: ['profile'] });
+        setMessage({ type: 'success', text: 'Profile and notification settings saved!' });
+    },
+    onError: (error: Error) => setMessage({ type: 'danger', text: error.message }),
+  });
+
+  const changePasswordMutation = useMutation({
+    mutationFn: (payload: typeof passwordData) => api.profile['change-password'].$post({ json: payload }),
+    onSuccess: (res) => {
+        if (!res.ok) return handleApiError(res, 'Failed to change password').then(err => { throw err });
+        setMessage({ type: 'success', text: 'Password changed successfully!' });
+        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    },
+    onError: (error: Error) => setMessage({ type: 'danger', text: error.message }),
+  });
+
+  const requestResetCodeMutation = useMutation({
+    mutationFn: (channel: 'email' | 'sms') => {
+        const identifier = channel === 'email' ? user?.email : user?.phone;
+        if (!identifier) throw new Error(`You do not have a registered ${channel}.`);
+        return api['request-password-reset'].$post({ json: { identifier, channel } });
+    },
+    onSuccess: (res) => {
+        if (!res.ok) return handleApiError(res, 'Failed to send reset code').then(err => { throw err });
+        setMessage({ type: 'success', text: `A verification code has been sent. Please use the "Forgot Password" option on the login page to complete the password change.` });
+    },
+    onError: (error: Error) => setMessage({ type: 'danger', text: error.message }),
+  });
+
+  const pushNotificationMutation = useMutation({
+    mutationFn: async () => {
+        if (pushState.isSubscribed) {
+            await unsubscribeUser();
+            return { subscribed: false };
+        } else {
+            await subscribeUser();
+            return { subscribed: true };
+        }
+    },
+    onSuccess: (data) => {
+        setPushState(prev => ({ ...prev, isSubscribed: data.subscribed }));
+        setMessage({ type: 'success', text: data.subscribed ? "Successfully subscribed to web notifications!" : "You have been unsubscribed from web notifications." });
+    },
+    onError: (error: Error) => setMessage({ type: 'danger', text: error.message || "An error occurred with push notifications." }),
+  });
+
+  // --- Effect to populate form when user data loads ---
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        setIsLoading(true);
-        const profileData = await api.profile.$get();
-        setUser(profileData);
-        setFormData({
-            name: profileData.name,
-            company_name: profileData.company_name || '',
-            email_notifications_enabled: profileData.email_notifications_enabled,
-            sms_notifications_enabled: profileData.sms_notifications_enabled,
-            preferred_contact_method: profileData.preferred_contact_method || 'email',
-            calendar_reminders_enabled: profileData.calendar_reminders_enabled ?? true,
-            calendar_reminder_minutes: profileData.calendar_reminder_minutes ?? 60,
-        });
-        fetchPaymentMethods();
-      } catch (err: any) {
-        handleApiError(err, 'Failed to fetch profile', setError);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchProfile();
-
+    if (user) {
+      setFormData({
+        name: user.name,
+        company_name: user.company_name || '',
+        email_notifications_enabled: user.email_notifications_enabled,
+        sms_notifications_enabled: user.sms_notifications_enabled,
+        preferred_contact_method: user.preferred_contact_method || 'email',
+        calendar_reminders_enabled: user.calendar_reminders_enabled ?? true,
+        calendar_reminder_minutes: user.calendar_reminder_minutes ?? 60,
+      });
+    }
     if ('serviceWorker' in navigator && 'PushManager' in window) {
       setPushState(prev => ({ ...prev, isSupported: true }));
       navigator.serviceWorker.ready.then(reg => {
@@ -146,8 +190,9 @@ function AccountPage() {
         });
       });
     }
-  }, [fetchPaymentMethods]);
+  }, [user]);
 
+  // --- Event Handlers ---
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const isCheckbox = type === 'checkbox';
@@ -155,90 +200,39 @@ function AccountPage() {
     setFormData(prev => ({ ...prev, [name]: isCheckbox ? checked : value }));
   };
 
-  const handleSettingsSubmit = async (e: React.FormEvent) => {
+  const handleSettingsSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
-    try {
-      const payload = { ...formData, calendar_reminder_minutes: Number(formData.calendar_reminder_minutes) };
-      const updatedUser = await api.profile.$put({ json: payload });
-      setUser(updatedUser);
-      setSuccess('Profile and notification settings saved!');
-    } catch (err: any) {
-      handleApiError(err, 'Failed to update profile', setError);
-    }
+    setMessage(null);
+    const payload = { ...formData, calendar_reminder_minutes: Number(formData.calendar_reminder_minutes) } as UpdateProfilePayload;
+    updateProfileMutation.mutate(payload);
   };
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPasswordData({ ...passwordData, [e.target.name]: e.target.value });
   };
 
-  const handlePasswordSubmit = async (e: React.SyntheticEvent) => {
+  const handlePasswordSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setPasswordMessage({type: 'danger', text: "New passwords do not match."});
+      setMessage({type: 'danger', text: "New passwords do not match."});
       return;
     }
-    setPasswordMessage(null);
-    try {
-        await api.profile['change-password'].$post({ json: passwordData });
-        setPasswordMessage({type: 'success', text: 'Password changed successfully!'});
-        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    } catch (err: any) {
-        handleApiError(err, 'An unexpected error occurred.', (msg) => setPasswordMessage({type: 'danger', text: msg}));
-    }
+    setMessage(null);
+    changePasswordMutation.mutate(passwordData);
   };
 
-  const handleRequestResetCode = async (channel: 'email' | 'sms') => {
-    if (!user) return;
-    const identifier = channel === 'email' ? user.email : user.phone;
-    if (!identifier) {
-        setPasswordMessage({type: 'danger', text: `You do not have a registered ${channel}.`});
-        return;
-    }
-    setIsSendingCode(true);
-    setPasswordMessage(null);
-    try {
-        await api['request-password-reset'].$post({ json: { identifier, channel } });
-        setPasswordMessage({type: 'success', text: `A verification code has been sent. Please use the "Forgot Password" option on the login page to complete the password change.`})
-    } catch (err: any) {
-        handleApiError(err, 'Failed to send reset code', (msg) => setPasswordMessage({type: 'danger', text: msg}));
-    } finally {
-        setIsSendingCode(false);
-    }
-  }
-
-  const handleTogglePush = async () => {
-    setError(null);
-    setSuccess(null);
-    try {
-      if (pushState.isSubscribed) {
-        await unsubscribeUser();
-        setPushState(prev => ({ ...prev, isSubscribed: false }));
-        setSuccess("You have been unsubscribed from web notifications.");
-      } else {
-        await subscribeUser();
-        setPushState(prev => ({ ...prev, isSubscribed: true }));
-        setSuccess("Successfully subscribed to web notifications!");
-      }
-    } catch (err: any) {
-      setError(err.message || "An error occurred with push notifications.");
-    }
-  };
-
-  if (isLoading) return <div className="text-center p-8">Loading account details...</div>;
-  if (error && !user) return <div className="alert alert-danger">{error}</div>;
+  if (isProfileLoading) return <div className="text-center p-8">Loading account details...</div>;
+  if (profileError) return <div className="alert alert-danger">{(profileError as Error).message}</div>;
+  if (!user) return <div className="alert alert-danger">Could not load user profile.</div>
 
   return (
-    // ... JSX is unchanged ...
     <div className="container max-w-7xl mx-auto mt-4">
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold">Account Settings</h1>
         <p className="text-text-secondary-light dark:text-text-secondary-dark">Manage your profile, security, and notification preferences.</p>
       </div>
 
-      {error && <div className="alert alert-danger mb-4">{error}</div>}
-      {success && <div className="alert alert-success mb-4">{success}</div>}
+      {message && <div className={`alert alert-${message.type} mb-4`}>{message.text}</div>}
 
       <form onSubmit={handleSettingsSubmit}>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -249,7 +243,7 @@ function AccountPage() {
                   <div className="card-body space-y-4">
                       <div>
                         <label htmlFor="name" className="form-label">Full Name</label>
-                        <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} className="form-control" />
+                        <input type="text" id="name" name="name" value={formData.name || ''} onChange={handleChange} className="form-control" />
                       </div>
                       <div>
                         <label htmlFor="company_name" className="form-label">Company/Community Name</label>
@@ -283,7 +277,7 @@ function AccountPage() {
                   <div className="card">
                       <div className="card-header"><h2 className="card-title text-xl">Payment Methods</h2></div>
                       <div className="card-body">
-                          {paymentMethods.map(pm => (
+                          {paymentMethods?.map(pm => (
                               <div key={pm.id} className="flex justify-between items-center p-2 border-b">
                                   <span>{pm.brand} **** {pm.last4}</span>
                                   <span>Exp: {pm.exp_month}/{pm.exp_year}</span>
@@ -291,10 +285,7 @@ function AccountPage() {
                           ))}
                           {showAddPaymentMethod ? (
                               <div className="mt-4">
-                                <CheckoutForm onSuccessfulAdd={() => {
-                                    setShowAddPaymentMethod(false);
-                                    fetchPaymentMethods();
-                                }} />
+                                <CheckoutForm onSuccessfulAdd={() => setShowAddPaymentMethod(false)} />
                               </div>
                           ) : (
                               <button type="button" onClick={() => setShowAddPaymentMethod(true)} className="btn btn-secondary mt-4">
@@ -339,7 +330,7 @@ function AccountPage() {
                            </div>
                             {pushState.isSupported && (
                                <div className="form-switch">
-                                   <input className="form-check-input" type="checkbox" role="switch" id="web_notifications_enabled" checked={pushState.isSubscribed} onChange={handleTogglePush} />
+                                   <input className="form-check-input" type="checkbox" role="switch" id="web_notifications_enabled" checked={pushState.isSubscribed} onChange={() => pushNotificationMutation.mutate()} disabled={pushNotificationMutation.isPending} />
                                    <label className="form-check-label ml-3" htmlFor="web_notifications_enabled">Web Push Notifications</label>
                                </div>
                             )}
@@ -352,7 +343,6 @@ function AccountPage() {
                 <div className="card-body">
                    <div>
                       <div className="space-y-4">
-                          {passwordMessage && <div className={`alert alert-${passwordMessage.type}`}>{passwordMessage.text}</div>}
                           <div>
                               <label htmlFor="currentPassword">Current Password</label>
                               <input type="password" id="currentPassword" name="currentPassword" value={passwordData.currentPassword} onChange={handlePasswordChange} className="form-control" required autoComplete="current-password"/>
@@ -366,17 +356,19 @@ function AccountPage() {
                               <input type="password" id="confirmPassword" name="confirmPassword" value={passwordData.confirmPassword} onChange={handlePasswordChange} className="form-control" required autoComplete="new-password"/>
                           </div>
                       </div>
-                      <button type="button" onClick={handlePasswordSubmit} className="btn btn-secondary mt-6">Change Password</button>
+                      <button type="button" onClick={handlePasswordSubmit} className="btn btn-secondary mt-6" disabled={changePasswordMutation.isPending}>
+                        {changePasswordMutation.isPending ? 'Changing...' : 'Change Password'}
+                      </button>
                   </div>
                   <hr className="my-6 border-border-light dark:border-border-dark" />
                   <div className="space-y-4">
                       <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">If you've forgotten your current password, you can request a one-time code to reset it.</p>
                       <div className="flex flex-col space-y-2">
-                          <button type="button" onClick={() => handleRequestResetCode('email')} className="btn btn-secondary" disabled={isSendingCode || !user?.email}>
-                              {isSendingCode ? 'Sending...' : 'Send Code to Email'}
+                          <button type="button" onClick={() => requestResetCodeMutation.mutate('email')} className="btn btn-secondary" disabled={requestResetCodeMutation.isPending || !user?.email}>
+                              {requestResetCodeMutation.isPending ? 'Sending...' : 'Send Code to Email'}
                           </button>
-                          <button type="button" onClick={() => handleRequestResetCode('sms')} className="btn btn-secondary" disabled={isSendingCode || !user?.phone}>
-                              {isSendingCode ? 'Sending...' : 'Send Code via Text'}
+                          <button type="button" onClick={() => requestResetCodeMutation.mutate('sms')} className="btn btn-secondary" disabled={requestResetCodeMutation.isPending || !user?.phone}>
+                              {requestResetCodeMutation.isPending ? 'Sending...' : 'Send Code via Text'}
                           </button>
                       </div>
                   </div>
@@ -385,7 +377,9 @@ function AccountPage() {
           </div>
         </div>
         <div className="mt-8 flex justify-end">
-            <button type="submit" className="btn btn-primary btn-lg">Save All Settings</button>
+            <button type="submit" className="btn btn-primary btn-lg" disabled={updateProfileMutation.isPending}>
+                {updateProfileMutation.isPending ? 'Saving...' : 'Save All Settings'}
+            </button>
         </div>
       </form>
     </div>

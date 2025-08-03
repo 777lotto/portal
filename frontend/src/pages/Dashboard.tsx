@@ -1,114 +1,86 @@
 // frontend/src/pages/Dashboard.tsx
-import { useState, useEffect } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import type { User, Job, DashboardInvoice } from '@portal/shared';
-import { HTTPException } from 'hono/http-exception';
+import type { User, Job, DashboardInvoice, Quote, Draft } from '@portal/shared';
+import { useAuth } from '../hooks/useAuth';
+import { handleApiError } from '../lib/utils';
+
+// --- REFACTORED: Data Fetching Functions ---
+
+const fetchDashboardData = async (user: User | null) => {
+  if (!user) throw new Error("User not authenticated");
+
+  const endpoints: Promise<any>[] = [
+    api.quotes.pending.$get(),
+    user.role === 'admin' ? api.admin.jobs.$get() : api.jobs.$get(),
+    user.role === 'admin' ? api.admin.invoices.open.$get() : api.invoices.open.$get(),
+  ];
+
+  if (user.role === 'admin') {
+    endpoints.push(api.admin.drafts.$get());
+  }
+
+  const results = await Promise.all(endpoints);
+
+  for (const res of results) {
+    if (!res.ok) throw await handleApiError(res, 'Failed to load dashboard data');
+  }
+
+  const [quotesRes, jobsRes, invoicesRes, draftsRes] = results;
+
+  const quotesData = await quotesRes.json();
+  const jobsData = await jobsRes.json();
+  const invoicesData = await invoicesRes.json();
+  const draftsData = user.role === 'admin' ? await draftsRes.json() : { drafts: [] };
+
+  return {
+    pendingQuotes: quotesData.quotes as Quote[],
+    upcomingJobs: (user.role === 'admin' ? jobsData.jobs as Job[] : jobsData.jobs as Job[]).filter(j => j.status !== 'pending' && j.status !== 'draft').slice(0, 10),
+    openInvoices: invoicesData.invoices as DashboardInvoice[],
+    drafts: draftsData.drafts as Draft[],
+  };
+};
 
 function Dashboard() {
-  const [user, setUser] = useState<User | null>(null);
-  const [upcomingJobs, setUpcomingJobs] = useState<Job[]>([]);
-  const [openInvoices, setOpenInvoices] = useState<DashboardInvoice[]>([]);
-  const [pendingQuotes, setPendingQuotes] = useState<Job[]>([]);
-  const [drafts, setDrafts] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboard', user?.id],
+    queryFn: () => fetchDashboardData(user),
+    enabled: !!user,
+  });
 
-  const handleDownloadPdf = async (invoiceId: string, invoiceNumber: string | null) => {
-    setDownloadingInvoiceId(invoiceId);
-    setError(null);
-    try {
-      const response = await fetch(`/api/invoices/${invoiceId}/pdf`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem("token")}` }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to download invoice. Please try again.`);
-      }
-
-      const blob = await response.blob();
+  const downloadPdfMutation = useMutation({
+    mutationFn: async ({ invoiceId, invoiceNumber }: { invoiceId: string, invoiceNumber: string | null }) => {
+      const res = await api.invoices[':invoiceId'].pdf.$get({ param: { invoiceId } });
+      if (!res.ok) throw await handleApiError(res, 'Failed to download invoice.');
+      return { blob: await res.blob(), name: `invoice-${invoiceNumber || invoiceId}.pdf` };
+    },
+    onSuccess: ({ blob, name }) => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `invoice-${invoiceNumber || invoiceId}.pdf`;
+      a.download = name;
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setDownloadingInvoiceId(null);
+    },
+    onError: (err: Error) => {
+      // Ideally, use a toast notification here
+      alert(err.message);
     }
-  };
+  });
 
-  useEffect(() => {
-    const loadDashboard = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
+  if (isLoading || !user) return <div className="text-center p-8">Loading dashboard...</div>;
+  if (error) return <div className="rounded-md bg-red-500/10 p-4 text-sm text-red-500">{(error as Error).message}</div>;
 
-        // --- REPAIRED DATA FETCHING ---
-        // Each API call now correctly awaits the .json() method to parse the response body.
-
-        const profileRes = await api.profile.$get();
-        const profileData = await profileRes.json();
-        setUser(profileData);
-
-        const quotesRes = await api.quotes.pending.$get();
-        const quotesData = await quotesRes.json();
-        setPendingQuotes(quotesData);
-
-        if (profileData.role === 'admin') {
-          const [jobsRes, invoicesRes, draftsRes] = await Promise.all([
-            api.admin.jobs.$get(),
-            api.admin.invoices.open.$get(),
-            api.admin.drafts.$get(),
-          ]);
-
-          const jobsData = await jobsRes.json();
-          const invoicesData = await invoicesRes.json();
-          const draftsData = await draftsRes.json();
-
-          setUpcomingJobs(jobsData.filter(j => j.status !== 'pending' && j.status !== 'draft').slice(0, 10));
-          setOpenInvoices(invoicesData);
-          setDrafts(draftsData);
-        } else {
-          const [jobsRes, invoicesRes] = await Promise.all([
-            api.jobs.$get(),
-            api.invoices.open.$get(),
-          ]);
-
-          const jobsData = await jobsRes.json();
-          const invoicesData = await invoicesRes.json();
-
-          setUpcomingJobs(jobsData.filter(j => j.status !== 'pending' && j.status !== 'draft').slice(0, 5));
-          setOpenInvoices(invoicesData);
-        }
-
-      } catch (err: any) {
-        if (err instanceof HTTPException) {
-          const errorJson = await err.response.json();
-          setError(errorJson.error || 'An error occurred.');
-        } else {
-          setError(err.message);
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadDashboard();
-  }, []);
-
-  if (isLoading) return <div className="text-center p-8">Loading dashboard...</div>;
-  if (error) return <div className="rounded-md bg-red-500/10 p-4 text-sm text-red-500">{error}</div>;
+  const { upcomingJobs, pendingQuotes, openInvoices, drafts } = data || {};
 
   return (
     <div className="mx-auto max-w-7xl">
       <header className="flex justify-between items-center mb-6">
-        {user && <h1 className="text-3xl font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark">Welcome, {user.name}!</h1>}
+        <h1 className="text-3xl font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark">Welcome, {user.name}!</h1>
         {user?.role !== 'admin' && (
           <Link to="/booking" className="btn btn-primary">
             Schedule Next Service
@@ -121,10 +93,10 @@ function Dashboard() {
             {user?.role === 'admin' ? "All Upcoming Jobs" : "Your Upcoming Jobs"}
           </h3>
           <div className="space-y-3">
-            {upcomingJobs.length > 0 ? (
+            {upcomingJobs && upcomingJobs.length > 0 ? (
               upcomingJobs.map(job => (
                 <Link key={job.id} to={`/jobs/${job.id}`} className="block p-3 rounded-md transition text-text-secondary-light dark:text-text-secondary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark">
-                  {job.title} - {new Date(job.start).toLocaleString()}
+                  {job.job_title} - {new Date(job.job_start_time).toLocaleString()}
                 </Link>
               ))
             ) : <p className="text-text-secondary-light dark:text-text-secondary-dark">No upcoming jobs.</p>}
@@ -136,11 +108,11 @@ function Dashboard() {
                 Pending Quotes
             </h3>
             <div className="space-y-3">
-                {pendingQuotes.length > 0 ? (
+                {pendingQuotes && pendingQuotes.length > 0 ? (
                     pendingQuotes.map(quote => (
                         <Link key={quote.id} to={`/quotes/${quote.id}`} className="block p-3 rounded-md transition text-text-secondary-light dark:text-text-secondary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark">
-                            {user?.role === 'admin' && `${(quote as any).customerName} - `}
-                            {quote.title} - {quote.status === 'pending_quote' ? 'Awaiting your approval' : 'Pending admin review'}
+                            {user?.role === 'admin' && `${quote.customerName} - `}
+                            {quote.job_title} - {quote.status === 'pending_quote' ? 'Awaiting your approval' : 'Pending admin review'}
                         </Link>
                     ))
                 ) : <p className="text-text-secondary-light dark:text-text-secondary-dark">No pending quotes.</p>}
@@ -153,11 +125,11 @@ function Dashboard() {
               Drafts
             </h3>
             <div className="space-y-3">
-              {drafts.length > 0 ? (
+              {drafts && drafts.length > 0 ? (
                 drafts.map(draft => (
                   <Link key={draft.id} to={`/jobs/${draft.id}`} className="block p-3 rounded-md transition text-text-secondary-light dark:text-text-secondary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark">
                     {`${draft.customerName} - `}
-                    {draft.title} - {draft.status}
+                    {draft.job_title} - {draft.status}
                   </Link>
                 ))
               ) : <p className="text-text-secondary-light dark:text-text-secondary-dark">No drafts.</p>}
@@ -170,10 +142,10 @@ function Dashboard() {
             {user?.role === 'admin' ? "All Open Invoices" : "Your Open Invoices"}
            </h3>
            <div className="space-y-3">
-            {openInvoices.length > 0 ? (
+            {openInvoices && openInvoices.length > 0 ? (
               openInvoices.map(invoice => {
                 const invoiceLink = user?.role === 'admin'
-                  ? `/admin/jobs/${(invoice as any).job_id}`
+                  ? `/admin/jobs/${invoice.job_id}`
                   : `/pay-invoice/${invoice.id}`;
 
                 return (
@@ -182,19 +154,19 @@ function Dashboard() {
                       <div className="flex justify-between">
                         <span>
                           {user?.role === 'admin' && invoice.customerName ? `${invoice.customerName} - ` : ''}
-                          Invoice #{invoice.number}
+                          Invoice #{invoice.invoice_number}
                         </span>
-                        <span className="font-semibold">${((invoice.total || 0) / 100).toFixed(2)}</span>
+                        <span className="font-semibold">${((invoice.total_amount_cents || 0) / 100).toFixed(2)}</span>
                       </div>
-                      {invoice.due_date && <small className="text-text-secondary-light dark:text-text-secondary-dark">Due: {new Date(invoice.due_date * 1000).toLocaleDateString()}</small>}
+                      {invoice.due_date && <small className="text-text-secondary-light dark:text-text-secondary-dark">Due: {new Date(invoice.due_date).toLocaleDateString()}</small>}
                     </Link>
                     {user?.role !== 'admin' && (
                       <button
-                        onClick={() => handleDownloadPdf(invoice.id, invoice.number)}
+                        onClick={() => downloadPdfMutation.mutate({ invoiceId: invoice.id, invoiceNumber: invoice.invoice_number })}
                         className="btn btn-secondary ml-4"
-                        disabled={downloadingInvoiceId === invoice.id}
+                        disabled={downloadPdfMutation.isPending}
                       >
-                        {downloadingInvoiceId === invoice.id ? 'Downloading...' : 'Download PDF'}
+                        {downloadPdfMutation.isPending ? 'Downloading...' : 'Download PDF'}
                       </button>
                     )}
                   </div>

@@ -1,26 +1,24 @@
-import { useState, useEffect } from 'react';
+// frontend/src/pages/InvoicePaymentPage.tsx
+import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import { HTTPException } from 'hono/http-exception';
 import type { StripeInvoice, StripeInvoiceItem } from '@portal/shared';
 import { loadStripe } from '@stripe/stripe-js';
-import {
-  Elements,
-  PaymentElement,
-  useStripe,
-  useElements,
-} from '@stripe/react-stripe-js';
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { handleApiError } from '../lib/utils';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PK);
 
 function PaymentStatus() {
   const [searchParams] = useSearchParams();
-  const message = searchParams.get('redirect_status') === 'succeeded'
+  const status = searchParams.get('redirect_status');
+  const message = status === 'succeeded'
     ? 'Payment successful! Thank you for your business.'
-    : 'Something went wrong with your payment. Please try again.';
+    : 'Something went wrong with your payment. Please try again or contact support.';
 
   return (
-    <div className={searchParams.get('redirect_status') === 'succeeded' ? 'alert alert-success' : 'alert alert-danger'}>
+    <div className={status === 'succeeded' ? 'alert alert-success' : 'alert alert-danger'}>
       {message}
     </div>
   );
@@ -61,87 +59,77 @@ const CheckoutForm = ({ invoice }: { invoice: StripeInvoice }) => {
   );
 };
 
+// --- REFACTORED: Data fetching with useQuery ---
+const fetchInvoiceData = async (invoiceId: string) => {
+  const [invoiceRes, intentRes] = await Promise.all([
+    api.invoices[':invoiceId'].$get({ param: { invoiceId } }),
+    api.invoices[':invoiceId']['create-payment-intent'].$post({ param: { invoiceId } })
+  ]);
+
+  if (!invoiceRes.ok) throw await handleApiError(invoiceRes, 'Failed to load invoice data.');
+
+  const invoiceData = await invoiceRes.json();
+
+  // Only fail on payment intent if the invoice is actually open for payment
+  if (invoiceData.invoice.status === 'open' && !intentRes.ok) {
+      throw await handleApiError(intentRes, 'Failed to create payment intent.');
+  }
+
+  const intentData = intentRes.ok ? await intentRes.json() : { clientSecret: null };
+
+  return {
+    invoice: invoiceData.invoice as StripeInvoice,
+    clientSecret: intentData.clientSecret as string | null,
+  };
+};
 
 function InvoicePaymentPage() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const [searchParams] = useSearchParams();
 
-  const [invoice, setInvoice] = useState<StripeInvoice | null>(null);
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isDownloading, setIsDownloading] = useState(false);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['invoicePayment', invoiceId],
+    queryFn: () => fetchInvoiceData(invoiceId!),
+    enabled: !!invoiceId,
+  });
 
-  useEffect(() => {
-    if (invoiceId) {
-      const fetchData = async () => {
-        try {
-          const [invoiceData, intentData] = await Promise.all([
-            api.invoices[':invoiceId'].$get({ param: { invoiceId } }),
-            api.invoices[':invoiceId']['create-payment-intent'].$post({ param: { invoiceId } })
-          ]);
+  const { invoice, clientSecret } = data || {};
 
-          setInvoice(invoiceData);
-          setClientSecret(intentData.clientSecret);
-        } catch (err: any) {
-            if (err instanceof HTTPException) {
-                const errorJson = await err.response.json();
-                setError(errorJson.error || 'Failed to load invoice data.');
-            } else {
-                setError(err.message || 'An unknown error occurred.');
-            }
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchData();
-    }
-  }, [invoiceId]);
-
-  const handleDownloadPdf = async () => {
-    if (!invoiceId) return;
-    setIsDownloading(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/invoices/${invoiceId}/pdf`, {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem("token")}` }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to download invoice.');
+  const downloadPdfMutation = useMutation({
+      mutationFn: async () => {
+          if (!invoiceId) throw new Error("Invoice ID is missing");
+          const res = await api.invoices[':invoiceId'].pdf.$get({ param: { invoiceId } });
+          if (!res.ok) throw await handleApiError(res, 'Failed to download invoice.');
+          return { blob: await res.blob(), name: `invoice-${invoice?.number || invoiceId}.pdf` };
+      },
+      onSuccess: ({ blob, name }) => {
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = name;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+      },
+      onError: (err: Error) => {
+          alert(err.message);
       }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `invoice-${invoice?.number || invoiceId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsDownloading(false);
-    }
-  };
+  });
 
   if (isLoading) return <div className="text-center p-8">Loading invoice...</div>;
-  if (error) return <div className="alert alert-danger">{error}</div>;
+  if (error) return <div className="alert alert-danger">{(error as Error).message}</div>;
   if (!invoice) return <div className="text-center p-8">Invoice not found.</div>;
 
   const showPaymentStatus = searchParams.has('payment_intent');
 
   return (
-    // ... JSX is unchanged ...
     <div className="max-w-4xl mx-auto">
       <div className="card">
         <div className="card-header flex justify-between items-center">
           <h2 className="card-title">Invoice #{invoice.number}</h2>
-          <button onClick={handleDownloadPdf} className="btn btn-secondary" disabled={isDownloading}>
-            {isDownloading ? 'Downloading...' : 'Download PDF'}
+          <button onClick={() => downloadPdfMutation.mutate()} className="btn btn-secondary" disabled={downloadPdfMutation.isPending}>
+            {downloadPdfMutation.isPending ? 'Downloading...' : 'Download PDF'}
           </button>
         </div>
         <div className="card-body">

@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+// frontend/src/pages/JobInfo.tsx
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api } from '../lib/api.js';
-import { HTTPException } from 'hono/http-exception';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '../lib/api';
 import type { Job, LineItem, Photo, Note } from '@portal/shared';
-import RecurrenceRequestModal from '../components/modals/RecurrenceRequestModal.js';
-import QuoteProposalModal from '../components/modals/QuoteProposalModal.js';
+import RecurrenceRequestModal from '../components/modals/RecurrenceRequestModal';
+import QuoteProposalModal from '../components/modals/QuoteProposalModal';
+import { handleApiError } from '../lib/utils';
 
 const parseRRule = (rrule: string | null | undefined): string => {
     if (!rrule) return 'Not set';
@@ -29,99 +31,82 @@ const parseRRule = (rrule: string | null | undefined): string => {
     return description;
 };
 
+// --- REFACTORED: Data Fetching with a single useQuery ---
+const fetchJobDetails = async (jobId: string) => {
+  const [jobRes, lineItemsRes, photosRes, notesRes] = await Promise.all([
+    api.jobs[':id'].$get({ param: { id: jobId } }),
+    api.jobs[':id']['line-items'].$get({ param: { id: jobId } }),
+    api.jobs[':id'].photos.$get({ param: { id: jobId } }),
+    api.jobs[':id'].notes.$get({ param: { id: jobId } })
+  ]);
+
+  if (!jobRes.ok) throw await handleApiError(jobRes, 'Failed to fetch job details');
+  if (!lineItemsRes.ok) throw await handleApiError(lineItemsRes, 'Failed to fetch line items');
+  if (!photosRes.ok) throw await handleApiError(photosRes, 'Failed to fetch photos');
+  if (!notesRes.ok) throw await handleApiError(notesRes, 'Failed to fetch notes');
+
+  const jobData = await jobRes.json();
+  const lineItemsData = await lineItemsRes.json();
+  const photosData = await photosRes.json();
+  const notesData = await notesRes.json();
+
+  return {
+    job: jobData.job as Job,
+    lineItems: lineItemsData.lineItems as LineItem[],
+    photos: photosData.photos as Photo[],
+    notes: notesData.notes as Note[],
+  };
+};
+
 function JobInfo() {
   const { id: jobId } = useParams<{ id: string }>();
-  const [job, setJob] = useState<Job | null>(null);
-  const [lineItems, setLineItems] = useState<LineItem[]>([]);
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [isRecurrenceModalOpen, setIsRecurrenceModalOpen] = useState(false);
   const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const fetchJobDetails = useCallback(async () => {
-    if (!jobId) return;
-    try {
-      setError(null);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['jobDetails', jobId],
+    queryFn: () => fetchJobDetails(jobId!),
+    enabled: !!jobId,
+  });
 
-      // --- REFACTORED ---
-      // Promise.all is much cleaner now. Hono client handles parsing.
-      const [jobData, lineItemsData, photosData, notesData] = await Promise.all([
-        api.jobs[':id'].$get({ param: { id: jobId } }),
-        api.jobs[':id']['line-items'].$get({ param: { id: jobId } }),
-        api.jobs[':id'].photos.$get({ param: { id: jobId } }),
-        api.jobs[':id'].notes.$get({ param: { id: jobId } })
-      ]);
+  const { job, lineItems, photos, notes } = data || {};
 
-      setJob(jobData);
-      setLineItems(lineItemsData);
-      setPhotos(photosData);
-      setNotes(notesData);
-    } catch (err: any) {
-        if (err instanceof HTTPException) {
-            const errorJson = await err.response.json();
-            setError(errorJson.error || 'Failed to fetch job details.');
-        } else {
-            setError(err.message || 'An unknown error occurred.');
+  const quoteActionMutation = useMutation({
+    mutationFn: async ({ action, reason }: { action: 'accept' | 'decline' | 'revise', reason?: string }) => {
+        if (!jobId) throw new Error("Job ID is missing");
+        let res;
+        switch (action) {
+            case 'accept':
+                res = await api.quotes[':quoteId'].accept.$post({ param: { quoteId: jobId } });
+                break;
+            case 'decline':
+                res = await api.quotes[':quoteId'].decline.$post({ param: { quoteId: jobId } });
+                break;
+            case 'revise':
+                if (!reason) throw new Error("Revision reason is required");
+                res = await api.quotes[':quoteId'].revise.$post({ param: { quoteId: jobId }, json: { revisionReason: reason } });
+                break;
         }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [jobId]);
-
-  useEffect(() => {
-    setIsLoading(true);
-    fetchJobDetails();
-  }, [jobId, fetchJobDetails]);
-
-  const handleApiError = async (err: any, defaultMessage: string) => {
-    if (err instanceof HTTPException) {
-        const errorJson = await err.response.json();
-        setError(errorJson.error || defaultMessage);
-    } else {
-        setError(err.message || defaultMessage);
-    }
-  };
-
-  const handleAcceptQuote = async () => {
-    if (!job?.id) return;
-    try {
-        await api.quotes[':quoteId'].accept.$post({ param: { quoteId: job.id } });
-        fetchJobDetails();
+        if (!res.ok) throw await handleApiError(res, `Failed to ${action} quote.`);
+        return action;
+    },
+    onSuccess: (action) => {
+        queryClient.invalidateQueries({ queryKey: ['jobDetails', jobId] });
         setIsQuoteModalOpen(false);
-    } catch (err) {
-        handleApiError(err, 'Failed to accept quote');
+        setSuccessMessage(`Quote successfully ${action}ed!`);
+        setTimeout(() => setSuccessMessage(null), 5000);
+    },
+    onError: (err: Error) => {
+        // Error is already a string from handleApiError
+        // You could show it in a toast notification
+        console.error(err);
+        alert(err.message);
     }
-  };
+  });
 
-  const handleDeclineQuote = async () => {
-      if (!job?.id) return;
-      try {
-          await api.quotes[':quoteId'].decline.$post({ param: { quoteId: job.id } });
-          fetchJobDetails();
-          setIsQuoteModalOpen(false);
-      } catch (err) {
-          handleApiError(err, 'Failed to decline quote');
-      }
-  };
-
-  const handleReviseQuote = async (revisionReason: string) => {
-      if (!job?.id) return;
-      try {
-          await api.quotes[':quoteId'].revise.$post({
-            param: { quoteId: job.id },
-            json: { revisionReason }
-          });
-          fetchJobDetails();
-          setIsQuoteModalOpen(false);
-      } catch (err) {
-          handleApiError(err, 'Failed to revise quote');
-      }
-  };
-
-  const statusStyle = (status: string) => {
+  const statusStyle = (status: string = '') => {
       switch (status.toLowerCase()) {
         case 'upcoming': return 'bg-yellow-100 text-yellow-800';
         case 'confirmed': return 'bg-blue-100 text-blue-800';
@@ -136,10 +121,10 @@ function JobInfo() {
   };
 
   if (isLoading) return <div className="text-center p-8">Loading job details...</div>;
-  if (error && !job) return <div className="rounded-md bg-red-100 p-4 text-sm text-red-700">{error}</div>;
+  if (error) return <div className="rounded-md bg-red-100 p-4 text-sm text-red-700">{(error as Error).message}</div>;
   if (!job) return <div className="text-center p-8"><h2>Job not found</h2></div>;
 
-  const hasRecurrence = job.recurrence && job.recurrence !== 'none';
+  const hasRecurrence = job.recurrence_rule && job.recurrence_rule !== 'none';
 
   return (
     <>
@@ -151,27 +136,26 @@ function JobInfo() {
           onSuccess={() => {
             setSuccessMessage(`Your recurrence ${hasRecurrence ? 'update' : 'request'} has been submitted.`);
             setTimeout(() => setSuccessMessage(null), 5000);
-            fetchJobDetails();
+            queryClient.invalidateQueries({ queryKey: ['jobDetails', jobId] });
           }}
         />
       )}
       <QuoteProposalModal
           isOpen={isQuoteModalOpen}
           onClose={() => setIsQuoteModalOpen(false)}
-          onConfirm={handleAcceptQuote}
-          onDecline={handleDeclineQuote}
-          onRevise={handleReviseQuote}
+          onConfirm={() => quoteActionMutation.mutate({ action: 'accept' })}
+          onDecline={() => quoteActionMutation.mutate({ action: 'decline' })}
+          onRevise={(reason) => quoteActionMutation.mutate({ action: 'revise', reason })}
           jobId={jobId!}
+          isSubmitting={quoteActionMutation.isPending}
       />
-      {/* ... Rest of JSX is unchanged ... */}
       <div className="max-w-7xl mx-auto space-y-6">
-        {error && <div className="alert alert-danger mb-4">{error}</div>}
         {successMessage && <div className="alert alert-success mb-4">{successMessage}</div>}
         <div className="card">
           <div className="card-header flex justify-between items-center">
-            <div><h2 className="card-title">{job.title}</h2></div>
+            <div><h2 className="card-title">{job.job_title}</h2></div>
             <div className="flex items-center gap-2">
-              {job.status === 'pending' && (
+              {job.status === 'pending_quote' && (
                 <button className="btn btn-primary" onClick={() => setIsQuoteModalOpen(true)}>Respond to Quote</button>
               )}
               <button className="btn btn-primary" onClick={() => setIsRecurrenceModalOpen(true)}>
@@ -193,16 +177,16 @@ function JobInfo() {
                     <dt className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Total Cost</dt>
                     <dd className="mt-1 text-sm font-semibold">${((job.total_amount_cents || 0) / 100).toFixed(2)}</dd>
                 </div>
-                {job.description && (
+                {job.job_description && (
                 <div className="sm:col-span-2">
                     <dt className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Description</dt>
-                    <dd className="mt-1 text-sm">{job.description}</dd>
+                    <dd className="mt-1 text-sm">{job.job_description}</dd>
                 </div>
                 )}
                 {hasRecurrence && (
                 <div className="sm:col-span-1">
                     <dt className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Recurrence</dt>
-                    <dd className="mt-1 text-sm font-semibold">{parseRRule(job.recurrence)}</dd>
+                    <dd className="mt-1 text-sm font-semibold">{parseRRule(job.recurrence_rule)}</dd>
                 </div>
                 )}
                 {job.stripe_quote_id && (
@@ -232,7 +216,7 @@ function JobInfo() {
         <div className="card">
             <div className="card-header"><h3 className="card-title text-xl">Service Line Items</h3></div>
             <div className="card-body">
-                {lineItems.length > 0 ? (
+                {lineItems && lineItems.length > 0 ? (
                     <ul className="divide-y divide-border-light dark:divide-border-dark">
                         {lineItems.map(item => (
                             <li key={item.id} className="py-3 flex justify-between items-center">
@@ -251,7 +235,7 @@ function JobInfo() {
         <div className="card">
             <div className="card-header"><h3 className="card-title text-xl">Photos</h3></div>
             <div className="card-body">
-                {photos.length > 0 ? (
+                {photos && photos.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {photos.map(photo => (
                             <a key={photo.id} href={photo.url} target="_blank" rel="noopener noreferrer">
@@ -266,7 +250,7 @@ function JobInfo() {
         <div className="card">
             <div className="card-header"><h3 className="card-title text-xl">Notes</h3></div>
             <div className="card-body">
-                {notes.length > 0 ? (
+                {notes && notes.length > 0 ? (
                     <ul className="space-y-4">
                         {notes.map(note => (
                             <li key={note.id} className="p-3 bg-secondary-light dark:bg-secondary-dark rounded-md">

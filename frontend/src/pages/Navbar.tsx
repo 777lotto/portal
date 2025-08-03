@@ -1,20 +1,17 @@
+// frontend/src/pages/Navbar.tsx
 import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import useSWR from 'swr';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { api } from '../lib/api';
-import { UINotification } from '@portal/shared';
+import { UINotification, User } from '@portal/shared';
 import companyLogo from '../assets/777-solutions.svg';
-
-interface UserPayload {
-  name: string;
-  role: 'admin' | 'customer';
-}
+import { handleApiError } from '../lib/utils';
 
 interface Props {
   token: string | null;
   setToken: (token: string | null) => void;
-  user: UserPayload | null;
+  user: User | null;
 }
 
 const BellIcon = () => (
@@ -23,24 +20,25 @@ const BellIcon = () => (
   </svg>
 );
 
-// --- REPAIRED SWR Fetcher ---
-// This function now correctly fetches the response and then parses the JSON.
-const notificationsFetcher = async () => {
+// --- REFACTORED: Data fetching with useQuery ---
+const fetchNotifications = async (): Promise<UINotification[]> => {
   const res = await api.notifications.$get();
-  if (!res.ok) {
-    throw new Error('Failed to fetch notifications');
-  }
-  return await res.json();
+  if (!res.ok) throw await handleApiError(res, 'Failed to fetch notifications');
+  const data = await res.json();
+  return data.notifications;
 };
 
 function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
 
-  // Now, useSWR will receive a proper array or an error.
-  const { data: notifications, mutate } = useSWR<UINotification[]>('/api/notifications', notificationsFetcher, { refreshInterval: 30000 });
+  const { data: notifications } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: fetchNotifications,
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
 
-  // This line will no longer crash the app.
   const unreadCount = notifications?.filter(n => !n.is_read).length || 0;
 
   useEffect(() => {
@@ -53,20 +51,29 @@ function NotificationBell() {
       return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleMarkAllAsRead = async () => {
-      const originalNotifications = notifications;
-      const updatedNotifications = notifications?.map(n => ({...n, is_read: 1 as 0 | 1}));
-      // Optimistically update the UI
-      mutate(updatedNotifications, false);
-      try {
-          await api.notifications['read-all'].$post({});
-          // No re-fetch needed on success, the optimistic update is correct.
-      } catch (error) {
-          // Revert on error
-          mutate(originalNotifications);
-          console.error("Failed to mark all as read", error);
-      }
-  }
+  const markAllReadMutation = useMutation({
+    mutationFn: () => api.notifications['read-all'].$post({}),
+    onMutate: async () => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['notifications'] });
+      // Snapshot the previous value
+      const previousNotifications = queryClient.getQueryData<UINotification[]>(['notifications']);
+      // Optimistically update to the new value
+      queryClient.setQueryData<UINotification[]>(['notifications'], old =>
+        old?.map(n => ({ ...n, is_read: 1 })) || []
+      );
+      // Return a context object with the snapshotted value
+      return { previousNotifications };
+    },
+    onError: (err, newTodo, context) => {
+      // Rollback to the previous value on error
+      queryClient.setQueryData(['notifications'], context?.previousNotifications);
+    },
+    onSettled: () => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
 
   return (
       <div className="relative" ref={dropdownRef}>
@@ -81,7 +88,7 @@ function NotificationBell() {
               <div className="absolute right-0 z-10 mt-2 w-80 origin-top-right rounded-md bg-white dark:bg-gray-800 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
                   <div className="flex justify-between items-center px-4 py-2 border-b border-gray-200 dark:border-gray-700">
                        <h6 className="font-semibold text-gray-800 dark:text-gray-200">Notifications</h6>
-                       {unreadCount > 0 && <button onClick={handleMarkAllAsRead} className="text-sm text-blue-600 hover:underline">Mark all as read</button>}
+                       {unreadCount > 0 && <button onClick={() => markAllReadMutation.mutate()} className="text-sm text-blue-600 hover:underline" disabled={markAllReadMutation.isPending}>Mark all as read</button>}
                   </div>
                   <div className="max-h-96 overflow-y-auto">
                       {notifications && notifications.length > 0 ? (
@@ -131,18 +138,20 @@ export default function Navbar({ token, setToken, user }: Props) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await api.logout.$post({});
-    } catch (error) {
-      console.error("Server logout failed, logging out client-side anyway.", error);
-    } finally {
-      setToken(null);
-      setIsUserMenuOpen(false);
-      setIsMobileMenuOpen(false);
-      navigate("/auth", { replace: true });
-    }
-  };
+  const logoutMutation = useMutation({
+      mutationFn: () => api.logout.$post({}),
+      onSuccess: () => {
+          setToken(null);
+          setIsUserMenuOpen(false);
+          setIsMobileMenuOpen(false);
+          navigate("/auth", { replace: true });
+      },
+      onError: (error) => {
+          console.error("Server logout failed, logging out client-side anyway.", error);
+          setToken(null);
+          navigate("/auth", { replace: true });
+      }
+  });
 
   const toggleTheme = () => {
     setIsDarkMode(prev => {
@@ -224,7 +233,9 @@ export default function Navbar({ token, setToken, user }: Props) {
                          <button onClick={toggleTheme} className="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                           {isDarkMode ? "Light Mode" : "Dark Mode"}
                         </button>
-                        <button onClick={handleLogout} className="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Logout</button>
+                        <button onClick={() => logoutMutation.mutate()} disabled={logoutMutation.isPending} className="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                          {logoutMutation.isPending ? 'Logging out...' : 'Logout'}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -258,7 +269,9 @@ export default function Navbar({ token, setToken, user }: Props) {
               <div className="mt-3 space-y-1 px-2">
                  <NavLink to="/account" onClick={closeMobileMenu} className={mobileLinkStyle}>My Account</NavLink>
                  <button onClick={() => { toggleTheme(); closeMobileMenu(); }} className={`${mobileLinkStyle} w-full text-left`}>{isDarkMode ? "Light Mode" : "Dark Mode"}</button>
-                 <button onClick={handleLogout} className={`${mobileLinkStyle} w-full text-left`}>Logout</button>
+                 <button onClick={() => logoutMutation.mutate()} disabled={logoutMutation.isPending} className={`${mobileLinkStyle} w-full text-left`}>
+                    {logoutMutation.isPending ? 'Logging out...' : 'Logout'}
+                 </button>
               </div>
             </div>
           )}

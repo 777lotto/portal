@@ -1,15 +1,17 @@
+// frontend/src/pages/UnifiedCalendar.tsx
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { Calendar as BigCalendar, momentLocalizer, Views } from 'react-big-calendar';
 import moment from 'moment';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import useSWR from 'swr';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { api } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
-import { Job, CalendarEvent as ApiCalendarEvent } from '@portal/shared';
+import { Job, CalendarEvent as ApiCalendarEvent, Availability } from '@portal/shared';
 import NewAddJobModal from '../components/modals/admin/NewAddJobModal';
 import AdminBlockDayModal from '../components/modals/admin/AdminBlockDayModal';
 import BookingModal from '../components/modals/BookingModal';
+import { handleApiError } from '../lib/utils';
 
 const localizer = momentLocalizer(moment);
 
@@ -20,24 +22,46 @@ interface CalendarDisplayEvent {
   resource: Job | ApiCalendarEvent;
 }
 
-// --- REFACTORED SWR Fetcher Functions ---
-const publicAvailabilityFetcher = () => api.public.availability.$get();
-const customerAvailabilityFetcher = () => api.availability.$get();
-const adminCalendarEventsFetcher = () => api.admin['calendar-events'].$get();
-const adminJobsFetcher = () => api.admin.jobs.$get();
+// --- REFACTORED: Data fetching with useQuery ---
+const fetchAdminData = async () => {
+  const [jobsRes, eventsRes] = await Promise.all([
+    api.admin.jobs.$get(),
+    api.admin['calendar-events'].$get()
+  ]);
+  if (!jobsRes.ok) throw await handleApiError(jobsRes, 'Failed to fetch jobs');
+  if (!eventsRes.ok) throw await handleApiError(eventsRes, 'Failed to fetch calendar events');
+  const jobsData = await jobsRes.json();
+  const eventsData = await eventsRes.json();
+  return { jobs: jobsData.jobs as Job[], calendarEvents: eventsData.events as ApiCalendarEvent[] };
+};
+
+const fetchAvailability = async (isLoggedIn: boolean) => {
+  const res = isLoggedIn ? await api.availability.$get() : await api.public.availability.$get();
+  if (!res.ok) throw await handleApiError(res, 'Failed to fetch availability');
+  const data = await res.json();
+  return data.availability as Availability;
+};
+
 
 export default function UnifiedCalendar({ onSelectSlot: onSelectSlotProp }: { onSelectSlot?: (slotInfo: { start: Date }) => void }) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [modalState, setModalState] = useState({ addJobModalOpen: false, blockDayModalOpen: false, bookingModalOpen: false });
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedEventForBlock, setSelectedEventForBlock] = useState<ApiCalendarEvent | null>(null);
-  const [events, setEvents] = useState<CalendarDisplayEvent[]>([]);
   const [isDarkMode, setIsDarkMode] = useState(document.documentElement.classList.contains('dark'));
 
-  // --- Data Fetching with new SWR fetchers ---
-  const { data: jobs, mutate: mutateJobs } = useSWR<Job[]>(user?.role === 'admin' ? '/api/admin/jobs' : null, adminJobsFetcher);
-  const { data: availability } = useSWR(user ? '/api/availability' : '/api/public/availability', user ? customerAvailabilityFetcher : publicAvailabilityFetcher);
-  const { data: calendarEvents, mutate: mutateCalendarEvents } = useSWR<ApiCalendarEvent[]>(user?.role === 'admin' ? '/api/admin/calendar-events' : null, adminCalendarEventsFetcher);
+  // --- Data Fetching with new useQuery hooks ---
+  const { data: adminData } = useQuery({
+    queryKey: ['adminCalendarData'],
+    queryFn: fetchAdminData,
+    enabled: user?.role === 'admin',
+  });
+
+  const { data: availability } = useQuery({
+    queryKey: ['availability', !!user],
+    queryFn: () => fetchAvailability(!!user),
+  });
 
   useEffect(() => {
     const observer = new MutationObserver(() => setIsDarkMode(document.documentElement.classList.contains('dark')));
@@ -45,32 +69,33 @@ export default function UnifiedCalendar({ onSelectSlot: onSelectSlotProp }: { on
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    if (user?.role === 'admin' && jobs && calendarEvents) {
-      const jobEvents: CalendarDisplayEvent[] = jobs.map(job => ({
-        title: job.title || 'Untitled Job',
-        start: new Date(job.start),
-        end: new Date(job.end),
-        resource: job,
+  const events = useMemo<CalendarDisplayEvent[]>(() => {
+    if (user?.role !== 'admin' || !adminData) return [];
+
+    const { jobs, calendarEvents } = adminData;
+    const jobEvents: CalendarDisplayEvent[] = jobs.map(job => ({
+      title: job.job_title || 'Untitled Job',
+      start: new Date(job.job_start_time),
+      end: new Date(job.job_end_time),
+      resource: job,
+    }));
+    const blockedEvents: CalendarDisplayEvent[] = calendarEvents
+      .filter(event => event.type === 'blocked')
+      .map(event => ({
+        title: event.title || 'Blocked',
+        start: new Date(event.start_time),
+        end: new Date(event.end_time),
+        resource: event,
       }));
-      const blockedEvents: CalendarDisplayEvent[] = calendarEvents
-        .filter(event => event.type === 'blocked')
-        .map(event => ({
-          title: event.title || 'Blocked',
-          start: new Date(event.start),
-          end: new Date(event.end),
-          resource: event,
-        }));
-      setEvents([...jobEvents, ...blockedEvents]);
-    }
-  }, [jobs, calendarEvents, user]);
+    return [...jobEvents, ...blockedEvents];
+  }, [adminData, user]);
 
   const { bookedDaysSet, pendingDaysSet, adminBlockedDaysSet } = useMemo(() => {
     const bookedDays = new Set(availability?.bookedDays || []);
-    const pendingDays = new Set(user ? (availability as any)?.pendingDays || [] : []);
-    const adminBlocked = new Set(calendarEvents?.filter(e => e.type === 'blocked').map(e => e.start.split('T')[0]) || []);
+    const pendingDays = new Set(availability?.pendingDays || []);
+    const adminBlocked = new Set(adminData?.calendarEvents?.filter(e => e.type === 'blocked').map(e => format(new Date(e.start_time), 'yyyy-MM-dd')) || []);
     return { bookedDaysSet: bookedDays, pendingDaysSet: pendingDays, adminBlockedDaysSet: adminBlocked };
-  }, [availability, calendarEvents, user]);
+  }, [availability, adminData]);
 
   const dayPropGetter = useCallback((date: Date) => {
     const day = format(date, 'yyyy-MM-dd');
@@ -120,10 +145,8 @@ export default function UnifiedCalendar({ onSelectSlot: onSelectSlotProp }: { on
   };
 
   const refreshData = () => {
-      if (user?.role === 'admin') {
-        mutateJobs();
-        mutateCalendarEvents();
-      }
+      queryClient.invalidateQueries({ queryKey: ['adminCalendarData'] });
+      queryClient.invalidateQueries({ queryKey: ['availability'] });
   }
 
   return (

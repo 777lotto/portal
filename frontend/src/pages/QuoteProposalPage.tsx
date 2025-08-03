@@ -1,108 +1,81 @@
+// frontend/src/pages/QuoteProposalPage.tsx
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import useSWR from 'swr';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import { HTTPException } from 'hono/http-exception';
 import type { Job, LineItem } from '@portal/shared';
+import { handleApiError } from '../lib/utils';
 
 interface QuoteDetails extends Job {
     lineItems: LineItem[];
     customerName?: string;
 }
 
-// --- REFACTORED SWR Fetcher ---
-// The fetcher now directly calls the api client. Hono handles JSON parsing and errors.
-const quoteFetcher = (url: string) => {
-    const quoteId = url.split('/').pop();
-    if (!quoteId) throw new Error('Invalid quote ID');
-    return api.quotes[':quoteId'].$get({ param: { quoteId } });
+// --- REFACTORED: Data fetching with useQuery ---
+const fetchQuote = async (quoteId: string): Promise<QuoteDetails> => {
+    const res = await api.quotes[':quoteId'].$get({ param: { quoteId } });
+    if (!res.ok) throw await handleApiError(res, 'Failed to fetch quote details');
+    const data = await res.json();
+    return data.quote;
 };
 
 function QuoteProposalPage() {
     const { quoteId } = useParams<{ quoteId: string }>();
     const navigate = useNavigate();
-    // SWR usage remains the same, but the fetcher is cleaner.
-    const { data: quote, error, mutate } = useSWR<QuoteDetails>(quoteId ? `/api/quotes/${quoteId}` : null, quoteFetcher);
-
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [actionError, setActionError] = useState<string | null>(null);
+    const queryClient = useQueryClient();
     const [revisionReason, setRevisionReason] = useState('');
     const [isRevising, setIsRevising] = useState(false);
+    const [actionError, setActionError] = useState<string | null>(null);
 
-    // Generic error handler for API calls
-    const handleApiError = async (err: any, defaultMessage: string) => {
-        if (err instanceof HTTPException) {
-            const errorJson = await err.response.json();
-            setActionError(errorJson.error || defaultMessage);
-        } else {
-            setActionError(err.message || defaultMessage);
-        }
-    };
+    const { data: quote, isLoading, error } = useQuery({
+        queryKey: ['quote', quoteId],
+        queryFn: () => fetchQuote(quoteId!),
+        enabled: !!quoteId,
+    });
 
-    const handleAccept = async () => {
-        if (!quoteId) return;
-        setActionError(null);
-        setIsSubmitting(true);
-        try {
-            await api.quotes[':quoteId'].accept.$post({ param: { quoteId } });
-            mutate(); // Re-fetch data
-            navigate('/dashboard', { state: { message: 'Quote accepted successfully!' } });
-        } catch (err) {
-            handleApiError(err, 'Failed to accept quote.');
-        } finally {
-            setIsSubmitting(false);
+    // --- REFACTORED: Actions with useMutation ---
+    const handleActionMutation = useMutation({
+        mutationFn: ({ action, reason }: { action: 'accept' | 'decline' | 'revise', reason?: string }) => {
+            if (!quoteId) throw new Error("Quote ID is missing");
+            switch (action) {
+                case 'accept':
+                    return api.quotes[':quoteId'].accept.$post({ param: { quoteId } });
+                case 'decline':
+                    return api.quotes[':quoteId'].decline.$post({ param: { quoteId } });
+                case 'revise':
+                    if (!reason) throw new Error("Revision reason is required");
+                    return api.quotes[':quoteId'].revise.$post({ param: { quoteId }, json: { revisionReason: reason } });
+            }
+        },
+        onSuccess: async (res, { action }) => {
+            if (!res.ok) {
+                const apiError = await handleApiError(res, `Failed to ${action} quote.`);
+                throw apiError;
+            }
+            queryClient.invalidateQueries({ queryKey: ['quote', quoteId] });
+            let message = '';
+            if (action === 'accept') message = 'Quote accepted successfully!';
+            else if (action === 'decline') message = 'Quote declined.';
+            else if (action === 'revise') message = 'Revision request submitted.';
+            navigate('/dashboard', { state: { message } });
+        },
+        onError: (err: Error) => {
+            setActionError(err.message);
         }
-    };
+    });
 
-    const handleDecline = async () => {
-        if (!quoteId) return;
-        setActionError(null);
-        setIsSubmitting(true);
-        try {
-            await api.quotes[':quoteId'].decline.$post({ param: { quoteId } });
-            mutate();
-            navigate('/dashboard', { state: { message: 'Quote declined.' } });
-        } catch (err) {
-            handleApiError(err, 'Failed to decline quote.');
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    const handleRevisionSubmit = async () => {
-        if (!quoteId || !revisionReason) {
-            setActionError('Please provide a reason for the revision.');
-            return;
-        }
-        setActionError(null);
-        setIsSubmitting(true);
-        try {
-            await api.quotes[':quoteId'].revise.$post({
-                param: { quoteId },
-                json: { revisionReason }
-            });
-            mutate();
-            setIsRevising(false);
-            navigate('/dashboard', { state: { message: 'Revision request submitted.' } });
-        } catch (err) {
-            handleApiError(err, 'Failed to submit revision request.');
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    if (error) return <div className="rounded-md bg-red-100 p-4 text-sm text-red-700">Failed to load quote details.</div>;
-    if (!quote) return <div className="text-center p-8">Loading...</div>;
+    if (isLoading) return <div className="text-center p-8">Loading...</div>;
+    if (error) return <div className="rounded-md bg-red-100 p-4 text-sm text-red-700">{(error as Error).message}</div>;
+    if (!quote) return <div className="text-center p-8">Quote not found.</div>;
 
     const total = quote.lineItems.reduce((acc, item) => acc + (item.unit_total_amount_cents || 0) * item.quantity, 0);
-    const isActionable = quote.status === 'pending';
+    const isActionable = quote.status === 'pending_quote';
 
     return (
         <div className="max-w-4xl mx-auto bg-white dark:bg-tertiary-dark shadow-lg rounded-lg p-8">
             <h1 className="text-3xl font-bold mb-2 text-text-primary-light dark:text-text-primary-dark">Quote Proposal</h1>
-            <p className="text-text-secondary-light dark:text-text-secondary-dark mb-6">For: {quote.title}</p>
+            <p className="text-text-secondary-light dark:text-text-secondary-dark mb-6">For: {quote.job_title}</p>
 
-            {/* ... Rest of JSX is unchanged ... */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                 <div>
                     <h5 className="font-semibold">Status</h5>
@@ -110,7 +83,7 @@ function QuoteProposalPage() {
                 </div>
                 <div>
                     <h5 className="font-semibold">Expires On</h5>
-                    <p>{quote.due ? new Date(quote.due).toLocaleDateString() : 'N/A'}</p>
+                    <p>{quote.quote_due_date ? new Date(quote.quote_due_date).toLocaleDateString() : 'N/A'}</p>
                 </div>
             </div>
 
@@ -134,9 +107,9 @@ function QuoteProposalPage() {
 
             {isActionable && (
                 <div className="flex items-center justify-end space-x-4">
-                    <button onClick={() => setIsRevising(true)} className="btn btn-secondary" disabled={isSubmitting}>Request Revision</button>
-                    <button onClick={handleDecline} className="btn btn-danger" disabled={isSubmitting}>Decline</button>
-                    <button onClick={handleAccept} className="btn btn-primary" disabled={isSubmitting}>Accept Quote</button>
+                    <button onClick={() => setIsRevising(true)} className="btn btn-secondary" disabled={handleActionMutation.isPending}>Request Revision</button>
+                    <button onClick={() => handleActionMutation.mutate({ action: 'decline' })} className="btn btn-danger" disabled={handleActionMutation.isPending}>Decline</button>
+                    <button onClick={() => handleActionMutation.mutate({ action: 'accept' })} className="btn btn-primary" disabled={handleActionMutation.isPending}>Accept Quote</button>
                 </div>
             )}
 
@@ -152,7 +125,9 @@ function QuoteProposalPage() {
                     ></textarea>
                     <div className="flex justify-end space-x-3 mt-3">
                         <button onClick={() => setIsRevising(false)} className="btn btn-secondary">Cancel</button>
-                        <button onClick={handleRevisionSubmit} className="btn btn-primary" disabled={isSubmitting}>Submit Request</button>
+                        <button onClick={() => handleActionMutation.mutate({ action: 'revise', reason: revisionReason })} className="btn btn-primary" disabled={handleActionMutation.isPending}>
+                            {handleActionMutation.isPending ? 'Submitting...' : 'Submit Request'}
+                        </button>
                     </div>
                 </div>
             )}
