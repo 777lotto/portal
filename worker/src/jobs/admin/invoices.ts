@@ -1,19 +1,21 @@
 // worker/src/jobs/admin/invoices.ts
+
 import { createFactory } from 'hono/factory';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import Stripe from 'stripe';
 import { getStripe } from '../../stripe';
-import { jobs, lineItems, users } from '@portal/shared/db/schema';
+import { db } from '../../db/client';
+import { jobs, lineItems, users } from '../../db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
+import type { AppEnv } from '../../index';
 
-const factory = createFactory();
+const factory = createFactory<AppEnv>();
 
-// --- REFACTORED: All handlers now use the createFactory pattern ---
-// - Removed try/catch blocks and manual response helpers.
-// - All database queries are now using Drizzle ORM.
-// - Added input validation with zValidator where applicable.
+// Note: The handlers that primarily interact with the Stripe API (getInvoice, addInvoiceItem, etc.)
+// are already well-structured. The main refactoring effort is on handlers that
+// interact heavily with our local database, like `importInvoices`.
 
 export const getInvoice = factory.createHandlers(async (c) => {
   const { invoiceId } = c.req.param();
@@ -41,7 +43,8 @@ export const addInvoiceItem = factory.createHandlers(
       customer: invoice.customer as string,
       invoice: invoiceId,
       description: description,
-      amount: amount,
+      // Note: Stripe expects amount in cents, which matches our schema.
+      unit_amount: amount,
       currency: 'usd',
     });
 
@@ -75,29 +78,31 @@ export const markInvoiceAsPaid = factory.createHandlers(async (c) => {
     return c.json({ invoice: updatedInvoice });
 });
 
+/**
+ * REFACTORED: Retrieves open invoices and enriches them with user data.
+ * - Uses a single Drizzle query to fetch all necessary users at once.
+ * - Uses a Map for efficient lookup to enrich the invoice data.
+ */
 export const getOpenInvoices = factory.createHandlers(async (c) => {
     const stripe = getStripe(c.env);
+    const database = db(c.env.DB);
     const invoices = await stripe.invoices.list({ status: 'open', limit: 100 });
-    const stripeCustomerIds = invoices.data.map(inv => inv.customer).filter((id): id is string => !!id);
 
+    const stripeCustomerIds = invoices.data.map(inv => inv.customer).filter((id): id is string => !!id);
     if (stripeCustomerIds.length === 0) {
         return c.json({ invoices: [] });
     }
 
-    const dbUsers = await c.env.db.query.users.findMany({
-        where: inArray(users.stripe_customer_id, stripeCustomerIds),
-        columns: { id: true, name: true, stripe_customer_id: true }
+    const dbUsers = await database.query.users.findMany({
+        where: inArray(users.stripeCustomerId, stripeCustomerIds),
+        columns: { id: true, name: true, stripeCustomerId: true }
     });
 
-    const userMap = new Map(dbUsers.map(u => [u.stripe_customer_id, u]));
+    const userMap = new Map(dbUsers.map(u => [u.stripeCustomerId, u]));
 
     const enrichedInvoices = invoices.data.map(inv => {
         const user = userMap.get(inv.customer as string);
-        return {
-            ...inv,
-            user_id: user?.id,
-            customerName: user?.name,
-        };
+        return { ...inv, userId: user?.id, customerName: user?.name };
     });
 
     return c.json({ invoices: enrichedInvoices });
@@ -105,15 +110,14 @@ export const getOpenInvoices = factory.createHandlers(async (c) => {
 
 
 /**
- * REFACTORED: Invoice Import Handler
- * - This complex function is now fully converted to use Drizzle ORM.
- * - The logic is clearer, more maintainable, and fully type-safe.
- * - It efficiently finds or creates users and checks for existing jobs before importing.
+ * REFACTORED: Imports paid Stripe invoices as completed jobs.
+ * - Correctly maps Stripe invoice fields to our Drizzle schema fields (e.g., `title`, `description`).
+ * - Fully type-safe and uses transactions for creating jobs and line items.
  */
 export const importInvoices = factory.createHandlers(async (c) => {
-  const { user_id } = c.req.param();
+  const { userId: userIdParam } = c.req.param();
   const stripe = getStripe(c.env);
-  const db = c.env.db;
+  const database = db(c.env.DB);
 
   let importedCount = 0;
   let skippedCount = 0;
@@ -122,15 +126,15 @@ export const importInvoices = factory.createHandlers(async (c) => {
 
   const listParams: Stripe.InvoiceListParams = { status: 'paid', limit: 100, expand: ['data.customer', 'data.lines.data'] };
 
-  if (user_id) {
-    const user = await db.query.users.findFirst({
-        where: eq(users.id, user_id),
-        columns: { stripe_customer_id: true }
+  if (userIdParam) {
+    const user = await database.query.users.findFirst({
+        where: eq(users.id, parseInt(userIdParam, 10)),
+        columns: { stripeCustomerId: true }
     });
-    if (!user?.stripe_customer_id) {
+    if (!user?.stripeCustomerId) {
       throw new HTTPException(404, { message: 'User not found or does not have a Stripe customer ID.' });
     }
-    listParams.customer = user.stripe_customer_id;
+    listParams.customer = user.stripeCustomerId;
   }
 
   while (hasMore) {
@@ -143,54 +147,52 @@ export const importInvoices = factory.createHandlers(async (c) => {
         continue;
       }
 
-      const existingJob = await db.query.jobs.findFirst({ where: eq(jobs.stripe_invoice_id, invoice.id), columns: { id: true } });
+      const existingJob = await database.query.jobs.findFirst({ where: eq(jobs.stripeInvoiceId, invoice.id), columns: { id: true } });
       if (existingJob) {
         skippedCount++;
         continue;
       }
 
-      let user = await db.query.users.findFirst({ where: eq(users.stripe_customer_id, invoice.customer.id), columns: { id: true } });
+      let user = await database.query.users.findFirst({ where: eq(users.stripeCustomerId, invoice.customer.id), columns: { id: true } });
       if (!user) {
         const stripeCustomer = invoice.customer as Stripe.Customer;
-        const [newUser] = await db.insert(users).values({
+        const [newUser] = await database.insert(users).values({
             name: stripeCustomer.name || 'Stripe Customer',
             email: stripeCustomer.email,
             phone: stripeCustomer.phone,
-            stripe_customer_id: invoice.customer.id,
+            stripeCustomerId: invoice.customer.id,
             role: 'guest'
         }).returning({ id: users.id });
         user = newUser;
       }
 
-      if (!user) {
-          skippedCount++;
-          continue;
-      }
+      if (!user) { skippedCount++; continue; }
 
-      const jobTitle = invoice.lines.data[0]?.description || invoice.description || `Imported Job ${invoice.id}`;
-      const [newJob] = await db.insert(jobs).values({
-          userId: user.id,
-          job_title: jobTitle,
-          job_description: invoice.description || `Imported from Stripe Invoice #${invoice.number}`,
-          status: 'complete',
-          recurrence_rule: 'none',
-          stripe_invoice_id: invoice.id,
-          createdAt: new Date(invoice.created * 1000).toISOString(),
-          total_amount_cents: invoice.total,
-          job_due_date: invoice.due_date ? new Date(invoice.due_date * 1000).toISOString() : null,
-      }).returning({ id: jobs.id });
+      await database.transaction(async (tx) => {
+        const jobTitle = invoice.lines.data[0]?.description || invoice.description || `Imported Job ${invoice.id}`;
+        const [newJob] = await tx.insert(jobs).values({
+            userId: user.id.toString(),
+            title: jobTitle,
+            description: invoice.description || `Imported from Stripe Invoice #${invoice.number}`,
+            status: 'complete',
+            recurrence: 'none',
+            stripeInvoiceId: invoice.id,
+            createdAt: new Date(invoice.created * 1000).toISOString(),
+            totalAmountCents: invoice.total,
+            due: invoice.due_date ? new Date(invoice.due_date * 1000).toISOString() : undefined,
+        }).returning({ id: jobs.id });
 
-      const lineItemsToInsert = invoice.lines.data.map(item => ({
-          jobId: newJob.id,
-          description: item.description || 'Imported Item',
-          quantity: item.quantity || 1,
-          unit_total_amount_cents: item.amount,
-      }));
+        const lineItemsToInsert = invoice.lines.data.map(item => ({
+            jobId: newJob.id,
+            description: item.description || 'Imported Item',
+            quantity: item.quantity || 1,
+            unitTotalAmountCents: item.amount,
+        }));
 
-      if(lineItemsToInsert.length > 0) {
-        await db.insert(lineItems).values(lineItemsToInsert);
-      }
-
+        if(lineItemsToInsert.length > 0) {
+          await tx.insert(lineItems).values(lineItemsToInsert);
+        }
+      });
       importedCount++;
     }
 

@@ -1,104 +1,86 @@
+// worker/src/jobs/jobs.ts
+
 import { createFactory } from 'hono/factory';
+import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import { v4 as uuidv4 } from 'uuid';
-import { db } from '../../db';
-import { jobs, lineItems, users, calendarTokens, calendarEvents } from '../../db/schema';
-import { eq, and, desc } from 'drizzle-orm';
-import { getStripe } from '../../stripe';
+import { db } from '../../db/client';
+import { jobs, lineItems, users, calendarTokens, jobRecurrenceRequests } from '../../db/schema';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { generateCalendarFeed } from './timing/calendar';
-import type { User } from '@portal/shared';
+import { JobRecurrenceRequestSchema } from '@portal/shared';
+import type { AppEnv, AuthedContext } from '../../index';
 
-const factory = createFactory();
-
-// A middleware to get the authenticated user's full profile from the DB.
-// This is useful for many handlers in this file.
-const userMiddleware = factory.createMiddleware(async (c, next) => {
-	const auth = c.get('clerkUser'); // Assuming clerkAuth middleware is used upstream
-	if (!auth?.id) {
-		throw new HTTPException(401, { message: 'Unauthorized' });
-	}
-
-	const database = db(c.env.DB);
-	const user = await database.select().from(users).where(eq(users.clerk_id, auth.id)).get();
-
-	if (!user) {
-		throw new HTTPException(401, { message: 'User not found in database.' });
-	}
-	c.set('user', user);
-	await next();
-});
-
-/* ========================================================================
-                        CUSTOMER-FACING JOB HANDLERS
-   ======================================================================== */
+// Use the AppEnv with the authenticated user context
+const factory = createFactory<AppEnv>();
 
 /**
- * Retrieves a list of "upcoming" jobs for the authenticated user.
- * If the user is an admin, it retrieves all upcoming jobs.
+ * REFACTORED: Retrieves a list of jobs for the authenticated user.
+ * - Assumes auth middleware provides the user object on c.get('user').
+ * - Builds a Drizzle query dynamically based on user role.
  */
-export const getJobs = factory.createHandlers(userMiddleware, async (c) => {
+export const getJobs = factory.createHandlers(async (c: AuthedContext) => {
 	const user = c.get('user');
 	const database = db(c.env.DB);
 
-	const query = database.select().from(jobs).where(eq(jobs.status, 'upcoming')).orderBy(desc(jobs.createdAt));
+    const conditions = [eq(jobs.status, 'upcoming')];
+    if (user.role !== 'admin') {
+        conditions.push(eq(jobs.userId, user.id.toString()));
+    }
 
-	// If the user is not an admin, filter jobs by their user ID.
-	if (user.role !== 'admin') {
-		query.where(eq(jobs.user_id, user.id.toString()));
-	}
-
-	const userJobs = await query.all();
+	const userJobs = await database.query.jobs.findMany({
+        where: and(...conditions),
+        orderBy: [desc(jobs.createdAt)]
+    });
 
 	return c.json({ jobs: userJobs });
 });
 
 /**
- * Retrieves a single job by its ID, including its line items.
- * Ensures the user is either an admin or the owner of the job.
+ * REFACTORED: Retrieves a single job by its ID, including its line items.
+ * - Ensures the user is an admin or the job owner.
+ * - Uses Drizzle's relational queries for cleaner data fetching.
  */
-export const getJobById = factory.createHandlers(userMiddleware, async (c) => {
+export const getJobById = factory.createHandlers(async (c: AuthedContext) => {
 	const user = c.get('user');
 	const { id } = c.req.param();
 	const database = db(c.env.DB);
 
-	// Fetch the job and its line items in a single transaction for efficiency
-	const jobResult = await database.transaction(async (tx) => {
-		const job = await tx.select().from(jobs).where(eq(jobs.id, id)).get();
-		if (!job) return null;
-
-		const items = await tx.select().from(lineItems).where(eq(lineItems.job_id, id)).all();
-		return { ...job, lineItems: items };
-	});
+	const jobResult = await database.query.jobs.findFirst({
+        where: eq(jobs.id, id),
+        with: {
+            lineItems: true,
+        }
+    });
 
 	if (!jobResult) {
 		throw new HTTPException(404, { message: 'Job not found' });
 	}
 
-	// Security check: only admins or the job owner can view it
-	if (user.role !== 'admin' && jobResult.user_id !== user.id.toString()) {
+	if (user.role !== 'admin' && jobResult.userId !== user.id.toString()) {
 		throw new HTTPException(403, { message: 'Access denied' });
 	}
 
 	return c.json({ job: jobResult });
 });
 
-/* ========================================================================
-                        CALENDAR & ICAL FEED HANDLERS
-   ======================================================================== */
 
 /**
- * Gets or creates a secret, unique URL for a user's iCal feed.
+ * REFACTORED: Gets or creates a secret, unique URL for a user's iCal feed.
+ * - Simplified Drizzle queries.
  */
-export const getSecretCalendarUrl = factory.createHandlers(userMiddleware, async (c) => {
+export const getSecretCalendarUrl = factory.createHandlers(async (c: AuthedContext) => {
 	const user = c.get('user');
 	const database = db(c.env.DB);
 	const portalBaseUrl = c.env.PORTAL_URL.replace('/dashboard', '');
 
-	let tokenRecord = await database.select().from(calendarTokens).where(eq(calendarTokens.user_id, user.id)).get();
+	let tokenRecord = await database.query.calendarTokens.findFirst({
+        where: eq(calendarTokens.userId, user.id)
+    });
 
 	if (!tokenRecord) {
-		const newToken = uuidv4();
-		[tokenRecord] = await database.insert(calendarTokens).values({ token: newToken, user_id: user.id }).returning();
+		const [newRecord] = await database.insert(calendarTokens).values({ token: uuidv4(), userId: user.id }).returning();
+        tokenRecord = newRecord;
 	}
 
 	const url = `${portalBaseUrl}/api/public/calendar/feed/${tokenRecord.token}.ics`;
@@ -106,17 +88,17 @@ export const getSecretCalendarUrl = factory.createHandlers(userMiddleware, async
 });
 
 /**
- * Invalidates the old iCal feed URL and generates a new one.
+ * REFACTORED: Invalidates the old iCal feed URL and generates a new one.
+ * - Uses a transaction for atomicity.
  */
-export const regenerateSecretCalendarUrl = factory.createHandlers(userMiddleware, async (c) => {
+export const regenerateSecretCalendarUrl = factory.createHandlers(async (c: AuthedContext) => {
 	const user = c.get('user');
 	const database = db(c.env.DB);
 	const portalBaseUrl = c.env.PORTAL_URL.replace('/dashboard', '');
 
-	// Perform delete and insert in a transaction to ensure atomicity
 	const newToken = await database.transaction(async (tx) => {
-		await tx.delete(calendarTokens).where(eq(calendarTokens.user_id, user.id));
-		const [newRecord] = await tx.insert(calendarTokens).values({ token: uuidv4(), user_id: user.id }).returning();
+		await tx.delete(calendarTokens).where(eq(calendarTokens.userId, user.id));
+		const [newRecord] = await tx.insert(calendarTokens).values({ token: uuidv4(), userId: user.id }).returning();
 		return newRecord.token;
 	});
 
@@ -125,49 +107,46 @@ export const regenerateSecretCalendarUrl = factory.createHandlers(userMiddleware
 });
 
 /**
- * Generates and serves the iCal (.ics) file for a given secret token.
- * (This handler would be used in a public route, not a protected one).
+ * REFACTORED: Generates and serves the iCal (.ics) file.
+ * - Logic remains the same, but benefits from cleaner upstream code.
  */
 export const handleCalendarFeed = factory.createHandlers(async (c) => {
 	const { token } = c.req.param();
 	const database = db(c.env.DB);
 
-	const tokenRecord = await database.select().from(calendarTokens).where(eq(calendarTokens.token, token)).get();
+	const tokenRecord = await database.query.calendarTokens.findFirst({ where: eq(calendarTokens.token, token) });
 
 	if (!tokenRecord) {
 		throw new HTTPException(404, { message: 'Calendar feed not found.' });
 	}
 
-	// The generateCalendarFeed function is assumed to be refactored to use Drizzle as well
-	const icalContent = await generateCalendarFeed(c.env, tokenRecord.user_id.toString());
+	const icalContent = await generateCalendarFeed(c.env, tokenRecord.userId.toString());
 
 	return new Response(icalContent, {
 		headers: {
 			'Content-Type': 'text/calendar; charset=utf-8',
-			'Content-Disposition': `attachment; filename="jobs-user-${tokenRecord.user_id}.ics"`,
+			'Content-Disposition': `attachment; filename="jobs-user-${tokenRecord.userId}.ics"`,
 		},
 	});
 });
 
 /**
- * Handler for a customer to request a recurrence for a job.
- * REFACTORED: Assumes the payload is validated by middleware.
+ * REFACTORED: Handler for a customer to request a recurrence for a job.
+ * - Uses zValidator to ensure the payload is correct.
  */
-export const requestRecurrence = factory.createHandlers(userMiddleware, async (c) => {
-	const user = c.get('user');
-	const validatedData = c.req.valid('json'); // Zod schema should be applied in the route definition
-	const database = db(c.env.DB);
+export const requestRecurrence = factory.createHandlers(
+    zValidator('json', JobRecurrenceRequestSchema.omit({ id: true, userId: true, status: true, createdAt: true, updatedAt: true })),
+    async (c: AuthedContext) => {
+        const user = c.get('user');
+        const validatedData = c.req.valid('json');
+        const database = db(c.env.DB);
 
-	// TODO: Add logic to insert the recurrence request into the database.
-	// Example:
-	// const [newRequest] = await database.insert(jobRecurrenceRequests).values({
-	//   ...validatedData,
-	//   user_id: user.id,
-	//   status: 'pending'
-	// }).returning();
+        const [newRequest] = await database.insert(jobRecurrenceRequests).values({
+            ...validatedData,
+            userId: user.id,
+            status: 'pending'
+        }).returning();
 
-	console.log('Recurrence request received:', { ...validatedData, user_id: user.id });
-
-	// Placeholder response
-	return c.json({ success: true, message: 'Recurrence request submitted.' }, 201);
-});
+        return c.json({ success: true, message: 'Recurrence request submitted.', request: newRequest }, 201);
+    }
+);

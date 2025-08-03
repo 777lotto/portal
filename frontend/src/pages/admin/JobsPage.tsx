@@ -1,56 +1,52 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useInView } from 'react-intersection-observer';
+import { useDebounce } from 'use-debounce';
 import { api } from '../../lib/api';
 import type { JobWithDetails, JobStatus, LineItem } from '@portal/shared';
 import NewAddJobModal from '../../components/modals/admin/NewAddJobModal';
+import { HTTPException } from 'hono/http-exception';
 
-/**
- * REFACTORED: The React Query fetcher.
- * It now correctly awaits the JSON response. The backend already returns the
- * exact shape needed by useInfiniteQuery, including the list of jobs and pagination details.
- */
-const fetchJobs = async ({ pageParam = 1, queryKey }: any) => {
+// The React Query fetcher function for retrieving jobs.
+const fetchJobs = async ({ pageParam = 1, queryKey }: { pageParam: number, queryKey: (string | object)[] }) => {
 	const [_key, filters] = queryKey;
 	const res = await api.admin.jobs.$get({
 		query: {
 			page: pageParam.toString(),
-			...filters,
+			...(filters as object),
 		},
 	});
 	if (!res.ok) {
 		throw new Error('Failed to fetch jobs');
 	}
-	// The backend response `{ jobs: [], totalPages: X, currentPage: Y }` is returned directly.
-	return await res.json();
+	return res.json();
 };
 
-const allJobStatuses: JobStatus[] = [
-	'pending',
-	'upcoming',
-	'payment_needed',
-	'payment_overdue',
-	'complete',
-	'canceled',
-	'quote_draft',
-	'invoice_draft',
-	'job_draft',
+// A unique, ordered list of all possible job statuses for the filter dropdown.
+const jobStatuses: JobStatus[] = [
+	'pending', 'upcoming', 'payment_needed', 'payment_overdue', 'complete', 'canceled',
+	'quote_draft', 'invoice_draft', 'job_draft', 'quote_sent', 'scheduled', 'invoiced', 'draft'
 ];
-const jobStatuses = [...new Set(allJobStatuses)];
 
 function JobsPage() {
-	const [isImporting, setIsImporting] = useState(false);
-	const [importMessage, setImportMessage] = useState<string | null>(null);
 	const [isAddJobModalOpen, setIsAddJobModalOpen] = useState(false);
-	const [selectedJob, setSelectedJob] = useState<JobWithDetails | null>(null);
 	const [filters, setFilters] = useState({ status: '', search: '' });
 	const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+	const [debouncedSearch] = useDebounce(filters.search, 300);
+
 	const queryClient = useQueryClient();
 	const { ref, inView } = useInView();
 
-	const { data, error, fetchNextPage, hasNextPage, isFetchingNextPage, status } = useInfiniteQuery({
-		queryKey: ['adminJobs', filters],
+	// The query filters now include the debounced search term.
+	const queryFilters = useMemo(() => ({
+		status: filters.status,
+		search: debouncedSearch,
+	}), [filters.status, debouncedSearch]);
+
+
+	const { data, error, fetchNextPage, hasNextPage, isFetching, isFetchingNextPage, status } = useInfiniteQuery({
+		queryKey: ['adminJobs', queryFilters],
 		queryFn: fetchJobs,
 		initialPageParam: 1,
 		getNextPageParam: (lastPage) => {
@@ -59,32 +55,32 @@ function JobsPage() {
 		},
 	});
 
+	// Automatically fetch the next page when the trigger element is in view.
 	useEffect(() => {
-		if (inView && hasNextPage) {
+		if (inView && hasNextPage && !isFetching) {
 			fetchNextPage();
 		}
-	}, [inView, hasNextPage, fetchNextPage]);
+	}, [inView, hasNextPage, fetchNextPage, isFetching]);
 
 	const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
 		setFilters((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 	};
 
-	const handleImportFromStripe = async () => {
-		setIsImporting(true);
-		setImportMessage(null);
-		try {
-			// Assuming an import endpoint exists and returns a summary
-			const response = await api.admin.jobs.import.$post({});
-			const result = await response.json();
-			setImportMessage(`Successfully imported ${result.importedCount} jobs.`);
-			queryClient.invalidateQueries({ queryKey: ['adminJobs'] });
-		} catch (err) {
-			console.error('Failed to import from Stripe:', err);
-			setImportMessage('Failed to import jobs from Stripe.');
-		} finally {
-			setIsImporting(false);
-		}
-	};
+    // REFACTORED: Use useMutation for the Stripe import logic.
+	const importMutation = useMutation({
+        mutationFn: () => {
+            // CORRECTED: The API endpoint for importing invoices as jobs.
+            return api.admin.invoices.import.$post({});
+        },
+        onSuccess: (res) => {
+            queryClient.invalidateQueries({ queryKey: ['adminJobs'] });
+            // You can optionally show a success message from the response `res`.
+        },
+        onError: (err: Error) => {
+            console.error('Failed to import from Stripe:', err);
+            // You can show a more detailed error message to the user.
+        }
+    });
 
 	const jobs = useMemo(() => data?.pages.flatMap((page) => page.jobs) ?? [], [data]);
 
@@ -95,31 +91,29 @@ function JobsPage() {
 			<div className="flex flex-wrap justify-between items-center mb-6 gap-4">
 				<h1 className="text-3xl font-bold text-gray-900 dark:text-white">All Jobs</h1>
 				<div className="flex items-center space-x-2">
-					<button onClick={() => setIsAddJobModalOpen(true)} className="btn btn-primary">
-						Create New Job
-					</button>
-					<button onClick={handleImportFromStripe} className="btn btn-secondary" disabled={isImporting}>
-						{isImporting ? 'Importing...' : 'Import from Stripe'}
+					<button onClick={() => setIsAddJobModalOpen(true)} className="btn btn-primary">Create New Job</button>
+					<button onClick={() => importMutation.mutate()} className="btn btn-secondary" disabled={importMutation.isPending}>
+						{importMutation.isPending ? 'Importing...' : 'Import from Stripe'}
 					</button>
 				</div>
 			</div>
 
-			{importMessage && <div className="alert alert-info mb-4">{importMessage}</div>}
+			{importMutation.isSuccess && <div className="alert alert-success mb-4">Import completed successfully!</div>}
+            {importMutation.isError && <div className="alert alert-error mb-4">Failed to import jobs from Stripe.</div>}
+
 
 			<div className="flex flex-wrap gap-4 mb-4">
 				<input type="text" name="search" placeholder="Search by job or customer..." value={filters.search} onChange={handleFilterChange} className="input input-bordered w-full max-w-xs" />
 				<select name="status" value={filters.status} onChange={handleFilterChange} className="select select-bordered w-full max-w-xs">
 					<option value="">All Statuses</option>
 					{jobStatuses.map((s) => (
-						<option key={s} value={s}>
-							{s.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
-						</option>
+						<option key={s} value={s}>{s.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}</option>
 					))}
 				</select>
 			</div>
 
 			<div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
-				{status === 'loading' ? (
+				{status === 'pending' ? (
 					<p className="p-4 text-center">Loading jobs...</p>
 				) : status === 'error' ? (
 					<p className="p-4 text-center text-red-500">Error: {error.message}</p>
@@ -138,17 +132,13 @@ function JobsPage() {
 							<tbody>
 								{jobs.map((item: JobWithDetails) => (
 									<React.Fragment key={item.id}>
-										<tr className="hover" onClick={() => setExpandedJobId(expandedJobId === item.id ? null : item.id)}>
+										<tr className="hover cursor-pointer" onClick={() => setExpandedJobId(expandedJobId === item.id ? null : item.id)}>
 											<td>{item.customerName}</td>
 											<td>{item.title}</td>
-											<td>
-												<span className={`badge badge-ghost`}>{item.status.replace(/_/g, ' ')}</span>
-											</td>
+											<td><span className={`badge badge-ghost`}>{item.status.replace(/_/g, ' ')}</span></td>
 											<td>{new Date(item.createdAt).toLocaleDateString()}</td>
 											<td className="text-right">
-												<Link to={`/admin/jobs/${item.id}`} className="btn btn-ghost btn-sm">
-													Details
-												</Link>
+												<Link to={`/admin/jobs/${item.id}`} className="btn btn-ghost btn-sm" onClick={(e) => e.stopPropagation()}>Details</Link>
 											</td>
 										</tr>
 										{expandedJobId === item.id && (
@@ -156,13 +146,13 @@ function JobsPage() {
 												<td colSpan={5} className="p-4">
 													<div>
 														<h4 className="font-bold mb-2">Line Items</h4>
-														{item.line_items && item.line_items.length > 0 ? (
+														{item.lineItems && item.lineItems.length > 0 ? (
 															<table className="table table-sm w-full">
 																<tbody>
-																	{item.line_items.map((line_item: LineItem) => (
+																	{item.lineItems.map((line_item: LineItem) => (
 																		<tr key={line_item.id}>
 																			<td>{line_item.description}</td>
-																			<td className="text-right">${((line_item.unit_total_amount_cents || 0) / 100).toFixed(2)}</td>
+																			<td className="text-right">${((line_item.unitTotalAmountCents || 0) / 100).toFixed(2)}</td>
 																		</tr>
 																	))}
 																</tbody>
@@ -178,8 +168,8 @@ function JobsPage() {
 								))}
 							</tbody>
 						</table>
-						<div ref={ref} className="text-center p-4">
-							{isFetchingNextPage ? 'Loading more...' : hasNextPage ? 'Scroll to load more' : 'Nothing more to load.'}
+						<div ref={ref} className="text-center p-4 h-10">
+							{isFetchingNextPage ? 'Loading more...' : hasNextPage ? '' : 'Nothing more to load.'}
 						</div>
 					</div>
 				)}
