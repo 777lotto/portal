@@ -1,265 +1,202 @@
-// worker/src/handlers/admin/invoices.ts
-import { Context } from 'hono';
-import { v4 as uuidv4 } from 'uuid';
+// worker/src/jobs/admin/invoices.ts
+import { createFactory } from 'hono/factory';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
 import Stripe from 'stripe';
-import type { AppEnv } from '../../index.js';
-import { errorResponse, successResponse } from '../../utils.js';
-import { getStripe } from '../../stripe/index.js';
-import type { User, DashboardInvoice } from '@portal/shared';
+import { getStripe } from '../../stripe';
+import { jobs, lineItems, users } from '@portal/shared/db/schema';
+import { eq, inArray } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
 
-// Handler to get a single invoice's details, including its line items
-export async function handleAdminGetInvoice(c: Context<AppEnv>) {
+const factory = createFactory();
+
+// --- REFACTORED: All handlers now use the createFactory pattern ---
+// - Removed try/catch blocks and manual response helpers.
+// - All database queries are now using Drizzle ORM.
+// - Added input validation with zValidator where applicable.
+
+export const getInvoice = factory.createHandlers(async (c) => {
+  const { invoiceId } = c.req.param();
+  const stripe = getStripe(c.env);
+  const invoice = await stripe.invoices.retrieve(invoiceId, { expand: ['lines'] });
+  return c.json({ invoice });
+});
+
+export const addInvoiceItem = factory.createHandlers(
+  zValidator('json', z.object({
+    description: z.string().min(1),
+    amount: z.number().int().positive(),
+  })),
+  async (c) => {
+    const { invoiceId } = c.req.param();
+    const { description, amount } = c.req.valid('json');
+    const stripe = getStripe(c.env);
+
+    const invoice = await stripe.invoices.retrieve(invoiceId);
+    if (invoice.status !== 'draft') {
+      throw new HTTPException(400, { message: 'Cannot add items to a finalized invoice.' });
+    }
+
+    const invoiceItem = await stripe.invoiceItems.create({
+      customer: invoice.customer as string,
+      invoice: invoiceId,
+      description: description,
+      amount: amount,
+      currency: 'usd',
+    });
+
+    return c.json({ invoiceItem }, 201);
+  }
+);
+
+export const deleteInvoiceItem = factory.createHandlers(async (c) => {
+  const { itemId } = c.req.param();
+  const stripe = getStripe(c.env);
+  const deletedItem = await stripe.invoiceItems.del(itemId);
+  return c.json({ deleted: deletedItem.deleted, id: deletedItem.id });
+});
+
+export const finalizeInvoice = factory.createHandlers(async (c) => {
+  const { invoiceId } = c.req.param();
+  const stripe = getStripe(c.env);
+  const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoiceId);
+  const sentInvoice = await stripe.invoices.sendInvoice(finalizedInvoice.id);
+  return c.json({ invoice: sentInvoice });
+});
+
+export const markInvoiceAsPaid = factory.createHandlers(async (c) => {
     const { invoiceId } = c.req.param();
     const stripe = getStripe(c.env);
-    try {
-        const invoice = await stripe.invoices.retrieve(invoiceId, {
-            expand: ['lines'],
-        });
-        return successResponse(invoice);
-    } catch (e: any) {
-        console.error(`Failed to retrieve invoice ${invoiceId}:`, e);
-        return errorResponse(e.message, 500);
+    const invoice = await stripe.invoices.retrieve(invoiceId);
+    if (invoice.status === 'paid') {
+        throw new HTTPException(400, { message: 'Invoice is already paid.' });
     }
-}
+    const updatedInvoice = await stripe.invoices.pay(invoiceId, { paid_out_of_band: true });
+    return c.json({ invoice: updatedInvoice });
+});
 
-// Handler to add a new line item to a draft invoice
-export async function handleAdminAddInvoiceItem(c: Context<AppEnv>) {
-    const { invoiceId } = c.req.param();
-    const { description, amount } = await c.req.json();
+export const getOpenInvoices = factory.createHandlers(async (c) => {
     const stripe = getStripe(c.env);
+    const invoices = await stripe.invoices.list({ status: 'open', limit: 100 });
+    const stripeCustomerIds = invoices.data.map(inv => inv.customer).filter((id): id is string => !!id);
 
-    try {
-        const invoice = await stripe.invoices.retrieve(invoiceId);
-        if (invoice.status !== 'draft') {
-            return errorResponse('Cannot add items to a finalized invoice.', 400);
-        }
-
-        const invoiceItem = await stripe.invoiceItems.create({
-            customer: invoice.customer as string,
-            invoice: invoiceId,
-            description: description,
-            amount: amount,
-            currency: 'usd',
-        });
-
-        return successResponse(invoiceItem, 201);
-    } catch (e: any) {
-        console.error(`Failed to add item to invoice ${invoiceId}:`, e);
-        return errorResponse(e.message, 500);
+    if (stripeCustomerIds.length === 0) {
+        return c.json({ invoices: [] });
     }
-}
 
-// Handler to delete a line item from a draft invoice
-export async function handleAdminDeleteInvoiceItem(c: Context<AppEnv>) {
-    const { itemId } = c.req.param();
-    const stripe = getStripe(c.env);
-    try {
-        const deletedItem = await stripe.invoiceItems.del(itemId);
-        return successResponse({ deleted: deletedItem.deleted, id: deletedItem.id });
-    } catch (e: any) {
-        console.error(`Failed to delete invoice item ${itemId}:`, e);
-        return errorResponse(e.message, 500);
-    }
-}
+    const dbUsers = await c.env.db.query.users.findMany({
+        where: inArray(users.stripe_customer_id, stripeCustomerIds),
+        columns: { id: true, name: true, stripe_customer_id: true }
+    });
 
-// Handler to finalize a draft invoice, which makes it ready to be paid
-export async function handleAdminFinalizeInvoice(c: Context<AppEnv>) {
-    const { invoiceId } = c.req.param();
-    const stripe = getStripe(c.env);
-    try {
-        const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoiceId);
+    const userMap = new Map(dbUsers.map(u => [u.stripe_customer_id, u]));
 
-        if (!finalizedInvoice || !finalizedInvoice.id) {
-            throw new Error('Failed to finalize invoice: No ID returned from Stripe.');
-        }
-
-        const sentInvoice = await stripe.invoices.sendInvoice(finalizedInvoice.id);
-        return successResponse(sentInvoice);
-    } catch (e: any) {
-        console.error(`Failed to finalize invoice ${invoiceId}:`, e);
-        return errorResponse(e.message, 500);
-    }
-}
-
-// Handler to import paid Stripe invoices as historical jobs
-export async function handleAdminImportInvoices(c: Context<AppEnv>) {
-    const { user_id } = c.req.param();
-    const stripe = getStripe(c.env);
-    const db = c.env.DB;
-
-    let importedCount = 0;
-    let skippedCount = 0;
-    const errors: string[] = [];
-    let hasMore = true;
-    let startingAfter: string | undefined = undefined;
-
-    try {
-        const listParams: Stripe.InvoiceListParams = {
-            status: 'paid',
-            limit: 100,
-            expand: ['data.customer', 'data.lines.data'],
+    const enrichedInvoices = invoices.data.map(inv => {
+        const user = userMap.get(inv.customer as string);
+        return {
+            ...inv,
+            user_id: user?.id,
+            customerName: user?.name,
         };
+    });
 
-        if (user_id) {
-            const user = await db.prepare(`SELECT id, stripe_customer_id FROM users WHERE id = ?`).bind(user_id).first<User>();
-            if (!user || !user.stripe_customer_id) {
-                return errorResponse("User not found or does not have a Stripe customer ID.", 404);
-            }
-            listParams.customer = user.stripe_customer_id;
-        }
+    return c.json({ invoices: enrichedInvoices });
+});
 
-        while (hasMore) {
-            const invoices: Stripe.ApiList<Stripe.Invoice> = await stripe.invoices.list({
-                ...listParams,
-                starting_after: startingAfter,
-            });
 
-            if (invoices.data.length === 0) {
-                hasMore = false;
-                break;
-            }
+/**
+ * REFACTORED: Invoice Import Handler
+ * - This complex function is now fully converted to use Drizzle ORM.
+ * - The logic is clearer, more maintainable, and fully type-safe.
+ * - It efficiently finds or creates users and checks for existing jobs before importing.
+ */
+export const importInvoices = factory.createHandlers(async (c) => {
+  const { user_id } = c.req.param();
+  const stripe = getStripe(c.env);
+  const db = c.env.db;
 
-            for (const invoice of invoices.data) {
-                if (!invoice.lines.data || invoice.lines.data.length === 0) {
-                    skippedCount++;
-                    continue;
-                }
+  let importedCount = 0;
+  let skippedCount = 0;
+  let hasMore = true;
+  let startingAfter: string | undefined = undefined;
 
-                if (!invoice.customer || typeof invoice.customer !== 'object' || invoice.customer.deleted) {
-                    skippedCount++;
-                    continue;
-                }
+  const listParams: Stripe.InvoiceListParams = { status: 'paid', limit: 100, expand: ['data.customer', 'data.lines.data'] };
 
-                let user: User | { id: number } | null = await db.prepare(`SELECT id FROM users WHERE stripe_customer_id = ?`).bind(invoice.customer.id).first<User>();
-                if (!user) {
-                    const stripeCustomer = invoice.customer as Stripe.Customer;
-                    const { name, email, phone } = stripeCustomer;
-                    const { results } = await db.prepare(
-                        `INSERT INTO users (name, email, phone, stripe_customer_id, role) VALUES (?, ?, ?, ?, 'guest') RETURNING id`
-                    ).bind(name || 'Stripe Customer', email, phone, invoice.customer.id).all<{ id: number }>();
-
-                    if (!results || results.length === 0) {
-                        errors.push(`Failed to create user for Stripe customer ${invoice.customer.id}`);
-                        skippedCount++;
-                        continue;
-                    }
-                    user = { id: results[0].id };
-                }
-
-                const existingJob = await db.prepare(`SELECT id FROM jobs WHERE stripe_invoice_id = ?`).bind(invoice.id).first();
-                if (existingJob) {
-                    skippedCount++;
-                    continue;
-                }
-
-                const jobTitle = invoice.lines.data[0]?.description || invoice.description || `Imported Job ${invoice.id}`;
-                const newJobId = uuidv4();
-
-                const jobInsertStmt = db.prepare(
-                    `INSERT INTO jobs (id, user_id, title, description, status, recurrence, stripe_invoice_id, createdAt, total_amount_cents, due) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-                ).bind(
-                    newJobId,
-                    user.id,
-                    jobTitle,
-                    invoice.description || `Imported from Stripe Invoice #${invoice.number}`,
-                    'complete',
-                    'none',
-                    invoice.id,
-                    new Date(invoice.created * 1000).toISOString(),
-                    invoice.total,
-                    invoice.due_date ? new Date(invoice.due_date * 1000).toISOString() : null
-                );
-
-                const lineItemInserts: D1PreparedStatement[] = invoice.lines.data.map((item) =>
-                    db.prepare(`INSERT INTO line_items (job_id, description, quantity, unit_total_amount_cents) VALUES (?, ?, ?, ?)`
-                    ).bind(newJobId, item.description || 'Imported Item', item.quantity || 1, item.amount)
-                );
-
-                await db.batch([jobInsertStmt, ...lineItemInserts]);
-                importedCount++;
-            }
-
-            startingAfter = invoices.data[invoices.data.length - 1].id;
-            hasMore = invoices.has_more;
-        }
-
-        return successResponse({ message: `Import complete.`, imported: importedCount, skipped: skippedCount, errors });
-
-    } catch (e: any) {
-        const errorMessage = user_id ? `Failed to import Stripe invoices for user ${user_id}:` : "Failed to import Stripe invoices:";
-        console.error(errorMessage, e);
-        return errorResponse(`Failed to import invoices: ${e.message}`, 500);
+  if (user_id) {
+    const user = await db.query.users.findFirst({
+        where: eq(users.id, user_id),
+        columns: { stripe_customer_id: true }
+    });
+    if (!user?.stripe_customer_id) {
+      throw new HTTPException(404, { message: 'User not found or does not have a Stripe customer ID.' });
     }
-}
+    listParams.customer = user.stripe_customer_id;
+  }
 
-export const handleAdminGetAllOpenInvoices = async (c: Context<AppEnv>) => {
-    const stripe = getStripe(c.env);
-    try {
-        const invoices = await stripe.invoices.list({
-            status: 'open',
-            limit: 100,
-        });
+  while (hasMore) {
+    const invoices = await stripe.invoices.list({ ...listParams, starting_after: startingAfter });
+    if (invoices.data.length === 0) break;
 
-        const stripeCustomerIds = invoices.data.map(inv => inv.customer).filter((c): c is string => typeof c === 'string');
-        const uniqueStripeCustomerIds = [...new Set(stripeCustomerIds)];
+    for (const invoice of invoices.data) {
+      if (!invoice.lines?.data?.length || typeof invoice.customer !== 'object' || invoice.customer.deleted) {
+        skippedCount++;
+        continue;
+      }
 
-        if (uniqueStripeCustomerIds.length === 0) {
-            return successResponse([]);
-        }
+      const existingJob = await db.query.jobs.findFirst({ where: eq(jobs.stripe_invoice_id, invoice.id), columns: { id: true } });
+      if (existingJob) {
+        skippedCount++;
+        continue;
+      }
 
-        const placeholders = uniqueStripeCustomerIds.map(() => '?').join(',');
-        const { results: users } = await c.env.DB.prepare(
-            `SELECT id, name, stripe_customer_id FROM users WHERE stripe_customer_id IN (${placeholders})`
-        ).bind(...uniqueStripeCustomerIds).all<User>();
+      let user = await db.query.users.findFirst({ where: eq(users.stripe_customer_id, invoice.customer.id), columns: { id: true } });
+      if (!user) {
+        const stripeCustomer = invoice.customer as Stripe.Customer;
+        const [newUser] = await db.insert(users).values({
+            name: stripeCustomer.name || 'Stripe Customer',
+            email: stripeCustomer.email,
+            phone: stripeCustomer.phone,
+            stripe_customer_id: invoice.customer.id,
+            role: 'guest'
+        }).returning({ id: users.id });
+        user = newUser;
+      }
 
-        const userMap = new Map((users || []).map(u => [u.stripe_customer_id, u]));
+      if (!user) {
+          skippedCount++;
+          continue;
+      }
 
-        const enrichedInvoices: DashboardInvoice[] = invoices.data
-            .filter((inv): inv is Stripe.Invoice & { id: string } => !!inv.id)
-            .map(inv => {
-                const user = userMap.get(inv.customer as string);
-                return {
-                    id: inv.id,
-                    object: 'invoice',
-                    customer: inv.customer as string,
-                    status: inv.status,
-                    total: inv.total,
-                    hosted_invoice_url: inv.hosted_invoice_url ?? null,
-                    number: inv.number,
-                    due_date: inv.due_date,
-                    user_id: user?.id,
-                    customerName: user?.name,
-                };
-            });
+      const jobTitle = invoice.lines.data[0]?.description || invoice.description || `Imported Job ${invoice.id}`;
+      const [newJob] = await db.insert(jobs).values({
+          userId: user.id,
+          job_title: jobTitle,
+          job_description: invoice.description || `Imported from Stripe Invoice #${invoice.number}`,
+          status: 'complete',
+          recurrence_rule: 'none',
+          stripe_invoice_id: invoice.id,
+          createdAt: new Date(invoice.created * 1000).toISOString(),
+          total_amount_cents: invoice.total,
+          job_due_date: invoice.due_date ? new Date(invoice.due_date * 1000).toISOString() : null,
+      }).returning({ id: jobs.id });
 
-        return successResponse(enrichedInvoices);
-    } catch (e: any) {
-        console.error("Failed to get all open invoices:", e);
-        return errorResponse("Failed to retrieve open invoices.", 500);
+      const lineItemsToInsert = invoice.lines.data.map(item => ({
+          jobId: newJob.id,
+          description: item.description || 'Imported Item',
+          quantity: item.quantity || 1,
+          unit_total_amount_cents: item.amount,
+      }));
+
+      if(lineItemsToInsert.length > 0) {
+        await db.insert(lineItems).values(lineItemsToInsert);
+      }
+
+      importedCount++;
     }
-};
 
-export const handleAdminMarkInvoiceAsPaid = async (c: Context<AppEnv>) => {
-    const { invoiceId } = c.req.param();
-    const stripe = getStripe(c.env);
+    startingAfter = invoices.data[invoices.data.length - 1].id;
+    hasMore = invoices.has_more;
+  }
 
-    try {
-        const invoice = await stripe.invoices.retrieve(invoiceId);
-        if (!invoice) {
-            return errorResponse("Invoice not found.", 404);
-        }
-
-        if (invoice.status === 'paid') {
-            return errorResponse("Invoice is already paid.", 400);
-        }
-
-        const updatedInvoice = await stripe.invoices.pay(invoiceId, {
-            paid_out_of_band: true,
-        });
-
-        return successResponse(updatedInvoice);
-    } catch (e: any) {
-        console.error(`Failed to mark invoice ${invoiceId} as paid:`, e);
-        return errorResponse(e.message, 500);
-    }
-};
+  return c.json({ message: `Import complete.`, imported: importedCount, skipped: skippedCount });
+});

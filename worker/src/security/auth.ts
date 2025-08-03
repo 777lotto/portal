@@ -1,73 +1,88 @@
-import { SignJWT, jwtVerify } from "jose";
-import bcrypt from "bcryptjs";
-import { Context, Next } from 'hono';
-import type { AppEnv } from '../index.js';
-import type { User } from "@portal/shared";
+// worker/src/security/auth.ts
+import { createFactory } from 'hono/factory';
+import { SignJWT, jwtVerify } from 'jose';
+import bcrypt from 'bcryptjs';
+import type { User } from '@portal/shared';
+import { HTTPException } from 'hono/http-exception';
+
+const factory = createFactory();
 
 export function getJwtSecretKey(secret: string): Uint8Array {
   const encoder = new TextEncoder();
   return encoder.encode(secret);
 }
 
-// This middleware requires a valid JWT to proceed
-export const requireAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
-    let token: string | undefined;
-    const authHeader = c.req.header("Authorization");
-    const upgradeHeader = c.req.header("Upgrade");
+// --- REFACTORED: All middleware now use the createFactory pattern ---
 
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-        token = authHeader.substring(7);
-    } else if (upgradeHeader && upgradeHeader.toLowerCase() === 'websocket') {
-        token = c.req.query('token');
+export const requireAuth = factory.createMiddleware(async (c, next) => {
+  let token: string | undefined;
+  const authHeader = c.req.header('Authorization');
+  const upgradeHeader = c.req.header('Upgrade');
+
+  if (authHeader?.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  } else if (upgradeHeader?.toLowerCase() === 'websocket') {
+    token = c.req.query('token');
+  }
+
+  if (!token) {
+    throw new HTTPException(401, { message: 'Missing or invalid authorization token' });
+  }
+
+  try {
+    const secret = getJwtSecretKey(c.env.JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+    c.set('user', payload as User);
+    await next();
+  } catch (error) {
+    throw new HTTPException(401, { message: 'Authentication failed: Invalid token' });
+  }
+});
+
+export const requireAdminAuth = factory.createMiddleware(async (c, next) => {
+  const user = c.get('user');
+  if (user?.role !== 'admin') {
+    throw new HTTPException(403, { message: 'Forbidden: Admin access required' });
+  }
+  await next();
+});
+
+export const requirePasswordSetToken = factory.createMiddleware(async (c, next) => {
+  const authHeader = c.req.header('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    throw new HTTPException(401, { message: 'Missing or invalid authorization header' });
+  }
+  const token = authHeader.substring(7);
+
+  try {
+    const secret = getJwtSecretKey(c.env.JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+
+    if (payload.purpose !== 'password-set' || !payload.sub) {
+      throw new HTTPException(403, { message: 'Forbidden: Invalid token type' });
     }
 
-    if (!token) {
-        return c.json({ error: "Missing or invalid authorization token" }, 401);
-    }
+    c.set('user', { id: payload.sub } as User);
+    await next();
+  } catch (error) {
+    throw new HTTPException(401, { message: 'Authentication failed: Invalid token' });
+  }
+});
 
-    try {
-        if (!c.env.JWT_SECRET) {
-            throw new Error("JWT_SECRET is not configured in the environment.");
-        }
-        const secret = getJwtSecretKey(c.env.JWT_SECRET);
-        const { payload } = await jwtVerify(token, secret);
-        c.set('user', payload as User);
-        return await next();
-    } catch (error) {
-        console.error("Auth failed:", error);
-        return c.json({ error: 'Authentication failed: Invalid token' }, 401);
-    }
-};
+// --- Helper functions remain the same ---
 
-// This middleware assumes requireAuthMiddleware has already run
-// and simply checks if the user has the 'admin' role.
-export const requireAdminAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
-    const user = c.get('user'); // User is populated by the first middleware
-    if (user && user.role === 'admin') {
-        // FIXED: Added 'return' to proceed to the next handler.
-        return await next(); // User is an admin, proceed.
-    } else {
-        // If there's no user or the user isn't an admin, return a forbidden error.
-        return c.json({ error: 'Forbidden: Admin access required' }, 403);
-    }
-};
-
-
-// --- The rest of the file remains the same ---
-
-export async function createJwtToken(user: User, secret: string, expiresIn: string = "7d"): Promise<string> {
-    const jwt = new SignJWT({ ...user })
-      .setProtectedHeader({ alg: "HS256", typ: "JWT" })
-      .setIssuedAt()
-      .setExpirationTime(expiresIn)
-      .setJti(crypto.randomUUID());
-
-    return jwt.sign(getJwtSecretKey(secret));
+export async function createJwtToken(user: User, secret: string, expiresIn: string = '7d'): Promise<string> {
+  const jwt = new SignJWT({ ...user })
+    .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+    .setIssuedAt()
+    .setExpirationTime(expiresIn)
+    .setJti(crypto.randomUUID());
+  return jwt.sign(getJwtSecretKey(secret));
 }
 
 export async function hashPassword(password: string): Promise<string> {
   if (!password || password.length < 8) {
-    throw new Error("Password must be at least 8 characters long");
+    throw new Error('Password must be at least 8 characters long');
   }
   return await bcrypt.hash(password, 10);
 }
@@ -78,30 +93,3 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   }
   return await bcrypt.compare(password, hash);
 }
-
-// Middleware to check for the special password-set token
-export const requirePasswordSetTokenMiddleware = async (c: Context<AppEnv>, next: Next) => {
-    const authHeader = c.req.header("Authorization") || "";
-    if (!authHeader.startsWith("Bearer ")) {
-        return c.json({ error: "Missing or invalid authorization header" }, 401);
-    }
-    const token = authHeader.substring(7);
-
-    try {
-        const secret = getJwtSecretKey(c.env.JWT_SECRET);
-        const { payload } = await jwtVerify(token, secret);
-
-        if (payload.purpose !== 'password-set' || !payload.sub) {
-             return c.json({ error: 'Forbidden: Invalid token type' }, 403);
-        }
-
-        // FIX: Cast the partial object to User to satisfy the type checker.
-        c.set('user', { id: Number(payload.sub) } as User);
-
-        // FIX: Return the result of the next middleware
-        return await next();
-
-    } catch (error) {
-        return c.json({ error: 'Authentication failed: Invalid token' }, 401);
-    }
-};

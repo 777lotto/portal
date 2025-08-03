@@ -1,16 +1,23 @@
-// worker/src/stripe.ts - CORRECTED
+// worker/src/stripe/index.ts
 import Stripe from 'stripe';
-import { Context } from 'hono';
-import { AppEnv } from '../index.js';
 import { Env, User, LineItem } from '@portal/shared';
 
+/**
+ * REFACTORED: Initializes the Stripe client.
+ * - The API version is set to a specific, stable version. This is a best practice
+ * to ensure that your integration doesn't break unexpectedly when Stripe updates their API.
+ */
 export function getStripe(env: Env): Stripe {
   return new Stripe(env.STRIPE_SECRET_KEY, {
-    // FIX: Use the latest stable apiVersion
     apiVersion: '2025-05-28.basil',
     httpClient: Stripe.createFetchHttpClient(),
   });
 }
+
+// This file consists of helper functions that interact with the Stripe API.
+// The existing code is already well-structured and doesn't involve direct database queries
+// or complex request handling, so no further refactoring is needed here. The functions
+// correctly abstract away the Stripe API calls.
 
 export async function createStripeCustomer(stripe: Stripe, user: User): Promise<Stripe.Customer> {
   const { email, name, phone, company_name } = user;
@@ -24,7 +31,7 @@ export async function createStripeCustomer(stripe: Stripe, user: User): Promise<
   console.log(`Creating new Stripe customer for email: ${email}`);
   return stripe.customers.create({
       email: email,
-      name: name,
+      name: name ?? undefined,
       phone: phone || undefined,
       metadata: {
         company_name: company_name || ''
@@ -32,16 +39,14 @@ export async function createStripeCustomer(stripe: Stripe, user: User): Promise<
   });
 }
 
-export async function createStripePortalSession(stripe: Stripe, user_id: string, returnUrl: string): Promise<Stripe.BillingPortal.Session> {
+export async function createStripePortalSession(stripe: Stripe, customerId: string, returnUrl: string): Promise<Stripe.BillingPortal.Session> {
     return stripe.billingPortal.sessions.create({
-        customer: user_id,
+        customer: customerId,
         return_url: returnUrl,
     });
 }
 
-export async function createStripeInvoice(c: Context<AppEnv>, lineItems: LineItem[], customerId: string): Promise<Stripe.Invoice> {
-    const stripe = getStripe(c.env);
-
+export async function createStripeInvoice(stripe: Stripe, lineItems: LineItem[], customerId: string): Promise<Stripe.Invoice> {
     const invoice = await stripe.invoices.create({
         customer: customerId,
         collection_method: 'send_invoice',
@@ -59,7 +64,6 @@ export async function createStripeInvoice(c: Context<AppEnv>, lineItems: LineIte
         invoice: invoice.id,
         description: item.description,
         quantity: item.quantity,
-        // CORRECTED: 'unit_amount' is not a valid property here. It should be 'amount'.
         amount: item.unit_total_amount_cents,
         currency: 'usd',
       });
@@ -80,11 +84,10 @@ export async function finalizeStripeInvoice(stripe: Stripe, invoiceId: string | 
   return finalInvoice;
 }
 
-// ADDED_START
-export async function createDraftStripeInvoice(stripe: Stripe, user_id: string): Promise<Stripe.Invoice> {
-    console.log(`Creating new draft Stripe invoice for customer: ${user_id}`);
+export async function createDraftStripeInvoice(stripe: Stripe, customerId: string): Promise<Stripe.Invoice> {
+    console.log(`Creating new draft Stripe invoice for customer: ${customerId}`);
     const invoice = await stripe.invoices.create({
-      customer: user_id,
+      customer: customerId,
       collection_method: 'send_invoice',
       days_until_due: 30,
       auto_advance: false,
@@ -92,34 +95,33 @@ export async function createDraftStripeInvoice(stripe: Stripe, user_id: string):
     return invoice;
 }
 
-export async function listPaymentMethods(stripe: Stripe, user_id: string): Promise<Stripe.ApiList<Stripe.PaymentMethod>> {
+export async function listPaymentMethods(stripe: Stripe, customerId: string): Promise<Stripe.ApiList<Stripe.PaymentMethod>> {
     return stripe.paymentMethods.list({
-        customer: user_id,
+        customer: customerId,
         type: 'card',
     });
 }
 
-export async function attachPaymentMethod(stripe: Stripe, paymentMethodId: string, user_id: string): Promise<Stripe.PaymentMethod> {
+export async function attachPaymentMethod(stripe: Stripe, paymentMethodId: string, customerId: string): Promise<Stripe.PaymentMethod> {
     return stripe.paymentMethods.attach(paymentMethodId, {
-        customer: user_id,
+        customer: customerId,
     });
 }
 
-export async function updateCustomerDefaultPaymentMethod(stripe: Stripe, user_id: string, paymentMethodId: string): Promise<Stripe.Customer> {
-    return stripe.customers.update(user_id, {
+export async function updateCustomerDefaultPaymentMethod(stripe: Stripe, customerId: string, paymentMethodId: string): Promise<Stripe.Customer> {
+    return stripe.customers.update(customerId, {
         invoice_settings: {
             default_payment_method: paymentMethodId,
         },
     });
 }
 
-export async function createSetupIntent(stripe: Stripe, user_id: string): Promise<Stripe.SetupIntent> {
+export async function createSetupIntent(stripe: Stripe, customerId: string): Promise<Stripe.SetupIntent> {
     return stripe.setupIntents.create({
-        customer: user_id,
+        customer: customerId,
         payment_method_types: ['card'],
     });
 }
-// ADDED_END
 
 export async function createStripeQuote(stripe: Stripe, customerId: string, lineItems: LineItem[]): Promise<Stripe.Quote> {
     console.log(`Creating new Stripe quote for customer: ${customerId}`);
@@ -137,9 +139,7 @@ export async function createStripeQuote(stripe: Stripe, customerId: string, line
 
     const quote = await stripe.quotes.create({
         customer: customerId,
-        // CORRECTED: Using 'as any' to bypass a known issue with the Stripe SDK's
-        // TypeScript types for this specific API call. The data structure is correct.
-        line_items: line_items_payload as any,
+        line_items: line_items_payload,
         collection_method: 'send_invoice',
         invoice_settings: {
           days_until_due: 30,
@@ -148,4 +148,3 @@ export async function createStripeQuote(stripe: Stripe, customerId: string, line
 
     return quote;
 }
-
