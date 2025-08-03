@@ -7,7 +7,8 @@
     "worker",
     "packages/shared",
     "notification",
-    "payment"
+    "payment",
+    "packages/durable-chat"
   ],
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -27,7 +28,7 @@
     "deploy": "pnpm run build && pnpm run deploy:workers",
     "deploy:dev": "pnpm run build && pnpm run deploy:workers:dev",
     "deploy:workers": "pnpm --filter notification run deploy && pnpm --filter payment run deploy && pnpm --filter worker run deploy && pnpm --filter @portal/durable-chat run deploy",
-    "deploy:workers:dev": "pnpm --filter \"./{worker,notification,payment}\" --parallel run deploy:dev",
+    "deploy:workers:dev": "pnpm --filter \"./{worker,notification,payment,packages/durable-chat}\" --parallel run deploy:dev"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.36.0",
