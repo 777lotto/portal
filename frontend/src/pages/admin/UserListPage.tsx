@@ -1,56 +1,21 @@
-// @ts-nocheck
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import type { User } from '@portal/shared';
 import AddUserModal from '../../components/modals/admin/AddUserModal';
 import { debounce } from 'lodash-es';
+import { HTTPException } from 'hono/http-exception';
 
 // Forward-declare the Google API objects to satisfy TypeScript
 declare const google: any;
 declare const gapi: any;
 
 /**
- * A component to display user details in a read-only format.
- */
-function UserDetailViewer({ user, onEdit }: { user: User; onEdit: () => void; }) {
-  return (
-    <div className="bg-gray-50 dark:bg-gray-800/50 p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h4 className="text-lg font-semibold text-gray-900 dark:text-white">User Details</h4>
-        <button className="btn btn-secondary btn-sm" onClick={onEdit}>Edit User</button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-        <div className="text-sm">
-          <dt className="font-medium text-gray-500 dark:text-gray-400">Name</dt>
-          <dd className="text-gray-900 dark:text-gray-200 mt-1">{user.name || 'N/A'}</dd>
-        </div>
-        <div className="text-sm">
-          <dt className="font-medium text-gray-500 dark:text-gray-400">Company Name</dt>
-          <dd className="text-gray-900 dark:text-gray-200 mt-1">{user.company_name || 'N/A'}</dd>
-        </div>
-        <div className="text-sm">
-          <dt className="font-medium text-gray-500 dark:text-gray-400">Email</dt>
-          <dd className="text-gray-900 dark:text-gray-200 mt-1">{user.email || 'N/A'}</dd>
-        </div>
-        <div className="text-sm">
-          <dt className="font-medium text-gray-500 dark:text-gray-400">Phone</dt>
-          <dd className="text-gray-900 dark:text-gray-200 mt-1">{user.phone || 'N/A'}</dd>
-        </div>
-        <div className="text-sm md:col-span-2">
-          <dt className="font-medium text-gray-500 dark:text-gray-400">Address</dt>
-          <dd className="text-gray-900 dark:text-gray-200 mt-1">{user.address || 'N/A'}</dd>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
  * A component to edit user details.
  */
 function UserDetailEditor({ user, onUserUpdated, onCancel }: { user: User; onUserUpdated: (user: User) => void; onCancel: () => void; }) {
   const [editedUser, setEditedUser] = useState(user);
+  const [error, setError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setEditedUser({ ...editedUser, [e.target.name]: e.target.value });
@@ -58,25 +23,32 @@ function UserDetailEditor({ user, onUserUpdated, onCancel }: { user: User; onUse
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     try {
-      const response = await api.admin.users[':id'].$put({
-        param: { id: user.id },
+      const response = await api.admin.users[':user_id'].$put({
+        param: { user_id: user.id.toString() },
         json: editedUser,
       });
 
-      if (response.ok) {
-        // FIX: Access the wrapped 'user' object from the consistent API response
-        const data = await response.json();
-        onUserUpdated(data.user);
+      // REFACTORED: Correctly parse the JSON and access the 'user' property
+      const data = await response.json();
+      onUserUpdated(data.user);
+
+    } catch (err) {
+      if (err instanceof HTTPException) {
+        const errorJson = await err.response.json();
+        setError(errorJson.message || 'Failed to update user.');
+      } else {
+        setError('An unexpected error occurred.');
       }
-    } catch (error) {
-      console.error('Failed to update user:', error);
+      console.error('Failed to update user:', err);
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="bg-gray-50 dark:bg-gray-800/50 p-6">
       <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Edit User</h4>
+      {error && <div className="alert alert-danger mb-4">{error}</div>}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <input type="text" name="name" value={editedUser.name || ''} onChange={handleChange} placeholder="Name" className="input input-bordered w-full" />
         <input type="text" name="company_name" value={editedUser.company_name || ''} onChange={handleChange} placeholder="Company Name" className="input input-bordered w-full" />
@@ -96,8 +68,8 @@ function UserDetailEditor({ user, onUserUpdated, onCancel }: { user: User; onUse
 function UserListPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
-  const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
+  const [expandedUserId, setExpandedUserId] = useState<number | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
@@ -105,6 +77,7 @@ function UserListPage() {
   const [totalUsers, setTotalUsers] = useState(0);
   const [tokenClient, setTokenClient] = useState<any>(null);
 
+  // --- Google Contacts logic remains unchanged ---
   useEffect(() => {
     const initializeGapiClient = async () => {
       await new Promise((resolve) => gapi.load('client', resolve));
@@ -130,7 +103,6 @@ function UserListPage() {
             initializeGapiClient();
         };
     }
-
   }, []);
 
   const handleGoogleContactsResponse = async (tokenResponse: any) => {
@@ -145,11 +117,11 @@ function UserListPage() {
 
             const connections = response.result.connections;
             if (connections && connections.length > 0) {
-                const contacts = connections.map(person => ({
+                const contacts = connections.map((person: any) => ({
                     name: person.names?.[0]?.displayName || '',
                     email: person.emailAddresses?.[0]?.value || '',
                     phone: person.phoneNumbers?.[0]?.value || '',
-                })).filter(c => c.name);
+                })).filter((c: any) => c.name);
 
                 await api.admin.users['import-google-contacts'].$post({ json: { contacts } });
 
@@ -172,20 +144,19 @@ function UserListPage() {
       alert('Google API client is not initialized yet. Please try again in a moment.');
     }
   };
+  // --- End of Google Contacts logic ---
 
   const fetchUsers = useCallback(async (page = 1, search = '') => {
     try {
       const response = await api.admin.users.$get({
         query: { page: page.toString(), limit: '10', search },
       });
-      if (response.ok) {
-        const data = await response.json();
-        // FIX: Access the wrapped 'users' object and pagination details
-        setUsers(data.users);
-        setTotalPages(data.totalPages);
-        setTotalUsers(data.totalUsers);
-        setCurrentPage(data.currentPage);
-      }
+      // REFACTORED: Correctly parse the JSON and access the enveloped data
+      const data = await response.json();
+      setUsers(data.users);
+      setTotalPages(data.totalPages);
+      setTotalUsers(data.totalUsers);
+      setCurrentPage(data.currentPage);
     } catch (error) {
       console.error('Failed to fetch users:', error);
     }
@@ -214,14 +185,13 @@ function UserListPage() {
   const handleDeleteUser = async (userToDelete: User) => {
     if (window.confirm(`Are you sure you want to delete ${userToDelete.name}? This action cannot be undone.`)) {
       try {
-        const response = await api.admin.users[':id'].$delete({
-          param: { id: userToDelete.id },
+        await api.admin.users[':user_id'].$delete({
+          param: { user_id: userToDelete.id.toString() },
         });
-        if(response.ok) {
-          fetchUsers(currentPage, searchTerm);
-        }
+        fetchUsers(currentPage, searchTerm); // Refresh the list
       } catch (error) {
         console.error('Failed to delete user:', error);
+        alert('Failed to delete user.');
       }
     }
   };
@@ -237,12 +207,13 @@ function UserListPage() {
     }
   };
 
-  const toggleExpandUser = (userId: string) => {
+  const toggleExpandUser = (userId: number) => {
     if (expandedUserId === userId) {
       setExpandedUserId(null);
       setEditingUserId(null);
     } else {
       setExpandedUserId(userId);
+      setEditingUserId(userId); // Directly go to edit mode
     }
   };
 
@@ -308,12 +279,7 @@ function UserListPage() {
                     {expandedUserId === user.id && (
                       <tr className="bg-gray-50 dark:bg-gray-800/20">
                         <td colSpan={6} className="p-0">
-                           {editingUserId === user.id ? (
-                              <UserDetailEditor user={user} onUserUpdated={handleUserUpdated} onCancel={() => setEditingUserId(null)} />
-                            ) : (
-                              // This now just toggles the editor, details are on a separate page
-                              <UserDetailEditor user={user} onUserUpdated={handleUserUpdated} onCancel={() => setEditingUserId(null)} />
-                            )}
+                           <UserDetailEditor user={user} onUserUpdated={handleUserUpdated} onCancel={() => setExpandedUserId(null)} />
                         </td>
                       </tr>
                     )}

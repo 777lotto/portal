@@ -1,9 +1,8 @@
-// frontend/src/pages/admin/UserDetailPage.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { HTTPException } from 'hono/http-exception';
-import type { User, StripeInvoice } from '@portal/shared';
+import type { User } from '@portal/shared';
 
 type Message = { type: 'success' | 'danger'; text: string; };
 
@@ -13,20 +12,22 @@ export function UserDetailPage() {
   const [message, setMessage] = useState<Message | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleApiError = async (err: any, defaultMessage: string) => {
+  const handleApiError = async (err: unknown, defaultMessage: string) => {
     if (err instanceof HTTPException) {
         const errorJson = await err.response.json().catch(() => ({}));
-        setMessage({ type: 'danger', text: errorJson.error || defaultMessage });
+        setMessage({ type: 'danger', text: errorJson.message || errorJson.error || defaultMessage });
     } else {
-        setMessage({ type: 'danger', text: err.message || defaultMessage });
+        setMessage({ type: 'danger', text: (err as Error).message || defaultMessage });
     }
   };
 
   const fetchData = useCallback(async () => {
     if (!user_id) return;
     try {
-      const userData = await api.admin.users[':user_id'].$get({ param: { user_id } });
-      setUser(userData);
+      // REFACTORED: Correctly parse the JSON and access the 'user' property
+      const response = await api.admin.users[':user_id'].$get({ param: { user_id } });
+      const data = await response.json();
+      setUser(data.user);
     } catch (err) {
       handleApiError(err, 'Failed to fetch user data');
     }
@@ -41,9 +42,11 @@ export function UserDetailPage() {
     setIsSubmitting(true);
     setMessage(null);
     try {
-        await api.admin.users[':user_id'].invoices.$post({ param: { user_id } });
-        setMessage({ type: 'success', text: 'Draft invoice created!' });
-        fetchData(); // Re-fetch to show new data if needed
+        // This endpoint likely returns a new invoice object
+        const response = await api.admin.invoices.$post({ json: { user_id } });
+        const data = await response.json();
+        setMessage({ type: 'success', text: `Draft invoice created! ID: ${data.invoice.id}` });
+        // Optionally, navigate to the new invoice or refresh relevant data
     } catch (err) {
         handleApiError(err, 'Failed to create invoice');
     } finally {
@@ -56,8 +59,9 @@ export function UserDetailPage() {
       setIsSubmitting(true);
       setMessage(null);
       try {
-          const result = await api.admin.users[':user_id'].invoices.import.$post({ param: { user_id } });
-          setMessage({ type: 'success', text: `Imported ${result.imported} invoices.` });
+          const response = await api.admin.invoices.import.$post({ json: { user_id } });
+          const result = await response.json();
+          setMessage({ type: 'success', text: `Imported ${result.importedCount} invoices.` });
           fetchData();
       } catch (err) {
           handleApiError(err, 'Failed to import invoices');
@@ -69,7 +73,6 @@ export function UserDetailPage() {
   if (!user) return <div className="text-center p-8">Loading user details...</div>;
 
   return (
-    // ... UserDetailPage JSX is unchanged ...
     <div className="container-fluid p-4">
       {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
       <div className="card">
