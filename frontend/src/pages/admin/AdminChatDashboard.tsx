@@ -1,21 +1,36 @@
 // frontend/src/pages/admin/AdminChatDashboard.tsx
 import { useState } from 'react';
-import useSWR from 'swr';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import type { User } from '@portal/shared';
 import SupportChatWidget from '../../components/chat/SupportChatWidget';
-import { useAuth } from '../../hooks/useAuth';
 
-const usersFetcher = () => api.admin.users.$get();
+/**
+ * REFACTORED: The data-fetching function for React Query.
+ * It now correctly unwraps the enveloped response from the API.
+ */
+const fetchUsers = async () => {
+  const res = await api.admin.users.$get();
+  if (!res.ok) {
+    throw new Error('Failed to fetch users');
+  }
+  const data = await res.json();
+  return data.users;
+};
 
+/**
+ * REFACTORED: The component now uses `useQuery` for data fetching.
+ * This replaces `useSWR` to align with the project's standard data-fetching library.
+ */
 const AdminChatDashboard = () => {
-  const { user: adminUser } = useAuth();
-  const { data: users, error } = useSWR<User[]>('/api/admin/users', usersFetcher);
+  const { data: users, isLoading, error } = useQuery<User[]>({
+    queryKey: ['adminUsers'],
+    queryFn: fetchUsers,
+  });
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
+  if (isLoading) return <div>Loading users...</div>;
   if (error) return <div>Failed to load users: {error.message}</div>;
-  if (!users) return <div>Loading users...</div>;
-  if (!adminUser) return <div>Authenticating...</div>;
 
   if (selectedUser) {
     return (
@@ -29,11 +44,10 @@ const AdminChatDashboard = () => {
   }
 
   return (
-    // ... AdminChatDashboard JSX is unchanged ...
     <div>
       <h1 className="text-2xl font-bold mb-4">Chat with a User</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {users.map((user) => (
+        {users?.map((user) => (
           <div key={user.id} className="card bg-base-100 shadow-xl">
             <div className="card-body">
               <h2 className="card-title">{user.name || user.company_name}</h2>
