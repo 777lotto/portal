@@ -4,12 +4,14 @@ import { createFactory } from 'hono/factory';
 import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import { v4 as uuidv4 } from 'uuid';
-import { db } from '../../db/client';
-import { jobs, lineItems, users, calendarTokens, jobRecurrenceRequests } from '../../db/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { db } from '../db/client';
+import * as schema from '../db/schema';
+import { eq, and, desc } from 'drizzle-orm';
 import { generateCalendarFeed } from './timing/calendar';
 import { JobRecurrenceRequestSchema } from '@portal/shared';
-import type { AppEnv, AuthedContext } from '../../index';
+import type { AppEnv } from '../server';
+import { getUser } from '../auth/getUser';
+import { DrizzleD1Database } from 'drizzle-orm/d1';
 
 // Use the AppEnv with the authenticated user context
 const factory = createFactory<AppEnv>();
@@ -19,18 +21,18 @@ const factory = createFactory<AppEnv>();
  * - Assumes auth middleware provides the user object on c.get('user').
  * - Builds a Drizzle query dynamically based on user role.
  */
-export const getJobs = factory.createHandlers(async (c: AuthedContext) => {
-	const user = c.get('user');
+export const getJobs = factory.createHandlers(async (c) => {
+	const user = await getUser(c);
 	const database = db(c.env.DB);
 
-    const conditions = [eq(jobs.status, 'upcoming')];
+    const conditions = [eq(schema.jobs.status, 'upcoming')];
     if (user.role !== 'admin') {
-        conditions.push(eq(jobs.userId, user.id.toString()));
+        conditions.push(eq(schema.jobs.userId, user.id.toString()));
     }
 
 	const userJobs = await database.query.jobs.findMany({
         where: and(...conditions),
-        orderBy: [desc(jobs.createdAt)]
+        orderBy: [desc(schema.jobs.createdAt)]
     });
 
 	return c.json({ jobs: userJobs });
@@ -41,13 +43,13 @@ export const getJobs = factory.createHandlers(async (c: AuthedContext) => {
  * - Ensures the user is an admin or the job owner.
  * - Uses Drizzle's relational queries for cleaner data fetching.
  */
-export const getJobById = factory.createHandlers(async (c: AuthedContext) => {
-	const user = c.get('user');
+export const getJobById = factory.createHandlers(async (c) => {
+	const user = await getUser(c);
 	const { id } = c.req.param();
 	const database = db(c.env.DB);
 
 	const jobResult = await database.query.jobs.findFirst({
-        where: eq(jobs.id, id),
+        where: eq(schema.jobs.id, id),
         with: {
             lineItems: true,
         }
@@ -69,17 +71,17 @@ export const getJobById = factory.createHandlers(async (c: AuthedContext) => {
  * REFACTORED: Gets or creates a secret, unique URL for a user's iCal feed.
  * - Simplified Drizzle queries.
  */
-export const getSecretCalendarUrl = factory.createHandlers(async (c: AuthedContext) => {
-	const user = c.get('user');
+export const getSecretCalendarUrl = factory.createHandlers(async (c) => {
+	const user = await getUser(c);
 	const database = db(c.env.DB);
 	const portalBaseUrl = c.env.PORTAL_URL.replace('/dashboard', '');
 
 	let tokenRecord = await database.query.calendarTokens.findFirst({
-        where: eq(calendarTokens.userId, user.id)
+        where: eq(schema.calendarTokens.userId, user.id)
     });
 
 	if (!tokenRecord) {
-		const [newRecord] = await database.insert(calendarTokens).values({ token: uuidv4(), userId: user.id }).returning();
+		const [newRecord] = await database.insert(schema.calendarTokens).values({ token: uuidv4(), userId: user.id }).returning();
         tokenRecord = newRecord;
 	}
 
@@ -91,14 +93,14 @@ export const getSecretCalendarUrl = factory.createHandlers(async (c: AuthedConte
  * REFACTORED: Invalidates the old iCal feed URL and generates a new one.
  * - Uses a transaction for atomicity.
  */
-export const regenerateSecretCalendarUrl = factory.createHandlers(async (c: AuthedContext) => {
-	const user = c.get('user');
+export const regenerateSecretCalendarUrl = factory.createHandlers(async (c) => {
+	const user = await getUser(c);
 	const database = db(c.env.DB);
 	const portalBaseUrl = c.env.PORTAL_URL.replace('/dashboard', '');
 
-	const newToken = await database.transaction(async (tx) => {
-		await tx.delete(calendarTokens).where(eq(calendarTokens.userId, user.id));
-		const [newRecord] = await tx.insert(calendarTokens).values({ token: uuidv4(), userId: user.id }).returning();
+	const newToken = await database.transaction(async (tx: DrizzleD1Database<typeof schema>) => {
+		await tx.delete(schema.calendarTokens).where(eq(schema.calendarTokens.userId, user.id));
+		const [newRecord] = await tx.insert(schema.calendarTokens).values({ token: uuidv4(), userId: user.id }).returning();
 		return newRecord.token;
 	});
 
@@ -114,7 +116,7 @@ export const handleCalendarFeed = factory.createHandlers(async (c) => {
 	const { token } = c.req.param();
 	const database = db(c.env.DB);
 
-	const tokenRecord = await database.query.calendarTokens.findFirst({ where: eq(calendarTokens.token, token) });
+	const tokenRecord = await database.query.calendarTokens.findFirst({ where: eq(schema.calendarTokens.token, token) });
 
 	if (!tokenRecord) {
 		throw new HTTPException(404, { message: 'Calendar feed not found.' });
@@ -136,12 +138,12 @@ export const handleCalendarFeed = factory.createHandlers(async (c) => {
  */
 export const requestRecurrence = factory.createHandlers(
     zValidator('json', JobRecurrenceRequestSchema.omit({ id: true, userId: true, status: true, createdAt: true, updatedAt: true })),
-    async (c: AuthedContext) => {
-        const user = c.get('user');
+    async (c) => {
+        const user = await getUser(c);
         const validatedData = c.req.valid('json');
         const database = db(c.env.DB);
 
-        const [newRequest] = await database.insert(jobRecurrenceRequests).values({
+        const [newRequest] = await database.insert(schema.jobRecurrenceRequests).values({
             ...validatedData,
             userId: user.id,
             status: 'pending'

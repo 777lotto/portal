@@ -6,10 +6,10 @@ import { z } from 'zod';
 import Stripe from 'stripe';
 import { getStripe } from '../../stripe';
 import { db } from '../../db/client';
-import { jobs, lineItems, users } from '../../db/schema';
+import * as schema from '../../db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { AppEnv } from '../../index';
+import type { AppEnv } from '../../server';
 
 const factory = createFactory<AppEnv>();
 
@@ -63,8 +63,11 @@ export const finalizeInvoice = factory.createHandlers(async (c) => {
   const { invoiceId } = c.req.param();
   const stripe = getStripe(c.env);
   const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoiceId);
-  const sentInvoice = await stripe.invoices.sendInvoice(finalizedInvoice.id);
-  return c.json({ invoice: sentInvoice });
+  if(finalizedInvoice.id) {
+    const sentInvoice = await stripe.invoices.sendInvoice(finalizedInvoice.id);
+    return c.json({ invoice: sentInvoice });
+  }
+  return c.json({ invoice: finalizedInvoice });
 });
 
 export const markInvoiceAsPaid = factory.createHandlers(async (c) => {
@@ -86,7 +89,7 @@ export const markInvoiceAsPaid = factory.createHandlers(async (c) => {
 export const getOpenInvoices = factory.createHandlers(async (c) => {
     const stripe = getStripe(c.env);
     const database = db(c.env.DB);
-    const invoices = await stripe.invoices.list({ status: 'open', limit: 100 });
+    const invoices: Stripe.ApiList<Stripe.Invoice> = await stripe.invoices.list({ status: 'open', limit: 100 });
 
     const stripeCustomerIds = invoices.data.map(inv => inv.customer).filter((id): id is string => !!id);
     if (stripeCustomerIds.length === 0) {
@@ -94,11 +97,11 @@ export const getOpenInvoices = factory.createHandlers(async (c) => {
     }
 
     const dbUsers = await database.query.users.findMany({
-        where: inArray(users.stripeCustomerId, stripeCustomerIds),
+        where: inArray(schema.users.stripeCustomerId, stripeCustomerIds),
         columns: { id: true, name: true, stripeCustomerId: true }
     });
 
-    const userMap = new Map(dbUsers.map(u => [u.stripeCustomerId, u]));
+    const userMap = new Map(dbUsers.map((u: { stripeCustomerId: any; }) => [u.stripeCustomerId, u]));
 
     const enrichedInvoices = invoices.data.map(inv => {
         const user = userMap.get(inv.customer as string);
@@ -128,7 +131,7 @@ export const importInvoices = factory.createHandlers(async (c) => {
 
   if (userIdParam) {
     const user = await database.query.users.findFirst({
-        where: eq(users.id, parseInt(userIdParam, 10)),
+        where: eq(schema.users.id, parseInt(userIdParam, 10)),
         columns: { stripeCustomerId: true }
     });
     if (!user?.stripeCustomerId) {
@@ -138,7 +141,7 @@ export const importInvoices = factory.createHandlers(async (c) => {
   }
 
   while (hasMore) {
-    const invoices = await stripe.invoices.list({ ...listParams, starting_after: startingAfter });
+    const invoices: Stripe.ApiList<Stripe.Invoice> = await stripe.invoices.list({ ...listParams, starting_after: startingAfter });
     if (invoices.data.length === 0) break;
 
     for (const invoice of invoices.data) {
@@ -147,22 +150,22 @@ export const importInvoices = factory.createHandlers(async (c) => {
         continue;
       }
 
-      const existingJob = await database.query.jobs.findFirst({ where: eq(jobs.stripeInvoiceId, invoice.id), columns: { id: true } });
+      const existingJob = await database.query.jobs.findFirst({ where: eq(schema.jobs.stripeInvoiceId, invoice.id), columns: { id: true } });
       if (existingJob) {
         skippedCount++;
         continue;
       }
 
-      let user = await database.query.users.findFirst({ where: eq(users.stripeCustomerId, invoice.customer.id), columns: { id: true } });
+      let user = await database.query.users.findFirst({ where: eq(schema.users.stripeCustomerId, invoice.customer.id), columns: { id: true } });
       if (!user) {
         const stripeCustomer = invoice.customer as Stripe.Customer;
-        const [newUser] = await database.insert(users).values({
+        const [newUser] = await database.insert(schema.users).values({
             name: stripeCustomer.name || 'Stripe Customer',
             email: stripeCustomer.email,
             phone: stripeCustomer.phone,
             stripeCustomerId: invoice.customer.id,
             role: 'guest'
-        }).returning({ id: users.id });
+        }).returning({ id: schema.users.id });
         user = newUser;
       }
 
@@ -170,7 +173,7 @@ export const importInvoices = factory.createHandlers(async (c) => {
 
       await database.transaction(async (tx) => {
         const jobTitle = invoice.lines.data[0]?.description || invoice.description || `Imported Job ${invoice.id}`;
-        const [newJob] = await tx.insert(jobs).values({
+        const [newJob] = await tx.insert(schema.jobs).values({
             userId: user.id.toString(),
             title: jobTitle,
             description: invoice.description || `Imported from Stripe Invoice #${invoice.number}`,
@@ -180,9 +183,9 @@ export const importInvoices = factory.createHandlers(async (c) => {
             createdAt: new Date(invoice.created * 1000).toISOString(),
             totalAmountCents: invoice.total,
             due: invoice.due_date ? new Date(invoice.due_date * 1000).toISOString() : undefined,
-        }).returning({ id: jobs.id });
+        }).returning({ id: schema.jobs.id });
 
-        const lineItemsToInsert = invoice.lines.data.map(item => ({
+        const lineItemsToInsert = invoice.lines.data.map((item: any) => ({
             jobId: newJob.id,
             description: item.description || 'Imported Item',
             quantity: item.quantity || 1,
@@ -190,7 +193,7 @@ export const importInvoices = factory.createHandlers(async (c) => {
         }));
 
         if(lineItemsToInsert.length > 0) {
-          await tx.insert(lineItems).values(lineItemsToInsert);
+          await tx.insert(schema.lineItems).values(lineItemsToInsert);
         }
       });
       importedCount++;

@@ -2,11 +2,13 @@
 import { createFactory } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
 import Stripe from 'stripe';
-import { getStripe } from './';
-import { jobs, uiNotifications, users } from '@portal/shared/db/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { getStripe } from './index';
+import * as schema from '../db/schema';
+import { eq } from 'drizzle-orm';
+import type { AppEnv } from '../server';
+import { db } from '../db/client';
 
-const factory = createFactory();
+const factory = createFactory<AppEnv>();
 
 /**
  * REFACTORED: Stripe Webhook Handler
@@ -27,6 +29,7 @@ export const handleStripeWebhook = factory.createHandlers(async (c) => {
     signature,
     c.env.STRIPE_WEBHOOK_SECRET
   );
+  const database = db(c.env.DB);
 
   // Handle the event
   switch (event.type) {
@@ -35,26 +38,27 @@ export const handleStripeWebhook = factory.createHandlers(async (c) => {
       console.log(`Invoice ${invoicePaid.id} was paid successfully.`);
 
       // Find the user associated with the Stripe customer ID
-      const userPaid = await c.env.db.query.users.findFirst({
-        where: eq(users.stripe_customer_id, invoicePaid.customer as string),
+      const userPaid = await database.query.users.findFirst({
+        where: eq(schema.users.stripeCustomerId, invoicePaid.customer as string),
         columns: { id: true },
       });
 
       // Create a UI notification for the customer
       if (userPaid) {
-        await c.env.db.insert(uiNotifications).values({
+        await database.insert(schema.notifications).values({
           userId: userPaid.id,
           type: 'invoice_paid',
           message: `Payment of ${(invoicePaid.amount_paid / 100).toFixed(2)} for invoice #${invoicePaid.number} was successful.`,
           link: '/account',
+          status: 'unread',
         });
       }
 
       // Update the job's status to 'complete'
-      await c.env.db
-        .update(jobs)
+      await database
+        .update(schema.jobs)
         .set({ status: 'complete' })
-        .where(eq(jobs.stripe_invoice_id, invoicePaid.id));
+        .where(eq(schema.jobs.stripeInvoiceId, invoicePaid.id));
       break;
     }
 
@@ -63,13 +67,13 @@ export const handleStripeWebhook = factory.createHandlers(async (c) => {
       console.log(`Invoice ${invoiceCreated.id} was created.`);
       if (invoiceCreated.quote) {
         // When an invoice is created from a quote, update the job status
-        await c.env.db
-          .update(jobs)
+        await database
+          .update(schema.jobs)
           .set({
-            stripe_invoice_id: invoiceCreated.id,
+            stripeInvoiceId: invoiceCreated.id,
             status: 'payment_needed',
           })
-          .where(eq(jobs.stripe_quote_id, invoiceCreated.quote));
+          .where(eq(schema.jobs.stripeQuoteId, invoiceCreated.quote));
       }
       break;
     }
@@ -77,10 +81,10 @@ export const handleStripeWebhook = factory.createHandlers(async (c) => {
     case 'quote.accepted': {
       const quoteAccepted = event.data.object as Stripe.Quote;
       console.log(`Quote ${quoteAccepted.id} was accepted.`);
-      await c.env.db
-        .update(jobs)
+      await database
+        .update(schema.jobs)
         .set({ status: 'upcoming' })
-        .where(eq(jobs.stripe_quote_id, quoteAccepted.id));
+        .where(eq(schema.jobs.stripeQuoteId, quoteAccepted.id));
       break;
     }
 
@@ -89,17 +93,17 @@ export const handleStripeWebhook = factory.createHandlers(async (c) => {
       console.log(`Quote ${quote.id} was finalized.`);
 
       // Update job status to 'upcoming'
-      await c.env.db
-        .update(jobs)
+      await database
+        .update(schema.jobs)
         .set({ status: 'upcoming' })
-        .where(eq(jobs.stripe_quote_id, quote.id));
+        .where(eq(schema.jobs.stripeQuoteId, quote.id));
 
       // Notify admins that a quote was accepted
       const customer = await stripe.customers.retrieve(quote.customer as string);
       const customerName = (customer as Stripe.Customer).name || 'A customer';
 
-      const admins = await c.env.db.query.users.findMany({
-          where: eq(users.role, 'admin'),
+      const admins = await database.query.users.findMany({
+          where: eq(schema.users.role, 'admin'),
           columns: { id: true }
       });
 

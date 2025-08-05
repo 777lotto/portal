@@ -1,26 +1,12 @@
 import { createFactory } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
-import { db } from '../../../db';
-import { calendarEvents, jobs, users } from '../../../db/schema';
+import { db } from '../../db/client';
+import * as schema from '../../db/schema';
 import { eq, or } from 'drizzle-orm';
-import type { User } from '@portal/shared';
+import type { AppEnv } from '../../server';
+import { getUser } from '../../auth/getUser';
 
-const factory = createFactory();
-
-// Middleware to get the authenticated user's full profile from the DB.
-const userMiddleware = factory.createMiddleware(async (c, next) => {
-	const auth = c.get('clerkUser');
-	if (!auth?.id) {
-		throw new HTTPException(401, { message: 'Unauthorized' });
-	}
-	const database = db(c.env.DB);
-	const user = await database.select().from(users).where(eq(users.clerk_id, auth.id)).get();
-	if (!user) {
-		throw new HTTPException(401, { message: 'User not found.' });
-	}
-	c.set('user', user);
-	await next();
-});
+const factory = createFactory<AppEnv>();
 
 /* ========================================================================
                         CUSTOMER AVAILABILITY HANDLER
@@ -29,21 +15,20 @@ const userMiddleware = factory.createMiddleware(async (c, next) => {
 /**
  * Retrieves a customer's availability, categorizing days as booked, pending, or blocked.
  */
-export const getAvailability = factory.createHandlers(userMiddleware, async (c) => {
-	const user = c.get('user');
+export const getAvailability = factory.createHandlers(async (c) => {
+	const user = await getUser(c);
 	const database = db(c.env.DB);
 
 	// Fetch all of a user's job events and any globally blocked-off days.
 	const events = await database
 		.select({
-			start: calendarEvents.start,
-			type: calendarEvents.type,
-			status: jobs.status,
+			start: schema.calendarEvents.start,
+			type: schema.calendarEvents.type,
+			status: schema.jobs.status,
 		})
-		.from(calendarEvents)
-		.leftJoin(jobs, eq(calendarEvents.job_id, jobs.id))
-		.where(or(eq(calendarEvents.user_id, user.id), eq(calendarEvents.type, 'blocked')))
-		.all();
+		.from(schema.calendarEvents)
+		.leftJoin(schema.jobs, eq(schema.calendarEvents.jobId, schema.jobs.id))
+		.where(or(eq(schema.calendarEvents.userId, user.id), eq(schema.calendarEvents.type, 'blocked')))
 
 	const bookedDays = new Set<string>();
 	const pendingDays = new Set<string>();

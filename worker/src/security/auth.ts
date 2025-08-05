@@ -4,8 +4,9 @@ import { SignJWT, jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
 import type { User } from '@portal/shared';
 import { HTTPException } from 'hono/http-exception';
+import type { AppEnv } from '../server';
 
-const factory = createFactory();
+const factory = createFactory<AppEnv>();
 
 export function getJwtSecretKey(secret: string): Uint8Array {
   const encoder = new TextEncoder();
@@ -14,7 +15,7 @@ export function getJwtSecretKey(secret: string): Uint8Array {
 
 // --- REFACTORED: All middleware now use the createFactory pattern ---
 
-export const requireAuth = factory.createMiddleware(async (c, next) => {
+export const requireAuthMiddleware = factory.createMiddleware(async (c, next) => {
   let token: string | undefined;
   const authHeader = c.req.header('Authorization');
   const upgradeHeader = c.req.header('Upgrade');
@@ -39,7 +40,7 @@ export const requireAuth = factory.createMiddleware(async (c, next) => {
   }
 });
 
-export const requireAdminAuth = factory.createMiddleware(async (c, next) => {
+export const requireAdminAuthMiddleware = factory.createMiddleware(async (c, next) => {
   const user = c.get('user');
   if (user?.role !== 'admin') {
     throw new HTTPException(403, { message: 'Forbidden: Admin access required' });
@@ -62,7 +63,7 @@ export const requirePasswordSetToken = factory.createMiddleware(async (c, next) 
       throw new HTTPException(403, { message: 'Forbidden: Invalid token type' });
     }
 
-    c.set('user', { id: payload.sub } as User);
+    c.set('user', { id: payload.sub } as unknown as User);
     await next();
   } catch (error) {
     throw new HTTPException(401, { message: 'Authentication failed: Invalid token' });

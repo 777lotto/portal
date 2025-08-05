@@ -1,13 +1,14 @@
 import { createFactory } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
 import { v4 as uuidv4 } from 'uuid';
-import { db } from '../../db';
-import { users, jobs, calendarEvents, passwordResetTokens } from '../../db/schema';
+import { db } from '../db/client';
+import * as schema from '../db/schema';
 import { eq, or } from 'drizzle-orm';
-import { getStripe } from '../../stripe';
-import { generateCalendarFeed } from '../jobs/timing/calendar'; // Assuming this is refactored
+import { getStripe } from '../stripe';
+import type { AppEnv } from '../server';
+import { DrizzleD1Database } from 'drizzle-orm/d1';
 
-const factory = createFactory();
+const factory = createFactory<AppEnv>();
 
 /* ========================================================================
                            PUBLIC-FACING HANDLERS
@@ -37,13 +38,12 @@ export const getPublicAvailability = factory.createHandlers(async (c) => {
 	const database = db(c.env.DB);
 
 	const events = await database
-		.select({ start: calendarEvents.start })
-		.from(calendarEvents)
-		.where(or(eq(calendarEvents.type, 'job'), eq(calendarEvents.type, 'blocked')))
-		.all();
+		.select({ start: schema.calendarEvents.start })
+		.from(schema.calendarEvents)
+		.where(or(eq(schema.calendarEvents.type, 'job'), eq(schema.calendarEvents.type, 'blocked')));
 
 	const bookedDays = new Set<string>();
-	events.forEach((event) => {
+	events.forEach((event: { start: string | number | Date; }) => {
 		const day = new Date(event.start).toISOString().split('T')[0];
 		bookedDays.add(day);
 	});
@@ -61,28 +61,26 @@ export const getPublicAvailability = factory.createHandlers(async (c) => {
  * 5. Sends notifications.
  */
 export const createPublicBooking = factory.createHandlers(async (c) => {
-	const validatedData = c.req.valid('json'); // Assumes PublicBookingRequestSchema is used
+	const validatedData = await c.req.json();
 	const { name, email, phone, address, date, lineItems } = validatedData;
 	const database = db(c.env.DB);
 
 	const lowercasedEmail = email.toLowerCase();
 	const cleanedPhone = phone.replace(/\D/g, '').slice(-10);
 
-	const existingUser = await database
-		.select()
-		.from(users)
-		.where(or(eq(users.email, lowercasedEmail), eq(users.phone, cleanedPhone)))
-		.get();
+	const existingUser = await database.query.users.findFirst({
+        where: or(eq(schema.users.email, lowercasedEmail), eq(schema.users.phone, cleanedPhone))
+    });
 
 	if (existingUser) {
 		// Handle cases where the user exists but may not have a password
-		if (existingUser.hashed_password) {
+		if (existingUser.passwordHash) {
 			throw new HTTPException(409, { message: 'An account with this email or phone number already exists. Please log in to book.' });
 		} else {
 			// User exists as a guest, send them a password set link
 			const token = uuidv4();
 			const expires = new Date(Date.now() + 3600 * 1000); // 1 hour from now
-			await database.insert(passwordResetTokens).values({ user_id: existingUser.id, token, due: expires.toISOString() });
+			await database.insert(schema.passwordResetTokens).values({ userId: existingUser.id, token, due: expires.toISOString() });
 
 			const resetLink = `${c.env.PORTAL_URL}/set-password?token=${token}`;
 			await c.env.NOTIFICATION_QUEUE.send({
@@ -99,21 +97,21 @@ export const createPublicBooking = factory.createHandlers(async (c) => {
 	}
 
 	// Create new user and job in a transaction
-	const { newUser, newJob } = await database.transaction(async (tx) => {
+	const { newUser, newJob } = await database.transaction(async (tx: DrizzleD1Database<typeof schema>) => {
 		const [insertedUser] = await tx
-			.insert(users)
+			.insert(schema.users)
 			.values({ name, email: lowercasedEmail, phone: cleanedPhone, address, role: 'guest' })
 			.returning();
 
 		let currentStartTime = new Date(`${date}T09:00:00`); // Assuming bookings start at 9 AM
-		const jobTitle = lineItems.map((item) => item.description).join(', ');
+		const jobTitle = lineItems.map((item: any) => item.description).join(', ');
 		const description = `New booking for ${name}. Address: ${address}`;
 
 		const [insertedJob] = await tx
-			.insert(jobs)
+			.insert(schema.jobs)
 			.values({
 				id: uuidv4(),
-				user_id: insertedUser.id.toString(),
+				userId: insertedUser.id.toString(),
 				title: jobTitle,
 				description,
 				status: 'pending',
@@ -122,13 +120,13 @@ export const createPublicBooking = factory.createHandlers(async (c) => {
 			.returning();
 
 		const endTime = new Date(currentStartTime.getTime() + (lineItems[0]?.duration || 1) * 3600 * 1000);
-		await tx.insert(calendarEvents).values({
+		await tx.insert(schema.calendarEvents).values({
 			title: jobTitle,
 			start: currentStartTime.toISOString(),
 			end: endTime.toISOString(),
 			type: 'job',
-			job_id: insertedJob.id,
-			user_id: insertedUser.id,
+			jobId: insertedJob.id,
+			userId: insertedUser.id,
 		});
 
 		return { newUser: insertedUser, newJob: insertedJob };

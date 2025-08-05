@@ -2,12 +2,12 @@
 
 import { createFactory } from 'hono/factory';
 import { zValidator } from '@hono/zod-validator';
-import { z } from 'zod';
-import { and, asc, count, desc, eq, ilike, or } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, or } from 'drizzle-orm';
 import { db } from '../../db/client';
-import { jobs, users, lineItems as lineItemsSchema, calendarEvents } from '../../db/schema';
-import type { AppEnv } from '../../index';
+import * as schema from '../../db/schema';
+import type { AppEnv } from '../../server';
 import { CreateJobPayloadSchema, PaginationSearchQuerySchema } from '@portal/shared';
+import { DrizzleD1Database } from 'drizzle-orm/d1';
 
 const factory = createFactory<AppEnv>();
 
@@ -19,40 +19,41 @@ export const getAllJobs = factory.createHandlers(
   zValidator('query', PaginationSearchQuerySchema),
   async (c) => {
     const { page, limit, status, search } = c.req.valid('query');
+    const database = db(c.env.DB);
     const offset = (page - 1) * limit;
 
     const whereClauses = [];
     if (status) {
-      whereClauses.push(eq(jobs.status, status));
+      whereClauses.push(eq(schema.jobs.status, status));
     }
     if (search) {
       const searchTerm = `%${search}%`;
       whereClauses.push(
-        or(ilike(jobs.title, searchTerm), ilike(users.name, searchTerm))
+        or(ilike(schema.jobs.title, searchTerm), ilike(schema.users.name, searchTerm))
       );
     }
 
-    const jobsQuery = db
+    const jobsQuery = database
       .select({
-        id: jobs.id,
-        title: jobs.title,
-        start: jobs.createdAt,
-        end: jobs.due,
-        status: jobs.status,
-        userName: users.name,
-        userId: users.id,
+        id: schema.jobs.id,
+        title: schema.jobs.title,
+        start: schema.jobs.createdAt,
+        end: schema.jobs.due,
+        status: schema.jobs.status,
+        userName: schema.users.name,
+        userId: schema.users.id,
       })
-      .from(jobs)
-      .leftJoin(users, eq(jobs.userId, users.id))
+      .from(schema.jobs)
+      .leftJoin(schema.users, eq(schema.jobs.userId, schema.users.id.toString()))
       .where(and(...whereClauses))
-      .orderBy(desc(jobs.createdAt))
+      .orderBy(desc(schema.jobs.createdAt))
       .limit(limit)
       .offset(offset);
 
-    const totalQuery = db
+    const totalQuery = database
       .select({ total: count() })
-      .from(jobs)
-      .leftJoin(users, eq(jobs.userId, users.id))
+      .from(schema.jobs)
+      .leftJoin(schema.users, eq(schema.jobs.userId, schema.users.id.toString()))
       .where(and(...whereClauses));
 
     const [jobResults, totalResult] = await Promise.all([
@@ -90,6 +91,7 @@ export const createJob = factory.createHandlers(
       start,
       end,
     } = c.req.valid('json');
+    const database = db(c.env.DB)
 
     const getStatusForJobType = (jobType: 'quote' | 'job' | 'invoice'): string => {
         switch (jobType) {
@@ -107,8 +109,8 @@ export const createJob = factory.createHandlers(
     const status = getStatusForJobType(jobType);
     const newJobId = crypto.randomUUID();
 
-    await db.transaction(async (tx) => {
-        await tx.insert(jobs).values({
+    await database.transaction(async (tx: DrizzleD1Database<typeof schema>) => {
+        await tx.insert(schema.jobs).values({
             id: newJobId,
             userId: user_id,
             title,
@@ -120,7 +122,7 @@ export const createJob = factory.createHandlers(
         });
 
         if (lineItems.length > 0) {
-            await tx.insert(lineItemsSchema).values(
+            await tx.insert(schema.lineItems).values(
                 lineItems.map((item) => ({
                     jobId: newJobId,
                     description: item.description,
@@ -132,7 +134,7 @@ export const createJob = factory.createHandlers(
 
         if (start && end) {
             const userIntegerId = parseInt(user_id, 10);
-            await tx.insert(calendarEvents).values({
+            await tx.insert(schema.calendarEvents).values({
                 title,
                 start,
                 end,
@@ -143,8 +145,8 @@ export const createJob = factory.createHandlers(
         }
     });
 
-    const createdJob = await db.query.jobs.findFirst({
-        where: eq(jobs.id, newJobId),
+    const createdJob = await database.query.jobs.findFirst({
+        where: eq(schema.jobs.id, newJobId),
         with: {
             lineItems: true,
         }

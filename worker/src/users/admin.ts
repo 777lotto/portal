@@ -4,11 +4,12 @@ import { createFactory } from 'hono/factory';
 import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import { eq, inArray, like, count, desc, and } from 'drizzle-orm';
-import { db } from '../../db/client';
-import { users, jobs, notes, photos, calendarEvents } from '../../db/schema';
-import { getStripe, createStripeCustomer } from '../../stripe';
+import { db } from '../db/client.js';
+import { db } from '../db/client.js';
+import * as schema from '../db/schema.js';
+import { getStripe, createStripeCustomer } from '../stripe/index.js';
 import { AdminCreateUserSchema, PaginationSearchQuerySchema } from '@portal/shared';
-import type { AppEnv } from '../../index';
+import type { AppEnv } from '../server.js';
 
 const factory = createFactory<AppEnv>();
 
@@ -38,17 +39,17 @@ async function getValidatedAddress(address: string, GOOGLE_API_KEY: string | und
  * - Uses zValidator for robust query parameter validation.
  * - Constructs a dynamic Drizzle query for filtering.
  */
-export const listUsers = factory.createHandlers(
+export const handleAdminGetUsers = factory.createHandlers(
     zValidator('query', PaginationSearchQuerySchema),
     async (c) => {
         const { page, limit, search } = c.req.valid('query');
         const offset = (page - 1) * limit;
         const database = db(c.env.DB);
 
-        const whereClauses = search ? [like(users.name, `%${search}%`)] : [];
+        const whereClauses = search ? [like(schema.users.name, `%${search}%`)] : [];
 
-        const userQuery = database.select().from(users).where(and(...whereClauses)).orderBy(desc(users.createdAt)).limit(limit).offset(offset);
-        const totalQuery = database.select({ value: count() }).from(users).where(and(...whereClauses));
+        const userQuery = database.select().from(schema.users).where(and(...whereClauses)).orderBy(desc(schema.users.createdAt)).limit(limit).offset(offset);
+        const totalQuery = database.select({ value: count() }).from(schema.users).where(and(...whereClauses));
 
         const [userResults, totalResults] = await Promise.all([userQuery, totalQuery]);
 
@@ -68,10 +69,10 @@ export const listUsers = factory.createHandlers(
  * REFACTORED: Retrieves a single user by their ID.
  * - Simplified to a single, clean Drizzle query.
  */
-export const getUserById = factory.createHandlers(async (c) => {
+export const handleAdminGetUserById = factory.createHandlers(async (c) => {
 	const id = parseInt(c.req.param('id'), 10);
 	const database = db(c.env.DB);
-	const user = await database.query.users.findFirst({ where: eq(users.id, id) });
+	const user = await database.query.users.findFirst({ where: eq(schema.users.id, id) });
 
 	if (!user) {
 		throw new HTTPException(404, { message: 'User not found' });
@@ -84,7 +85,7 @@ export const getUserById = factory.createHandlers(async (c) => {
  * - Uses zValidator to ensure the incoming JSON payload matches the AdminCreateUserSchema.
  * - Business logic for address validation and Stripe customer creation is preserved.
  */
-export const createUser = factory.createHandlers(
+export const handleAdminCreateUser = factory.createHandlers(
     zValidator('json', AdminCreateUserSchema),
     async (c) => {
         const validatedUser = c.req.valid('json');
@@ -109,7 +110,7 @@ export const createUser = factory.createHandlers(
         }
 
         const [newUser] = await database
-            .insert(users)
+            .insert(schema.users)
             .values({
                 ...validatedUser,
                 address: validatedAddress,
@@ -125,7 +126,7 @@ export const createUser = factory.createHandlers(
  * REFACTORED: Updates an existing user.
  * - Uses zValidator to validate the payload. The schema is partial() to allow updating only some fields.
  */
-export const updateUser = factory.createHandlers(
+export const handleAdminUpdateUser = factory.createHandlers(
     zValidator('json', AdminCreateUserSchema.partial()),
     async (c) => {
         const id = parseInt(c.req.param('id'), 10);
@@ -133,9 +134,9 @@ export const updateUser = factory.createHandlers(
         const database = db(c.env.DB);
 
         const [updatedUser] = await database
-            .update(users)
+            .update(schema.users)
             .set(validatedData)
-            .where(eq(users.id, id))
+            .where(eq(schema.users.id, id))
             .returning();
 
         if (!updatedUser) {
@@ -151,23 +152,48 @@ export const updateUser = factory.createHandlers(
  * - Logic remains the same but benefits from the global error handler.
  * - Uses a Drizzle transaction to ensure atomicity.
  */
-export const deleteUser = factory.createHandlers(async (c) => {
+export const handleAdminDeleteUser = factory.createHandlers(async (c) => {
 	const id = parseInt(c.req.param('id'), 10);
 	const database = db(c.env.DB);
 
 	await database.transaction(async (tx) => {
-		const userJobs = await tx.query.jobs.findMany({ where: eq(jobs.userId, id.toString()), columns: { id: true } });
+		const userJobs = await tx.query.jobs.findMany({ where: eq(schema.jobs.userId, id.toString()), columns: { id: true } });
 		const jobIds = userJobs.map((j) => j.id);
 
 		if (jobIds.length > 0) {
-			await tx.delete(notes).where(inArray(notes.jobId, jobIds));
-			await tx.delete(photos).where(inArray(photos.jobId, jobIds));
+			await tx.delete(schema.notes).where(inArray(schema.notes.jobId, jobIds));
+			await tx.delete(schema.photos).where(inArray(schema.photos.jobId, jobIds));
 		}
 
-		await tx.delete(jobs).where(eq(jobs.userId, id.toString()));
-		await tx.delete(calendarEvents).where(eq(calendarEvents.userId, id));
-		await tx.delete(users).where(eq(users.id, id));
+		await tx.delete(schema.jobs).where(eq(schema.jobs.userId, id.toString()));
+		await tx.delete(schema.calendarEvents).where(eq(schema.calendarEvents.userId, id));
+		await tx.delete(schema.users).where(eq(schema.users.id, id));
 	});
 
 	return c.json({ success: true, message: `User ${id} deleted successfully.` });
+});
+
+export const handleAdminAddNoteForUser = factory.createHandlers(async (c) => {
+    const { userId } = c.req.param();
+    const { content } = await c.req.json();
+    const database = db(c.env.DB);
+
+    const [newNote] = await database
+        .insert(schema.notes)
+        .values({
+            user_id: parseInt(userId, 10),
+            content,
+        })
+        .returning();
+
+    return c.json({ note: newNote }, 201);
+});
+
+export const handleAdminDeleteLineItemFromJob = factory.createHandlers(async (c) => {
+    const { lineItemId } = c.req.param();
+    const database = db(c.env.DB);
+
+    await database.delete(schema.lineItems).where(eq(schema.lineItems.id, parseInt(lineItemId, 10)));
+
+    return c.json({ success: true });
 });

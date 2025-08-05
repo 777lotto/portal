@@ -20,7 +20,7 @@ export function getStripe(env: Env): Stripe {
 // correctly abstract away the Stripe API calls.
 
 export async function createStripeCustomer(stripe: Stripe, user: User): Promise<Stripe.Customer> {
-  const { email, name, phone, company_name } = user;
+  const { email, name, phone, companyName } = user;
 
   const existingCustomers = await stripe.customers.list({ email: email, limit: 1 });
   if (existingCustomers.data.length > 0) {
@@ -34,7 +34,7 @@ export async function createStripeCustomer(stripe: Stripe, user: User): Promise<
       name: name ?? undefined,
       phone: phone || undefined,
       metadata: {
-        company_name: company_name || ''
+        company_name: companyName || ''
       }
   });
 }
@@ -64,7 +64,7 @@ export async function createStripeInvoice(stripe: Stripe, lineItems: LineItem[],
         invoice: invoice.id,
         description: item.description,
         quantity: item.quantity,
-        amount: item.unit_total_amount_cents,
+        unit_amount: item.unitTotalAmountCents,
         currency: 'usd',
       });
     }
@@ -132,7 +132,7 @@ export async function createStripeQuote(stripe: Stripe, customerId: string, line
             product_data: {
                 name: item.description,
             },
-            unit_amount: item.unit_total_amount_cents,
+            unit_amount: item.unitTotalAmountCents,
         },
         quantity: item.quantity,
     }));

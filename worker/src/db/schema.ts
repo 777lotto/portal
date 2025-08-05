@@ -2,26 +2,20 @@ import { sqliteTable, AnySQLiteColumn, check, integer, text, numeric, index, for
   import { sql } from "drizzle-orm"
 
 export const d1Migrations = sqliteTable("d1_migrations", {
-	id: integer().primaryKey({ autoIncrement: true }),
-	name: text(),
-	appliedAt: numeric("applied_at").default(sql`(CURRENT_TIMESTAMP)`).notNull(),
-},
-(table) => [
-	check("users_check_1", sql`preferred_contact_method IN ('email', 'sms'`),
-	check("notifications_check_2", sql`status IN ('pending', 'sent', 'failed'`),
-	check("job_recurrence_requests_check_3", sql`status IN ('pending', 'accepted', 'declined', 'countered'`),
-	check("calendar_events_check_4", sql`type IN ('job', 'blocked', 'personal'`),
-]);
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	name: text('name'),
+	appliedAt: numeric('applied_at').default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+});
 
 export const users = sqliteTable("users", {
-	id: integer().primaryKey({ autoIncrement: true }),
-	email: text(),
-	name: text().notNull(),
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	email: text('email'),
+	name: text('name').notNull(),
 	passwordHash: text("password_hash"),
 	stripeCustomerId: text("stripe_customer_id"),
-	phone: text(),
-	role: text().default("customer").notNull(),
-	address: text(),
+	phone: text('phone'),
+	role: text('role').default("customer").notNull(),
+	address: text('address'),
 	companyName: text("company_name"),
 	emailNotificationsEnabled: integer("email_notifications_enabled").default(1).notNull(),
 	smsNotificationsEnabled: integer("sms_notifications_enabled").default(1).notNull(),
@@ -29,164 +23,120 @@ export const users = sqliteTable("users", {
 	calendarRemindersEnabled: integer("calendar_reminders_enabled").default(1).notNull(),
 	calendarReminderMinutes: integer("calendar_reminder_minutes").default(60).notNull(),
 },
-(table) => [
-	index("idx_users_phone").on(table.phone),
-	check("users_check_1", sql`preferred_contact_method IN ('email', 'sms'`),
-	check("notifications_check_2", sql`status IN ('pending', 'sent', 'failed'`),
-	check("job_recurrence_requests_check_3", sql`status IN ('pending', 'accepted', 'declined', 'countered'`),
-	check("calendar_events_check_4", sql`type IN ('job', 'blocked', 'personal'`),
-]);
+(table) => ({
+	phoneIdx: index("idx_users_phone").on(table.phone),
+	roleCheck: check("users_check_1", sql`role IN ('admin', 'customer', 'associate', 'guest')`),
+	preferredContactMethodCheck: check("users_check_1", sql`preferred_contact_method IN ('email', 'sms')`),
+}));
 
 export const jobs = sqliteTable("jobs", {
-	id: text().primaryKey(),
+	id: text('id').primaryKey(),
 	userId: text("user_id").notNull(),
-	title: text().notNull(),
-	description: text(),
-	status: text().notNull(),
-	recurrence: text().notNull(),
-	createdAt: text().default("sql`(datetime('now'))`").notNull(),
-	updatedAt: text().default("sql`(datetime('now'))`").notNull(),
+	title: text('title').notNull(),
+	description: text('description'),
+	status: text('status').notNull(),
+	recurrence: text('recurrence').notNull(),
+	createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+	updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
 	stripeInvoiceId: text("stripe_invoice_id"),
 	stripeQuoteId: text("stripe_quote_id"),
 	totalAmountCents: integer("total_amount_cents"),
-	due: text(),
-},
-(table) => [
-	check("users_check_1", sql`preferred_contact_method IN ('email', 'sms'`),
-	check("notifications_check_2", sql`status IN ('pending', 'sent', 'failed'`),
-	check("job_recurrence_requests_check_3", sql`status IN ('pending', 'accepted', 'declined', 'countered'`),
-	check("calendar_events_check_4", sql`type IN ('job', 'blocked', 'personal'`),
-]);
+	due: text('due'),
+});
 
 export const lineItems = sqliteTable("line_items", {
-	id: integer().primaryKey({ autoIncrement: true }),
+	id: integer('id').primaryKey({ autoIncrement: true }),
 	jobId: text("job_id").references(() => jobs.id, { onDelete: "cascade" } ),
-	description: text(),
+	description: text('description'),
 	unitTotalAmountCents: integer("unit_total_amount_cents"),
-	quantity: integer().default(1).notNull(),
+	quantity: integer('quantity').default(1).notNull(),
 },
-(table) => [
-	index("idx_line_items_job_id").on(table.jobId),
-	check("users_check_1", sql`preferred_contact_method IN ('email', 'sms'`),
-	check("notifications_check_2", sql`status IN ('pending', 'sent', 'failed'`),
-	check("job_recurrence_requests_check_3", sql`status IN ('pending', 'accepted', 'declined', 'countered'`),
-	check("calendar_events_check_4", sql`type IN ('job', 'blocked', 'personal'`),
-]);
+(table) => ({
+	jobIdIdx: index("idx_line_items_job_id").on(table.jobId),
+}));
 
 export const photos = sqliteTable("photos", {
-	id: text().primaryKey(),
+	id: text('id').primaryKey(),
 	userId: integer("user_id").notNull().references(() => users.id),
 	invoiceId: text("invoice_id"),
 	itemId: integer("item_id").references(() => lineItems.id),
 	jobId: text("job_id").references(() => jobs.id),
-	url: text().notNull(),
-	createdAt: text().default("sql`(datetime('now'))`").notNull(),
-},
-(table) => [
-	check("users_check_1", sql`preferred_contact_method IN ('email', 'sms'`),
-	check("notifications_check_2", sql`status IN ('pending', 'sent', 'failed'`),
-	check("job_recurrence_requests_check_3", sql`status IN ('pending', 'accepted', 'declined', 'countered'`),
-	check("calendar_events_check_4", sql`type IN ('job', 'blocked', 'personal'`),
-]);
+	url: text('url').notNull(),
+	createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+});
 
 export const notifications = sqliteTable("notifications", {
-	id: integer().primaryKey({ autoIncrement: true }),
+	id: integer('id').primaryKey({ autoIncrement: true }),
 	userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" } ),
-	type: text().notNull(),
-	message: text().notNull(),
-	link: text(),
+	type: text('type').notNull(),
+	message: text('message').notNull(),
+	link: text('link'),
 	isRead: integer("is_read").default(0).notNull(),
-	channels: text(),
-	status: text().notNull(),
-	metadata: text(),
+	channels: text('channels'),
+	status: text('status').notNull(),
+	metadata: text('metadata'),
 	pushSubscriptionJson: text("push_subscription_json"),
-	createdAt: text().default("sql`(datetime('now'))`").notNull(),
+	createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
 },
-(table) => [
-	index("idx_notifications_user_id").on(table.userId),
-	check("users_check_1", sql`preferred_contact_method IN ('email', 'sms'`),
-	check("notifications_check_2", sql`status IN ('pending', 'sent', 'failed'`),
-	check("job_recurrence_requests_check_3", sql`status IN ('pending', 'accepted', 'declined', 'countered'`),
-	check("calendar_events_check_4", sql`type IN ('job', 'blocked', 'personal'`),
-]);
+(table) => ({
+	userIdIdx: index("idx_notifications_user_id").on(table.userId),
+	statusCheck: check("notifications_check_2", sql`status IN ('pending', 'sent', 'failed')`),
+}));
 
 export const jobRecurrenceRequests = sqliteTable("job_recurrence_requests", {
-	id: integer().primaryKey({ autoIncrement: true }),
+	id: integer('id').primaryKey({ autoIncrement: true }),
 	jobId: text("job_id").notNull().references(() => jobs.id, { onDelete: "cascade" } ),
 	userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" } ),
-	frequency: integer().notNull(),
+	frequency: integer('frequency').notNull(),
 	requestedDay: integer("requested_day"),
-	status: text().default("pending").notNull(),
-	createdAt: text().default("sql`(datetime('now'))`").notNull(),
-	updatedAt: text().default("sql`(datetime('now'))`").notNull(),
+	status: text('status').default("pending").notNull(),
+	createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+	updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
 },
-(table) => [
-	index("idx_job_recurrence_requests_status").on(table.status),
-	index("idx_job_recurrence_requests_job_id").on(table.jobId),
-	check("users_check_1", sql`preferred_contact_method IN ('email', 'sms'`),
-	check("notifications_check_2", sql`status IN ('pending', 'sent', 'failed'`),
-	check("job_recurrence_requests_check_3", sql`status IN ('pending', 'accepted', 'declined', 'countered'`),
-	check("calendar_events_check_4", sql`type IN ('job', 'blocked', 'personal'`),
-]);
+(table) => ({
+	statusIdx: index("idx_job_recurrence_requests_status").on(table.status),
+	jobIdIdx: index("idx_job_recurrence_requests_job_id").on(table.jobId),
+	statusCheck: check("job_recurrence_requests_check_3", sql`status IN ('pending', 'accepted', 'declined', 'countered')`),
+}));
 
 export const passwordResetTokens = sqliteTable("password_reset_tokens", {
-	id: integer().primaryKey({ autoIncrement: true }),
+	id: integer('id').primaryKey({ autoIncrement: true }),
 	userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" } ),
-	token: text().notNull(),
-	due: text().notNull(),
-	createdAt: text().default("sql`(datetime('now'))`").notNull(),
-},
-(table) => [
-	check("users_check_1", sql`preferred_contact_method IN ('email', 'sms'`),
-	check("notifications_check_2", sql`status IN ('pending', 'sent', 'failed'`),
-	check("job_recurrence_requests_check_3", sql`status IN ('pending', 'accepted', 'declined', 'countered'`),
-	check("calendar_events_check_4", sql`type IN ('job', 'blocked', 'personal'`),
-]);
+	token: text('token').notNull(),
+	due: text('due').notNull(),
+	createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+});
 
 export const calendarTokens = sqliteTable("calendar_tokens", {
-	token: text().primaryKey().notNull(),
+	token: text('token').primaryKey().notNull(),
 	userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" } ),
-	createdAt: text().default("sql`(datetime('now'))`").notNull(),
+	createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
 },
-(table) => [
-	index("idx_calendar_tokens_user_id").on(table.userId),
-	check("users_check_1", sql`preferred_contact_method IN ('email', 'sms'`),
-	check("notifications_check_2", sql`status IN ('pending', 'sent', 'failed'`),
-	check("job_recurrence_requests_check_3", sql`status IN ('pending', 'accepted', 'declined', 'countered'`),
-	check("calendar_events_check_4", sql`type IN ('job', 'blocked', 'personal'`),
-]);
+(table) => ({
+	userIdIdx: index("idx_calendar_tokens_user_id").on(table.userId),
+}));
 
 export const notes = sqliteTable("notes", {
-	id: integer().primaryKey({ autoIncrement: true }),
+	id: integer('id').primaryKey({ autoIncrement: true }),
 	userId: integer("user_id").notNull().references(() => users.id),
 	photoId: text("photo_id").references(() => photos.id),
 	itemId: integer("item_id").references(() => lineItems.id),
 	jobId: text("job_id").references(() => jobs.id),
-	content: text().notNull(),
-	createdAt: text().default("sql`(datetime('now'))`").notNull(),
-	updatedAt: text().default("sql`(datetime('now'))`").notNull(),
-},
-(table) => [
-	check("users_check_1", sql`preferred_contact_method IN ('email', 'sms'`),
-	check("notifications_check_2", sql`status IN ('pending', 'sent', 'failed'`),
-	check("job_recurrence_requests_check_3", sql`status IN ('pending', 'accepted', 'declined', 'countered'`),
-	check("calendar_events_check_4", sql`type IN ('job', 'blocked', 'personal'`),
-]);
+	content: text('content').notNull(),
+	createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+	updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+});
 
 export const calendarEvents = sqliteTable("calendar_events", {
-	id: integer().primaryKey({ autoIncrement: true }),
-	title: text().notNull(),
-	start: text().notNull(),
-	end: text().notNull(),
-	type: text().notNull(),
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	title: text('title').notNull(),
+	start: text('start').notNull(),
+	end: text('end').notNull(),
+	type: text('type').notNull(),
 	jobId: text("job_id").references(() => jobs.id),
 	userId: integer("user_id").references(() => users.id),
-	createdAt: text().default("sql`(datetime('now'))`").notNull(),
+	createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
 },
-(table) => [
-	check("users_check_1", sql`preferred_contact_method IN ('email', 'sms'`),
-	check("notifications_check_2", sql`status IN ('pending', 'sent', 'failed'`),
-	check("job_recurrence_requests_check_3", sql`status IN ('pending', 'accepted', 'declined', 'countered'`),
-	check("calendar_events_check_4", sql`type IN ('job', 'blocked', 'personal'`),
-]);
-
+(table) => ({
+	typeCheck: check("calendar_events_check_4", sql`type IN ('job', 'blocked', 'personal')`),
+}));

@@ -1,9 +1,10 @@
 import { createFactory } from 'hono/factory';
-import { db } from '../../../db';
-import { jobs, users } from '../../../db/schema';
+import { db } from '../../db/client';
+import * as schema from '../../db/schema';
 import { eq, inArray, desc } from 'drizzle-orm';
+import type { AppEnv } from '../../server';
 
-const factory = createFactory();
+const factory = createFactory<AppEnv>();
 
 /* ========================================================================
                            ADMIN DRAFT HANDLER
@@ -18,17 +19,16 @@ export const getDrafts = factory.createHandlers(async (c) => {
 
 	const draftJobs = await database
 		.select({
-			id: jobs.id,
-			title: jobs.title,
-			status: jobs.status,
-			updatedAt: jobs.updatedAt,
-			customerName: users.name,
+			id: schema.jobs.id,
+			title: schema.jobs.title,
+			status: schema.jobs.status,
+			updatedAt: schema.jobs.updatedAt,
+			customerName: schema.users.name,
 		})
-		.from(jobs)
-		.leftJoin(users, eq(jobs.user_id, users.id.toString()))
-		.where(inArray(jobs.status, ['quote_draft', 'invoice_draft']))
-		.orderBy(desc(jobs.updatedAt))
-		.all();
+		.from(schema.jobs)
+		.leftJoin(schema.users, eq(schema.jobs.userId, schema.users.id.toString()))
+		.where(inArray(schema.jobs.status, ['quote_draft', 'invoice_draft']))
+		.orderBy(desc(schema.jobs.updatedAt))
 
 	return c.json({ drafts: draftJobs });
 });

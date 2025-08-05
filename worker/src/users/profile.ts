@@ -1,13 +1,15 @@
 import { createFactory } from 'hono/factory';
 import { getAuth } from '@hono/clerk-auth';
 import { HTTPException } from 'hono/http-exception';
-import { db } from '../../db';
-import { users, uiNotifications } from '../../db/schema';
+import { db } from '../db/client.js';
+import { db } from '../db/client.js';
+import * as schema from '../db/schema.js';
 import { eq, desc } from 'drizzle-orm';
-import { verifyPassword, hashPassword } from '../../security/auth';
-import { getStripe, listPaymentMethods, createSetupIntent } from '../../stripe';
+import { verifyPassword, hashPassword } from '../security/auth.js';
+import { getStripe, listPaymentMethods, createSetupIntent } from '../stripe/index.js';
+import type { AppEnv } from '../server.js';
 
-const factory = createFactory();
+const factory = createFactory<AppEnv>();
 
 // --- Middleware to get the full user object from the database ---
 // This middleware ensures that for every handler in this file, we have the
@@ -19,7 +21,7 @@ const userMiddleware = factory.createMiddleware(async (c, next) => {
 	}
 
 	const database = db(c.env.DB);
-	const user = await database.select().from(users).where(eq(users.clerk_id, auth.userId)).get();
+	const user = await database.select().from(schema.users).where(eq(schema.users.clerk_id, auth.userId)).get();
 
 	if (!user) {
 		throw new HTTPException(401, { message: 'User not found in database.' });
@@ -34,7 +36,7 @@ const userMiddleware = factory.createMiddleware(async (c, next) => {
 /**
  * Retrieves the profile of the currently authenticated user.
  */
-export const getProfile = factory.createHandlers(userMiddleware, async (c) => {
+export const handleGetProfile = factory.createHandlers(userMiddleware, async (c) => {
 	const user = c.get('user');
 	// The response is wrapped in a "profile" key
 	return c.json({ profile: user });
@@ -44,15 +46,15 @@ export const getProfile = factory.createHandlers(userMiddleware, async (c) => {
  * Updates the profile of the currently authenticated user.
  * REFACTORED: Assumes the payload is validated by `zValidator`.
  */
-export const updateProfile = factory.createHandlers(userMiddleware, async (c) => {
+export const handleUpdateProfile = factory.createHandlers(userMiddleware, async (c) => {
 	const user = c.get('user');
-	const validatedData = c.req.valid('json');
+	const validatedData = await c.req.json();
 	const database = db(c.env.DB);
 
 	const [updatedUser] = await database
-		.update(users)
+		.update(schema.users)
 		.set(validatedData)
-		.where(eq(users.id, user.id))
+		.where(eq(schema.users.id, user.id))
 		.returning();
 
 	return c.json({ profile: updatedUser });
@@ -62,9 +64,9 @@ export const updateProfile = factory.createHandlers(userMiddleware, async (c) =>
  * Changes the password for the currently authenticated user.
  * REFACTORED: Assumes the payload is validated by `zValidator`.
  */
-export const changePassword = factory.createHandlers(userMiddleware, async (c) => {
+export const handleChangePassword = factory.createHandlers(userMiddleware, async (c) => {
 	const user = c.get('user');
-	const { currentPassword, newPassword } = c.req.valid('json');
+	const { currentPassword, newPassword } = await c.req.json();
 	const database = db(c.env.DB);
 
 	if (!user.hashed_password) {
@@ -77,7 +79,7 @@ export const changePassword = factory.createHandlers(userMiddleware, async (c) =
 	}
 
 	const newHashedPassword = await hashPassword(newPassword);
-	await database.update(users).set({ hashed_password: newHashedPassword }).where(eq(users.id, user.id));
+	await database.update(schema.users).set({ hashed_password: newHashedPassword }).where(eq(schema.users.id, user.id));
 
 	return c.json({ success: true, message: 'Password updated successfully.' });
 });
@@ -85,7 +87,7 @@ export const changePassword = factory.createHandlers(userMiddleware, async (c) =
 /**
  * Retrieves the Stripe payment methods for the current user.
  */
-export const getPaymentMethods = factory.createHandlers(userMiddleware, async (c) => {
+export const handleListPaymentMethods = factory.createHandlers(userMiddleware, async (c) => {
 	const user = c.get('user');
 	if (!user.stripe_customer_id) {
 		return c.json({ paymentMethods: [] }); // Return empty array if not a stripe customer
@@ -100,7 +102,7 @@ export const getPaymentMethods = factory.createHandlers(userMiddleware, async (c
 /**
  * Creates a Stripe Setup Intent to add a new payment method.
  */
-export const createStripeSetupIntent = factory.createHandlers(userMiddleware, async (c) => {
+export const handleCreateSetupIntent = factory.createHandlers(userMiddleware, async (c) => {
 	const user = c.get('user');
 	if (!user.stripe_customer_id) {
 		throw new HTTPException(400, { message: 'User is not a Stripe customer.' });
@@ -115,15 +117,15 @@ export const createStripeSetupIntent = factory.createHandlers(userMiddleware, as
 /**
  * Retrieves UI notifications for the current user.
  */
-export const getNotifications = factory.createHandlers(userMiddleware, async (c) => {
+export const handleGetNotifications = factory.createHandlers(userMiddleware, async (c) => {
 	const user = c.get('user');
 	const database = db(c.env.DB);
 
 	const notifications = await database
 		.select()
-		.from(uiNotifications)
-		.where(eq(uiNotifications.user_id, user.id))
-		.orderBy(desc(uiNotifications.createdAt))
+		.from(schema.uiNotifications)
+		.where(eq(schema.uiNotifications.userId, user.id))
+		.orderBy(desc(schema.uiNotifications.createdAt))
 		.limit(20)
 		.all();
 
@@ -133,14 +135,14 @@ export const getNotifications = factory.createHandlers(userMiddleware, async (c)
 /**
  * Marks all unread notifications for the user as read.
  */
-export const markAllNotificationsRead = factory.createHandlers(userMiddleware, async (c) => {
+export const handleMarkAllNotificationsRead = factory.createHandlers(userMiddleware, async (c) => {
 	const user = c.get('user');
 	const database = db(c.env.DB);
 
 	await database
-		.update(uiNotifications)
+		.update(schema.uiNotifications)
 		.set({ is_read: true })
-		.where(eq(uiNotifications.user_id, user.id));
+		.where(eq(schema.uiNotifications.userId, user.id));
 
 	return c.json({ success: true });
 });

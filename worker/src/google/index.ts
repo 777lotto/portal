@@ -1,9 +1,9 @@
 // 777lotto/portal/portal-fold/worker/src/handlers/google.ts
 
+import { HTTPException } from 'hono/http-exception';
 import { v4 as uuidv4 } from 'uuid';
 import { Context } from 'hono';
-import { AppEnv } from '../index.js';
-import { errorResponse, successResponse } from '../utils.js';
+import { AppEnv } from '../server.js';
 
 
 interface GoogleTokenResponse {
@@ -151,7 +151,7 @@ export const handleAdminImportSelectedContacts = async (c: Context<AppEnv>) => {
     let importedCount = 0;
 
     if (!Array.isArray(contacts)) {
-        return errorResponse("Invalid payload. 'contacts' must be an array.", 400);
+        throw new HTTPException(400, { message: "Invalid payload. 'contacts' must be an array." });
     }
 
     for (const contact of contacts) {
@@ -192,19 +192,19 @@ export const handleAdminImportSelectedContacts = async (c: Context<AppEnv>) => {
       importedCount++;
     }
 
-    return successResponse({ importedCount });
+    return c.json({ importedCount });
 }
 
 export const handleGetImportedContacts = async (c: Context<AppEnv>) => {
     const { token } = await c.req.json();
     if (!token) {
-        return errorResponse("Missing import token.", 400);
+        throw new HTTPException(400, { message: "Missing import token." });
     }
 
     const contactsJSON = await c.env.TEMP_STORAGE.get(token);
 
     if (!contactsJSON) {
-        return errorResponse("Import session expired or is invalid.", 404);
+        throw new HTTPException(404, { message: "Import session expired or is invalid." });
     }
 
     // It's good practice to delete the token after it's been used once

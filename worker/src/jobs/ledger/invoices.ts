@@ -1,27 +1,13 @@
 import { createFactory } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
-import { db } from '../../../db';
-import { users } from '../../../db/schema';
+import { db } from '../../db/client';
+import * as schema from '../../db/schema';
 import { eq } from 'drizzle-orm';
-import { getStripe } from '../../../stripe';
-import type { User } from '@portal/shared';
+import { getStripe } from '../../stripe';
+import type { AppEnv } from '../../server';
+import { getUser } from '../../auth/getUser';
 
-const factory = createFactory();
-
-// Middleware to get the authenticated user's full profile from the DB.
-const userMiddleware = factory.createMiddleware(async (c, next) => {
-	const auth = c.get('clerkUser');
-	if (!auth?.id) {
-		throw new HTTPException(401, { message: 'Unauthorized' });
-	}
-	const database = db(c.env.DB);
-	const user = await database.select().from(users).where(eq(users.clerk_id, auth.id)).get();
-	if (!user) {
-		throw new HTTPException(401, { message: 'User not found.' });
-	}
-	c.set('user', user);
-	await next();
-});
+const factory = createFactory<AppEnv>();
 
 /* ========================================================================
                       CUSTOMER-FACING INVOICE HANDLERS
@@ -30,13 +16,13 @@ const userMiddleware = factory.createMiddleware(async (c, next) => {
 /**
  * Retrieves a single Stripe invoice, ensuring it belongs to the authenticated user.
  */
-export const getInvoice = factory.createHandlers(userMiddleware, async (c) => {
-	const user = c.get('user');
+export const getInvoice = factory.createHandlers(async (c) => {
+	const user = await getUser(c);
 	const { invoiceId } = c.req.param();
 	const stripe = getStripe(c.env);
 
 	const invoice = await stripe.invoices.retrieve(invoiceId);
-	if (invoice.customer !== user.stripe_customer_id) {
+	if (invoice.customer !== user.stripeCustomerId) {
 		throw new HTTPException(404, { message: 'Invoice not found.' });
 	}
 
@@ -46,13 +32,13 @@ export const getInvoice = factory.createHandlers(userMiddleware, async (c) => {
 /**
  * Creates a Stripe Payment Intent for a given invoice to facilitate payment.
  */
-export const createPaymentIntent = factory.createHandlers(userMiddleware, async (c) => {
-	const user = c.get('user');
+export const createPaymentIntent = factory.createHandlers(async (c) => {
+	const user = await getUser(c);
 	const { invoiceId } = c.req.param();
 	const stripe = getStripe(c.env);
 
 	const invoice = await stripe.invoices.retrieve(invoiceId);
-	if (invoice.customer !== user.stripe_customer_id) {
+	if (invoice.customer !== user.stripeCustomerId) {
 		throw new HTTPException(404, { message: 'Invoice not found.' });
 	}
 	if (invoice.status !== 'open') {
@@ -62,7 +48,7 @@ export const createPaymentIntent = factory.createHandlers(userMiddleware, async 
 	const paymentIntent = await stripe.paymentIntents.create({
 		amount: invoice.amount_remaining,
 		currency: invoice.currency,
-		customer: user.stripe_customer_id ?? undefined,
+		customer: user.stripeCustomerId ?? undefined,
 		metadata: { invoice_id: invoice.id },
 	});
 
@@ -72,13 +58,13 @@ export const createPaymentIntent = factory.createHandlers(userMiddleware, async 
 /**
  * Securely streams the PDF of an invoice from Stripe to the client.
  */
-export const downloadInvoicePdf = factory.createHandlers(userMiddleware, async (c) => {
-	const user = c.get('user');
+export const downloadInvoicePdf = factory.createHandlers(async (c) => {
+	const user = await getUser(c);
 	const { invoiceId } = c.req.param();
 	const stripe = getStripe(c.env);
 
 	const invoice = await stripe.invoices.retrieve(invoiceId);
-	if (invoice.customer !== user.stripe_customer_id) {
+	if (invoice.customer !== user.stripeCustomerId) {
 		throw new HTTPException(404, { message: 'Invoice not found.' });
 	}
 	if (!invoice.invoice_pdf) {

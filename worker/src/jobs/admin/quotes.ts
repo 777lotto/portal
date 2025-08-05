@@ -1,13 +1,12 @@
 // worker/src/jobs/admin/quotes.ts
 
 import { createFactory } from 'hono/factory';
-import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
-import { db } from '../../../db/client';
-import { jobs, users } from '../../../db/schema';
+import { db } from '../../db/client';
+import * as schema from '../../db/schema';
 import { eq } from 'drizzle-orm';
-import { getStripe, createStripeQuote } from '../../../stripe';
-import type { AppEnv } from '../../../index';
+import { getStripe, createStripeQuote } from '../../stripe';
+import type { AppEnv } from '../../server';
 
 const factory = createFactory<AppEnv>();
 
@@ -22,7 +21,7 @@ export const createQuote = factory.createHandlers(async (c) => {
 	const stripe = getStripe(c.env);
 
 	const job = await database.query.jobs.findFirst({
-        where: eq(jobs.id, jobId),
+        where: eq(schema.jobs.id, jobId),
         with: {
             lineItems: true,
             user: {
@@ -45,7 +44,7 @@ export const createQuote = factory.createHandlers(async (c) => {
 
 	const quote = await createStripeQuote(stripe, job.user.stripeCustomerId, job.lineItems);
 
-	await database.update(jobs).set({ stripeQuoteId: quote.id, status: 'quote_sent' }).where(eq(jobs.id, jobId));
+	await database.update(schema.jobs).set({ stripeQuoteId: quote.id, status: 'quote_sent' }).where(eq(schema.jobs.id, jobId));
 
 	return c.json({ quote });
 });
@@ -61,7 +60,7 @@ export const sendQuote = factory.createHandlers(async (c) => {
 	const stripe = getStripe(c.env);
 
 	const job = await database.query.jobs.findFirst({
-        where: eq(jobs.id, jobId),
+        where: eq(schema.jobs.id, jobId),
         with: { user: true }
     });
 
@@ -77,7 +76,7 @@ export const sendQuote = factory.createHandlers(async (c) => {
 
 	const finalizedQuote = await stripe.quotes.finalizeQuote(job.stripeQuoteId);
 
-	await database.update(jobs).set({ status: 'pending' }).where(eq(jobs.id, jobId));
+	await database.update(schema.jobs).set({ status: 'pending' }).where(eq(schema.jobs.id, jobId));
 
 	await c.env.NOTIFICATION_QUEUE.send({
 		type: 'quote_created',

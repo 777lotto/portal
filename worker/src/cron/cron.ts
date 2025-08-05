@@ -1,5 +1,5 @@
 // worker/src/handlers/cron.ts
-import { AppEnv } from '../index.js';
+import type { AppEnv } from '../server.js';
 
 export const handleScheduled = async (env: AppEnv['Bindings']) => {
   const now = new Date().toISOString();
@@ -11,7 +11,7 @@ export const handleScheduled = async (env: AppEnv['Bindings']) => {
     ).bind(now).all<{ id: string }>();
 
     if (expiredQuotes && expiredQuotes.length > 0) {
-      const ids = expiredQuotes.map(job => `'${job.id}'`).join(',');
+      const ids = expiredQuotes.map((job: { id: string }) => `'${job.id}'`).join(',');
       await env.DB.prepare(
         `UPDATE jobs SET status = 'quote_expired' WHERE id IN (${ids})`
       ).run();
@@ -24,7 +24,7 @@ export const handleScheduled = async (env: AppEnv['Bindings']) => {
     ).bind(now).all<{ id: string }>();
 
     if (pastDueInvoices && pastDueInvoices.length > 0) {
-      const ids = pastDueInvoices.map(job => `'${job.id}'`).join(',');
+      const ids = pastDueInvoices.map((job: { id: string }) => `'${job.id}'`).join(',');
       await env.DB.prepare(
         `UPDATE jobs SET status = 'past_due' WHERE id IN (${ids})`
       ).run();

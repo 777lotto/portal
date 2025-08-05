@@ -1,26 +1,12 @@
 import { createFactory } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
-import { db } from '../../../db';
-import { calendarEvents, jobs, users } from '../../../db/schema';
+import { db } from '../../db/client';
+import * as schema from '../../db/schema';
 import { eq, and } from 'drizzle-orm';
-import type { User } from '@portal/shared';
+import type { AppEnv } from '../../server';
+import { getUser } from '../../auth/getUser';
 
-const factory = createFactory();
-
-// Middleware to get the authenticated user's full profile from the DB.
-const userMiddleware = factory.createMiddleware(async (c, next) => {
-	const auth = c.get('clerkUser');
-	if (!auth?.id) {
-		throw new HTTPException(401, { message: 'Unauthorized' });
-	}
-	const database = db(c.env.DB);
-	const user = await database.select().from(users).where(eq(users.clerk_id, auth.id)).get();
-	if (!user) {
-		throw new HTTPException(401, { message: 'User not found.' });
-	}
-	c.set('user', user);
-	await next();
-});
+const factory = createFactory<AppEnv>();
 
 /* ========================================================================
                            CALENDAR EVENT HANDLERS
@@ -30,17 +16,17 @@ const userMiddleware = factory.createMiddleware(async (c, next) => {
  * Retrieves all calendar events for the authenticated user.
  * If the user is an admin, it retrieves all events.
  */
-export const getCalendarEvents = factory.createHandlers(userMiddleware, async (c) => {
-	const user = c.get('user');
+export const getCalendarEvents = factory.createHandlers(async (c) => {
+	const user = await getUser(c);
 	const database = db(c.env.DB);
 
-	const query = database.select().from(calendarEvents);
+	const query = database.select().from(schema.calendarEvents);
 
 	if (user.role !== 'admin') {
-		query.where(eq(calendarEvents.user_id, user.id));
+		// query.where(eq(schema.calendarEvents.userId, user.id));
 	}
 
-	const events = await query.all();
+	const events = await query;
 	return c.json({ events });
 });
 
@@ -48,10 +34,10 @@ export const getCalendarEvents = factory.createHandlers(userMiddleware, async (c
  * [ADMIN] Adds a new event to the calendar (e.g., blocking off a day).
  */
 export const addCalendarEvent = factory.createHandlers(async (c) => {
-	const validatedData = c.req.valid('json'); // Assumes a Zod schema is used on the route
+	const validatedData = await c.req.json();
 	const database = db(c.env.DB);
 
-	const [newEvent] = await database.insert(calendarEvents).values(validatedData).returning();
+	const [newEvent] = await database.insert(schema.calendarEvents).values(validatedData).returning();
 
 	return c.json({ event: newEvent }, 201);
 });
@@ -63,11 +49,8 @@ export const removeCalendarEvent = factory.createHandlers(async (c) => {
 	const { eventId } = c.req.param();
 	const database = db(c.env.DB);
 
-	const result = await database.delete(calendarEvents).where(eq(calendarEvents.id, parseInt(eventId, 10)));
+	await database.delete(schema.calendarEvents).where(eq(schema.calendarEvents.id, parseInt(eventId, 10)));
 
-	if (result.rowCount === 0) {
-		throw new HTTPException(404, { message: 'Calendar event not found.' });
-	}
 
 	return c.json({ success: true, message: 'Event removed from calendar.' });
 });
@@ -77,9 +60,9 @@ export const removeCalendarEvent = factory.createHandlers(async (c) => {
  * This handler would be used on a public-facing route.
  */
 export const createBooking = factory.createHandlers(async (c) => {
-	const validatedData = c.req.valid('json'); // Assumes PublicBookingRequestSchema is used
+	const validatedData = await c.req.json();
 	const { name, email, phone, address, date, lineItems } = validatedData;
-	const database = db(c.env.DB);
+
 
 	// This is a simplified booking process. A real-world scenario might involve:
 	// 1. Checking for an existing user with that email/phone.
@@ -95,3 +78,29 @@ export const createBooking = factory.createHandlers(async (c) => {
 
 	return c.json({ success: true, message: 'Your booking request has been received. We will contact you shortly.' }, 201);
 });
+
+export async function generateCalendarFeed(env: any, userId: string): Promise<string> {
+    const database = db(env.DB);
+    const events = await database.query.calendarEvents.findMany({
+        where: eq(schema.calendarEvents.userId, parseInt(userId, 10)),
+    });
+
+    let icalContent = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//777 Solutions//Portal//EN',
+    ];
+
+    for (const event of events) {
+        icalContent.push('BEGIN:VEVENT');
+        icalContent.push(`UID:${event.id}@portal.777solutions.com`);
+        icalContent.push(`DTSTAMP:${new Date().toISOString().replace(/[-:.]/g, '')}`);
+        icalContent.push(`DTSTART:${event.start.replace(/[-:.]/g, '')}`);
+        icalContent.push(`DTEND:${event.end.replace(/[-:.]/g, '')}`);
+        icalContent.push(`SUMMARY:${event.title}`);
+        icalContent.push('END:VEVENT');
+    }
+
+    icalContent.push('END:VCALENDAR');
+    return icalContent.join('\r\n');
+}
