@@ -15,7 +15,7 @@ import { handleGoogleLogin, handleGoogleCallback, handleAdminImportSelectedConta
                            MIDDLEWARE & UTILITIES
    ======================================================================== */
 
-import { requireAuthMiddleware, requireAdminAuthMiddleware, requirePasswordSetTokenMiddleware } from './security/auth.js';
+import { requireAuthMiddleware, requireAdminAuthMiddleware, requirePasswordSetToken } from './security/auth.js';
 
 /* ========================================================================
                                 PROXIES
@@ -28,7 +28,18 @@ import { handleSmsProxy } from './comms/sms.js';
    ======================================================================== */
 
 /* --------------------------------------------------------------------- Public Handlers */
-import { handleLogin, handleSignup, handleRequestPasswordReset, handleResetPassword, handleVerifySignup } from './security/handler.js';
+// UPDATED: Added all the restored handlers to this import line
+import {
+    handleLogin,
+    handleInitializeSignup,
+    handleCheckUser,
+    requestPasswordReset,
+    handleVerifyResetCode,
+    handleSetPassword,
+    handleGetUserFromResetToken,
+    handleLoginWithToken,
+    handleLogout
+} from './security/handler.js';
 import { handleStripeWebhook } from './stripe/webhook.js';
 import { handlePublicInquiry, acceptQuote } from './public/index.js';
 
@@ -83,11 +94,18 @@ const api = new Hono<AppEnv>();
 
 /* --------------------------------------------------------------------- Public Routes */
 const publicApi = new Hono<AppEnv>();
-publicApi.post('/login', handleLogin);
-publicApi.post('/signup', handleSignup);
-publicApi.post('/verify-signup', handleVerifySignup);
-publicApi.post('/request-password-reset', handleRequestPasswordReset);
-publicApi.post('/reset-password', requirePasswordSetTokenMiddleware, handleResetPassword);
+// UPDATED: Added all the new/restored authentication routes here
+publicApi.post('/login', ...handleLogin);
+publicApi.post('/initialize-signup', ...handleInitializeSignup);
+publicApi.post('/check-user', ...handleCheckUser);
+publicApi.post('/request-password-reset', ...requestPasswordReset);
+publicApi.post('/verify-reset-code', ...handleVerifyResetCode);
+publicApi.post('/set-password', requirePasswordSetToken, ...handleSetPassword);
+publicApi.get('/user-from-reset-token', ...handleGetUserFromResetToken);
+publicApi.post('/login-with-token', requirePasswordSetToken, ...handleLoginWithToken);
+publicApi.post('/logout', ...handleLogout);
+
+// Existing public routes
 publicApi.post('/stripe-webhook', handleStripeWebhook);
 publicApi.post('/inquiry', handlePublicInquiry);
 publicApi.post('/quotes/:id/accept', acceptQuote);

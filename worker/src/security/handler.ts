@@ -4,17 +4,13 @@ import { HTTPException } from 'hono/http-exception';
 import { eq, or } from 'drizzle-orm';
 import * as schema from '../db/schema';
 import { User } from '@portal/shared';
-import { createJwtToken, hashPassword, verifyPassword } from './auth';
+import { createJwtToken, createPasswordSetToken, hashPassword, verifyPassword } from './auth';
 import { getStripe, createStripeCustomer } from '../stripe';
 import type { AppEnv } from '../server';
 import { db } from '../db/client';
+import { deleteCookie } from 'hono/cookie';
 
 const factory = createFactory<AppEnv>();
-
-// --- REFACTORED: All handlers now use the createFactory pattern ---
-// - Manual validation and response helpers have been removed.
-// - All database queries now use Drizzle ORM.
-// - Logic is simplified and relies on the global error handler.
 
 export const handleLogin = factory.createHandlers(async (c) => {
   const { email, password } = await c.req.json();
@@ -38,39 +34,27 @@ export const handleLogin = factory.createHandlers(async (c) => {
   return c.json({ token, user: userWithoutPassword });
 });
 
-export const handleSignup = factory.createHandlers(async (c) => {
-    const { name, email, companyName, phone, password } = await c.req.json();
+export const handleInitializeSignup = factory.createHandlers(async (c) => {
+    const { name, email, companyName, phone } = await c.req.json();
     const lowercasedEmail = email?.toLowerCase();
     const cleanedPhone = phone?.replace(/\D/g, '');
-    const hashedPassword = await hashPassword(password);
     const database = db(c.env.DB);
 
     try {
         const [newUser] = await database
             .insert(schema.users)
-            .values({ name, email: lowercasedEmail, companyName, phone: cleanedPhone, role: 'customer', passwordHash: hashedPassword })
-            .returning({ id: schema.users.id, email: schema.users.email, phone: schema.users.phone, name: schema.users.name, role: schema.users.role });
+            .values({ name, email: lowercasedEmail, companyName, phone: cleanedPhone, role: 'guest' })
+            .returning({ id: schema.users.id, email: schema.users.email, phone: schema.users.phone });
 
         if (!newUser) {
-            throw new HTTPException(500, { message: 'Failed to create account.' });
+            throw new HTTPException(500, { message: 'Failed to initialize account.' });
         }
 
-        const stripe = getStripe(c.env);
-        const customer = await createStripeCustomer(stripe, newUser as User);
-        await database
-            .update(schema.users)
-            .set({ stripeCustomerId: customer.id })
-            .where(eq(schema.users.id, newUser.id));
-
-        await c.env.NOTIFICATION_QUEUE.send({
-            type: 'welcome',
+        return c.json({
             userId: newUser.id,
-            data: { name: newUser.name },
-            channels: ['email', 'sms'],
+            email: newUser.email,
+            phone: newUser.phone
         });
-
-        const token = await createJwtToken(newUser as User, c.env.JWT_SECRET);
-        return c.json({ token, user: newUser });
     } catch (e: any) {
         if (e.message?.includes('UNIQUE constraint failed')) {
             throw new HTTPException(409, { message: 'An account with this email or phone number already exists.' });
@@ -79,8 +63,25 @@ export const handleSignup = factory.createHandlers(async (c) => {
     }
 });
 
-export const handleVerifySignup = factory.createHandlers(async (c) => {
-    return c.json({ message: "Not implemented" });
+export const handleCheckUser = factory.createHandlers(async (c) => {
+    const { identifier } = await c.req.json();
+    const lowercasedIdentifier = identifier.toLowerCase();
+    const database = db(c.env.DB);
+
+    const user = await database.query.users.findFirst({
+        where: or(eq(schema.users.email, lowercasedIdentifier), eq(schema.users.phone, identifier)),
+        columns: { email: true, phone: true, passwordHash: true }
+    });
+
+    if (!user) {
+        return c.json({ status: 'NEW' });
+    }
+
+    return c.json({
+        status: user.passwordHash ? 'EXISTING_WITH_PASSWORD' : 'EXISTING_NO_PASSWORD',
+        email: user.email,
+        phone: user.phone,
+    });
 });
 
 export const requestPasswordReset = factory.createHandlers(async (c) => {
@@ -118,8 +119,8 @@ export const requestPasswordReset = factory.createHandlers(async (c) => {
   return c.json({ message: `If an account with that ${channel} exists, a verification code has been sent.` });
 });
 
-export const handleResetPassword = factory.createHandlers(async (c) => {
-    const { identifier, code, password } = await c.req.json();
+export const handleVerifyResetCode = factory.createHandlers(async (c) => {
+    const { identifier, code } = await c.req.json();
     const database = db(c.env.DB);
 
     const user = await database.query.users.findFirst({
@@ -144,21 +145,111 @@ export const handleResetPassword = factory.createHandlers(async (c) => {
 
     await database.delete(schema.passwordResetTokens).where(eq(schema.passwordResetTokens.token, code));
 
+    const passwordSetToken = await createPasswordSetToken(user.id, c.env.JWT_SECRET);
+
+    return c.json({ passwordSetToken });
+});
+
+export const handleSetPassword = factory.createHandlers(async (c) => {
+    const { password } = await c.req.json();
+    const userToUpdate = c.get('user');
+    const database = db(c.env.DB);
+
     const hashedPassword = await hashPassword(password);
+
+    const currentUser = await database.query.users.findFirst({
+        where: eq(schema.users.id, userToUpdate.id),
+        columns: { role: true, stripeCustomerId: true }
+    });
+
+    const isNewUserSignup = currentUser?.role === 'guest';
 
     await database
         .update(schema.users)
-        .set({ passwordHash: hashedPassword })
-        .where(eq(schema.users.id, user.id));
+        .set({
+            passwordHash: hashedPassword,
+            ...(isNewUserSignup && { role: 'customer' })
+        })
+        .where(eq(schema.users.id, userToUpdate.id));
 
-    const updatedUser = await database.query.users.findFirst({
-        where: eq(schema.users.id, user.id),
+    const user = await database.query.users.findFirst({
+        where: eq(schema.users.id, userToUpdate.id),
     });
 
-    if (!updatedUser) {
+    if (!user) {
         throw new HTTPException(500, { message: 'Could not find user after password update.' });
     }
 
-    const token = await createJwtToken(updatedUser as User, c.env.JWT_SECRET);
-    return c.json({ token, user: updatedUser });
+    if (isNewUserSignup) {
+        if (!user.stripeCustomerId) {
+            const stripe = getStripe(c.env);
+            const customer = await createStripeCustomer(stripe, user as User);
+            await database
+                .update(schema.users)
+                .set({ stripeCustomerId: customer.id })
+                .where(eq(schema.users.id, user.id));
+            user.stripeCustomerId = customer.id;
+        }
+
+        await c.env.NOTIFICATION_QUEUE.send({
+            type: 'welcome',
+            userId: user.id,
+            data: { name: user.name },
+            channels: ['email', 'sms'],
+        });
+    }
+
+    const { passwordHash, ...userWithoutPassword } = user;
+    const token = await createJwtToken(userWithoutPassword as User, c.env.JWT_SECRET);
+    return c.json({ token, user: userWithoutPassword });
+});
+
+
+export const handleGetUserFromResetToken = factory.createHandlers(async (c) => {
+    const { token } = c.req.query();
+    if (!token) {
+        throw new HTTPException(400, { message: 'Invalid or missing token.' });
+    }
+    const database = db(c.env.DB);
+
+    const tokenRecord = await database.query.passwordResetTokens.findFirst({
+        where: eq(schema.passwordResetTokens.token, token)
+    });
+
+    if (!tokenRecord || new Date(tokenRecord.due) < new Date()) {
+        throw new HTTPException(400, { message: 'This password reset link is invalid or has expired.' });
+    }
+
+    const user = await database.query.users.findFirst({
+        where: eq(schema.users.id, tokenRecord.userId),
+        columns: { name: true, email: true, phone: true }
+    });
+
+    if (!user) {
+        throw new HTTPException(404, { message: 'User not found.' });
+    }
+    return c.json(user);
+});
+
+export const handleLoginWithToken = factory.createHandlers(async (c) => {
+    const userToLogin = c.get('user');
+    const database = db(c.env.DB);
+
+    const user = await database.query.users.findFirst({
+        where: eq(schema.users.id, userToLogin.id),
+    });
+
+    if (!user) {
+        throw new HTTPException(404, { message: 'User for this token not found.' });
+    }
+
+    const { passwordHash, ...userWithoutPassword } = user;
+    const token = await createJwtToken(userWithoutPassword as User, c.env.JWT_SECRET);
+    return c.json({ token, user: userWithoutPassword });
+});
+
+
+export const handleLogout = factory.createHandlers(async (c) => {
+  deleteCookie(c, 'session', { path: '/' });
+  return c.json({ message: "Logged out successfully" });
 });

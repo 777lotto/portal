@@ -63,14 +63,14 @@ export const requirePasswordSetToken = factory.createMiddleware(async (c, next) 
       throw new HTTPException(403, { message: 'Forbidden: Invalid token type' });
     }
 
-    c.set('user', { id: payload.sub } as unknown as User);
+    c.set('user', { id: Number(payload.sub) } as User);
     await next();
   } catch (error) {
     throw new HTTPException(401, { message: 'Authentication failed: Invalid token' });
   }
 });
 
-// --- Helper functions remain the same ---
+// --- Helper functions ---
 
 export async function createJwtToken(user: User, secret: string, expiresIn: string = '7d'): Promise<string> {
   const jwt = new SignJWT({ ...user })
@@ -79,6 +79,15 @@ export async function createJwtToken(user: User, secret: string, expiresIn: stri
     .setExpirationTime(expiresIn)
     .setJti(crypto.randomUUID());
   return jwt.sign(getJwtSecretKey(secret));
+}
+
+export async function createPasswordSetToken(userId: number, secret: string): Promise<string> {
+    return new SignJWT({ purpose: 'password-set' })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setSubject(userId.toString())
+        .setIssuedAt()
+        .setExpirationTime('10m')
+        .sign(getJwtSecretKey(secret));
 }
 
 export async function hashPassword(password: string): Promise<string> {
