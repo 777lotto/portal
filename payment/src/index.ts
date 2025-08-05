@@ -45,10 +45,10 @@ export default {
           continue;
         }
 
-        const client = await db.prepare('SELECT * FROM users WHERE id = ?').bind(job.user_id).first<User>();
+        const client = await db.prepare('SELECT * FROM users WHERE id = ?').bind(job.userId).first<User>();
 
         if (!client) {
-          console.error(`Client not found for id: ${job.user_id}`);
+          console.error(`Client not found for id: ${job.userId}`);
           message.ack();
           continue;
         }
@@ -71,7 +71,7 @@ export default {
 
     try {
       const { results } = await db.prepare(
-        `SELECT id, user_id, stripe_invoice_id FROM jobs WHERE status = 'payment_pending' AND invoice_createdAt < ?`
+        `SELECT id, userId, stripeInvoiceId FROM jobs WHERE status = 'payment_pending' AND createdAt < ?`
       ).bind(threeDaysAgoISO).all<Job>();
 
       if (!results || results.length === 0) {
@@ -91,10 +91,10 @@ export default {
         console.log(`[Cron] Enqueuing past_due notification for job ${job.id}`);
         return env.NOTIFICATION_QUEUE.send({
           type: 'invoice_past_due',
-          user_id: job.user_id,
+          user_id: job.userId,
           data: {
             jobId: job.id,
-            invoiceId: job.stripe_invoice_id
+            invoiceId: job.stripeInvoiceId
           },
           channels: ['email']
         });

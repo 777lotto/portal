@@ -1,5 +1,4 @@
 import { createFactory } from 'hono/factory';
-import { getAuth } from '@hono/clerk-auth';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../db/client.js';
 import { db } from '../db/client.js';
