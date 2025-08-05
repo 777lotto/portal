@@ -1,7 +1,6 @@
 import { createFactory } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../db/client.js';
-import { db } from '../db/client.js';
 import * as schema from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { getStripe, createStripePortalSession } from '../stripe/index.js';

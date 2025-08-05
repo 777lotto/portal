@@ -1,11 +1,10 @@
 import { createFactory } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
-import { db } from '../../db/client';
-import * as schema from '../../db/schema';
+import { db } from '../../db/client.js';
+import * as schema from '../../db/schema.js';
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import type { PhotoWithNotes } from '@portal/shared';
-import type { AppEnv } from '../../server';
-import { getUser } from '../../auth/getUser';
+import type { AppEnv } from '../../server.js';
 import { DrizzleD1Database } from 'drizzle-orm/d1';
 
 const factory = createFactory<AppEnv>();

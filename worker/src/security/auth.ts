@@ -4,7 +4,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
 import type { User } from '@portal/shared';
 import { HTTPException } from 'hono/http-exception';
-import type { AppEnv } from '../server';
+import type { AppEnv } from '../server.js';
 
 const factory = createFactory<AppEnv>();
 

@@ -3,9 +3,9 @@
 import { createFactory } from 'hono/factory';
 import { zValidator } from '@hono/zod-validator';
 import { and, count, desc, eq, ilike, or } from 'drizzle-orm';
-import { db } from '../../db/client';
-import * as schema from '../../db/schema';
-import type { AppEnv } from '../../server';
+import { db } from '../../db/client.js';
+import * as schema from '../../db/schema.js';
+import type { AppEnv } from '../../server.js';
 import { CreateJobPayloadSchema, PaginationSearchQuerySchema } from '@portal/shared';
 import { DrizzleD1Database } from 'drizzle-orm/d1';
 

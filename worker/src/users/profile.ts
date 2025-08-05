@@ -1,7 +1,6 @@
 import { createFactory } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../db/client.js';
-import { db } from '../db/client.js';
 import * as schema from '../db/schema.js';
 import { eq, desc } from 'drizzle-orm';
 import { verifyPassword, hashPassword } from '../security/auth.js';
@@ -68,17 +67,17 @@ export const handleChangePassword = factory.createHandlers(userMiddleware, async
 	const { currentPassword, newPassword } = await c.req.json();
 	const database = db(c.env.DB);
 
-	if (!user.hashed_password) {
+	if (!user.passwordHash) {
 		throw new HTTPException(400, { message: 'Password cannot be changed for social logins.' });
 	}
 
-	const isMatch = await verifyPassword(currentPassword, user.hashed_password);
+	const isMatch = await verifyPassword(currentPassword, user.passwordHash);
 	if (!isMatch) {
 		throw new HTTPException(400, { message: 'Incorrect current password.' });
 	}
 
 	const newHashedPassword = await hashPassword(newPassword);
-	await database.update(schema.users).set({ hashed_password: newHashedPassword }).where(eq(schema.users.id, user.id));
+	await database.update(schema.users).set({ passwordHash: newHashedPassword }).where(eq(schema.users.id, user.id));
 
 	return c.json({ success: true, message: 'Password updated successfully.' });
 });

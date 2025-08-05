@@ -2,12 +2,12 @@
 import { createFactory } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
 import { eq, or } from 'drizzle-orm';
-import * as schema from '../db/schema';
+import * as schema from '../db/schema.js';
 import { User } from '@portal/shared';
-import { createJwtToken, createPasswordSetToken, hashPassword, verifyPassword } from './auth';
-import { getStripe, createStripeCustomer } from '../stripe';
-import type { AppEnv } from '../server';
-import { db } from '../db/client';
+import { createJwtToken, createPasswordSetToken, hashPassword, verifyPassword } from './auth.js';
+import { getStripe, createStripeCustomer } from '../stripe/index.js';
+import type { AppEnv } from '../server.js';
+import { db } from '../db/client.js';
 import { deleteCookie } from 'hono/cookie';
 
 const factory = createFactory<AppEnv>();

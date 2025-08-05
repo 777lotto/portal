@@ -1,8 +1,8 @@
 import { createFactory } from 'hono/factory';
-import { db } from '../../db/client';
-import * as schema from '../../db/schema';
+import { db } from '../../db/client.js';
+import * as schema from '../../db/schema.js';
 import { eq, inArray, desc } from 'drizzle-orm';
-import type { AppEnv } from '../../server';
+import type { AppEnv } from '../../server.js';
 
 const factory = createFactory<AppEnv>();
 

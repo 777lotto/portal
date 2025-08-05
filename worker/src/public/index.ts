@@ -1,10 +1,10 @@
 import { createFactory } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
 import { v4 as uuidv4 } from 'uuid';
-import { db } from '../db/client';
-import * as schema from '../db/schema';
+import { db } from '../db/client.js';
+import * as schema from '../db/schema.js';
 import { eq, or } from 'drizzle-orm';
-import { getStripe } from '../stripe';
+import { getStripe } from '../stripe/index.js';
 import type { AppEnv } from '../server';
 import { DrizzleD1Database } from 'drizzle-orm/d1';
 

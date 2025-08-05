@@ -1,11 +1,10 @@
 import { createFactory } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
-import { db } from '../../db/client';
-import * as schema from '../../db/schema';
+import { db } from '../../db/client.js';
+import * as schema from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
-import { getStripe } from '../../stripe';
-import type { AppEnv } from '../../server';
-import { getUser } from '../../auth/getUser';
+import { getStripe } from '../../stripe/index.js';
+import type { AppEnv } from '../../server.js';
 
 const factory = createFactory<AppEnv>();
 

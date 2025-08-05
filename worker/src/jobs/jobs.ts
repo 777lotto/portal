@@ -4,13 +4,12 @@ import { createFactory } from 'hono/factory';
 import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import { v4 as uuidv4 } from 'uuid';
-import { db } from '../db/client';
-import * as schema from '../db/schema';
+import { db } from '../db/client.js';
+import * as schema from '../db/schema.js';
 import { eq, and, desc } from 'drizzle-orm';
-import { generateCalendarFeed } from './timing/calendar';
+import { generateCalendarFeed } from './timing/calendar.js';
 import { JobRecurrenceRequestSchema } from '@portal/shared';
-import type { AppEnv } from '../server';
-import { getUser } from '../auth/getUser';
+import type { AppEnv } from '../server.js';
 import { DrizzleD1Database } from 'drizzle-orm/d1';
 
 // Use the AppEnv with the authenticated user context

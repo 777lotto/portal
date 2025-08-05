@@ -1,10 +1,9 @@
 import { createFactory } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
-import { db } from '../../db/client';
-import * as schema from '../../db/schema';
+import { db } from '../../db/client.js';
+import * as schema from '../../db/schema.js';
 import { eq, and, desc } from 'drizzle-orm';
-import type { AppEnv } from '../../server';
-import { getUser } from '../../auth/getUser';
+import type { AppEnv } from '../../server.js';
 
 const factory = createFactory<AppEnv>();
 
