@@ -4,12 +4,13 @@ import { createFactory } from 'hono/factory';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import Stripe from 'stripe';
-import { getStripe } from '../../stripe';
-import { db } from '../../db/client';
-import * as schema from '../../db/schema';
+import { getStripe } from '../../stripe/index.js';
+import { db } from '../../db/client.js';
+import * as schema from '../../db/schema.js';
 import { eq, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { AppEnv } from '../../server';
+import type { AppEnv } from '../../server.js';
+import type { Handler } from 'hono';
 
 const factory = createFactory<AppEnv>();
 
@@ -17,20 +18,20 @@ const factory = createFactory<AppEnv>();
 // are already well-structured. The main refactoring effort is on handlers that
 // interact heavily with our local database, like `importInvoices`.
 
-export const getInvoice = factory.createHandlers(async (c) => {
-  const { invoiceId } = c.req.param();
+export const getInvoice: Handler = factory.createHandlers(async (c) => {
+  const { invoiceId } = c.req.param<{ invoiceId: string }>();
   const stripe = getStripe(c.env);
   const invoice = await stripe.invoices.retrieve(invoiceId, { expand: ['lines'] });
   return c.json({ invoice });
 });
 
-export const addInvoiceItem = factory.createHandlers(
+export const addInvoiceItem: Handler = factory.createHandlers(
   zValidator('json', z.object({
     description: z.string().min(1),
     amount: z.number().int().positive(),
   })),
   async (c) => {
-    const { invoiceId } = c.req.param();
+    const { invoiceId } = c.req.param<{ invoiceId: string }>();
     const { description, amount } = c.req.valid('json');
     const stripe = getStripe(c.env);
 
@@ -43,7 +44,6 @@ export const addInvoiceItem = factory.createHandlers(
       customer: invoice.customer as string,
       invoice: invoiceId,
       description: description,
-      // Note: Stripe expects amount in cents, which matches our schema.
       unit_amount: amount,
       currency: 'usd',
     });
@@ -52,15 +52,15 @@ export const addInvoiceItem = factory.createHandlers(
   }
 );
 
-export const deleteInvoiceItem = factory.createHandlers(async (c) => {
-  const { itemId } = c.req.param();
+export const deleteInvoiceItem: Handler = factory.createHandlers(async (c) => {
+  const { itemId } = c.req.param<{ itemId: string }>();
   const stripe = getStripe(c.env);
   const deletedItem = await stripe.invoiceItems.del(itemId);
   return c.json({ deleted: deletedItem.deleted, id: deletedItem.id });
 });
 
-export const finalizeInvoice = factory.createHandlers(async (c) => {
-  const { invoiceId } = c.req.param();
+export const finalizeInvoice: Handler = factory.createHandlers(async (c) => {
+  const { invoiceId } = c.req.param<{ invoiceId: string }>();
   const stripe = getStripe(c.env);
   const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoiceId);
   if(finalizedInvoice.id) {
@@ -70,8 +70,8 @@ export const finalizeInvoice = factory.createHandlers(async (c) => {
   return c.json({ invoice: finalizedInvoice });
 });
 
-export const markInvoiceAsPaid = factory.createHandlers(async (c) => {
-    const { invoiceId } = c.req.param();
+export const markInvoiceAsPaid: Handler = factory.createHandlers(async (c) => {
+    const { invoiceId } = c.req.param<{ invoiceId: string }>();
     const stripe = getStripe(c.env);
     const invoice = await stripe.invoices.retrieve(invoiceId);
     if (invoice.status === 'paid') {
@@ -86,7 +86,7 @@ export const markInvoiceAsPaid = factory.createHandlers(async (c) => {
  * - Uses a single Drizzle query to fetch all necessary users at once.
  * - Uses a Map for efficient lookup to enrich the invoice data.
  */
-export const getOpenInvoices = factory.createHandlers(async (c) => {
+export const getOpenInvoices: Handler = factory.createHandlers(async (c) => {
     const stripe = getStripe(c.env);
     const database = db(c.env.DB);
     const invoices: Stripe.ApiList<Stripe.Invoice> = await stripe.invoices.list({ status: 'open', limit: 100 });
@@ -101,7 +101,7 @@ export const getOpenInvoices = factory.createHandlers(async (c) => {
         columns: { id: true, name: true, stripeCustomerId: true }
     });
 
-    const userMap = new Map(dbUsers.map((u: { stripeCustomerId: any; }) => [u.stripeCustomerId, u]));
+    const userMap = new Map(dbUsers.map((u) => [u.stripeCustomerId, u]));
 
     const enrichedInvoices = invoices.data.map(inv => {
         const user = userMap.get(inv.customer as string);
@@ -117,8 +117,8 @@ export const getOpenInvoices = factory.createHandlers(async (c) => {
  * - Correctly maps Stripe invoice fields to our Drizzle schema fields (e.g., `title`, `description`).
  * - Fully type-safe and uses transactions for creating jobs and line items.
  */
-export const importInvoices = factory.createHandlers(async (c) => {
-  const { userId: userIdParam } = c.req.param();
+export const importInvoices: Handler = factory.createHandlers(async (c) => {
+  const { userId: userIdParam } = c.req.param<{ userId: string }>();
   const stripe = getStripe(c.env);
   const database = db(c.env.DB);
 
@@ -150,7 +150,7 @@ export const importInvoices = factory.createHandlers(async (c) => {
         continue;
       }
 
-      const existingJob = await database.query.jobs.findFirst({ where: eq(schema.jobs.stripeInvoiceId, invoice.id), columns: { id: true } });
+      const existingJob = await database.query.jobs.findFirst({ where: eq(schema.jobs.stripeInvoiceId, invoice.id ?? undefined), columns: { id: true } });
       if (existingJob) {
         skippedCount++;
         continue;
@@ -174,6 +174,7 @@ export const importInvoices = factory.createHandlers(async (c) => {
       await database.transaction(async (tx) => {
         const jobTitle = invoice.lines.data[0]?.description || invoice.description || `Imported Job ${invoice.id}`;
         const [newJob] = await tx.insert(schema.jobs).values({
+            id: invoice.id,
             userId: user.id.toString(),
             title: jobTitle,
             description: invoice.description || `Imported from Stripe Invoice #${invoice.number}`,

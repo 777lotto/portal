@@ -1,5 +1,5 @@
 
-import { relations, type Relation } from "drizzle-orm/relations";
+import { relations } from "drizzle-orm/relations";
 import { jobs, lineItems, photos, users, notifications, jobRecurrenceRequests, passwordResetTokens, calendarTokens, notes, calendarEvents } from "./schema.js";
 
 export const lineItemsRelations = relations(lineItems, ({one, many}) => ({
