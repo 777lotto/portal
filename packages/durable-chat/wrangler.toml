@@ -21,8 +21,9 @@ durable_objects.bindings = [
 ]
 [[env.development.d1_databases]]
 binding = "DB"
-database_name = "gutter_db"
-database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+database_name = "777pd1"
+database_id = "4c83ab6f-3912-4e76-99f3-7d86d6cd6518"
+migrations_dir = "../../worker/migrations"
 
 # ===============================================================
 #      PRODUCTION-SPECIFIC CONFIGURATION
@@ -37,5 +38,6 @@ durable_objects.bindings = [
 ]
 [[env.production.d1_databases]]
 binding = "DB"
-database_name = "gutter_db"
-database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+database_name = "777pd1"
+database_id = "4c83ab6f-3912-4e76-99f3-7d86d6cd6518"
+migrations_dir = "../../worker/migrations"
