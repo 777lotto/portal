@@ -1,4 +1,4 @@
-import { db } from '../../db/client';
+
 import * as schema from '../../db/schema';
 import { eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
