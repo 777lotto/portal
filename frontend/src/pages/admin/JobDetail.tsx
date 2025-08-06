@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { apiGet, getLineItemsForJob, apiPost, apiPostFormData, adminFinalizeJob, markInvoiceAsPaid, addInvoiceItem, deleteInvoiceItem, finalizeInvoice, getInvoice, adminInvoiceJob } from '../../lib/api.js';
@@ -56,6 +56,16 @@ function JobDetail() {
   const [editedJobData, setEditedJobData] = useState<Partial<Job>>({});
   const [isEditingInvoice, setIsEditingInvoice] = useState(false);
   const [newInvoiceItem, setNewInvoiceItem] = useState({ description: '', amount: '' });
+
+  // START MODIFICATION: Create a dynamic list of status options
+  const statusOptions = useMemo(() => {
+    const options: string[] = [...JobStatusEnum.options];
+    if (job?.status && !options.includes(job.status)) {
+        options.unshift(job.status);
+    }
+    return options;
+  }, [job]);
+  // END MODIFICATION
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -288,7 +298,6 @@ const handleReviseQuote = async (revisionReason: string) => {
     }
   };
 
-  // UPDATED: More specific status class handling
   const getStatusClass = (status: JobStatus | 'quote_sent' | string): string => {
     switch (status) {
       case 'pending':
@@ -302,7 +311,7 @@ const handleReviseQuote = async (revisionReason: string) => {
       case 'complete':
         return 'bg-green-100 text-green-800';
       case 'quote_draft':
-      case 'quote_sent': // Group legacy status with similar ones
+      case 'quote_sent':
         return 'bg-purple-100 text-purple-800';
       case 'invoice_draft':
         return 'bg-indigo-100 text-indigo-800';
@@ -314,7 +323,6 @@ const handleReviseQuote = async (revisionReason: string) => {
     }
   };
 
-  // ADDED: Helper function to format status text for display
   const formatStatus = (status: string): string => {
     if (!status) return '';
     return status
@@ -372,7 +380,6 @@ const handleReviseQuote = async (revisionReason: string) => {
                 {user?.role === 'admin' && !isEditingJob && (
                     <button className="btn btn-secondary" onClick={() => setIsEditingJob(true)}>Edit Job</button>
                 )}
-                {/* --- JobToInvoice Button --- */}
                 {showRequestPaymentButton && (
                     <button
                         className="btn btn-success"
@@ -396,7 +403,7 @@ const handleReviseQuote = async (revisionReason: string) => {
                               rows={3}
                           />
                       </div>
-                      {/* --- Status Dropdown --- */}
+                      {/* START MODIFICATION: Status Dropdown */}
                       <div>
                         <label htmlFor="status" className="form-label">Status</label>
                         <select
@@ -406,13 +413,14 @@ const handleReviseQuote = async (revisionReason: string) => {
                           className="form-control"
                         >
                           <option value="" disabled>Select a status</option>
-                          {JobStatusEnum.options.map(status => (
+                          {statusOptions.map(status => (
                             <option key={status} value={status}>
                               {formatStatus(status)}
                             </option>
                           ))}
                         </select>
                       </div>
+                      {/* END MODIFICATION */}
                       <div className="flex justify-end gap-2">
                           <button className="btn btn-secondary" onClick={() => { setIsEditingJob(false); setEditedJobData(job); }}>Cancel</button>
                           <button className="btn btn-primary" onClick={handleJobUpdate}>Save Changes</button>
