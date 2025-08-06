@@ -114,8 +114,9 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
       end: end ? new Date(end).toISOString() : null,
       lineItems: lineItems
         .map(li => ({
-          item: li.item,
-          total_amount_cents: Math.round(parseFloat(li.amountInDollars) * 100),
+          description: li.item, // Changed 'item' to 'description'
+          unit_total_amount_cents: Math.round(parseFloat(li.amountInDollars) * 100), // Changed key and ensured valid number
+          quantity: 1, // Added quantity, which defaults to 1 in the backend schema
         }))
         .filter(li => li.item && !isNaN(li.total_amount_cents) && li.total_amount_cents >= 0),
     };

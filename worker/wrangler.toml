@@ -69,7 +69,7 @@ migrations_dir = "./migrations"
 [env.production.vars]
 ENVIRONMENT = "production"
 API_VERSION = "1.0.0"
-PORTAL_URL = "https://portal.777.foo/dashboard"
+PORTAL_URL = "https://portal.777.foo"
 
 [env.production.secrets]
 GOOGLE_API_KEY = "GOOGLE_API_KEY"

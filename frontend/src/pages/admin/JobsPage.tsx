@@ -17,6 +17,8 @@ function JobsPage() {
   const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<JobWithDetails | null>(null);
   const [filter, setFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   const fetchJobsData = async () => {
     setIsLoading(true);
