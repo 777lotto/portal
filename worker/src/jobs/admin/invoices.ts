@@ -130,6 +130,24 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
                     continue;
                 }
 
+                // --- START: MODIFICATION ---
+                // Check if the invoice originated from a quote.
+                if (invoice.quote && typeof invoice.quote === 'string') {
+                    // Look for an existing job that was created from this quote.
+                    const existingJobFromQuote = await db.prepare(`SELECT id FROM jobs WHERE stripe_quote_id = ?`).bind(invoice.quote).first<{ id: string }>();
+
+                    // If a job from the quote exists, update it to 'complete' and link the invoice.
+                    if (existingJobFromQuote) {
+                        await db.prepare(
+                            `UPDATE jobs SET status = 'complete', stripe_invoice_id = ? WHERE id = ?`
+                        ).bind(invoice.id, existingJobFromQuote.id).run();
+
+                        importedCount++; // Count this as an update/import.
+                        continue; // Skip to the next invoice to avoid creating a duplicate job.
+                    }
+                }
+                // --- END: MODIFICATION ---
+
                 let user: User | { id: number } | null = await db.prepare(`SELECT id FROM users WHERE stripe_customer_id = ?`).bind(invoice.customer.id).first<User>();
                 if (!user) {
                     const stripeCustomer = invoice.customer as Stripe.Customer;

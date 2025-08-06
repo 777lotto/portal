@@ -109,10 +109,11 @@ export const handleAdminUpdateJobDetails = async (c: HonoContext<WorkerAppEnv>) 
         const updatedDescription = body.description ?? job.description;
         const updatedRecurrence = body.recurrence ?? job.recurrence;
         const updatedDue = body.due ?? job.due;
+        const updatedStatus = body.status ?? job.status;
 
         await c.env.DB.prepare(
-            `UPDATE jobs SET title = ?, description = ?, recurrence = ?, due = ?, updatedAt = ? WHERE id = ?`
-        ).bind(updatedTitle, updatedDescription, updatedRecurrence, updatedDue, new Date().toISOString(), jobId).run();
+            `UPDATE jobs SET title = ?, description = ?, recurrence = ?, due = ?, status = ?, updatedAt = ? WHERE id = ?`
+        ).bind(updatedTitle, updatedDescription, updatedRecurrence, updatedDue, updatedStatus, new Date().toISOString(), jobId).run();
 
         return successResponse({ message: "Job updated successfully." });
     } catch (e: any) {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { adminImportInvoices, adminImportQuotes, adminGetJobsAndQuotes, markInvoiceAsPaid, apiPost } from '../../lib/api';
-import type { JobWithDetails, LineItem } from '@portal/shared';
+import type { JobWithDetails, LineItem, JobStatus } from '@portal/shared';
 import NewAddJobModal from '../../components/modals/admin/NewAddJobModal';
 import QuoteProposalModal from '../../components/modals/QuoteProposalModal';
 
@@ -140,12 +140,39 @@ function JobsPage() {
     setIsQuoteModalOpen(true);
   };
 
-  const getStatusClass = (status: string) => {
-    if (status.includes('quote')) return 'bg-purple-100 text-purple-800';
-    if (status.includes('pending') || status === 'open') return 'bg-yellow-100 text-yellow-800';
-    if (status === 'paid' || status === 'completed' || status === 'complete') return 'bg-green-100 text-green-800';
-    if (status === 'past_due' || status === 'payment_overdue') return 'bg-red-100 text-red-800';
-    return 'bg-gray-100 text-gray-800';
+  // UPDATED: More specific status class handling to match JobDetail.tsx
+  const getStatusClass = (status: JobStatus | 'quote_sent' | string): string => {
+    switch (status) {
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'upcoming':
+        return 'bg-blue-100 text-blue-800';
+      case 'payment_needed':
+        return 'bg-orange-100 text-orange-800';
+      case 'payment_overdue':
+        return 'bg-red-100 text-red-800';
+      case 'complete':
+      case 'paid': // legacy support
+        return 'bg-green-100 text-green-800';
+      case 'quote_draft':
+      case 'quote_sent': // legacy support
+        return 'bg-purple-100 text-purple-800';
+      case 'invoice_draft':
+        return 'bg-indigo-100 text-indigo-800';
+      case 'canceled':
+      case 'job_draft':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // ADDED: Helper function to format status text for display
+  const formatStatus = (status: string): string => {
+    if (!status) return '';
+    return status
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, char => char.toUpperCase());
   };
 
   return (
@@ -207,7 +234,7 @@ function JobsPage() {
                           <td className="px-6 py-4 text-sm text-text-primary-light dark:text-text-primary-dark">{item.title}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary-light dark:text-text-secondary-dark">{new Date(item.createdAt || Date.now()).toLocaleDateString()}</td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(item.status)}`}>{item.status.replace(/_/g, ' ')}</span>
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(item.status)}`}>{formatStatus(item.status)}</span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-text-primary-light dark:text-text-primary-dark">${((item.total_amount_cents || 0) / 100).toFixed(2)}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

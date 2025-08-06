@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { apiGet, getLineItemsForJob, apiPost, apiPostFormData, adminFinalizeJob, markInvoiceAsPaid, addInvoiceItem, deleteInvoiceItem, finalizeInvoice, getInvoice, adminInvoiceJob } from '../../lib/api.js';
-import type { Job, LineItem, Photo, Note, StripeInvoice, StripeInvoiceItem } from '@portal/shared';
+import type { Job, LineItem, Photo, Note, StripeInvoice, StripeInvoiceItem, JobStatus } from '@portal/shared';
+import { JobStatusEnum } from '@portal/shared';
 import { jwtDecode } from 'jwt-decode';
 import RecurrenceRequestModal from '../../components/modals/RecurrenceRequestModal.js';
 import QuoteProposalModal from '../../components/modals/QuoteProposalModal.js';
@@ -287,18 +288,38 @@ const handleReviseQuote = async (revisionReason: string) => {
     }
   };
 
-  const statusStyle = (status: string) => {
-      switch (status.toLowerCase()) {
-        case 'upcoming': return 'bg-yellow-100 text-yellow-800';
-        case 'confirmed': return 'bg-blue-100 text-blue-800';
-        case 'completed':
-        case 'paid':
-             return 'bg-green-100 text-green-800';
-        case 'payment_needed': return 'bg-orange-100 text-orange-800';
-        case 'past_due': return 'bg-red-100 text-red-800';
-        case 'cancelled': return 'bg-gray-100 text-gray-800';
-        default: return 'bg-gray-100 text-gray-800';
-      }
+  // UPDATED: More specific status class handling
+  const getStatusClass = (status: JobStatus | 'quote_sent' | string): string => {
+    switch (status) {
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'upcoming':
+        return 'bg-blue-100 text-blue-800';
+      case 'payment_needed':
+        return 'bg-orange-100 text-orange-800';
+      case 'payment_overdue':
+        return 'bg-red-100 text-red-800';
+      case 'complete':
+        return 'bg-green-100 text-green-800';
+      case 'quote_draft':
+      case 'quote_sent': // Group legacy status with similar ones
+        return 'bg-purple-100 text-purple-800';
+      case 'invoice_draft':
+        return 'bg-indigo-100 text-indigo-800';
+      case 'canceled':
+      case 'job_draft':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // ADDED: Helper function to format status text for display
+  const formatStatus = (status: string): string => {
+    if (!status) return '';
+    return status
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, char => char.toUpperCase());
   };
 
   if (isLoading) return <div className="text-center p-8">Loading job details...</div>;
@@ -375,6 +396,23 @@ const handleReviseQuote = async (revisionReason: string) => {
                               rows={3}
                           />
                       </div>
+                      {/* --- Status Dropdown --- */}
+                      <div>
+                        <label htmlFor="status" className="form-label">Status</label>
+                        <select
+                          id="status"
+                          value={editedJobData.status || ''}
+                          onChange={(e) => setEditedJobData({ ...editedJobData, status: e.target.value as JobStatus })}
+                          className="form-control"
+                        >
+                          <option value="" disabled>Select a status</option>
+                          {JobStatusEnum.options.map(status => (
+                            <option key={status} value={status}>
+                              {formatStatus(status)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <div className="flex justify-end gap-2">
                           <button className="btn btn-secondary" onClick={() => { setIsEditingJob(false); setEditedJobData(job); }}>Cancel</button>
                           <button className="btn btn-primary" onClick={handleJobUpdate}>Save Changes</button>
@@ -385,8 +423,8 @@ const handleReviseQuote = async (revisionReason: string) => {
                       <div className="sm:col-span-1">
                          <dt className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Status</dt>
                          <dd className="mt-1 text-sm">
-                          <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${statusStyle(job.status)}`}>
-                            {job.status.replace(/_/g, ' ')}
+                          <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${getStatusClass(job.status)}`}>
+                            {formatStatus(job.status)}
                           </span>
                          </dd>
                       </div>
