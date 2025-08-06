@@ -6,10 +6,11 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useAuth } from '../hooks/useAuth';
 import { apiGet, apiPost } from '../lib/api';
 import type { Job } from '@portal/shared';
-import NewAddJobModal from '../components/modals/admin/NewAddJobModal';
+// UPDATE: Import the consolidated AddJobModal
+import AddJobModal from '../components/modals/admin/AddJobModal';
 import BookingModal from '../components/modals/BookingModal';
 
-// --- Calendar Sync Modal Component ---
+// --- Calendar Sync Modal Component (No changes here) ---
 const CalendarSyncModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void; }) => {
   const { user } = useAuth();
   const [token, setToken] = useState<string | null>(null);
@@ -134,7 +135,7 @@ export default function UnifiedCalendar() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isAddJobModalOpen, setAddJobModalOpen] = useState(false);
   const [isBookingModalOpen, setBookingModalOpen] = useState(false);
-  const [isSyncModalOpen, setSyncModalOpen] = useState(false); // State for the new modal
+  const [isSyncModalOpen, setSyncModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   const fetchJobs = async () => {
@@ -174,7 +175,6 @@ export default function UnifiedCalendar() {
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Calendar</h1>
-        {/* This button now opens the modal */}
         <button onClick={() => setSyncModalOpen(true)} className="btn btn-primary">
           Sync Calendar
         </button>
@@ -190,10 +190,13 @@ export default function UnifiedCalendar() {
           selectable
         />
       </div>
+
       {/* Render all modals */}
       <CalendarSyncModal isOpen={isSyncModalOpen} onClose={() => setSyncModalOpen(false)} />
+
+      {/* UPDATE: Use the new AddJobModal */}
       {user?.role === 'admin' && (
-        <NewAddJobModal
+        <AddJobModal
           isOpen={isAddJobModalOpen}
           onClose={handleModalClose}
           onSave={handleModalClose}
