@@ -37,7 +37,6 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
                         ).bind(userPaid.id, 'invoice_paid', message, link).run();
                     } catch (e) {
                         console.error("Failed to create UI notification for invoice.paid event", e);
-                        // Do not block the main flow if UI notification fails
                     }
                 }
 
@@ -50,9 +49,11 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
             case 'invoice.created':
                 const invoiceCreated = event.data.object as any;
                 console.log(`Invoice ${invoiceCreated.id} was created.`);
+                // If an invoice is created from a quote, we just link it.
+                // We do NOT change the status here, as that is handled by the manual "Invoice Job" action.
                 if (invoiceCreated.quote) {
                     await c.env.DB.prepare(
-                        `UPDATE jobs SET stripe_invoice_id = ?, status = 'payment_needed' WHERE stripe_quote_id = ?`
+                        `UPDATE jobs SET stripe_invoice_id = ? WHERE stripe_quote_id = ?`
                     ).bind(invoiceCreated.id, invoiceCreated.quote).run();
                 }
                 break;
@@ -60,27 +61,17 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
             case 'quote.accepted':
                 const quoteAccepted = event.data.object as Stripe.Quote;
                 console.log(`Quote ${quoteAccepted.id} was accepted.`);
-                await c.env.DB.prepare(
-                    `UPDATE jobs SET status = 'upcoming' WHERE stripe_quote_id = ?`
-                ).bind(quoteAccepted.id).run();
-                break;
-
-           // --- NEW WEBHOOK HANDLER FOR QUOTES ---
-            case 'quote.finalized':
-                const quote = event.data.object as Stripe.Quote;
-                console.log(`Quote ${quote.id} was finalized.`);
-
-                // Retrieve the customer to get their name
-                const customer = await stripe.customers.retrieve(quote.customer as string);
-                const customerName = (customer as Stripe.Customer).name || 'A customer';
 
                 // Update job status to 'upcoming'
                 const jobUpdate = await c.env.DB.prepare(
-                    `UPDATE jobs SET status = 'upcoming' WHERE stripe_quote_id = ?`
-                ).bind(quote.id).run();
+                    `UPDATE jobs SET status = 'upcoming' WHERE stripe_quote_id = ? AND status = 'pending'`
+                ).bind(quoteAccepted.id).run();
 
-                // Notify admin that quote was accepted
+                // If the status was successfully updated, notify the admins.
                 if (jobUpdate.meta.changes > 0) {
+                    const customer = await stripe.customers.retrieve(quoteAccepted.customer as string);
+                    const customerName = (customer as Stripe.Customer).name || 'A customer';
+
                     const admins = await c.env.DB.prepare(
                         `SELECT id FROM users WHERE role = 'admin'`
                     ).all<{ id: number }>();
@@ -91,10 +82,10 @@ export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
                                 type: 'quote_accepted',
                                 user_id: admin.id,
                                 data: {
-                                    quoteId: quote.id,
+                                    quoteId: quoteAccepted.id,
                                     customerName: customerName
                                 },
-                                channels: ['email'] // Admins typically prefer email
+                                channels: ['email']
                             });
                         }
                     }

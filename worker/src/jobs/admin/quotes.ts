@@ -55,7 +55,7 @@ export async function handleAdminImportQuotes(c: Context<AppEnv>) {
                 status: 'accepted',
                 limit: 100,
                 starting_after: startingAfter,
-                expand: ['data.customer', 'data.line_items.data'],
+                expand: ['data.customer', 'data.line_items.data', 'data.invoice'],
             });
 
             if (quotes.data.length === 0) {
@@ -72,6 +72,19 @@ export async function handleAdminImportQuotes(c: Context<AppEnv>) {
                 if (!quote.customer || typeof quote.customer !== 'object' || quote.customer.deleted) {
                     skippedCount++;
                     continue;
+                }
+
+                if (quote.invoice && typeof quote.invoice === 'object' && quote.invoice.id) {
+                    const existingJobFromInvoice = await db.prepare(`SELECT id FROM jobs WHERE stripe_invoice_id = ?`).bind(quote.invoice.id).first<{ id: string }>();
+
+                    if (existingJobFromInvoice) {
+                        await db.prepare(
+                            `UPDATE jobs SET stripe_quote_id = ? WHERE id = ?`
+                        ).bind(quote.id, existingJobFromInvoice.id).run();
+
+                        importedCount++;
+                        continue;
+                    }
                 }
 
                 let user: User | { id: number } | null = await db.prepare(`SELECT id FROM users WHERE stripe_customer_id = ?`).bind(quote.customer.id).first<User>();
@@ -208,15 +221,43 @@ export async function handleAdminInvoiceJob(c: Context<AppEnv>) {
         let sentInvoice;
 
         if (job.stripe_quote_id) {
-            const acceptedQuote = await stripe.quotes.accept(job.stripe_quote_id);
-            const invoiceId = typeof acceptedQuote.invoice === 'string' ? acceptedQuote.invoice : acceptedQuote.invoice?.id;
+            let invoiceId: string | undefined;
 
-            // CORRECTED: Ensure invoiceId is a string before sending
-            if (!invoiceId) {
-                return errorResponse("Stripe did not return an invoice ID from the accepted quote.", 500);
+            // If the job is 'pending', the quote has not been accepted.
+            // The admin is forcing acceptance, which creates a draft invoice.
+            if (job.status === 'pending') {
+                const acceptedQuote = await stripe.quotes.accept(job.stripe_quote_id);
+                invoiceId = typeof acceptedQuote.invoice === 'string' ? acceptedQuote.invoice : acceptedQuote.invoice?.id;
             }
-            sentInvoice = await stripe.invoices.sendInvoice(invoiceId);
+            // If the job is 'upcoming', the quote was already accepted.
+            // We retrieve the quote to find its associated draft invoice.
+            else if (job.status === 'upcoming') {
+                const quote = await stripe.quotes.retrieve(job.stripe_quote_id, { expand: ['invoice'] });
+                const invoice = quote.invoice as Stripe.Invoice;
+                invoiceId = invoice?.id;
+            } else {
+                // Handle other statuses if necessary, e.g., if trying to re-invoice a completed job.
+                return errorResponse(`Cannot invoice job with status: ${job.status}`, 400);
+            }
+
+            if (!invoiceId) {
+                return errorResponse("Could not find or create an invoice for the associated quote.", 500);
+            }
+
+            // We use the 'invoiceId' variable that we have already confirmed is a string.
+            // This satisfies TypeScript's strict type checking.
+            const invoice = await stripe.invoices.retrieve(invoiceId);
+            if (invoice.status === 'draft') {
+                 await stripe.invoices.finalizeInvoice(invoiceId);
+                 // We use 'invoiceId' here again, as it's guaranteed to be a string.
+                 sentInvoice = await stripe.invoices.sendInvoice(invoiceId);
+            } else {
+                // If the invoice is not a draft, it's safe to re-send it.
+                sentInvoice = await stripe.invoices.sendInvoice(invoiceId);
+            }
+
         } else {
+            // This logic handles jobs created without a quote. It remains the same.
             const lineItemsResult = await db.prepare(`SELECT * FROM line_items WHERE job_id = ?`).bind(jobId).all<LineItem>();
             const lineItems = lineItemsResult.results;
 
@@ -224,11 +265,22 @@ export async function handleAdminInvoiceJob(c: Context<AppEnv>) {
                 return errorResponse("This job has no line items to invoice.", 400);
             }
 
+            const invoice = await stripe.invoices.create({
+                customer: user.stripe_customer_id,
+                collection_method: 'send_invoice',
+                days_until_due: 7,
+                auto_advance: true, // This will auto-finalize the invoice
+            });
+
+            // We must have an invoice ID to proceed.
+            if (!invoice.id) {
+                return errorResponse("Stripe did not return an ID for the created invoice.", 500);
+            }
+
             for (const item of lineItems) {
                 await stripe.invoiceItems.create({
                     customer: user.stripe_customer_id,
-                    // CORRECTED: The parameter is 'amount', not 'unit_amount'
-                    // CORRECTED: The property is 'unit_total_amount_cents', not 'price'
+                    invoice: invoice.id,
                     amount: item.unit_total_amount_cents,
                     currency: 'usd',
                     description: item.description,
@@ -236,22 +288,12 @@ export async function handleAdminInvoiceJob(c: Context<AppEnv>) {
                 });
             }
 
-            const invoice = await stripe.invoices.create({
-                customer: user.stripe_customer_id,
-                collection_method: 'send_invoice',
-                days_until_due: 7,
-                auto_advance: true,
-            });
-
-            // CORRECTED: Ensure invoice.id is a string before sending
-            if (!invoice.id) {
-                return errorResponse("Stripe did not return an ID for the created invoice.", 500);
-            }
+            // Since auto_advance is true, we can just send it.
             sentInvoice = await stripe.invoices.sendInvoice(invoice.id);
         }
 
         if (!sentInvoice) {
-            return errorResponse("Failed to send invoice.", 500);
+            return errorResponse("Failed to create or send invoice.", 500);
         }
 
         await db.prepare(`UPDATE jobs SET status = 'payment_needed', stripe_invoice_id = ? WHERE id = ?`)
@@ -281,4 +323,3 @@ export async function handleAdminInvoiceJob(c: Context<AppEnv>) {
         return errorResponse(`Failed to invoice job: ${e.message}`, 500);
     }
 }
-

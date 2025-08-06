@@ -176,6 +176,45 @@ export type AdminCreateUser = z.infer<typeof AdminCreateUserSchema>;
                               STRIPE-SPECIFIC MODELS
    ======================================================================== */
 
+export const StripeQuoteLineItemSchema = z.object({
+  id: z.string(),
+  object: z.literal('line_item'),
+  description: z.string().nullable(),
+  price: z.object({
+    id: z.string(),
+    object: z.literal('price'),
+    currency: z.string(),
+    unit_amount: z.number(),
+    product: z.string(), // The ID of the product this price belongs to.
+  }),
+  quantity: z.number().nullable(),
+});
+
+export const StripeQuoteSchema = z.object({
+  id: z.string(),
+  object: z.literal('quote'),
+  customer: z.string(), // ID of the customer
+  status: z.enum(['draft', 'open', 'accepted', 'canceled']).nullable(),
+  // The total amount on the quote, in cents.
+  amount_total: z.number(),
+  // The subtotal of the quote, in cents.
+  amount_subtotal: z.number(),
+  // The invoice associated with the quote, which can be a string ID or null.
+  invoice: z.string().nullable(),
+  // The line items for the quote.
+  lines: z.object({
+    object: z.literal('list'),
+    data: z.array(StripeQuoteLineItemSchema),
+  }),
+  number: z.string().nullable(),
+  // Timestamps
+  created: z.number(),
+  expires_at: z.number(),
+});
+
+// This exports the TypeScript type for a StripeQuote.
+export type StripeQuote = z.infer<typeof StripeQuoteSchema>;
+
 export const StripeInvoiceItemSchema = z.object({
   id: z.string(),
   object: z.literal('line_item'),
@@ -199,6 +238,7 @@ export const StripeInvoiceSchema = z.object({
     }).optional(),
     number: z.string().nullable(),
     due_date: z.number().nullable(),
+    quote: z.string().nullable().optional(), // To represent the relationship to a quote
 });
 export type StripeInvoice = z.infer<typeof StripeInvoiceSchema>;
 

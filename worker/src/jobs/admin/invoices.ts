@@ -97,7 +97,8 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
         const listParams: Stripe.InvoiceListParams = {
             status: 'paid',
             limit: 100,
-            expand: ['data.customer', 'data.lines.data'],
+            // We need to explicitly ask Stripe to expand the quote property
+            expand: ['data.customer', 'data.lines.data', 'data.quote'],
         };
 
         if (user_id) {
@@ -130,11 +131,15 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
                     continue;
                 }
 
-                // --- START: MODIFICATION ---
+                // --- START: FIX ---
+                // We cast the invoice to a type that includes the 'quote' property.
+                // The Stripe API only includes this property if it's expanded.
+                const invoiceWithQuote = invoice as Stripe.Invoice & { quote: Stripe.Quote | string | null };
+
                 // Check if the invoice originated from a quote.
-                if (invoice.quote && typeof invoice.quote === 'string') {
+                if (invoiceWithQuote.quote && typeof invoiceWithQuote.quote === 'object' && invoiceWithQuote.quote.id) {
                     // Look for an existing job that was created from this quote.
-                    const existingJobFromQuote = await db.prepare(`SELECT id FROM jobs WHERE stripe_quote_id = ?`).bind(invoice.quote).first<{ id: string }>();
+                    const existingJobFromQuote = await db.prepare(`SELECT id FROM jobs WHERE stripe_quote_id = ?`).bind(invoiceWithQuote.quote.id).first<{ id: string }>();
 
                     // If a job from the quote exists, update it to 'complete' and link the invoice.
                     if (existingJobFromQuote) {
@@ -146,7 +151,7 @@ export async function handleAdminImportInvoices(c: Context<AppEnv>) {
                         continue; // Skip to the next invoice to avoid creating a duplicate job.
                     }
                 }
-                // --- END: MODIFICATION ---
+                // --- END: FIX ---
 
                 let user: User | { id: number } | null = await db.prepare(`SELECT id FROM users WHERE stripe_customer_id = ?`).bind(invoice.customer.id).first<User>();
                 if (!user) {
