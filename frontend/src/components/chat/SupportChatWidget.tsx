@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { ChatMessage, User } from '@portal/shared';
 import { useAuth } from '../../hooks/useAuth';
 import { fetchJson } from '../../lib/fetchJson';
-import ChatPhotoSelectorModal from './modals/ChatPhotoSelectorModal';
+import ChatPhotoSelectorModal from '../modals/ChatPhotoSelectorModal';
 
 const SupportChatWidget = ({ user }: { user: User }) => {
   const [isOpen, setIsOpen] = useState(false);

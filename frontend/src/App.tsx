@@ -148,6 +148,7 @@ function App() {
           </Suspense>
         </Elements>
       </main>
+      {user && <SupportChatWidget user={user} />}
     </div>
   );
 }
