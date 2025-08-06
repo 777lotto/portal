@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
-import { apiGet, getLineItemsForJob, apiPost, apiPostFormData, adminFinalizeJob, markInvoiceAsPaid, addInvoiceItem, deleteInvoiceItem, finalizeInvoice, getInvoice } from '../../lib/api.js';
+import { apiGet, getLineItemsForJob, apiPost, apiPostFormData, adminFinalizeJob, markInvoiceAsPaid, addInvoiceItem, deleteInvoiceItem, finalizeInvoice, getInvoice, adminInvoiceJob } from '../../lib/api.js';
 import type { Job, LineItem, Photo, Note, StripeInvoice, StripeInvoiceItem } from '@portal/shared';
 import { jwtDecode } from 'jwt-decode';
 import RecurrenceRequestModal from '../../components/modals/RecurrenceRequestModal.js';
@@ -272,6 +272,21 @@ const handleReviseQuote = async (revisionReason: string) => {
     }
   };
 
+  const handleRequestPayment = async () => {
+    if (!jobId || !window.confirm("This will generate an invoice and send a payment request to the customer. Are you sure?")) return;
+    setIsUpdating(true);
+    setError(null);
+    try {
+        await adminInvoiceJob(jobId);
+        setSuccessMessage('Payment request sent successfully!');
+        fetchJobDetails();
+    } catch (err: any) {
+        setError(`Failed to request payment: ${err.message}`);
+    } finally {
+        setIsUpdating(false);
+    }
+  };
+
   const statusStyle = (status: string) => {
       switch (status.toLowerCase()) {
         case 'upcoming': return 'bg-yellow-100 text-yellow-800';
@@ -291,6 +306,7 @@ const handleReviseQuote = async (revisionReason: string) => {
   if (!job) return <div className="text-center p-8"><h2>Job not found</h2></div>;
 
   const hasRecurrence = job.recurrence && job.recurrence !== 'none';
+  const showRequestPaymentButton = user?.role === 'admin' && (job.status === 'pending' || job.status === 'upcoming');
 
   return (
     <>
@@ -334,6 +350,16 @@ const handleReviseQuote = async (revisionReason: string) => {
             <div className="flex items-center gap-2">
                 {user?.role === 'admin' && !isEditingJob && (
                     <button className="btn btn-secondary" onClick={() => setIsEditingJob(true)}>Edit Job</button>
+                )}
+                {/* --- JobToInvoice Button --- */}
+                {showRequestPaymentButton && (
+                    <button
+                        className="btn btn-success"
+                        onClick={handleRequestPayment}
+                        disabled={isUpdating}
+                    >
+                        {isUpdating ? 'Sending...' : 'Request Payment'}
+                    </button>
                 )}
             </div>
           </div>

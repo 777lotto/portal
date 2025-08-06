@@ -56,7 +56,7 @@ import { handleGetNotesForJob } from './jobs/assets/notes.js';
 import { handleGetAllUsers, handleAdminDeleteUser, handleAdminCreateUser, handleAdminUpdateUser, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminGetNotesForUser } from './users/admin.js';
 // jobs
 import { handleGetJobsAndQuotes, handleAdminCreateJob, handleGetAllJobs } from './jobs/admin/jobs.js';
-import { handleAdminImportQuotes, handleAdminSendQuote } from './jobs/admin/quotes.js';
+import { handleAdminImportQuotes, handleAdminSendQuote, handleAdminInvoiceJob, handleAdminCreateQuote } from './jobs/admin/quotes.js';
 import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminGetAllOpenInvoices, handleAdminMarkInvoiceAsPaid } from './jobs/admin/invoices.js';
 import { handleGetDrafts } from './jobs/ledger/drafts.js';
 // content
@@ -214,12 +214,14 @@ adminApi.post('/get-imported-contacts', handleGetImportedContacts);
 adminApi.post('/import-contacts', handleAdminImportSelectedContacts);
 adminApi.post('/users', handleAdminCreateUser);
 
+adminApi.post('/jobs/:jobId/quote', handleAdminCreateQuote);
 adminApi.post('/quotes/import', handleAdminImportQuotes);
 adminApi.post('/invoices/import', handleAdminImportInvoices);
 adminApi.post('/jobs', handleAdminCreateJob);
 adminApi.post('/jobs/:jobId/line-items', handleAdminAddLineItemToJob);
 adminApi.post('/jobs/:jobId/complete', handleAdminCompleteJob);
 adminApi.post('/jobs/:jobId/quote/send', handleAdminSendQuote);
+adminApi.post('/jobs/:jobId/invoice', handleAdminInvoiceJob);
 adminApi.post('/invoices/:invoiceId/items', handleAdminAddInvoiceItem);
 adminApi.post('/invoices/:invoiceId/finalize', handleAdminFinalizeInvoice);
 adminApi.post('/invoices/:invoiceId/mark-as-paid', handleAdminMarkInvoiceAsPaid);
