@@ -3,7 +3,7 @@ import { Context as ProfileContext } from 'hono';
 import { z } from 'zod';
 import { AppEnv as ProfileAppEnv } from '../index.js';
 import { errorResponse as profileErrorResponse, successResponse as profileSuccessResponse } from '../utils.js';
-import { UserSchema, type User, type UINotification } from '@portal/shared';
+import { UserSchema, type User, type Notification } from '@portal/shared'; // Corrected type import
 import { verifyPassword, hashPassword } from '../security/auth.js';
 import { getStripe, listPaymentMethods, createSetupIntent } from '../stripe/index.js';
 
@@ -130,38 +130,63 @@ export const handleCreateSetupIntent = async (c: ProfileContext<ProfileAppEnv>) 
     return profileSuccessResponse({ clientSecret: setupIntent.client_secret });
 };
 
+// --- START: NEW AND UPDATED NOTIFICATION HANDLERS ---
+
+// This handler is no longer needed, as we have a more specific one.
+// You can remove it or keep it if other parts of the app use it.
 export const handleGetNotifications = async (c: ProfileContext<ProfileAppEnv>) => {
     const user = c.get('user');
     try {
-        // NOTE: This assumes a 'ui_notifications' table exists.
-        // In a real scenario, a migration would be created for this.
         const { results } = await c.env.DB.prepare(
-            `SELECT id, user_id, type, message, link, is_read, createdAt FROM ui_notifications WHERE user_id = ? ORDER BY createdAt DESC LIMIT 20`
-        ).bind(user.id).all<UINotification>();
+            `SELECT * FROM notifications WHERE user_id = ? ORDER BY createdAt DESC LIMIT 20`
+        ).bind(user.id).all<Notification>();
         return profileSuccessResponse(results || []);
     } catch (e: any) {
         console.error("Failed to get notifications:", e);
-        // Fallback to empty array if table doesn't exist
-        if (e.message.includes('no such table')) {
-            return profileSuccessResponse([]);
-        }
         return profileErrorResponse("Failed to retrieve notifications", 500);
     }
 };
 
+// New handler specifically for UI notifications
+export const handleGetUiNotifications = async (c: ProfileContext<ProfileAppEnv>) => {
+    const user = c.get('user');
+    try {
+      const { results } = await c.env.DB.prepare(
+        "SELECT * FROM notifications WHERE user_id = ? AND json_extract(channels, '$[0]') = 'ui' ORDER BY createdAt DESC LIMIT 20"
+      ).bind(user.id).all<Notification>();
+      return profileSuccessResponse(results || []);
+    } catch (e: any) {
+      console.error('Failed to fetch UI notifications', e);
+      return profileErrorResponse("Failed to retrieve notifications", 500);
+    }
+};
+
+// New handler to mark a single notification as read
+export const handleMarkNotificationAsRead = async (c: ProfileContext<ProfileAppEnv>) => {
+    const user = c.get('user');
+    const { id } = c.req.param();
+    try {
+        await c.env.DB.prepare(
+            `UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?`
+        ).bind(id, user.id).run();
+        return profileSuccessResponse({ success: true });
+    } catch (e: any) {
+        console.error(`Failed to mark notification ${id} as read`, e);
+        return profileErrorResponse("Failed to mark notification as read", 500);
+    }
+};
+
+// Updated handler to mark all UI notifications as read
 export const handleMarkAllNotificationsRead = async (c: ProfileContext<ProfileAppEnv>) => {
     const user = c.get('user');
     try {
-        // NOTE: This assumes a 'ui_notifications' table exists.
         await c.env.DB.prepare(
-            `UPDATE ui_notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0`
+            `UPDATE notifications SET is_read = 1 WHERE user_id = ? AND json_extract(channels, '$[0]') = 'ui' AND is_read = 0`
         ).bind(user.id).run();
         return profileSuccessResponse({ success: true });
     } catch (e: any) {
-        // Silently fail if table doesn't exist
-        if (e.message.includes('no such table')) {
-            return profileSuccessResponse({ success: true });
-        }
         return profileErrorResponse("Failed to mark all notifications as read", 500);
     }
 };
+
+// --- END: NEW AND UPDATED NOTIFICATION HANDLERS ---

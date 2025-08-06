@@ -382,6 +382,20 @@ export const UINotificationSchema = z.object({
 });
 export type UINotification = z.infer<typeof UINotificationSchema>;
 
+export const NotificationSchema = z.object({
+	id: z.number(),
+	user_id: z.number(),
+	type: z.string(),
+	message: z.string(),
+	link: z.string().optional().nullable(),
+	is_read: z.number(), // D1 returns 0 or 1 for boolean
+	channels: z.string().optional().nullable(), // JSON string array
+	status: z.enum(['pending', 'sent', 'failed']),
+	metadata: z.string().optional().nullable(),
+	createdAt: z.string(),
+});
+export type Notification = z.infer<typeof NotificationSchema>;
+
 /* ========================================================================
                             CHAT-SPECIFIC MODELS
    ======================================================================== */

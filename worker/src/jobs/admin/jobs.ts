@@ -138,7 +138,18 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
     }
 
     await db.batch(statements);
-    return c.json({ message: 'Job created successfully', jobId: newJobId }, 201);
+    try {
+	const jobTypeName = jobType.charAt(0).toUpperCase() + jobType.slice(1);
+	const message = `A new ${jobTypeName} has been posted to your account.`;
+    const link = `/job/${newJobId}`;
+	await c.env.DB.prepare(
+		`INSERT INTO notifications (user_id, type, message, link, channels, status) VALUES (?, ?, ?, ?, ?, ?)`
+	).bind(userIntegerId, `new_${jobType}`, message, link, JSON.stringify(['ui']), 'sent').run();
+} catch (e) {
+	console.error(`Failed to create UI notification for new ${jobType}`, e);
+}
+
+return c.json({ message: 'Job created successfully', jobId: newJobId }, 201);
 
   } catch (e: any) {
     console.error('Failed to create job:', e);

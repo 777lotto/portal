@@ -40,7 +40,8 @@ import { handleGetCustomerAvailability } from './jobs/timing/availability.js';
 
 /* --------------------------------------------------------------------- Customer Handlers --------------------------------------------------------------------------------------- */
 // users
-import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent, handleGetNotifications, handleMarkAllNotificationsRead } from './users/profile.js';
+// CORRECTED IMPORT: Added the new notification handlers
+import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent, handleMarkAllNotificationsRead, handleGetUiNotifications, handleMarkNotificationAsRead } from './users/profile.js';
 import { handlePortalSession } from './users/user.js';
 // jobs
 import { handleGetJobs, handleGetJobById, handleAdminUpdateJobDetails, handleAdminAddLineItemToJob, handleAdminUpdateLineItemInJob, handleAdminDeleteLineItemFromJob, handleAdminCompleteJob, handleGetLineItemsForJob, handleGetOpenInvoicesForUser, handleCreateJob } from './jobs/jobs.js';
@@ -168,8 +169,10 @@ customerApi.get('/calendar/secret-url', handleGetSecretCalendarUrl);
 customerApi.post('/calendar/regenerate-url', handleRegenerateSecretCalendarUrl);
 customerApi.get('/profile/payment-methods', handleListPaymentMethods);
 customerApi.post('/profile/setup-intent', handleCreateSetupIntent);
-customerApi.get('/notifications', handleGetNotifications);
+// CORRECTED ROUTES: Pointing to the new, more specific handlers
+customerApi.get('/notifications/ui', handleGetUiNotifications);
 customerApi.post('/notifications/read-all', handleMarkAllNotificationsRead);
+customerApi.post('/notifications/:id/read', handleMarkNotificationAsRead);
 customerApi.get('/invoices/open', handleGetOpenInvoicesForUser);
 customerApi.get('/invoices/:invoiceId', handleGetInvoiceForUser);
 customerApi.post('/invoices/:invoiceId/create-payment-intent', handleCreatePaymentIntent);

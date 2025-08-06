@@ -47,7 +47,19 @@ export const handleAdminAddNoteForUser = async (c: NoteContext<NoteAppEnv>) => {
         if (!results || results.length === 0) {
             return noteErrorResponse("Failed to add note after insert", 500);
         }
-        return noteSuccessResponse(results[0], 201);
+
+        try {
+	const message = `A new note has been added to your account.`;
+    const link = photo_id ? `/photos` : (job_id ? `/jobs/${job_id}` : '/dashboard');
+	await c.env.DB.prepare(
+		`INSERT INTO notifications (user_id, type, message, link, channels, status) VALUES (?, ?, ?, ?, ?, ?)`
+	).bind(parseInt(user_id, 10), 'new_note', message, link, JSON.stringify(['ui']), 'sent').run();
+} catch (e) {
+	console.error("Failed to create UI notification for new note", e);
+}
+
+return noteSuccessResponse(results[0], 201);
+
     } catch (e: any) {
         console.error("Failed to add note:", e);
         return noteErrorResponse("Failed to add note", 500);

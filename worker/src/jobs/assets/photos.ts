@@ -216,8 +216,18 @@ export const handleAdminUploadPhotoForUser = async (c: PhotoContext<PhotoAppEnv>
             ).bind(newPhotoData.user_id, notes, newPhotoData.job_id, newPhotoData.item_id, newPhotoData.id).run();
         }
 
+        try {
+	const message = `A new photo has been added to your account.`;
+	const link = `/photos`;
+	await c.env.DB.prepare(
+		`INSERT INTO notifications (user_id, type, message, link, channels, status) VALUES (?, ?, ?, ?, ?, ?)`
+	).bind(newPhotoData.user_id, 'new_photo', message, link, JSON.stringify(['ui']), 'sent').run();
+} catch (e) {
+	console.error("Failed to create UI notification for new photo", e);
+}
 
-        return photoSuccessResponse(dbResults[0], 201);
+return photoSuccessResponse(dbResults[0], 201);
+
     } catch (e: any) {
         console.error("Failed to upload photo:", e);
         return photoErrorResponse(e.message || "Failed to upload photo", 500);

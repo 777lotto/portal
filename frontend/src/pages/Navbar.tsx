@@ -1,11 +1,11 @@
-// frontend/src/components/Navbar.tsx
+// frontend/src/pages/Navbar.tsx
 
 import { useState, useEffect, useRef } from 'react';
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useNavigate, useLocation } from "react-router-dom"; // Import useLocation
 import useSWR from 'swr';
 import { formatDistanceToNow } from 'date-fns';
 import { apiGet, apiPost, logout } from '../lib/api';
-import { UINotification } from '@portal/shared';
+import { Notification } from '@portal/shared'; // Use the correct Notification type
 
 import companyLogo from '../assets/777-solutions.svg';
 
@@ -26,11 +26,24 @@ const BellIcon = () => (
 );
 
 function NotificationBell() {
-  const { data: notifications, error, mutate } = useSWR<UINotification[]>('/api/notifications', apiGet, { refreshInterval: 30000 });
+  // Fetch from the new UI-specific endpoint
+  const { data: notifications, error, mutate } = useSWR<Notification[]>('/api/notifications/ui', apiGet, { refreshInterval: 15000 });
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const location = useLocation(); // Get the current location
 
-  const unreadCount = notifications?.filter(n => !n.is_read).length || 0;
+  // Determine if the user is actively on a chat page
+  const isViewingChat = location.pathname.startsWith('/chat') || location.pathname.startsWith('/admin/chat');
+
+  // Filter out message notifications if the user is on a chat page
+  const filteredNotifications = notifications?.filter(n => {
+    if (n.type === 'new_message' && isViewingChat) {
+      return false;
+    }
+    return true;
+  });
+
+  const unreadCount = filteredNotifications?.filter(n => !n.is_read).length || 0;
 
   useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
@@ -42,10 +55,23 @@ function NotificationBell() {
       return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleMarkAsRead = async (id: number) => {
+    // Optimistically update the UI
+    mutate(notifications?.map(n => n.id === id ? { ...n, is_read: 1 } : n), false);
+    try {
+        // This endpoint needs to be created in the worker
+        await apiPost(`/api/notifications/${id}/read`, {});
+    } catch (error) {
+        mutate(); // Revert on error
+        console.error("Failed to mark notification as read", error);
+    }
+  };
+
   const handleMarkAllAsRead = async () => {
       const updatedNotifications = notifications?.map(n => ({...n, is_read: 1}));
       mutate(updatedNotifications, false);
       try {
+          // This endpoint needs to be created in the worker
           await apiPost('/api/notifications/read-all', {});
       } catch (error) {
           mutate(); // revert on error
@@ -69,10 +95,15 @@ function NotificationBell() {
                        {unreadCount > 0 && <button onClick={handleMarkAllAsRead} className="text-sm text-event-blue hover:underline">Mark all as read</button>}
                   </div>
                   <div className="max-h-96 overflow-y-auto">
-                      {notifications && notifications.length > 0 ? (
-                          notifications.map(notification => (
+                      {filteredNotifications && filteredNotifications.length > 0 ? (
+                          filteredNotifications.map(notification => (
                               <Link to={notification.link || '#'} key={notification.id}
-                                    onClick={() => setIsOpen(false)}
+                                    onClick={() => {
+                                      if (!notification.is_read) {
+                                        handleMarkAsRead(notification.id);
+                                      }
+                                      setIsOpen(false);
+                                    }}
                                     className={`block px-4 py-3 text-sm ${!notification.is_read ? 'bg-blue-50 dark:bg-blue-900/20' : ''} hover:bg-gray-100 dark:hover:bg-gray-700`}
                               >
                                   <p className="font-medium text-gray-900 dark:text-white">{notification.message}</p>
