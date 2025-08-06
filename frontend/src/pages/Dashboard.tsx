@@ -85,15 +85,15 @@ function Dashboard() {
                 Pending Quotes
             </h3>
             <div className="space-y-3">
-                {pendingQuotes.length > 0 ? (
-                    pendingQuotes.map(quote => (
-                        <Link key={quote.id} to={user?.role === 'admin' ? getJobLink(quote.id) : `/quotes/${quote.id}`} className="block p-3 rounded-md transition text-text-secondary-light dark:text-text-secondary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark">
-                            {(user?.role === 'admin' && (quote as JobWithDetails).customerName) && `${(quote as JobWithDetails).customerName} - `}
-                            {quote.title} - Pending admin review
-                        </Link>
-                    ))
-                ) : <p className="text-text-secondary-light dark:text-text-secondary-dark">No pending quotes.</p>}
-            </div>
+    {pendingQuotes.length > 0 ? (
+        pendingQuotes.map(quote => (
+            <Link key={quote.id} to={user?.role === 'admin' ? getJobLink(quote.id) : `/jobs/${quote.id}`} className="block p-3 rounded-md transition text-text-secondary-light dark:text-text-secondary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark">
+                {user?.role === 'admin' && (quote as JobWithDetails).customerName ? `${(quote as JobWithDetails).customerName} - ` : ''}
+                {quote.title} - <span className="font-bold">{user?.role === 'admin' ? 'Pending Customer Review' : 'Action Required'}</span>
+            </Link>
+        ))
+    ) : <p className="text-text-secondary-light dark:text-text-secondary-dark">No pending quotes.</p>}
+</div>
         </div>
 
         {/* Drafts Card (Admin Only) */}

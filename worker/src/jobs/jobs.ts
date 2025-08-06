@@ -35,7 +35,7 @@ export const handleGetJobs = async (c: HonoContext<WorkerAppEnv>) => {
         // allowing the frontend to categorize them.
         const dbResponse = await c.env.DB.prepare(
             `SELECT * FROM jobs WHERE user_id = ? ORDER BY createdAt DESC`
-        ).bind(user.id).all<Job>();
+        ).bind(user.id.toString()).all<Job>(); // Changed: user.id -> user.id.toString()
 
         const jobs = dbResponse?.results || [];
         return successResponse(jobs);
