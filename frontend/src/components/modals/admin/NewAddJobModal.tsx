@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiGet, adminCreateJob } from '../../../lib/api'; // Using your actual API functions
 import type { User } from '@portal/shared'; // Using your actual shared types
-import { format } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns';
 
 // Props interface based on your existing file
 interface Props {
@@ -47,10 +47,23 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
       setLineItems([{ id: Date.now(), item: '', amountInDollars: '' }]);
       setJobType('job');
       setRecurrence('none');
-      setDue('');
-      setStart('');
-      setEnd('');
       setError(null);
+
+      // Set start date from selectedDate, but clear time
+      if (selectedDate && isValid(selectedDate)) {
+        const date = new Date(selectedDate);
+        date.setHours(9, 0, 0, 0); // Default to 9:00 AM
+        // Format for datetime-local input: YYYY-MM-DDTHH:mm
+        const formattedDate = format(date, "yyyy-MM-dd'T'HH:mm");
+        setStart(formattedDate);
+        setEnd('');
+        setDue('');
+      } else {
+        setStart('');
+        setEnd('');
+        setDue('');
+      }
+
 
       const fetchUsers = async () => {
         try {
@@ -58,12 +71,13 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
           // Filter for customers/guests as in your original file
           setUsers(allUsers.filter(u => u.role === 'customer' || u.role === 'guest'));
         } catch (err) {
+          console.error("Failed to load users:", err);
           setError('Failed to load users.');
         }
       };
       fetchUsers();
     }
-  }, [isOpen]);
+  }, [isOpen, selectedDate]);
 
   // Handlers for dynamically managing line items
   const handleLineItemChange = (id: number, field: 'item' | 'amountInDollars', value: string) => {
@@ -74,7 +88,6 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
     setLineItems([...lineItems, { id: Date.now(), item: '', amountInDollars: '' }]);
   };
 
-  // CORRECTED: This now correctly filters by the item's unique ID.
   const removeLineItem = (id: number) => {
     if (lineItems.length > 1) {
       setLineItems(lineItems.filter(item => item.id !== id));
@@ -130,13 +143,16 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-tertiary-dark rounded-lg p-6 w-full max-w-2xl max-h-[90vh] flex flex-col">
-        <div className="flex justify-between items-center mb-4">
+      {/* Modal panel with flex-col and max-height */}
+      <div className="bg-white dark:bg-tertiary-dark rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        {/* Modal Header */}
+        <div className="flex-shrink-0 p-4 border-b border-border-light dark:border-border-dark flex justify-between items-center">
             <h2 className="text-xl font-bold">Create New {selectedDate && `for ${format(selectedDate, 'MMMM do, yyyy')}`}</h2>
             <button type="button" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl font-bold" onClick={onClose}>&times;</button>
         </div>
 
-        <div className="flex-grow overflow-y-auto pr-2 space-y-4">
+        {/* Modal Body - Scrollable */}
+        <div className="flex-grow p-4 overflow-y-auto space-y-4">
             {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">{error}</div>}
 
             {/* Job Type Selection */}
@@ -201,7 +217,7 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
 
             <hr className="my-3 border-border-light dark:border-border-dark" />
             <h6 className="font-semibold mb-2">Line Items</h6>
-            {lineItems.map((item) => ( // Removed index from map
+            {lineItems.map((item) => (
               <div key={item.id} className="flex items-center gap-2 mb-2">
                 <div className="flex-grow">
                   <input type="text" className="form-control" placeholder="Description" value={item.item} onChange={(e) => handleLineItemChange(item.id, 'item', e.target.value)} />
@@ -210,7 +226,6 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
                   <input type="number" step="0.01" className="form-control" placeholder="Price ($)" value={item.amountInDollars} onChange={(e) => handleLineItemChange(item.id, 'amountInDollars', e.target.value)} />
                 </div>
                 <div>
-                  {/* CORRECTED: This now calls removeLineItem with the correct ID */}
                   <button className="btn btn-danger" onClick={() => removeLineItem(item.id)}>X</button>
                 </div>
               </div>
@@ -218,7 +233,8 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
             <button className="btn btn-secondary mt-1" onClick={addLineItem}>Add Item</button>
         </div>
 
-        <div className="pt-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2">
+        {/* Modal Footer - Sticky */}
+        <div className="flex-shrink-0 p-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={isSubmitting}>
             {isSubmitting ? 'Creating...' : `Create ${jobType}`}

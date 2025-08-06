@@ -426,23 +426,23 @@ const handleReviseQuote = async (revisionReason: string) => {
                            </dd>
                         </div>
                       )}
-                       {job.stripe_invoice_id && user?.role === 'admin' && job.status !== 'paid' && job.status !== 'completed' && (
+                       {job.stripe_invoice_id && user?.role === 'admin' && job.status !== 'complete' && (
                         <div className="sm:col-span-1">
-                            <dt className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Admin Actions</dt>
-                            <dd className="mt-1 text-sm">
-                                <button
-                                    onClick={handleMarkAsPaid}
-                                    className="btn btn-sm btn-success"
-                                    disabled={isUpdating}
-                                >
-                                    {isUpdating ? 'Updating...' : 'Mark Paid'}
-                                </button>
-                                {job.status === 'invoice_draft' && (
-                                  <button onClick={() => setIsEditingInvoice(true)} className="btn btn-sm btn-secondary ml-2">Edit Draft Invoice</button>
-                                )}
-                            </dd>
+                          <dt className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Admin Actions</dt>
+                          <dd className="mt-1 text-sm">
+                              <button
+                                  onClick={handleMarkAsPaid}
+                                  className="btn btn-sm btn-success"
+                                  disabled={isUpdating}
+                          >
+                                  {isUpdating ? 'Updating...' : 'Mark Paid'}
+                            </button>
+                            {job.status === 'invoice_draft' && (
+                              <button onClick={() => setIsEditingInvoice(true)} className="btn btn-sm btn-secondary ml-2">Edit Draft Invoice</button>
+                            )}
+                          </dd>
                         </div>
-                       )}
+                      )}
                    </dl>
               )}
           </div>

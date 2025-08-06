@@ -37,7 +37,7 @@ export async function fetchJson<T = unknown>(
 
   // Merge headers safely
   const headers = new Headers(init.headers);
-  
+
   // Set default content type if not provided
   if (!headers.has('Content-Type') && init.body && typeof init.body === 'string') {
     headers.set('Content-Type', 'application/json');
@@ -57,20 +57,26 @@ export async function fetchJson<T = unknown>(
     credentials: 'same-origin',
   };
 
+  // Ensure GET/HEAD requests do not have a body
+  const method = (requestOptions.method || 'GET').toUpperCase();
+  if ((method === 'GET' || method === 'HEAD') && requestOptions.body) {
+    delete requestOptions.body;
+  }
+
   try {
     const startTime = Date.now();
     const res = await fetch(url, requestOptions);
     const duration = Date.now() - startTime;
-    
+
     console.log(`📥 API Response: ${res.status} (${duration}ms)`);
-    
+
     // Handle non-OK responses
     if (!res.ok) {
       let errorMessage: string = `HTTP ${res.status}`;
       let errorDetails: any = undefined;
-      
+
       const contentType = res.headers.get("content-type") || "";
-      
+
       if (contentType.includes("application/json")) {
         try {
           const errorData = await res.json() as ApiErrorResponse;
@@ -87,7 +93,7 @@ export async function fetchJson<T = unknown>(
           errorMessage = text.substring(0, 200); // Limit error message length
         }
       }
-      
+
       // Handle specific status codes
       if (res.status === 401) {
         // A 401 from any page OTHER than login means the session is expired.
@@ -114,7 +120,7 @@ export async function fetchJson<T = unknown>(
 
     // Parse response based on content type
     const responseContentType = res.headers.get("content-type") || "";
-    
+
     if (responseContentType.includes("application/json")) {
       const data = await res.json() as T;
       console.log('✅ API Success:', data);
@@ -133,7 +139,7 @@ export async function fetchJson<T = unknown>(
     }
   } catch (error) {
     console.error('❌ Fetch error:', error);
-    
+
     // Network errors
     if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
       throw new ApiError(
@@ -141,12 +147,12 @@ export async function fetchJson<T = unknown>(
         0
       );
     }
-    
+
     // Re-throw ApiErrors as-is
     if (error instanceof ApiError) {
       throw error;
     }
-    
+
     // Wrap other errors
     throw new ApiError(
       error instanceof Error ? error.message : 'An unexpected error occurred',

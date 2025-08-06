@@ -1,197 +1,211 @@
+import React, { useState, useEffect } from 'react';
+import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
+import { format, parse, startOfWeek, getDay } from 'date-fns';
+import enUS from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { Calendar as BigCalendar, momentLocalizer, Views } from 'react-big-calendar';
-import moment from 'moment';
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import useSWR from 'swr';
-import { format } from 'date-fns';
-
-// Utilities and Hooks
-import { apiGet } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
-
-// Shared Types
-import { Job, CalendarEvent as ApiCalendarEvent } from '@portal/shared';
-
-// Modals
-import AddJobModal from '../components/modals/admin/AddJobModal';
-import BlockDayModal from '../components/modals/admin/AdminBlockDayModal';
+import { apiGet, apiPost } from '../lib/api';
+import type { Job } from '@portal/shared';
+import NewAddJobModal from '../components/modals/admin/NewAddJobModal';
 import BookingModal from '../components/modals/BookingModal';
 
-const localizer = momentLocalizer(moment);
+// --- Calendar Sync Modal Component ---
+const CalendarSyncModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void; }) => {
+  const { user } = useAuth();
+  const [token, setToken] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const calendarUrl = token ? `${window.location.origin}/api/jobs/calendar/${token}/events.ics` : '';
+
+  useEffect(() => {
+    if (isOpen) {
+      const fetchToken = async () => {
+        setLoading(true);
+        setError(null);
+        setSuccessMessage(null);
+        try {
+          const response = await apiGet<{ token: string }>('/api/users/calendar-token');
+          setToken(response.token);
+        } catch (err: any) {
+          setError(err.message || 'Failed to fetch calendar token.');
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchToken();
+    }
+  }, [isOpen]);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(calendarUrl).then(() => {
+      setSuccessMessage('URL copied to clipboard!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    }, () => {
+      setError('Failed to copy URL.');
+      setTimeout(() => setError(null), 3000);
+    });
+  };
+
+  const handleRegenerate = async () => {
+    if (!window.confirm('Are you sure? Regenerating the URL will invalidate the old one.')) {
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const response = await apiPost<{ token: string }>('/api/users/calendar-token');
+      setToken(response.token);
+      setSuccessMessage('Successfully generated a new calendar URL.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to regenerate token.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white dark:bg-tertiary-dark rounded-lg shadow-xl w-full max-w-lg">
+        <div className="p-4 border-b border-border-light dark:border-border-dark flex justify-between items-center">
+          <h2 className="text-xl font-bold">Sync Your Calendar</h2>
+          <button onClick={onClose} className="text-2xl font-bold">&times;</button>
+        </div>
+        <div className="p-4 space-y-4">
+          {loading && <p>Loading...</p>}
+          {error && <div className="bg-red-100 text-red-700 p-3 rounded">{error}</div>}
+          {successMessage && <div className="bg-green-100 text-green-700 p-3 rounded">{successMessage}</div>}
+
+          <p>You can subscribe to your jobs using any calendar application that supports iCalendar (.ics) feeds, like Google Calendar, Apple Calendar, or Outlook.</p>
+          <p className="font-bold text-red-500">Warning: This URL is secret. Anyone who has it can see your job calendar.</p>
+
+          <div>
+            <label htmlFor="calendar-url" className="form-label">Your Personal Calendar Feed</label>
+            <input
+              id="calendar-url"
+              type="text"
+              readOnly
+              value={calendarUrl}
+              className="form-control"
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <button onClick={handleCopy} className="btn btn-primary" disabled={loading || !token}>Copy URL</button>
+            <button onClick={handleRegenerate} className="btn btn-danger" disabled={loading}>Regenerate URL</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+// --- Main Calendar Page Component ---
+const locales = {
+  'en-US': enUS,
+};
+
+const localizer = dateFnsLocalizer({
+  format,
+  parse,
+  startOfWeek,
+  getDay,
+  locales,
+});
 
 interface CalendarEvent {
   title: string;
   start: Date;
   end: Date;
-  resource: Job | ApiCalendarEvent;
+  allDay?: boolean;
+  resource?: any;
 }
-
-// Helper functions for SWR
-const getPublicAvailability = (url: string) => apiGet<{ bookedDays: string[] }>(url);
-const getCustomerAvailability = (url: string) => apiGet<{ bookedDays: string[], pendingDays: string[] }>(url);
 
 export default function UnifiedCalendar() {
   const { user } = useAuth();
-  const [modalState, setModalState] = useState({
-    addJobModalOpen: false,
-    blockDayModalOpen: false,
-    bookingModalOpen: false,
-  });
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [isDarkMode, setIsDarkMode] = useState(document.documentElement.classList.contains('dark'));
+  const [isAddJobModalOpen, setAddJobModalOpen] = useState(false);
+  const [isBookingModalOpen, setBookingModalOpen] = useState(false);
+  const [isSyncModalOpen, setSyncModalOpen] = useState(false); // State for the new modal
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
-  // --- Data Fetching ---
-  const { data: jobs, mutate: mutateJobs } = useSWR<Job[]>(user?.role === 'admin' ? '/api/jobs' : null, apiGet);
-  const { data: availability } = useSWR(user ? '/api/availability' : '/api/public/availability', user ? getCustomerAvailability : getPublicAvailability);
-  const { data: calendarEvents, mutate: mutateCalendarEvents } = useSWR<ApiCalendarEvent[]>(user?.role === 'admin' ? '/api/admin/calendar-events' : null, apiGet);
-
-  // --- Dark Mode Change Detection ---
-  useEffect(() => {
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === 'class') {
-          const newIsDarkMode = document.documentElement.classList.contains('dark');
-          if (isDarkMode !== newIsDarkMode) {
-            setIsDarkMode(newIsDarkMode);
-          }
-        }
-      });
-    });
-
-    observer.observe(document.documentElement, { attributes: true });
-
-    return () => observer.disconnect();
-  }, [isDarkMode]);
-
-  // --- Memoized Event & Day Computations ---
-  useEffect(() => {
-    if (user?.role === 'admin' && jobs && calendarEvents) {
-      const jobEvents: CalendarEvent[] = jobs.map(job => ({
-        title: `${job.customer.firstName} ${job.customer.lastName}`,
-        start: new Date(job.startTime),
-        end: new Date(job.endTime),
-        resource: job,
+  const fetchJobs = async () => {
+    try {
+      const jobs = await apiGet<Job[]>('/api/jobs');
+      const calendarEvents = jobs.map((job) => ({
+        title: job.title,
+        start: new Date(job.start),
+        end: new Date(job.end),
       }));
-
-      const blockedEvents: CalendarEvent[] = calendarEvents
-        .filter(event => event.type === 'blocked')
-        .map(event => ({
-          title: event.reason || 'Blocked',
-          start: new Date(event.start),
-          end: new Date(event.end),
-          resource: event,
-        }));
-      setEvents([...jobEvents, ...blockedEvents]);
+      setEvents(calendarEvents);
+    } catch (error) {
+      console.error('Failed to fetch jobs:', error);
     }
-  }, [jobs, calendarEvents, user]);
+  };
 
-  const { bookedDaysSet, pendingDaysSet, adminBlockedDaysSet } = useMemo(() => {
-    const bookedDays = new Set(availability?.bookedDays || []);
-    const pendingDays = new Set(user ? (availability as any)?.pendingDays || [] : []);
-    const adminBlocked = new Set(calendarEvents?.filter(e => e.type === 'blocked').map(e => e.start.split('T')[0]) || []);
-    return { bookedDaysSet: bookedDays, pendingDaysSet: pendingDays, adminBlockedDaysSet: adminBlocked };
-  }, [availability, calendarEvents, user]);
-
-   // --- Calendar Prop Getters (with Tailwind) ---
-  const dayPropGetter = useCallback((date: Date) => {
-    const day = format(date, 'yyyy-MM-dd');
-    let className = 'bg-gray-50 dark:bg-gray-800'; // Default day background with dark mode
-
-    if (adminBlockedDaysSet.has(day)) {
-      className = 'bg-red-200 dark:bg-red-900/40';
-      if (user?.role !== 'admin') {
-        className += ' cursor-not-allowed';
-      }
-    } else if (bookedDaysSet.has(day)) {
-      className = 'bg-gray-300 dark:bg-gray-600 cursor-not-allowed';
-    } else if (pendingDaysSet.has(day)) {
-      className = 'bg-stripes-blue'; // Custom striped background
-    }
-
-    return {
-      className: className,
-      style: {
-        cursor: user ? 'pointer' : 'default',
-      }
-    };
-  }, [bookedDaysSet, pendingDaysSet, adminBlockedDaysSet, user]);
-
-  const eventPropGetter = useCallback((event: CalendarEvent) => {
-    const isJob = 'customer' in event.resource;
-    const className = isJob
-      ? 'bg-blue-500 hover:bg-blue-600 border-blue-500'
-      : 'bg-gray-500 hover:bg-gray-600 border-gray-500';
-
-    return {
-      className: `${className} text-white p-1 rounded-lg`,
-    };
+  useEffect(() => {
+    fetchJobs();
   }, []);
 
-
-  // --- Event Handlers ---
-  const handleSelectSlot = useCallback((slotInfo: { start: Date }) => {
-    const dateStr = format(slotInfo.start, 'yyyy-MM-dd');
-    if (adminBlockedDaysSet.has(dateStr) || bookedDaysSet.has(dateStr)) {
-      return;
-    }
-    setSelectedDate(slotInfo.start);
+  const handleSelectSlot = ({ start }: { start: Date }) => {
+    setSelectedDate(start);
     if (user?.role === 'admin') {
-      setModalState(prevState => ({ ...prevState, addJobModalOpen: true }));
+      setAddJobModalOpen(true);
     } else {
-      setModalState(prevState => ({ ...prevState, bookingModalOpen: true }));
-    }
-  }, [user, adminBlockedDaysSet, bookedDaysSet]);
-
-  const handleSelectEvent = (event: CalendarEvent) => {
-    if ('customer' in event.resource) {
-        setSelectedJob(event.resource);
+      setBookingModalOpen(true);
     }
   };
 
-  // --- Modal Management ---
-  const handleCloseModals = () => {
-    setModalState({ addJobModalOpen: false, blockDayModalOpen: false, bookingModalOpen: false });
-    setSelectedDate(null);
-    setSelectedJob(null);
+  const handleModalClose = () => {
+    setAddJobModalOpen(false);
+    setBookingModalOpen(false);
+    fetchJobs(); // Refetch jobs when a modal is closed
   };
-
-  const handleBlockDay = () => {
-    setModalState({ addJobModalOpen: false, blockDayModalOpen: true, bookingModalOpen: false });
-  };
-
 
   return (
-    <div className="p-4 bg-white dark:bg-gray-900 rounded-lg shadow-md">
-      <BigCalendar
-        key={isDarkMode.toString()} // Force re-render on theme change
-        localizer={localizer}
-        events={events}
-        startAccessor="start"
-        endAccessor="end"
-        style={{ height: 'calc(100vh - 120px)' }}
-        views={[Views.MONTH, Views.WEEK, Views.DAY]}
-        selectable={!!user}
-        onSelectSlot={handleSelectSlot}
-        onSelectEvent={handleSelectEvent}
-        dayPropGetter={dayPropGetter}
-        eventPropGetter={eventPropGetter}
-        className="font-sans"
-      />
-
-      {/* --- Modals --- */}
-      {selectedDate && user?.role === 'admin' && (
-        <>
-          <AddJobModal isOpen={modalState.addJobModalOpen} onClose={handleCloseModals} onBlockDay={handleBlockDay} selectedDate={selectedDate} mutateJobs={mutateJobs} />
-          <BlockDayModal isOpen={modalState.blockDayModalOpen} onClose={handleCloseModals} selectedDate={selectedDate} mutateCalendarEvents={mutateCalendarEvents} />
-        </>
+    <div className="p-4">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">Calendar</h1>
+        {/* This button now opens the modal */}
+        <button onClick={() => setSyncModalOpen(true)} className="btn btn-primary">
+          Sync Calendar
+        </button>
+      </div>
+      <div className="h-[80vh]">
+        <Calendar
+          localizer={localizer}
+          events={events}
+          startAccessor="start"
+          endAccessor="end"
+          style={{ height: '100%' }}
+          onSelectSlot={handleSelectSlot}
+          selectable
+        />
+      </div>
+      {/* Render all modals */}
+      <CalendarSyncModal isOpen={isSyncModalOpen} onClose={() => setSyncModalOpen(false)} />
+      {user?.role === 'admin' && (
+        <NewAddJobModal
+          isOpen={isAddJobModalOpen}
+          onClose={handleModalClose}
+          onSave={handleModalClose}
+          selectedDate={selectedDate}
+        />
       )}
-      {selectedDate && (user?.role !== 'admin') && (
-          <BookingModal isOpen={modalState.bookingModalOpen} onClose={handleCloseModals} selectedDate={selectedDate} />
-      )}
-      {selectedJob && (
-        <JobSummaryModal isOpen={!!selectedJob} onClose={() => setSelectedJob(null)} job={selectedJob} />
+      {user?.role !== 'admin' && (
+        <BookingModal
+          isOpen={isBookingModalOpen}
+          onClose={handleModalClose}
+          selectedDate={selectedDate}
+        />
       )}
     </div>
   );
