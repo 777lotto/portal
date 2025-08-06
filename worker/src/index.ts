@@ -43,10 +43,11 @@ import { handleGetCustomerAvailability } from './jobs/timing/availability.js';
 import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent, handleGetNotifications, handleMarkAllNotificationsRead } from './users/profile.js';
 import { handlePortalSession } from './users/user.js';
 // jobs
-import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleGetCalendarEvents, handleAddCalendarEvent, handleRemoveCalendarEvent, handleAdminUpdateJobDetails, handleAdminAddLineItemToJob, handleAdminUpdateLineItemInJob, handleAdminDeleteLineItemFromJob, handleAdminCompleteJob, handleGetLineItemsForJob, handleGetOpenInvoicesForUser, handleCreateJob, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl } from './jobs/jobs.js';
+import { handleGetJobs, handleGetJobById, handleAdminUpdateJobDetails, handleAdminAddLineItemToJob, handleAdminUpdateLineItemInJob, handleAdminDeleteLineItemFromJob, handleAdminCompleteJob, handleGetLineItemsForJob, handleGetOpenInvoicesForUser, handleCreateJob } from './jobs/jobs.js';
 import { handleGetInvoiceForUser, handleCreatePaymentIntent, handleDownloadInvoicePdf } from './jobs/ledger/invoices.js';
 // calendar
 import { handleRequestRecurrence, handleGetRecurrenceRequests, handleUpdateRecurrenceRequest, handleGetUnavailableRecurrenceDays } from './jobs/timing/recurrence.js';
+import { handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl, handleCalendarFeed, handleGetCalendarEvents, handleAddCalendarEvent, handleRemoveCalendarEvent } from './jobs/timing/calendar.js';
 //content
 import { handleGetUserPhotos, handleGetPhotosForJob } from './jobs/assets/photos.js';
 import { handleGetNotesForJob } from './jobs/assets/notes.js';

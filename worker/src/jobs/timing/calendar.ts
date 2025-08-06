@@ -1,8 +1,11 @@
-// worker/src/calendar.ts
+// worker/src/jobs/timing/calendar.ts
 
-import type { Env, User, Job } from "@portal/shared";
-import { v4 as uuidv4 } from 'uuid';
-import { JobSchema } from "@portal/shared";
+import { Context as HonoContext } from 'hono'; // Add this import
+import { v4 as uuidv4 } from 'uuid'; // Add this import
+import type { AppEnv as WorkerAppEnv } from '../../index.js'; // Add this import
+import { errorResponse, successResponse } from '../../utils.js'; // Add this import
+import type { Env, User, Job, CalendarEvent } from "@portal/shared";
+import { JobSchema, CalendarEventSchema } from "@portal/shared";
 
 
 interface JobRecord extends Job {}
@@ -166,7 +169,7 @@ export async function generateCalendarFeed(env: Env, feedOwnerId: string): Promi
   let icalContent = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//777 Solutions LLC//Gutter Portal//EN',
+    'PRODID:-//777 Solutions LLC//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     `X-WR-CALNAME:777 Solutions Appointments for ${customer.name}`,
@@ -222,4 +225,123 @@ export async function generateCalendarFeed(env: Env, feedOwnerId: string): Promi
   icalContent.push('END:VCALENDAR');
 
   return icalContent.filter(line => line).join('\r\n');
+}
+
+export const handleGetSecretCalendarUrl = async (c: HonoContext<WorkerAppEnv>) => {
+    const user = c.get('user');
+    const portalBaseUrl = c.env.PORTAL_URL.replace('/dashboard', '');
+
+    try {
+        let tokenRecord = await c.env.DB.prepare(
+            `SELECT token FROM calendar_tokens WHERE user_id = ?`
+        ).bind(user.id).first<{ token: string }>();
+
+        if (!tokenRecord) {
+            const newToken = uuidv4();
+            await c.env.DB.prepare(
+                `INSERT INTO calendar_tokens (token, user_id) VALUES (?, ?)`
+            ).bind(newToken, user.id).run();
+            tokenRecord = { token: newToken };
+        }
+
+        const url = `${portalBaseUrl}/api/public/calendar/feed/${tokenRecord.token}.ics`;
+        return successResponse({ url });
+
+    } catch (e: any) {
+        console.error(`Failed to get or create calendar token for user ${user.id}:`, e);
+        return errorResponse("Could not retrieve calendar URL.", 500);
+    }
+};
+
+export const handleRegenerateSecretCalendarUrl = async (c: HonoContext<WorkerAppEnv>) => {
+    const user = c.get('user');
+    const portalBaseUrl = c.env.PORTAL_URL.replace('/dashboard', '');
+
+    try {
+        await c.env.DB.prepare(
+            `DELETE FROM calendar_tokens WHERE user_id = ?`
+        ).bind(user.id).run();
+
+        const newToken = uuidv4();
+        await c.env.DB.prepare(
+            `INSERT INTO calendar_tokens (token, user_id) VALUES (?, ?)`
+        ).bind(newToken, user.id).run();
+
+        const url = `${portalBaseUrl}/api/public/calendar/feed/${newToken}.ics`;
+        return successResponse({ url });
+
+    } catch (e: any) {
+         console.error(`Failed to regenerate calendar token for user ${user.id}:`, e);
+        return errorResponse("Could not regenerate calendar URL.", 500);
+    }
+};
+
+export const handleCalendarFeed = async (c: HonoContext<WorkerAppEnv>) => {
+    const user = c.get('user');
+    try {
+        const icalContent = await generateCalendarFeed(c.env, user.id.toString());
+        return new Response(icalContent, {
+            headers: {
+                'Content-Type': 'text/calendar; charset=utf-8',
+                'Content-Disposition': `attachment; filename="jobs-user-${user.id}.ics"`,
+            }
+        });
+    } catch (e: any) {
+        console.error("Failed to generate calendar feed:", e);
+        return errorResponse("Could not generate calendar feed.", 500);
+    }
+};
+
+// --- Admin Handlers for Calendar Events ---
+
+export async function handleGetCalendarEvents(c: HonoContext<WorkerAppEnv>) {
+  try {
+    const { results } = await c.env.DB.prepare(
+      `SELECT * FROM calendar_events ORDER BY start ASC`
+    ).all<CalendarEvent>();
+    return successResponse(results || []);
+  } catch (e: any) {
+    console.error("Error fetching calendar events:", e);
+    return errorResponse('Failed to fetch calendar events.', 500);
+  }
+}
+
+export async function handleAddCalendarEvent(c: HonoContext<WorkerAppEnv>) {
+  const user = c.get('user');
+  const body = await c.req.json();
+  const parsed = CalendarEventSchema.omit({ id: true, user_id: true }).safeParse(body);
+
+  if (!parsed.success) {
+    return errorResponse("Invalid data", 400, parsed.error.flatten());
+  }
+
+  const { title, start, end, type, job_id } = parsed.data;
+
+  try {
+    await c.env.DB.prepare(
+      `INSERT INTO calendar_events (title, start, end, type, job_id, user_id) VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(title, start, end, type, job_id || null, user.id).run();
+    return successResponse({ ...parsed.data, user_id: user.id }, 201);
+  } catch (e: any) {
+    console.error("Error adding calendar event:", e);
+    return errorResponse('Failed to add calendar event.', 500);
+  }
+}
+
+export async function handleRemoveCalendarEvent(c: HonoContext<WorkerAppEnv>) {
+  const { eventId } = c.req.param();
+
+  try {
+    const { success } = await c.env.DB.prepare(
+      `DELETE FROM calendar_events WHERE id = ?`
+    ).bind(eventId).run();
+
+    if (!success) {
+      return errorResponse('Failed to remove calendar event.', 500);
+    }
+    return successResponse({ message: `Calendar event ${eventId} has been removed.` });
+  } catch (e: any) {
+    console.error("Error removing calendar event:", e);
+    return errorResponse('Failed to remove calendar event.', 500);
+  }
 }
