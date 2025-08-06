@@ -212,9 +212,10 @@ export async function handleAdminUpdateUser(c: Context<AppEnv>): Promise<Respons
 export async function handleAdminGetJobsForUser(c: Context<AppEnv>): Promise<Response> {
     const { user_id } = c.req.param();
     try {
+        // CORRECTED: Bind user_id as a string to match the TEXT column type in the jobs table.
         const dbResponse = await c.env.DB.prepare(
             `SELECT * FROM jobs WHERE user_id = ? ORDER BY createdAt DESC`
-        ).bind(Number(user_id)).all<Job>();
+        ).bind(user_id).all<Job>(); // Changed Number(user_id) to user_id
         const jobs = dbResponse?.results || [];
         return successResponse(jobs);
     } catch (e: any) {

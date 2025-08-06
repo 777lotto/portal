@@ -1,7 +1,7 @@
 // frontend/src/components/Photos.tsx
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getPhotos, apiGet } from '../lib/api.js';
-import type { PhotoWithNotes, User, Job, item } from '@portal/shared';
+import type { PhotoWithNotes, User, Job, LineItem } from '@portal/shared';
 import { useDropzone } from 'react-dropzone';
 import { jwtDecode } from 'jwt-decode';
 import { apiPostFormData } from '../lib/api';
@@ -112,7 +112,8 @@ function CustomerPhotos() {
 function AdminPhotos() {
   const [users, setUsers] = useState<User[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [items, setItems] = useState<item[]>([]);
+  // 2. CORRECT THE STATE TYPE: Change 'item[]' to 'LineItem[]'
+  const [items, setItems] = useState<LineItem[]>([]);
   const [selectedUser, setSelectedUser] = useState<string>('');
   const [selectedJob, setSelectedJob] = useState<string>('');
   const [selectedItem, setselectedItem] = useState<string>('');
@@ -136,7 +137,8 @@ function AdminPhotos() {
 
   useEffect(() => {
     if (selectedJob) {
-      apiGet<item[]>(`/api/jobs/${selectedJob}/line_items`).then(setItems);
+      // 3. CORRECT THE API CALL TYPE
+      apiGet<LineItem[]>(`/api/jobs/${selectedJob}/line_items`).then(setItems);
     } else {
       setItems([]);
     }
@@ -221,8 +223,9 @@ function AdminPhotos() {
               <label htmlFor="job" className="form-label">Associate with Job (Optional)</label>
               <select id="job" className="form-control" value={selectedJob} onChange={e => setSelectedJob(e.target.value)} disabled={!selectedUser}>
                 <option value="">-- Select a Job --</option>
+                {/* 4. CORRECT RENDER PROPERTY: job.start -> job.createdAt */}
                 {jobs.map(job => (
-                  <option key={job.id} value={job.id}>{job.title} - {new Date(job.start).toLocaleDateString()}</option>
+                  <option key={job.id} value={job.id}>{job.title} - {new Date(job.createdAt).toLocaleDateString()}</option>
                 ))}
               </select>
             </div>
@@ -230,8 +233,9 @@ function AdminPhotos() {
               <label htmlFor="item" className="form-label">Associate with item (Optional)</label>
               <select id="item" className="form-control" value={selectedItem} onChange={e => setselectedItem(e.target.value)} disabled={!selectedJob}>
                 <option value="">-- Select a item --</option>
+                {/* 5. CORRECT RENDER PROPERTY: item.notes -> item.description */}
                 {items.map(item => (
-                  <option key={item.id} value={item.id}>{item.notes}</option>
+                  <option key={item.id} value={item.id}>{item.description}</option>
                 ))}
               </select>
             </div>
