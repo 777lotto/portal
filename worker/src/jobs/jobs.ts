@@ -31,21 +31,16 @@ export const handleCreateJob = async (c: HonoContext<WorkerAppEnv>) => {
 export const handleGetJobs = async (c: HonoContext<WorkerAppEnv>) => {
     const user = c.get('user');
     try {
-        let dbResponse;
-
-        if (user.role === 'admin') {
-            dbResponse = await c.env.DB.prepare(
-                `SELECT * FROM jobs WHERE status = 'upcoming' ORDER BY createdAt ASC`
-            ).all<Job>();
-        } else {
-            dbResponse = await c.env.DB.prepare(
-                `SELECT * FROM jobs WHERE user_id = ? AND status = 'upcoming' ORDER BY createdAt ASC`
-            ).bind(user.id).all<Job>();
-        }
+        // This endpoint now returns all jobs for the current user,
+        // allowing the frontend to categorize them.
+        const dbResponse = await c.env.DB.prepare(
+            `SELECT * FROM jobs WHERE user_id = ? ORDER BY createdAt DESC`
+        ).bind(user.id).all<Job>();
 
         const jobs = dbResponse?.results || [];
         return successResponse(jobs);
     } catch (e: any) {
+        console.error("Failed to retrieve jobs for user:", e);
         return errorResponse("Failed to retrieve jobs", 500);
     }
 };

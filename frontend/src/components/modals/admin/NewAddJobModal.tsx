@@ -104,21 +104,21 @@ function NewAddJobModal({ isOpen, onClose, onSave, selectedDate }: Props) {
 
     // Construct the payload that matches our backend's Zod schema
     const payload = {
-      user_id: selectedUserId,
-      title,
-      description,
-      jobType,
-      recurrence,
-      due: due || null,
-      start: start ? new Date(start).toISOString() : null,
-      end: end ? new Date(end).toISOString() : null,
-      lineItems: lineItems
-        .map(li => ({
-          description: li.item, // Changed 'item' to 'description'
-          unit_total_amount_cents: Math.round(parseFloat(li.amountInDollars) * 100), // Changed key and ensured valid number
-          quantity: 1, // Added quantity, which defaults to 1 in the backend schema
-        }))
-        .filter(li => li.item && !isNaN(li.total_amount_cents) && li.total_amount_cents >= 0),
+  user_id: selectedUserId,
+  title,
+  description,
+  jobType,
+  recurrence,
+  due: due || null,
+  start: start ? new Date(start).toISOString() : null,
+  end: end ? new Date(end).toISOString() : null,
+  lineItems: lineItems
+    .map(li => ({
+      description: li.item, // Changed from 'item'
+      unit_total_amount_cents: Math.round(parseFloat(li.amountInDollars) * 100), // Changed from 'amountInDollars' and converted
+      quantity: 1, // Added default quantity
+    }))
+    .filter(li => li.description && !isNaN(li.unit_total_amount_cents) && li.unit_total_amount_cents >= 0),
     };
 
     if (payload.lineItems.length === 0) {
