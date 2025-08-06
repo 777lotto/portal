@@ -72,10 +72,10 @@ export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
 
   const getStatusForJobType = (jobType: 'quote' | 'job' | 'invoice'): string => {
     switch (jobType) {
-      case 'quote': return 'quote_sent';
-      case 'job': return 'scheduled';
-      case 'invoice': return 'invoiced';
-      default: return 'draft';
+      case 'quote': return 'pending';
+      case 'job': return 'upcoming';
+      case 'invoice': return 'payment_needed';
+      default: return 'job_draft';
     }
   };
 

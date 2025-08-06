@@ -27,7 +27,7 @@ export async function handleAdminCreateQuote(c: Context<AppEnv>) {
 
         const quote = await createStripeQuote(stripe, user.stripe_customer_id, lineItems);
 
-        await db.prepare(`UPDATE jobs SET stripe_quote_id = ?, status = 'quote_sent' WHERE id = ?`)
+        await db.prepare(`UPDATE jobs SET stripe_quote_id = ?, status = 'pending' WHERE id = ?`)
             .bind(quote.id, jobId)
             .run();
 
