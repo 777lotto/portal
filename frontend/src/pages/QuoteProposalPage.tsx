@@ -3,10 +3,10 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
 import { apiGet, apiPost } from '../lib/api';
-import type { Job, Service } from '@portal/shared';
+import type { Job, LineItem } from '@portal/shared';
 
 interface QuoteDetails extends Job {
-    services: Service[];
+    services: LineItem[];
     customerName?: string;
 }
 
@@ -69,7 +69,7 @@ function QuoteProposalPage() {
     if (error) return <div className="rounded-md bg-red-100 p-4 text-sm text-red-700">Failed to load quote details.</div>;
     if (!quote) return <div className="text-center p-8">Loading...</div>;
 
-    const total = quote.services.reduce((acc, service) => acc + (service.total_amount_cents || 0), 0);
+    const total = quote.services.reduce((acc, service) => acc + ((service.unit_total_amount_cents || 0) * (service.quantity || 1)), 0);
 
     const isActionable = quote.status === 'pending';
 
@@ -92,12 +92,23 @@ function QuoteProposalPage() {
             <div className="mb-8">
                 <h4 className="text-xl font-semibold mb-4 border-b pb-2">Line Items</h4>
                 <div className="space-y-3">
-                    {quote.services.map(service => (
-                        <div key={service.id} className="flex justify-between items-center p-3 rounded-md bg-gray-50 dark:bg-gray-800">
-                            <span>{service.notes}</span>
-                            <span className="font-semibold">${((service.total_amount_cents || 0) / 100).toFixed(2)}</span>
-                        </div>
-                    ))}
+                    {quote.services.length > 0 ? (
+                        quote.services.map(service => (
+                            <div key={service.id} className="flex justify-between items-center p-3 rounded-md bg-gray-50 dark:bg-gray-800">
+                                <span className="text-text-primary-light dark:text-text-primary-dark">{service.description}</span>
+                                <div className="text-right">
+                                    <span className="font-semibold text-text-primary-light dark:text-text-primary-dark">${(((service.unit_total_amount_cents || 0) * (service.quantity || 1)) / 100).toFixed(2)}</span>
+                                    {(service.quantity || 1) > 1 && (
+                                        <span className="text-xs text-text-secondary-light dark:text-text-secondary-dark block">
+                                            (${(service.unit_total_amount_cents / 100).toFixed(2)} x {service.quantity})
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <p className="text-text-secondary-light dark:text-text-secondary-dark">No line items for this quote.</p>
+                    )}
                 </div>
                 <div className="flex justify-end items-center mt-4 pr-3">
                     <span className="text-lg font-bold">Total:</span>

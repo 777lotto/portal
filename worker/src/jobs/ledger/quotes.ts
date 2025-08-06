@@ -42,7 +42,7 @@ export async function getQuoteById(c: Context<AppEnv>) {
         // FIX: Changed user_id to user_id
         job = await env.DB.prepare(
             `SELECT * FROM jobs WHERE id = ? AND user_id = ? AND status = 'pending'`
-        ).bind(quoteId, user.id).first();
+        ).bind(quoteId, user.id.toString()).first();
     }
 
     if (!job) {
@@ -50,7 +50,7 @@ export async function getQuoteById(c: Context<AppEnv>) {
     }
 
     const services = await env.DB.prepare(
-        `SELECT * FROM services WHERE job_id = ?`
+        `SELECT * FROM line_items WHERE job_id = ?`
     ).bind(quoteId).all();
 
     return successResponse({ ...job, services: services.results });
