@@ -61,23 +61,24 @@ export class ChatRoom {
     websocket.send(JSON.stringify({ type: "all", messages: this.messages }));
 
     websocket.addEventListener("message", async (event) => {
-      try {
-        const { content } = JSON.parse(event.data as string);
-        if (content) {
-          const chatMessage: ChatMessage = {
-            id: nanoid(8),
-            content,
-            user: user.role === 'admin' ? 'Support' : (user.name || 'Customer'),
-            role: user.role === 'admin' ? "assistant" : "user",
-          };
-          this.messages.push(chatMessage);
-          this.broadcast(JSON.stringify({ type: "add", ...chatMessage }));
-          await this.state.storage.put("messages", this.messages);
+    try {
+        const { content, attachment } = JSON.parse(event.data as string);
+        if (content || attachment) {
+            const chatMessage: ChatMessage = {
+                id: nanoid(8),
+                content,
+                user: user.role === 'admin' ? 'Support' : (user.name || 'Customer'),
+                role: user.role === 'admin' ? "assistant" : "user",
+                attachment,
+            };
+            this.messages.push(chatMessage);
+            this.broadcast(JSON.stringify({ type: "add", ...chatMessage }));
+            await this.state.storage.put("messages", this.messages);
         }
-      } catch (e) {
+    } catch (e) {
         console.error("Failed to process message:", e);
-      }
-    });
+    }
+});
 
     const closeOrErrorHandler = () => {
       this.sessions = this.sessions.filter(s => s.websocket !== websocket);

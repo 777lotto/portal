@@ -14,6 +14,57 @@ interface CloudflareImageResponse {
     };
 }
 
+export const handleChatAttachmentUpload = async (c: PhotoContext<PhotoAppEnv>) => {
+    const user = c.get('user');
+    if (!user) {
+        return photoErrorResponse('Unauthorized', 401);
+    }
+
+    const formData = await c.req.formData();
+    const fileValue = formData.get('file');
+
+    // Check if fileValue is a string or null/undefined
+    if (typeof fileValue === 'string' || !fileValue) {
+        return photoErrorResponse('No file provided or invalid file type.', 400);
+    }
+    // After the guard, explicitly cast fileValue to File.
+    const file: File = fileValue;
+
+    const uploadFormData = new FormData();
+    uploadFormData.append('file', file);
+
+    const cfAccountId = c.env.CF_IMAGES_ACCOUNT_HASH;
+    const cfApiToken = c.env.CF_IMAGES_API_TOKEN;
+
+    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${cfAccountId}/images/v1`, {
+        method: 'POST',
+        body: uploadFormData,
+        headers: {
+            Authorization: `Bearer ${cfApiToken}`,
+        },
+    });
+
+    const result: CloudflareImageResponse = await response.json();
+
+    if (!result.success || !result.result) {
+        console.error('CF Image Upload Error:', result.errors);
+        return photoErrorResponse('File upload failed due to an internal error.', 500);
+    }
+
+    const publicUrl = result.result.variants.find((v: string) => v.endsWith('/public')) || result.result.variants[0];
+
+    const attachment = {
+        url: publicUrl,
+        fileName: file.name,
+        fileType: file.type,
+    };
+
+    return c.json({
+        success: true,
+        attachment: attachment
+    });
+};
+
 export const handleGetUserPhotos = async (c: PhotoContext<PhotoAppEnv>) => {
     const user = c.get('user');
     const { createdAt, job_id, item_id } = c.req.query();

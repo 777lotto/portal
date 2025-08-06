@@ -352,5 +352,13 @@ export const ChatMessageSchema = z.object({
   user: z.string(),
   role: z.enum(['user', 'assistant', 'system']),
   timestamp: z.number().optional(),
+  // Add the optional attachment object schema here
+  attachment: z.object({
+    url: z.string(),
+    fileName: z.string(),
+    fileType: z.string(),
+  }).optional(),
 });
+
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
+

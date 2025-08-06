@@ -49,7 +49,7 @@ import { handleGetInvoiceForUser, handleCreatePaymentIntent, handleDownloadInvoi
 import { handleRequestRecurrence, handleGetRecurrenceRequests, handleUpdateRecurrenceRequest, handleGetUnavailableRecurrenceDays } from './jobs/timing/recurrence.js';
 import { handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl, handleCalendarFeed, handleGetCalendarEvents, handleAddCalendarEvent, handleRemoveCalendarEvent } from './jobs/timing/calendar.js';
 //content
-import { handleGetUserPhotos, handleGetPhotosForJob } from './jobs/assets/photos.js';
+import { handleGetUserPhotos, handleGetPhotosForJob, handleChatAttachmentUpload } from './jobs/assets/photos.js';
 import { handleGetNotesForJob } from './jobs/assets/notes.js';
 
 /* --------------------------------------------------------------------- Admin Handlers --------------------------------------------------------------------------------------- */
@@ -182,6 +182,7 @@ customerApi.get('/quotes/:quoteId', getQuoteById);
 customerApi.post('/quotes/:quoteId/decline', handleDeclineQuote);
 customerApi.post('/quotes/:quoteId/revise', handleReviseQuote);
 customerApi.get('/chat/:roomId', handleChatProxy);
+customerApi.post('/chat/upload', handleChatAttachmentUpload);
 
 
 /* ========================================================================

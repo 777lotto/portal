@@ -3,6 +3,11 @@ export type ChatMessage = {
   content: string;
   user: string;
   role: "user" | "assistant";
+  attachment?: {
+    url: string;
+    fileName: string;
+    fileType: string;
+  };
 };
 
 export type Message =
