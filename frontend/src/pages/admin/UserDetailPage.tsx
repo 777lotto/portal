@@ -1,90 +1,96 @@
-// frontend/src/pages/admin/UserDetailPage.tsx
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { apiGet, adminCreateJob, adminImportInvoicesForUser } from '../../lib/api';
-import type { User, StripeInvoice } from '@portal/shared';
-import { InvoiceEditor } from './InvoiceEditor';
+import { adminGetUser, adminUpdateUser } from '../../lib/api';
+import { User } from '@portal/shared';
+import EditUserModal from '../../components/modals/admin/EditUserModal';
 
-type Message = { type: 'success' | 'danger'; text: string; };
-
-export function UserDetailPage() {
-  const { user_id } = useParams<{ user_id: string }>();
+function UserDetailPage() {
+  const { userId } = useParams<{ userId: string }>();
   const [user, setUser] = useState<User | null>(null);
-  const [message, setMessage] = useState<Message | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeInvoice, setActiveInvoice] = useState<StripeInvoice | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    if (!user_id) return;
-    try {
-      // We only need to fetch the user's primary data now.
-      const userData = await apiGet<User>(`/api/admin/users/${user_id}`);
-      setUser(userData);
-    } catch (err: any)      {
-      setMessage({ type: 'danger', text: `Failed to fetch user data: ${err.message}` });
+  const fetchUser = async () => {
+    if (userId) {
+      try {
+        setIsLoading(true);
+        const userData = await adminGetUser(userId);
+        setUser(userData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+      } finally {
+        setIsLoading(false);
+      }
     }
-  }, [user_id]);
+  };
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchUser();
+  }, [userId]);
+
+  const handleUpdateUser = async (updatedData: Partial<User>) => {
+    if (userId) {
+      try {
+        await adminUpdateUser(userId, updatedData);
+        fetchUser(); // Refresh user data
+        setIsEditModalOpen(false);
+      } catch (err) {
+        console.error("Failed to update user:", err);
+        // You might want to show an error message in the modal
+      }
+    }
+  };
+
+  if (isLoading) {
+    return <div className="text-center p-4">Loading user details...</div>;
+  }
+
+  if (error) {
+    return <div className="text-center p-4 text-red-500">Error: {error}</div>;
+  }
+
+  if (!user) {
+    return <div className="text-center p-4">User not found.</div>;
+  }
 
   return (
-    <div className="container-fluid p-4">
-      {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
-
-      <div className="card">
-        <div className="card-header">
-            <h1 className="text-2xl font-bold">{user.company_name || user.name}</h1>
-            <p>{user.email} | {user.phone}</p>
-            <p>{user.address}</p>
+    <div className="container mx-auto p-4">
+      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold">{user.name}</h1>
+          <button
+            onClick={() => setIsEditModalOpen(true)}
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+          >
+            Edit User
+          </button>
         </div>
-        <div className="card-body">
-            <div className="d-flex gap-2 mb-3">
-                <button className="btn btn-primary" onClick={handleCreateInvoiceClick} disabled={isSubmitting}>
-                    {isSubmitting ? 'Creating...' : 'Create New Invoice'}
-                </button>
-                 <button className="btn btn-secondary" onClick={handleImportInvoices} disabled={isSubmitting}>
-                    {isSubmitting ? 'Importing...' : 'Import from Stripe'}
-                </button>
-            </div>
-
-            <hr />
-
-            {/* --- UPDATED SECTION WITH NEW LINKS --- */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-              <div className="card bg-light">
-                <div className="card-body">
-                  <h2 className="card-title">Jobs & Quotes</h2>
-                  <p>View, edit, or create new jobs and quotes for this user.</p>
-                  <div className="card-actions justify-end">
-                    <Link to={`/admin/jobs/user/${user.id}`} className="btn btn-primary">Manage Jobs</Link>
-                  </div>
-                </div>
-              </div>
-
-              <div className="card bg-light">
-                <div className="card-body">
-                  <h2 className="card-title">Photos</h2>
-                  <p>View or upload photos associated with this user's jobs.</p>
-                  <div className="card-actions justify-end">
-                    <Link to={`/admin/photos/user/${user.id}`} className="btn btn-primary">Manage Photos</Link>
-                  </div>
-                </div>
-              </div>
-
-              <div className="card bg-light">
-                <div className="card-body">
-                  <h2 className="card-title">Notes</h2>
-                  <p>View or add internal notes for this user.</p>
-                  <div className="card-actions justify-end">
-                    <Link to={`/admin/notes/user/${user.id}`} className="btn btn-primary">Manage Notes</Link>
-                  </div>
-                </div>
-              </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><p><strong>Email:</strong> {user.email}</p></div>
+          <div><p><strong>Phone:</strong> {user.phone || 'N/A'}</p></div>
+          <div><p><strong>Address:</strong> {user.address || 'N/A'}</p></div>
+          <div><p><strong>Role:</strong> <span className="capitalize">{user.role}</span></p></div>
+        </div>
+        <div className="mt-6 border-t pt-6">
+            <h2 className="text-xl font-semibold mb-2">Actions</h2>
+            <div className="flex space-x-4">
+                <Link to={`/users/${userId}/jobs`} className="text-blue-500 hover:underline">View Jobs</Link>
+                <Link to={`/users/${userId}/notes`} className="text-blue-500 hover:underline">View Notes</Link>
+                <Link to={`/users/${userId}/photos`} className="text-blue-500 hover:underline">View Photos</Link>
             </div>
         </div>
       </div>
+      {isEditModalOpen && user && (
+        <EditUserModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          user={user}
+          onSave={handleUpdateUser}
+        />
+      )}
     </div>
   );
 }
+
+export default UserDetailPage;

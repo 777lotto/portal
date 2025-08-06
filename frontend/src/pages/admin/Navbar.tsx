@@ -1,12 +1,12 @@
-// frontend/src/pages/Navbar.tsx
+// frontend/src/pages/admin/Navbar.tsx
 import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from "react-router-dom";
 import useSWR from 'swr';
 import { formatDistanceToNow } from 'date-fns';
-import { apiGet, apiPost, logout } from '../lib/api';
+import { apiGet, apiPost, logout } from '../../lib/api';
 import { Notification } from '@portal/shared';
 
-import companyLogo from '../assets/777-solutions.svg';
+import companyLogo from '../../assets/777-solutions.svg';
 
 interface UserPayload {
   name: string;
@@ -29,11 +29,12 @@ const MoonIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-
 const SunIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m8.66-14.66l-.707.707M4.04 19.96l-.707.707M21 12h-1M4 12H3m15.66 2.34l.707.707M4.04 4.04l.707.707" /></svg>;
 
 /**
- * Navbar component for customer-facing pages.
- * Includes links to dashboard, booking, jobs, and chat.
+ * AdminNavbar provides navigation for the admin section of the application.
+ * It includes links to the admin dashboard, user management, jobs, calendar, and chat.
  */
-function Navbar({ token, setToken, user }: Props) {
+function AdminNavbar({ token, setToken, user }: Props) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isProfileMenuOpen, setProfileMenuOpen] = useState(false);
   const [isNotificationMenuOpen, setNotificationMenuOpen] = useState(false);
@@ -88,21 +89,23 @@ function Navbar({ token, setToken, user }: Props) {
   const inactiveLinkStyle = "text-gray-300 hover:bg-gray-700 hover:text-white rounded-md px-3 py-2 text-sm font-medium";
   const mobileLinkStyle = "block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white";
 
-  // Customer-specific navigation links
+  // Admin-specific navigation links
   const navLinks = (
     <>
-      <NavLink to="/dashboard" className={({ isActive }) => isActive ? activeLinkStyle : inactiveLinkStyle}>Dashboard</NavLink>
-      <NavLink to="/book" className={({ isActive }) => isActive ? activeLinkStyle : inactiveLinkStyle}>Book a Job</NavLink>
-      <NavLink to="/jobs" className={({ isActive }) => isActive ? activeLinkStyle : inactiveLinkStyle}>My Jobs</NavLink>
+      <NavLink to="/" end className={({ isActive }) => isActive && location.pathname === '/' ? activeLinkStyle : inactiveLinkStyle}>Dashboard</NavLink>
+      <NavLink to="/users" className={({ isActive }) => isActive ? activeLinkStyle : inactiveLinkStyle}>Users</NavLink>
+      <NavLink to="/jobs" className={({ isActive }) => isActive ? activeLinkStyle : inactiveLinkStyle}>Jobs</NavLink>
+      <NavLink to="/calendar" className={({ isActive }) => isActive ? activeLinkStyle : inactiveLinkStyle}>Calendar</NavLink>
       <NavLink to="/chat" className={({ isActive }) => isActive ? activeLinkStyle : inactiveLinkStyle}>Chat</NavLink>
     </>
   );
 
   const mobileNavLinks = (
     <>
-      <NavLink to="/dashboard" onClick={closeMobileMenu} className={({ isActive }) => isActive ? `${mobileLinkStyle} bg-gray-900 text-white` : mobileLinkStyle}>Dashboard</NavLink>
-      <NavLink to="/book" onClick={closeMobileMenu} className={({ isActive }) => isActive ? `${mobileLinkStyle} bg-gray-900 text-white` : mobileLinkStyle}>Book a Job</NavLink>
-      <NavLink to="/jobs" onClick={closeMobileMenu} className={({ isActive }) => isActive ? `${mobileLinkStyle} bg-gray-900 text-white` : mobileLinkStyle}>My Jobs</NavLink>
+      <NavLink to="/" end onClick={closeMobileMenu} className={({ isActive }) => isActive && location.pathname === '/' ? `${mobileLinkStyle} bg-gray-900 text-white` : mobileLinkStyle}>Dashboard</NavLink>
+      <NavLink to="/users" onClick={closeMobileMenu} className={({ isActive }) => isActive ? `${mobileLinkStyle} bg-gray-900 text-white` : mobileLinkStyle}>Users</NavLink>
+      <NavLink to="/jobs" onClick={closeMobileMenu} className={({ isActive }) => isActive ? `${mobileLinkStyle} bg-gray-900 text-white` : mobileLinkStyle}>Jobs</NavLink>
+      <NavLink to="/calendar" onClick={closeMobileMenu} className={({ isActive }) => isActive ? `${mobileLinkStyle} bg-gray-900 text-white` : mobileLinkStyle}>Calendar</NavLink>
       <NavLink to="/chat" onClick={closeMobileMenu} className={({ isActive }) => isActive ? `${mobileLinkStyle} bg-gray-900 text-white` : mobileLinkStyle}>Chat</NavLink>
     </>
   );
@@ -113,7 +116,7 @@ function Navbar({ token, setToken, user }: Props) {
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <Link to="/dashboard">
+              <Link to="/">
                 <img className="h-10" src={companyLogo} alt="Company Logo" />
               </Link>
             </div>
@@ -188,7 +191,7 @@ function Navbar({ token, setToken, user }: Props) {
             <button onClick={() => setMobileMenuOpen(!isMobileMenuOpen)} type="button" className="inline-flex items-center justify-center rounded-md bg-gray-800 p-2 text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800" aria-controls="mobile-menu" aria-expanded="false">
               <span className="sr-only">Open main menu</span>
               {isMobileMenuOpen ? (
-                <svg className="block h-6 w-6" xmlns="http://www.w3.org/2000/s" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                <svg className="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
               ) : (
                 <svg className="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
               )}
@@ -228,4 +231,4 @@ function Navbar({ token, setToken, user }: Props) {
   );
 }
 
-export default Navbar;
+export default AdminNavbar;

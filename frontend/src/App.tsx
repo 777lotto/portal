@@ -1,156 +1,154 @@
 // frontend/src/App.tsx
-import { Routes, Route, Navigate } from "react-router-dom";
-import { useEffect, useState, lazy, Suspense } from "react";
-import { jwtDecode } from 'jwt-decode';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements } from '@stripe/react-stripe-js';
+
+import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import useSWR, { SWRConfig } from 'swr';
+
+// Hooks and Libs
+import { useAuth } from './hooks/useAuth';
+import { getProfile, apiGet } from './lib/api';
+
+// Page Components
+import Navbar from './pages/Navbar';
+import AdminNavbar from './pages/admin/Navbar';
+import Dashboard from './pages/Dashboard';
+import AdminDashboard from './pages/admin/Dashboard';
+import AccountPage from './pages/AccountPage';
+import BookingPage from './pages/BookingPage';
+import ChatPage from './pages/ChatPage';
+import JobInfo from './pages/JobInfo';
+import Photos from './pages/Photos';
+import InvoicePaymentPage from './pages/InvoicePaymentPage';
+import QuoteProposalPage from './pages/QuoteProposalPage';
+
+// Admin Page Components
+import UserListPage from './pages/admin/UserListPage';
+import UserDetailPage from './pages/admin/UserDetailPage';
+import UserJobsPage from './pages/admin/UserJobsPage';
+import UserNotesPage from './pages/admin/UserNotesPage';
+import UserPhotosPage from './pages/admin/UserPhotosPage';
+import JobsPage from './pages/admin/JobsPage';
+import JobDetail from './pages/admin/JobDetail';
+import UnifiedCalendar from './pages/UnifiedCalendar';
+import AdminChatDashboard from './pages/admin/AdminChatDashboard';
+
+// Form Components
+import AuthForm from './components/forms/AuthForm';
+import ForgotPasswordForm from './components/forms/ForgotPasswordForm';
+import SetPasswordForm from './components/forms/SetPasswordForm';
+import VerifyCodeForm from './components/forms/VerifyCodeForm';
+
+// Other Components
 import SupportChatWidget from './components/chat/SupportChatWidget';
 
-// --- Page Components ---
-import Navbar from "./pages/Navbar";
-import Dashboard from "./pages/Dashboard";
-import UnifiedCalendar from './pages/UnifiedCalendar';
-const BookingPage = lazy(() => import("./pages/BookingPage"));
-const JobInfo = lazy(() => import('./pages/JobInfo'));
-const JobDetail = lazy(() => import("./pages/admin/JobDetail"));
-const QuoteProposalPage = lazy(() => import("./pages/QuoteProposalPage"));
-const CalendarSync = lazy(() => import("./components/forms/CalendarSync"));
-const Photos = lazy(() => import("./pages/Photos"));
-const AccountPage = lazy(() => import("./pages/AccountPage"));
-const AuthForm = lazy(() => import("./components/forms/AuthForm"));
-const InvoicePaymentPage = lazy(() => import("./pages/InvoicePaymentPage"));
+// Types
+import type { User } from '@portal/shared';
 
-// --- Admin Page Components ---
-const UserListPage = lazy(() => import("./pages/admin/UserListPage"));
-const UserDetailPage = lazy(() => import("./pages/admin/UserDetailPage"));
-const JobsPage = lazy(() => import("./pages/admin/JobsPage"));
-const ChatPage = lazy(() => import("./pages/ChatPage"));
-
-
-interface UserPayload {
-  id: number;
-  email: string;
-  name: string;
-  role: 'customer' | 'admin';
-}
-
-function LoadingFallback() {
-  return <div className="p-8 text-center">Loading...</div>;
-}
-
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PK);
-
+/**
+ * The main application component. It handles routing and authentication state,
+ * directing users to the appropriate interface (customer or admin) based on their role.
+ */
 function App() {
-  const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<UserPayload | null>(null);
-  const [isReady, setIsReady] = useState(false);
+  const { token, setToken, loading: authLoading } = useAuth();
 
+  // Fetch user profile if a token exists.
+  const { data: user, error, isLoading: userLoading } = useSWR<User>(token ? 'profile' : null, getProfile, {
+    shouldRetryOnError: false, // Don't retry on auth errors (e.g., 401)
+  });
+
+  // If profile fetch fails (e.g., invalid token), log the user out.
   useEffect(() => {
-    const useDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    if (useDark) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+    if (error) {
+      setToken(null);
     }
+  }, [error, setToken]);
 
-    const initializeApp = async () => {
-      try {
-        const storedToken = localStorage.getItem("token");
-        setToken(storedToken);
-
-        if (storedToken) {
-          try {
-            const decodedUser = jwtDecode<UserPayload>(storedToken);
-            setUser(decodedUser);
-          } catch (error) {
-            console.error("Invalid token:", error);
-            localStorage.removeItem("token");
-            setToken(null);
-            setUser(null);
-          }
-        }
-
-      } catch (error) {
-        console.error('App initialization error:', error);
-      } finally {
-        setIsReady(true);
-      }
-    };
-
-    initializeApp();
-  }, []);
-
-  const handleSetToken = (newToken: string | null) => {
-    setToken(newToken);
-    if (newToken) {
-      localStorage.setItem("token", newToken);
-      try {
-        setUser(jwtDecode<UserPayload>(newToken));
-      } catch (error) {
-        console.error("Failed to decode new token:", error);
-        setUser(null);
-      }
-    } else {
-      localStorage.removeItem("token");
-      setUser(null);
-    }
-  };
-
-  if (!isReady) {
-    return <LoadingFallback />;
+  // Show a loading indicator while checking auth state or fetching the user profile.
+  if (authLoading || (token && userLoading)) {
+    return <div className="flex justify-center items-center h-screen bg-background-light dark:bg-background-dark">Loading...</div>;
   }
 
   return (
-    <div className="min-h-screen bg-primary-light dark:bg-secondary-dark">
-      <Navbar token={token} user={user} setToken={handleSetToken} />
-      <main className="p-4 sm:p-6 lg:p-8">
-        <Elements stripe={stripePromise}>
-          <Suspense fallback={<LoadingFallback />}>
-            <Routes>
-              {/* --- Public Routes --- */}
-              <Route path="/booking" element={<BookingPage />} />
-              <Route path="/auth" element={token ? <Navigate to="/dashboard" replace /> : <AuthForm setToken={handleSetToken} />} />
-              <Route path="/" element={<Navigate to={token ? "/dashboard" : "/auth"} replace />} />
+      <SWRConfig value={{ fetcher: apiGet }}>
+          <BrowserRouter>
+              <Routes>
+                  {/* Public routes accessible without authentication */}
+                  <Route path="/login" element={!token ? <AuthForm setToken={setToken} /> : <Navigate to="/" />} />
+                  <Route path="/forgot-password" element={<ForgotPasswordForm />} />
+                  <Route path="/set-password" element={<SetPasswordForm />} />
+                  <Route path="/verify-code" element={<VerifyCodeForm />} />
+                  <Route path="/pay-invoice/:invoiceId" element={<InvoicePaymentPage />} />
+                  <Route path="/quotes/:jobId" element={<QuoteProposalPage />} />
 
-              {/* --- Customer-facing Routes --- */}
-              <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/auth" replace />} />
-              <Route path="/calendar" element={token ? <UnifiedCalendar /> : <Navigate to="/auth" replace />} />
-              <Route path="/photos" element={token ? <Photos /> : <Navigate to="/auth" replace />} />
-              <Route path="/jobs/:id" element={token ? <JobInfo /> : <Navigate to="/auth" replace />} />
-              <Route path="/quotes/:quoteId" element={token ? <QuoteProposalPage /> : <Navigate to="/auth" replace />} />
-              <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/auth" replace />} />
-              <Route path="/account" element={token ? <AccountPage /> : <Navigate to="/auth" replace />} />
-              <Route path="/pay-invoice/:invoiceId" element={token ? <InvoicePaymentPage /> : <Navigate to="/auth" replace />} />
-              <Route path="/chat" element={token ? <ChatPage /> : <Navigate to="/auth" replace />} />
-              
-
-              {/* --- Admin Routes --- */}
-              <Route
-                path="/admin/users"
-                element={user?.role === 'admin' ? <UserListPage /> : <Navigate to="/dashboard" replace />}
-              />
-              <Route
-                path="/admin/users/:user_id"
-                element={user?.role === 'admin' ? <UserDetailPage /> : <Navigate to="/dashboard" replace />}
-              />
-              <Route
-                path="/admin/jobs"
-                element={user?.role === 'admin' ? <JobsPage /> : <Navigate to="/dashboard" replace />}
-              />
-              <Route
-                path="/admin/jobs/:id"
-                element={user?.role === 'admin' ? <JobDetail /> : <Navigate to="/dashboard" replace />}
-              />
-
-              {/* --- Catch-all redirect --- */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
-        </Elements>
-      </main>
-      {user && <SupportChatWidget user={user} />}
-    </div>
+                  {/* Authenticated routes.
+                    The '/*' wildcard directs all authenticated traffic here.
+                    The component then renders either the Admin or Customer app based on the user's role.
+                  */}
+                  <Route path="/*" element={
+                    !token ? (
+                      <Navigate to="/login" />
+                    ) : user ? (
+                      user.role === 'admin'
+                        ? <AdminApp token={token} setToken={setToken} user={user} />
+                        : <CustomerApp token={token} setToken={setToken} user={user} />
+                    ) : (
+                      // This state occurs briefly while user is loading
+                      <div className="flex justify-center items-center h-screen">Loading...</div>
+                    )
+                  } />
+              </Routes>
+          </BrowserRouter>
+      </SWRConfig>
   );
 }
+
+/**
+ * Wrapper component for the entire customer-facing application.
+ * It includes the customer navbar and defines all customer routes.
+ */
+const CustomerApp = ({ token, setToken, user }: { token: string | null, setToken: (t: string | null) => void, user: User }) => (
+  <div className="min-h-screen bg-background-light dark:bg-background-dark">
+    <Navbar token={token} setToken={setToken} user={user} />
+    <main>
+      <Routes>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/account" element={<AccountPage />} />
+        <Route path="/book" element={<BookingPage />} />
+        <Route path="/chat" element={<ChatPage />} />
+        <Route path="/jobs" element={<Photos />} />
+        <Route path="/jobs/:jobId" element={<JobInfo />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" />} />
+      </Routes>
+    </main>
+    <SupportChatWidget />
+  </div>
+);
+
+/**
+ * Wrapper component for the entire admin-facing application.
+ * It includes the admin navbar and defines all admin routes.
+ */
+const AdminApp = ({ token, setToken, user }: { token: string | null, setToken: (t: string | null) => void, user: User }) => (
+  <div className="min-h-screen bg-background-light dark:bg-background-dark">
+    <AdminNavbar token={token} setToken={setToken} user={user} />
+    <main>
+      <Routes>
+        <Route path="/" element={<AdminDashboard />} />
+        <Route path="/users" element={<UserListPage />} />
+        <Route path="/users/:userId" element={<UserDetailPage />} />
+        <Route path="/users/:userId/jobs" element={<UserJobsPage />} />
+        <Route path="/users/:userId/notes" element={<UserNotesPage />} />
+        <Route path="/users/:userId/photos" element={<UserPhotosPage />} />
+        <Route path="/jobs" element={<JobsPage />} />
+        <Route path="/jobs/:jobId" element={<JobDetail />} />
+        <Route path="/calendar" element={<UnifiedCalendar />} />
+        <Route path="/chat" element={<AdminChatDashboard />} />
+        <Route path="/account" element={<AccountPage />} />
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </main>
+  </div>
+);
 
 export default App;

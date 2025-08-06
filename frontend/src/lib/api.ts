@@ -1,4 +1,3 @@
-// 777lotto/portal/portal-bet/frontend/src/lib/api.ts
 import {
   type Job,
   type LineItem,
@@ -9,67 +8,53 @@ import {
   type SMSMessage,
   type Photo,
   type Note,
-  type PhotoWithNotes,
   type CalendarEvent,
   type StripeInvoice,
   type UINotification,
   type JobWithDetails,
   type JobRecurrenceRequest,
+  type LoginPayload,
+  type LoginResponse,
+  type VerifyCodePayload,
+  type VerifyCodeResponse,
+  type RequestPasswordResetPayload,
+  type SetPasswordPayload,
+  type BookingPayload,
+  type QuoteProposalPayload,
+  type Notification,
+  type Recurrence,
+  type RecurrenceRequestPayload,
 } from "@portal/shared";
 import { fetchJson } from './fetchJson.js';
 
-
+const API_BASE_URL = '/api';
 
 /* ========================================================================
                               API HELPER FUNCTIONS
    ======================================================================== */
 
 export const apiGet = <T>(path: string): Promise<T> => {
-  return fetchJson<T>(path);
+  return fetchJson<T>(`${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`);
 };
 
 export const apiPost = <T>(path: string, body: unknown, method: "POST" | "PUT" = "POST"): Promise<T> => {
-  return fetchJson<T>(path, {
+  const url = `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+  return fetchJson<T>(url, {
     method: method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 };
 
-export const apiPostFormData = <T>(path: string, formData: FormData): Promise<T> => {
-  return fetchJson<T>(path, {
-    method: 'POST',
-    body: formData,
-  });
-};
-
-
 /* ========================================================================
                                   PUBLIC API
    ======================================================================== */
 
-export const getPublicAvailability = async () => {
-  try {
-    return await apiGet<{ bookedDays: string[] }>('/api/public/availability');
-  } catch (error: any) {
-    throw new Error(error.message);
-  }
-};
-
-export const getCustomerAvailability = async () => {
-  try {
-    return await apiGet<{ bookedDays: string[], pendingDays: string[], blockedDates: string[] }>('/api/availability');
-  } catch (error: any) {
-    throw new Error(error.message);
-  }
-};
-export const createPublicBooking = (data: unknown) => apiPost('/api/public/booking', data);
-export const checkUser = (identifier: string) => apiPost<{ status: string }>('/api/check-user', { identifier });
-export const initializeSignup = (data: unknown) => apiPost<any>('/api/signup/initialize', data);
-export const requestPasswordReset = (identifier: string, channel: 'email' | 'sms') => apiPost('/api/request-password-reset', { identifier, channel });
-export const verifyResetCode = (identifier: string, code: string) => {
-    return apiPost<{ passwordSetToken: string }>('/api/verify-reset-code', { identifier, code });
-};
+export const getPublicAvailability = () => apiGet<{ bookedDays: string[] }>('/public/availability');
+export const createPublicBooking = (data: unknown) => apiPost('/public/booking', data);
+export const checkUser = (identifier: string) => apiPost<{ status: string }>('/check-user', { identifier });
+export const initializeSignup = (data: unknown) => apiPost<any>('/signup/initialize', data);
+export const verifyResetCode = (identifier: string, code: string) => apiPost<{ passwordSetToken: string }>('/verify-reset-code', { identifier, code });
 export const loginWithToken = (passwordSetToken: string) => {
   return fetchJson<AuthResponse>('/api/login-with-token', {
     method: 'POST',
@@ -79,186 +64,133 @@ export const loginWithToken = (passwordSetToken: string) => {
     },
   });
 };
-export const setPassword = (password: string, passwordSetToken: string) => {
-  return fetchJson<AuthResponse>('/api/set-password', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${passwordSetToken}`
-    },
-    body: JSON.stringify({ password }),
-  });
-};
-
 
 /* ========================================================================
                                   AUTH
    ======================================================================== */
 
-export const login = (data: unknown) => apiPost<AuthResponse>('/api/login', data);
-export const logout = () => apiPost('/api/logout', {});
-
+export const login = (payload: LoginPayload): Promise<LoginResponse> => fetchJson(`${API_BASE_URL}/login`, 'POST', payload);
+export const logout = (): Promise<void> => fetchJson(`${API_BASE_URL}/logout`, 'POST');
+export const verifyCode = (payload: VerifyCodePayload): Promise<VerifyCodeResponse> => fetchJson(`${API_BASE_URL}/verify`, 'POST', payload);
+export const requestPasswordReset = (payload: RequestPasswordResetPayload): Promise<void> => fetchJson(`${API_BASE_URL}/request-password-reset`, 'POST', payload);
+export const setPassword = (payload: SetPasswordPayload): Promise<void> => fetchJson(`${API_BASE_URL}/set-password`, 'POST', payload);
 
 /* ========================================================================
                                   USER & PROFILE
    ======================================================================== */
 
-export const getProfile = () => apiGet<User>('/api/profile');
-export const updateProfile = (data: Partial<User>) => apiPost<User>('/api/profile', data, 'PUT');
-export const createPortalSession = () => apiPost<PortalSession>('/api/portal', {});
-export const listPaymentMethods = () => apiGet<any[]>('/api/profile/payment-methods');
-export const createSetupIntent = () => apiPost<{ clientSecret: string }>('/api/profile/setup-intent', {});
-
-
-/* ========================================================================
-                                  SERVICES
-   ======================================================================== */
-
-export const getLineItems = () => apiGet<LineItem[]>('/api/line-items');
-export const getLineItem = (id: string) => apiGet<LineItem>(`/api/line-items/${id}`);
-export const createInvoice = (lineItemId: string) => apiPost<any>(`/api/line-items/${lineItemId}/invoice`, {});
-
+export const getProfile = () => apiGet<User>('/profile');
+export const updateProfile = (data: Partial<User>) => apiPost<User>('/profile', data, 'PUT');
+export const createPortalSession = () => apiPost<PortalSession>('/portal', {});
+export const listPaymentMethods = () => apiGet<any[]>('/profile/payment-methods');
+export const createSetupIntent = () => apiPost<{ clientSecret: string }>('/profile/setup-intent', {});
 
 /* ========================================================================
-                                  JOBS
+                                  JOBS & SERVICES
    ======================================================================== */
 
-export const getJobs = () => apiGet<Job[]>('/api/jobs');
-export const getJob = (id: string) => apiGet<Job>(`/api/jobs/${id}`);
-export const createJob = (data: { title: string; lineItems: { id: number; description: string; quantity: number, unit_total_amount_cents: number }[] }) => apiPost<Job>('/api/jobs', data);
-export const getLineItemsForJob = (jobId: string) => apiGet<LineItem[]>(`/api/jobs/${jobId}/line-items`);
-export const getOpenInvoices = () => apiGet<StripeInvoice[]>('/api/invoices/open');
-export const requestRecurrence = (jobId: string, data: { frequency: number, requested_day?: number }) => apiPost(`/api/jobs/${jobId}/request-recurrence`, data);
-export const getUnavailableRecurrenceDays = () => apiGet<{ unavailableDays: number[] }>('/api/jobs/unavailable-recurrence-days');
-export const getPendingQuotes = () => apiGet<Job[]>('/api/quotes/pending');
-export const getQuote = (quoteId: string) => apiGet<Job>(`/api/quotes/${quoteId}`);
-export const acceptQuote = (quoteId: string) => apiPost(`/api/quotes/${quoteId}/accept`, {});
-export const declineQuote = (quoteId: string) => apiPost(`/api/quotes/${quoteId}/decline`, {});
-export const reviseQuote = (quoteId: string, revisionReason: string) => apiPost(`/api/quotes/${quoteId}/revise`, { revisionReason });
+export const getJobs = () => apiGet<Job[]>('/jobs');
+export const getJob = (id: string): Promise<JobWithDetails> => apiGet<JobWithDetails>(`/jobs/${id}`);
+export const getLineItems = () => apiGet<LineItem[]>('/line-items');
+export const getLineItem = (id: string) => apiGet<LineItem>(`/line-items/${id}`);
+export const getLineItemsForJob = (jobId: string) => apiGet<LineItem[]>(`/jobs/${jobId}/line-items`);
+export const createJob = (data: { title: string; lineItems: { id: number; description: string; quantity: number, unit_total_amount_cents: number }[] }) => apiPost<Job>('/jobs', data);
 
 /* ========================================================================
-                                  ADMIN API
+                                  BOOKING & CALENDAR
    ======================================================================== */
-
-export const adminCreateUser = (data: unknown) => apiPost<User>('/api/admin/users', data);
-export const adminUpdateUser = (user_id: string, data: Partial<User>) => apiPost<User>(`/api/admin/users/${user_id}`, data, 'PUT');
-export const deleteUser = (user_id: string) => fetchJson(`/api/admin/users/${user_id}`, { method: 'DELETE' });
-export const getCalendarEvents = () => apiGet<CalendarEvent[]>('/api/admin/calendar-events');
-export const addCalendarEvent = (event: Omit<CalendarEvent, 'id' | 'user_id'>) => apiPost('/api/admin/calendar-events', event);
-export const removeCalendarEvent = (eventId: number) => fetchJson(`/api/admin/calendar-events/${eventId}`, { method: 'DELETE' });
-export const adminCreateInvoice = (user_id: string) => apiPost<{ invoice: StripeInvoice }>(`/api/admin/users/${user_id}/invoice`, {});
-export const adminGetAllJobs = () => apiGet<Job[]>('/api/admin/jobs');
-export const adminGetAllLineItems = () => apiGet<LineItem[]>('/api/admin/line-items');
-
-export const adminGetAllOpenInvoices = () => apiGet<StripeInvoice[]>('/api/admin/invoices/open');
-export const adminFinalizeJob = (jobId: string) => {
-  return apiPost<{ invoiceId: string; invoiceUrl: string | null }>(`/api/admin/jobs/${jobId}/complete`, {});
-};
-export const adminImportInvoices = () => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>('/api/admin/invoices/import', {});
-export const adminImportQuotes = () => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>('/api/admin/quotes/import', {});
-export const adminImportInvoicesForUser = (user_id: string) => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>(`/api/admin/users/${user_id}/invoices/import`, {});
-export const getImportedContacts = (token: string) => apiPost<any[]>('/api/admin/get-imported-contacts', { token });
-export const adminGetJobsAndQuotes = () => apiGet<JobWithDetails[]>('/api/admin/jobs-and-quotes');
-export const adminReassignJob = (jobId: string, newuser_id: string) => {
-  return apiPost(`/api/admin/jobs/${jobId}/reassign`, { newuser_id });
-};
-export const adminCreateJob = (data: {
-  user_id: string;
-  jobType: 'job' | 'quote' | 'invoice';
-  title: string;
-  lineItems: { description: string, quantity: number, unit_total_amount_cents: number }[];
-  isDraft: boolean;
-  action?: string;
-}) => {
-  return apiPost<{ job: Job, invoice?: StripeInvoice, quote?: any }>('/api/admin/jobs', data);
-};
-export const adminUpdateJobDetails = (jobId: string, data: Partial<Job>) => {
-  return apiPost(`/api/admin/jobs/${jobId}/details`, data, 'PUT');
-};
-export const adminAddLineItemToJob = (jobId: string, data: Partial<LineItem>) => {
-  return apiPost(`/api/admin/jobs/${jobId}/line-items`, data);
-};
-export const adminUpdateLineItemInJob = (jobId: string, lineItemId: number, data: Partial<LineItem>) => {
-  return apiPost(`/api/admin/jobs/${jobId}/line-items/${lineItemId}`, data, 'PUT');
-};
-export const adminDeleteLineItemFromJob = (jobId: string, lineItemId: number) => {
-  return apiPost(`/api/admin/jobs/${jobId}/line-items/${lineItemId}`, {}, 'DELETE');
-};
-export const adminInvoiceJob = (jobId: string) => {
-  return apiPost(`/api/admin/jobs/${jobId}/invoice`, {});
-};
-export const getRecurrenceRequests = () => apiGet<JobRecurrenceRequest[]>('/api/admin/recurrence-requests');
-export const updateRecurrenceRequest = (requestId: number, data: { status: 'accepted' | 'declined' | 'countered', admin_notes?: string, frequency?: number, requested_day?: number }) => apiPost(`/api/admin/recurrence-requests/${requestId}`, data, 'PUT');
-export const adminGetDrafts = () => apiGet<any[]>('/api/admin/drafts');
-
-
+export const getCustomerAvailability = () => apiGet<{ bookedDays: string[], pendingDays: string[], blockedDates: string[] }>('/availability');
+export const createBooking = (payload: BookingPayload): Promise<Job> => fetchJson(`${API_BASE_URL}/book`, 'POST', payload);
+export const downloadCalendarFeed = () => apiGet<string>('/calendar.ics');
+export const getSecretCalendarUrl = () => apiGet<{url: string}>('/calendar/secret-url');
+export const regenerateSecretCalendarUrl = () => apiPost<{url: string}>('/calendar/regenerate-url', {});
+export const syncCalendar = (url: string) => apiPost('/calendar-sync', { url });
 
 /* ========================================================================
-                            ADMIN INVOICE FUNCTIONS
+                                  QUOTES & INVOICES
    ======================================================================== */
 
-export const getInvoice = (invoiceId: string) => apiGet<StripeInvoice>(`/api/admin/invoices/${invoiceId}`);
-
-export const addInvoiceItem = (invoiceId: string, data: { description: string, amount: number }) => {
-  return apiPost(`/api/admin/invoices/${invoiceId}/items`, data);
-};
-
-export const deleteInvoiceItem = (invoiceId: string, itemId: string) => {
-  return fetchJson(`/api/admin/invoices/${invoiceId}/items/${itemId}`, { method: 'DELETE' });
-};
-
-export const finalizeInvoice = (invoiceId: string) => {
-  return apiPost<StripeInvoice>(`/api/admin/invoices/${invoiceId}/finalize`, {});
-};
-
-export const markInvoiceAsPaid = (invoiceId: string) => {
-    return apiPost<StripeInvoice>(`/api/admin/invoices/${invoiceId}/mark-as-paid`, {});
-};
-
-
+export const getOpenInvoices = () => apiGet<StripeInvoice[]>('/invoices/open');
+export const getInvoiceDetails = (invoiceId: string): Promise<any> => fetchJson(`${API_BASE_URL}/invoices/${invoiceId}`);
+export const getPendingQuotes = () => apiGet<Job[]>('/quotes/pending');
+export const getQuote = (quoteId: string): Promise<JobWithDetails> => apiGet<JobWithDetails>(`/quotes/${quoteId}`);
+export const getQuoteProposal = (jobId: string): Promise<QuoteProposalPayload> => fetchJson(`${API_BASE_URL}/quotes/${jobId}`);
+export const acceptQuote = (quoteId: string): Promise<{ message: string }> => apiPost(`/quotes/${quoteId}/accept`, {});
+export const declineQuote = (quoteId: string) => apiPost(`/quotes/${quoteId}/decline`, {});
+export const reviseQuote = (quoteId: string, revisionReason: string) => apiPost(`/quotes/${quoteId}/revise`, { revisionReason });
 
 /* ========================================================================
                                 PHOTOS & NOTES
    ======================================================================== */
 
-export const getPhotos = (filters: { [key: string]: string } = {}) => {
-  const query = new URLSearchParams(filters).toString();
-  return apiGet<PhotoWithNotes[]>(`/api/photos?${query}`);
-};
-export const getPhotosForJob = (jobId: string) => apiGet<Photo[]>(`/api/jobs/${jobId}/photos`);
-export const getNotesForJob = (jobId: string) => apiGet<Note[]>(`/api/jobs/${jobId}/notes`);
-
+export const getPhotos = (jobId: string): Promise<Photo[]> => apiGet<Photo[]>(`/jobs/${jobId}/photos`);
+export const addPhoto = (jobId: string, data: FormData): Promise<Photo> => fetchJson(`${API_BASE_URL}/jobs/${jobId}/photos`, 'POST', data, true);
+export const getNotesForJob = (jobId: string) => apiGet<Note[]>(`/jobs/${jobId}/notes`);
 
 /* ========================================================================
-                                    SMS
+                                  RECURRENCE
    ======================================================================== */
-
-export const getSmsConversations = () => apiGet<Conversation[]>('/api/sms/conversations');
-export const getSmsConversation = (phoneNumber: string) => apiGet<SMSMessage[]>(`/api/sms/conversation/${phoneNumber}`);
-export const sendSms = (phoneNumber: string, message: string) => apiPost<SMSMessage>('/api/sms/send', { to: phoneNumber, message });
-
+export const getRecurrence = (jobId: string): Promise<Recurrence> => fetchJson(`${API_BASE_URL}/jobs/${jobId}/recurrence`);
+export const createRecurrenceRequest = (jobId: string, payload: RecurrenceRequestPayload): Promise<void> => fetchJson(`${API_BASE_URL}/jobs/${jobId}/recurrence`, 'POST', payload);
+export const getUnavailableRecurrenceDays = () => apiGet<{ unavailableDays: number[] }>('/jobs/unavailable-recurrence-days');
 
 /* ========================================================================
-                                  CALENDAR
+                                  COMMUNICATIONS
    ======================================================================== */
 
-export const downloadCalendarFeed = () => apiGet<string>('/api/calendar.ics');
-export const getSecretCalendarUrl = () => apiGet<{url: string}>('/api/calendar/secret-url');
-export const regenerateSecretCalendarUrl = () => apiPost<{url: string}>('/api/calendar/regenerate-url', {});
-export const syncCalendar = (url: string) => apiPost('/api/calendar-sync', { url });
-
+export const getSmsConversations = () => apiGet<Conversation[]>('/sms/conversations');
+export const getSmsConversation = (phoneNumber: string) => apiGet<SMSMessage[]>(`/sms/conversation/${phoneNumber}`);
+export const sendSms = (phoneNumber: string, message: string) => apiPost<SMSMessage>('/sms/send', { to: phoneNumber, message });
+export const getVapidKey = () => apiGet<string>('/notifications/vapid-key');
+export const subscribeToPush = (subscription: any) => apiPost('/notifications/subscribe', subscription);
+export const getNotifications = () => apiGet<(UINotification | Notification)[]>('/notifications');
+export const markAllNotificationsRead = () => apiPost('/notifications/read-all', {});
 
 /* ========================================================================
-                             PUSH NOTIFICATIONS
+                                  ADMIN API
    ======================================================================== */
 
-export const getVapidKey = () => apiGet<string>('/api/notifications/vapid-key');
-export const subscribeToPush = (subscription: any) => apiPost('/api/notifications/subscribe', subscription);
+export const adminGetUsers = (): Promise<User[]> => fetchJson(`${API_BASE_URL}/admin/users`);
+export const adminCreateUser = (data: unknown) => apiPost<User>('/admin/users', data);
+export const adminGetUser = (userId: string): Promise<User> => fetchJson(`${API_BASE_URL}/admin/users/${userId}`);
+export const adminUpdateUser = (user_id: string, data: Partial<User>) => apiPost<User>(`/admin/users/${user_id}`, data, 'PUT');
+export const adminDeleteUser = (user_id: string) => fetchJson(`${API_BASE_URL}/admin/users/${user_id}`, { method: 'DELETE' });
+export const adminGetUserJobs = (userId: string): Promise<Job[]> => fetchJson(`${API_BASE_URL}/admin/users/${userId}/jobs`);
+export const adminGetUserPhotos = (userId: string): Promise<Photo[]> => fetchJson(`${API_BASE_URL}/admin/users/${userId}/photos`);
+export const adminGetUserNotes = (userId: string): Promise<Note[]> => fetchJson(`${API_BASE_URL}/admin/users/${userId}/notes`);
+export const adminAddUserNote = (userId: string, content: string): Promise<Note> => fetchJson(`${API_BASE_URL}/admin/users/${userId}/notes`, 'POST', { content });
 
+export const adminGetJobsAndQuotes = (): Promise<JobWithDetails[]> => fetchJson(`${API_BASE_URL}/admin/jobs`);
+export const adminGetJob = (jobId: string): Promise<JobWithDetails> => fetchJson(`${API_BASE_URL}/admin/jobs/${jobId}`);
+export const adminUpdateJob = (jobId: string, payload: Partial<Job>): Promise<Job> => fetchJson(`${API_BASE_URL}/admin/jobs/${jobId}`, 'PUT', payload);
+export const adminCreateJob = (payload: Partial<Job>): Promise<Job> => fetchJson(`${API_BASE_URL}/admin/jobs`, 'POST', payload);
+export const adminCreateQuote = (jobId: string, payload: any): Promise<any> => fetchJson(`${API_BASE_URL}/admin/jobs/${jobId}/quote`, 'POST', payload);
+export const adminSendInvoice = (jobId: string): Promise<any> => fetchJson(`${API_BASE_URL}/admin/jobs/${jobId}/invoice`, 'POST');
+export const adminFinalizeJob = (jobId: string) => apiPost<{ invoiceId: string; invoiceUrl: string | null }>(`/admin/jobs/${jobId}/complete`, {});
+export const adminReassignJob = (jobId: string, newuser_id: string) => apiPost(`/admin/jobs/${jobId}/reassign`, { newuser_id });
+export const adminUpdateJobDetails = (jobId: string, data: Partial<Job>) => apiPost(`/admin/jobs/${jobId}/details`, data, 'PUT');
+export const adminAddLineItemToJob = (jobId: string, data: Partial<LineItem>) => apiPost(`/admin/jobs/${jobId}/line-items`, data);
+export const adminUpdateLineItemInJob = (jobId: string, lineItemId: number, data: Partial<LineItem>) => apiPost(`/admin/jobs/${jobId}/line-items/${lineItemId}`, data, 'PUT');
+export const adminDeleteLineItemFromJob = (jobId: string, lineItemId: number) => apiPost(`/admin/jobs/${jobId}/line-items/${lineItemId}`, {}, 'DELETE');
 
-/* ========================================================================
-                             UI NOTIFICATIONS
-   ======================================================================== */
+export const adminGetAllJobs = () => apiGet<Job[]>('/admin/jobs');
+export const adminGetAllLineItems = () => apiGet<LineItem[]>('/admin/line-items');
+export const adminGetAllOpenInvoices = () => apiGet<StripeInvoice[]>('/admin/invoices/open');
+export const adminGetInvoice = (invoiceId: string) => apiGet<StripeInvoice>(`/admin/invoices/${invoiceId}`);
+export const adminAddInvoiceItem = (invoiceId: string, data: { description: string, amount: number }) => apiPost(`/admin/invoices/${invoiceId}/items`, data);
+export const adminDeleteInvoiceItem = (invoiceId: string, itemId: string) => fetchJson(`${API_BASE_URL}/admin/invoices/${invoiceId}/items/${itemId}`, { method: 'DELETE' });
+export const adminFinalizeInvoice = (invoiceId: string) => apiPost<StripeInvoice>(`/admin/invoices/${invoiceId}/finalize`, {});
+export const adminMarkInvoiceAsPaid = (invoiceId: string) => apiPost<StripeInvoice>(`/admin/invoices/${invoiceId}/mark-as-paid`, {});
 
-export const getNotifications = () => apiGet<UINotification[]>('/api/notifications');
-export const markAllNotificationsRead = () => apiPost('/api/notifications/read-all', {});
+export const adminGetCalendarEvents = () => apiGet<CalendarEvent[]>('/admin/calendar-events');
+export const adminAddCalendarEvent = (event: Omit<CalendarEvent, 'id' | 'user_id'>) => apiPost('/admin/calendar-events', event);
+export const adminRemoveCalendarEvent = (eventId: number) => fetchJson(`${API_BASE_URL}/admin/calendar-events/${eventId}`, { method: 'DELETE' });
+
+export const adminGetRecurrenceRequests = (): Promise<JobRecurrenceRequest[]> => apiGet('/admin/recurrence-requests');
+export const adminUpdateRecurrenceRequest = (requestId: number, data: { status: 'accepted' | 'declined' | 'countered', admin_notes?: string, frequency?: number, requested_day?: number }) => apiPost(`/admin/recurrence-requests/${requestId}`, data, 'PUT');
+export const adminGetDrafts = () => apiGet<any[]>('/admin/drafts');
+
+export const adminImportInvoices = () => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>('/admin/invoices/import', {});
+export const adminImportQuotes = () => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>('/admin/quotes/import', {});
+export const adminImportInvoicesForUser = (user_id: string) => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>(`/admin/users/${user_id}/invoices/import`, {});
+export const getImportedContacts = (token: string) => apiPost<any[]>('/admin/get-imported-contacts', { token });
