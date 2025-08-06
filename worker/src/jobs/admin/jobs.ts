@@ -8,11 +8,6 @@ import { CreateJobPayloadSchema } from '@portal/shared';
 
 // This function remains as it was, used for fetching and displaying data.
 export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
-  const { page = '1', limit = '20' } = c.req.query();
-  const pageNum = parseInt(page, 10);
-  const limitNum = parseInt(limit, 10);
-  const offset = (pageNum - 1) * limitNum;
-
   try {
     const dbResponse = await c.env.DB.prepare(
       `SELECT
@@ -20,22 +15,10 @@ export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
         u.name as userName, u.id as userId
       FROM jobs j
       JOIN users u ON j.user_id = u.id
-      ORDER BY j.createdAt DESC
-      LIMIT ? OFFSET ?`
-    ).bind(limitNum, offset).all();
-
-    const totalJobsResponse = await c.env.DB.prepare(
-      `SELECT COUNT(*) as count FROM jobs`
-    ).first<{ count: number }>();
-
+      ORDER BY j.createdAt DESC`
+    ).all();
     const jobs = dbResponse?.results || [];
-    const totalJobs = totalJobsResponse?.count || 0;
-
-    return successResponse({
-      jobs,
-      totalPages: Math.ceil(totalJobs / limitNum),
-      currentPage: pageNum,
-    });
+    return successResponse(jobs);
   } catch (e: any) {
     console.error("Error in handleGetAllJobs:", e);
     return errorResponse("Failed to fetch all jobs.", 500);
@@ -45,63 +28,36 @@ export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
 
 export const handleGetJobsAndQuotes = async (c: Context<AppEnv>) => {
   const db = c.env.DB;
-  const { page = '1', limit = '20' } = c.req.query();
-  const pageNum = parseInt(page, 10);
-  const limitNum = parseInt(limit, 10);
-  const offset = (pageNum - 1) * limitNum;
-
   try {
-    const jobsPromise = db.prepare(
+    const { results: jobs } = await db.prepare(
       `SELECT
          j.*,
          u.name as customerName,
          u.address as customerAddress
        FROM jobs j
        JOIN users u ON j.user_id = u.id
-       ORDER BY j.createdAt DESC
-       LIMIT ? OFFSET ?`
-    ).bind(limitNum, offset).all<Job & { customerName: string; customerAddress: string }>();
+       ORDER BY j.createdAt DESC`
+    ).all<Job & { customerName: string; customerAddress: string }>();
 
-    const totalJobsPromise = db.prepare(
-      `SELECT COUNT(*) as count FROM jobs`
-    ).first<{ count: number }>();
+    if (!jobs) {
+      return successResponse([]);
+    }
 
-    const [{ results: jobs }, totalJobsResponse] = await Promise.all([jobsPromise, totalJobsPromise]);
+    const jobsWithDetails: JobWithDetails[] = [];
 
-    if (!jobs || jobs.length === 0) {
-      return successResponse({
-        jobs: [],
-        totalPages: 0,
-        currentPage: pageNum,
+    for (const job of jobs) {
+      const { results: lineItems } = await db.prepare(
+        `SELECT * FROM line_items WHERE job_id = ?`
+      ).bind(job.id).all<LineItem>();
+
+      jobsWithDetails.push({
+        ...job,
+        // CORRECTED: Changed property from 'lineItems' to 'line_items' to match JobWithDetails type.
+        line_items: lineItems || [],
       });
     }
 
-    const jobIds = jobs.map(job => job.id);
-    const placeholders = jobIds.map(() => '?').join(',');
-
-    const { results: allLineItems } = await db.prepare(
-      `SELECT * FROM line_items WHERE job_id IN (${placeholders})`
-    ).bind(...jobIds).all<LineItem>();
-
-    const lineItemsByJobId = new Map<string, LineItem[]>();
-    allLineItems.forEach(item => {
-      const items = lineItemsByJobId.get(item.job_id) || [];
-      items.push(item);
-      lineItemsByJobId.set(item.job_id, items);
-    });
-
-    const jobsWithDetails: JobWithDetails[] = jobs.map(job => ({
-      ...job,
-      line_items: lineItemsByJobId.get(job.id) || [],
-    }));
-
-    const totalJobs = totalJobsResponse?.count || 0;
-
-    return successResponse({
-      jobs: jobsWithDetails,
-      totalPages: Math.ceil(totalJobs / limitNum),
-      currentPage: pageNum,
-    });
+    return successResponse(jobsWithDetails);
   } catch (e: any) {
     console.error("Error in handleGetJobsAndQuotes:", e);
     return errorResponse("Failed to retrieve jobs and quotes.", 500);
