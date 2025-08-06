@@ -5,8 +5,8 @@
 
 import { Hono, Context } from 'hono';
 import { cors } from 'hono/cors';
-import { serveStatic } from 'hono/cloudflare-workers';
-import manifest from '__STATIC_CONTENT_MANIFEST';
+// import { serveStatic } from 'hono/cloudflare-workers';
+// import manifest from '__STATIC_CONTENT_MANIFEST';
 import type { Env, User } from '@portal/shared';
 import { handleGoogleLogin, handleGoogleCallback, handleAdminImportSelectedContacts, handleGetImportedContacts } from './google/index.js';
 
@@ -257,8 +257,8 @@ app.route('/api', api);
                              STATIC SITE SERVING
    ======================================================================== */
 
-app.get('/*', serveStatic({ root: './', manifest }));
-app.get('*', serveStatic({ path: './index.html', manifest }));
+// app.get('/*', serveStatic({ root: './', manifest }));
+// app.get('*', serveStatic({ path: './index.html', manifest }));
 
 
 /* ========================================================================

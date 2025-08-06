@@ -5,10 +5,6 @@ account_id = "67d3a6021370e7b666fff2023b2db359"
 compatibility_date = "2024-06-20"
 compatibility_flags = [ "nodejs_compat_v2" ]
 
-# Serve the frontend application from the /frontend/dist directory
-[site]
-bucket = "../frontend/dist"
-
 # Observability configuration (applies to all environments)
 [observability]
 enabled = true
@@ -58,6 +54,10 @@ binding = "NOTIFICATION_QUEUE"
 routes = [
   { pattern = "portal.777.foo/*", zone_name = "777.foo" }
 ]
+
+# Serve the frontend application from the /frontend/dist directory
+[env.production.site]
+bucket = "../frontend/dist"
 
 [[env.production.d1_databases]]
 binding = "DB"
