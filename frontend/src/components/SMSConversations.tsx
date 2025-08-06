@@ -1,86 +1,53 @@
-// frontend/src/components/SMSConversations.tsx
+// frontend/src/components/SMSConversations.tsx - CORRECTED
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getConversations } from '../lib/api';
+import { getSmsConversations } from '../lib/api.js';
+import type { Conversation } from '@portal/shared';
 
-interface Conversation {
-  phone_number: string;
-  last_message_at: string;
-  message_count: number;
-}
-
-export default function SMSConversations() {
+function SMSConversations() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const token = localStorage.getItem('token')!;
 
   useEffect(() => {
-    async function fetchConversations() {
+    const fetchConversations = async () => {
       try {
-        setLoading(true);
-        const data = await getConversations(token);
+        setIsLoading(true);
+        setError(null);
+        // FIX: The token is no longer passed directly to API functions.
+        const data = await getSmsConversations();
         setConversations(data);
       } catch (err: any) {
-        setError(err.message || 'Failed to load conversations');
+        setError(err.message);
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
-    }
-
+    };
     fetchConversations();
-  }, [token]);
+  }, []);
 
-  if (loading) {
-    return <div style={{ padding: '2rem' }}>Loading conversations...</div>;
-  }
+  if (isLoading) return <div className="container mt-4">Loading conversations...</div>;
+  if (error) return <div className="container mt-4 alert alert-danger">{error}</div>;
 
   return (
-    <div style={{ padding: '2rem' }}>
-      <h1>SMS Conversations</h1>
-
-      {error && (
-        <div style={{ color: 'red', marginBottom: '1rem' }}>
-          {error}
-        </div>
-      )}
-
-      {conversations.length === 0 ? (
-        <p>No conversations yet.</p>
-      ) : (
-        <div>
-          {conversations.map((conversation) => (
-            <Link
-              key={conversation.phone_number}
-              to={`/sms/${conversation.phone_number}`}
-              style={{
-                display: 'block',
-                padding: '1rem',
-                marginBottom: '0.5rem',
-                borderRadius: '4px',
-                backgroundColor: '#f8f9fa',
-                textDecoration: 'none',
-                color: 'inherit',
-                border: '1px solid #ddd',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <div style={{ fontWeight: 'bold' }}>{conversation.phone_number}</div>
-                <div style={{ color: '#666', fontSize: '0.9rem' }}>
-                  {new Date(conversation.last_message_at).toLocaleDateString()} at{' '}
-                  {new Date(conversation.last_message_at).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </div>
+    <div className="container mt-4">
+      <h2>SMS Conversations</h2>
+      <div className="list-group">
+        {conversations.length > 0 ? (
+          conversations.map(convo => (
+            <Link key={convo.phone_number} to={`/sms/${convo.phone_number}`} className="list-group-item list-group-item-action">
+              <div className="d-flex w-100 justify-content-between">
+                <h5 className="mb-1">{convo.phone_number}</h5>
+                <small>{new Date(convo.last_message_at).toLocaleString()}</small>
               </div>
-              <div style={{ color: '#666', fontSize: '0.9rem', marginTop: '0.5rem' }}>
-                {conversation.message_count} messages
-              </div>
+              <p className="mb-1">Messages: {convo.message_count}</p>
             </Link>
-          ))}
-        </div>
-      )}
+          ))
+        ) : (
+          <p>No SMS conversations found.</p>
+        )}
+      </div>
     </div>
   );
 }
+export default SMSConversations;

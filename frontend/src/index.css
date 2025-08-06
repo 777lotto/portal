@@ -1,3 +1,149 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+body {
+  @apply bg-secondary-light dark:bg-primary-dark text-text-primary-light dark:text-text-primary-dark transition-colors duration-300;
+}
+
+/* Define reusable components on a dedicated layer */
+@layer components {
+  /* Form Inputs */
+  .form-control {
+    @apply block w-full px-3 py-2 bg-white dark:bg-secondary-dark border border-border-light dark:border-border-dark rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-event-blue focus:border-event-blue sm:text-sm;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply text-white bg-event-blue hover:bg-event-blue/90 focus:ring-event-blue;
+  }
+  .btn-secondary {
+     @apply text-white bg-gray-600 hover:bg-gray-700 focus:ring-gray-500;
+  }
+  .btn-info {
+      @apply text-white bg-cyan-600 hover:bg-cyan-700 focus:ring-cyan-500;
+  }
+
+  .btn-success {
+      @apply text-white bg-event-green hover:bg-event-green/90 focus:ring-event-green;
+  }
+  .btn-link {
+      @apply p-0 bg-transparent border-transparent shadow-none text-event-blue hover:underline disabled:no-underline disabled:text-gray-400;
+  }
+  .sdi-input {
+    @apply absolute top-0 left-0 w-full h-full bg-transparent border-0 opacity-0;
+    caret-color: theme('colors.event-blue');
+    z-index: 1;
+  }
+
+  .sdi-input:focus + .sdi-display .sdi-box {
+    @apply border-event-blue ring-1 ring-event-blue;
+  }
+
+  .sdi-display {
+    @apply pointer-events-none;
+  }
+
+  .sdi-container-phone,
+  .sdi-container-code {
+    @apply flex items-center;
+  }
+
+  .sdi-container-phone {
+    @apply space-x-1;
+  }
+  .sdi-container-code {
+    @apply space-x-2;
+  }
+
+  .sdi-box {
+    @apply form-control h-12 flex items-center justify-center text-center text-lg font-mono transition;
+  }
+  .sdi-box-complete {
+    @apply border-event-green ring-1 ring-event-green;
+  }
+  .sdi-container-phone .sdi-box {
+    @apply w-10;
+  }
+  .sdi-container-code .sdi-box {
+    @apply w-12;
+  }
+
+  .sdi-char {
+    @apply text-lg font-mono text-text-secondary-light dark:text-text-secondary-dark px-1;
+  }
+
+@layer base {
+  .rbc-day-bg.lighter-day {
+      @apply bg-primary-light dark:bg-primary-dark;
+  }
+  .rbc-day-bg.darker-day {
+      @apply bg-secondary-light dark:bg-secondary-dark opacity-60; /* Make job-booked days slightly faded */
+  }
+  /* NEW CLASS */
+  .rbc-day-bg.admin-blocked-day {
+      @apply bg-red-200 dark:bg-red-900/40;
+      background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px);
+  }
+}
+  /* Cards */
+  .card {
+    @apply bg-primary-light dark:bg-tertiary-dark shadow-lg rounded-lg border border-border-light dark:border-border-dark;
+  }
+  .card-body {
+    @apply p-6 sm:p-8;
+  }
+  .card-header {
+      @apply p-4 border-b border-border-light dark:border-border-dark;
+  }
+  .card-title {
+      @apply text-2xl font-bold text-text-primary-light dark:text-text-primary-dark;
+  }
+
+
+  /* Alerts */
+  .alert {
+      @apply p-4 mb-4 rounded-md border;
+  }
+  .alert-danger {
+      @apply bg-red-50 border-red-300 text-red-800 dark:bg-red-900/20 dark:border-red-500/30 dark:text-red-300;
+  }
+  .alert-success {
+      @apply bg-green-50 border-green-300 text-green-800 dark:bg-green-900/20 dark:border-green-500/30 dark:text-green-300;
+  }
+  .alert-info {
+      @apply bg-blue-50 border-blue-300 text-blue-800 dark:bg-blue-900/20 dark:border-blue-500/30 dark:text-blue-300;
+  }
+
+  /* List Groups (for conversations, etc.) */
+  .list-group {
+    @apply flex flex-col;
+  }
+  .list-group-item {
+     @apply relative block p-4 bg-primary-light dark:bg-tertiary-dark border border-border-light dark:border-border-dark;
+  }
+  .list-group-item-action {
+      @apply w-full text-left hover:bg-secondary-light dark:hover:bg-secondary-dark transition-colors;
+  }
+
+  /* NEW: Slider Toggle Styles */
+  .form-switch {
+    @apply flex items-center;
+  }
+  .form-switch .form-check-input {
+    @apply w-12 h-6 bg-gray-200 dark:bg-gray-600 rounded-full cursor-pointer transition-colors ease-in-out duration-200 appearance-none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: left center;
+  }
+  .form-switch .form-check-input:checked {
+    @apply bg-event-blue;
+    background-position: right center;
+  }
+  .form-switch .form-check-input:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+}

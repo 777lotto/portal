@@ -1,576 +1,224 @@
-// worker/src/index.ts
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import type { Env } from '@portal/shared';
-import { requireAuth } from './auth';
-import { handleSignupCheck, handleSignup, handleLogin, handleRequestPasswordReset } from './handlers/auth';
-import { handleStripeCustomerCheck, handleStripeWebhook } from './handlers/stripe';
-import { handleGetProfile, handleUpdateProfile } from './handlers/profile';
-import { handleListServices, handleGetService, handleCreateInvoice } from './handlers/services';
-import { handleGetJobs, handleGetJobById, handleCalendarFeed } from './handlers/jobs';
-import { getOrCreateCustomer } from './stripe';
-import { errorResponse } from './utils'; // Import the helper
+// 777lotto/portal/portal-bet/worker/src/index.ts
+/* ========================================================================
+                        IMPORTS & INITIALIZATION
+   ======================================================================== */
 
-// Define proper context type for Hono
-type Context = {
+import { Hono, Context } from 'hono';
+import { cors } from 'hono/cors';
+import { serveStatic } from 'hono/cloudflare-workers';
+import manifest from '__STATIC_CONTENT_MANIFEST';
+import type { Env, User } from '@portal/shared';
+import { handleGoogleLogin, handleGoogleCallback } from './handlers/google.js';
+
+/* ========================================================================
+                           MIDDLEWARE & UTILITIES
+   ======================================================================== */
+
+import { errorResponse } from './utils.js';
+import { requireAuthMiddleware, requireAdminAuthMiddleware, requirePasswordSetTokenMiddleware } from './auth.js';
+
+/* ========================================================================
+                                PROXIES
+   ======================================================================== */
+
+import { handleSmsProxy } from './sms.js';
+
+/* ========================================================================
+                               ROUTE HANDLERS
+   ======================================================================== */
+
+// --- Public Handlers ---
+import { handleInitializeSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './handlers/auth.js';
+import { handleStripeWebhook } from './handlers/stripe.js';
+import { handleGetAvailability, handleCreateBooking, handlePublicCalendarFeed, handleAcceptQuote } from './handlers/public.js';
+
+// --- Customer Handlers ---
+import { handleGetProfile, handleUpdateProfile, handleChangePassword, handleListPaymentMethods, handleCreateSetupIntent, handleGetNotifications, handleMarkAllNotificationsRead } from './handlers/profile.js';
+import { handleListServices, handleGetService } from './handlers/services.js';
+import { handleGetJobs, handleGetJobById, handleCalendarFeed, handleCreateJob, handleGetSecretCalendarUrl, handleRegenerateSecretCalendarUrl } from './handlers/jobs.js';
+import { handleGetUserPhotos, handleGetPhotosForJob } from './handlers/photos.js';
+import { handleGetNotesForJob } from './handlers/notes.js';
+import { handlePortalSession } from './handlers/user.js';
+
+// --- Admin Handlers ---
+import { handleGetAllUsers, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminDeleteUser, handleAdminCreateInvoice, handleGetAllJobs, handleGetAllServices, handleAdminCreateJobForUser, handleAdminCreateUser, handleAdminUpdateUser } from './handlers/admin/users.js';
+import { handleAdminUploadPhotoForUser } from './handlers/photos.js';
+import { handleAdminAddNoteForUser } from './handlers/notes.js';
+import { handleGetBlockedDates, handleAddBlockedDate, handleRemoveBlockedDate, handleAdminAddServiceToJob, handleAdminCompleteJob } from './handlers/jobs.js';
+import { handleAdminCreateQuote } from './handlers/admin/quotes.js';
+import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminImportInvoicesForUser } from './handlers/admin/invoices.js';
+
+
+/* ========================================================================
+                       ENVIRONMENT & CLOUDFLARE TYPES
+   ======================================================================== */
+
+export type AppEnv = {
   Bindings: Env;
   Variables: {
-    userEmail: string;
+    user: User;
   };
 };
 
-const app = new Hono<Context>();
+/* ========================================================================
+                          PROXY HANDLER FUNCTIONS
+   ======================================================================== */
 
-// Enhanced CORS middleware - allow all origins for debugging
-app.use('/*', cors({
-  origin: '*',
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  credentials: false,
-}));
-
-// Enhanced debug logging middleware
-app.use('*', async (c, next) => {
-  const start = Date.now();
-  const method = c.req.method;
-  const path = c.req.path;
-  const fullUrl = c.req.url;
-  const origin = c.req.header('origin');
-
-  console.log(`🔥 [MAIN-WORKER] ${method} ${path}`);
-  console.log(`🌐 Origin: ${origin || 'none'}`);
-  console.log(`🔍 Full URL: ${fullUrl}`);
-
-  await next();
-
-  const duration = Date.now() - start;
-  console.log(`⏱️  [MAIN-WORKER] Request completed in ${duration}ms`);
-});
-
-// CORS preflight handler for all routes
-app.options('*', (c) => {
-  console.log(`✅ CORS preflight for ${c.req.path}`);
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-      'Access-Control-Max-Age': '86400',
+const handleNotificationProxy = async (c: Context<AppEnv>) => {
+    const notificationService = c.env.NOTIFICATION_SERVICE;
+    if (!notificationService) {
+        return c.json({ error: "Notification service is unavailable" }, 503);
     }
-  });
-});
-
-// Root endpoint for testing (handles both / and /api/)
-app.get('/', (c) => {
-  console.log('✅ Root endpoint hit');
-  return c.json({
-    message: 'Main API Worker is working!',
-    timestamp: new Date().toISOString(),
-    path: c.req.path,
-    method: c.req.method,
-    worker: 'main-api'
-  });
-});
-
-app.get('/api', (c) => {
-  console.log('✅ API root endpoint hit');
-  return c.json({
-    message: 'Main API Worker is working!',
-    timestamp: new Date().toISOString(),
-    path: c.req.path,
-    method: c.req.method,
-    worker: 'main-api'
-  });
-});
-
-// Health check endpoints (both with and without /api prefix)
-app.get('/ping', (c) => {
-  console.log('✅ Ping endpoint hit');
-  return c.json({
-    message: 'Main API Worker is working!',
-    timestamp: new Date().toISOString(),
-    path: c.req.path,
-    method: c.req.method,
-    url: c.req.url,
-    worker: 'main-api'
-  });
-});
-
-app.get('/api/ping', (c) => {
-  console.log('✅ API Ping endpoint hit');
-  return c.json({
-    message: 'Main API Worker is working!',
-    timestamp: new Date().toISOString(),
-    path: c.req.path,
-    method: c.req.method,
-    url: c.req.url,
-    worker: 'main-api'
-  });
-});
-
-app.get('/debug', (c) => {
-  console.log('✅ Debug endpoint hit');
-  return c.json({
-    message: 'Debug endpoint working!',
-    url: c.req.url,
-    path: c.req.path,
-    method: c.req.method,
-    headers: Object.fromEntries(c.req.raw.headers.entries()),
-    hasDB: !!c.env.DB,
-    hasJWT: !!c.env.JWT_SECRET,
-    hasTurnstile: !!c.env.TURNSTILE_SECRET_KEY,
-    hasStripe: !!c.env.STRIPE_SECRET_KEY,
-    timestamp: new Date().toISOString(),
-    worker: 'main-api',
-    environment: c.env.ENVIRONMENT || 'development'
-  });
-});
-
-app.get('/api/debug', (c) => {
-  console.log('✅ API Debug endpoint hit');
-  return c.json({
-    message: 'Debug endpoint working!',
-    url: c.req.url,
-    path: c.req.path,
-    method: c.req.method,
-    headers: Object.fromEntries(c.req.raw.headers.entries()),
-    hasDB: !!c.env.DB,
-    hasJWT: !!c.env.JWT_SECRET,
-    hasTurnstile: !!c.env.TURNSTILE_SECRET_KEY,
-    hasStripe: !!c.env.STRIPE_SECRET_KEY,
-    timestamp: new Date().toISOString(),
-    worker: 'main-api',
-    environment: c.env.ENVIRONMENT || 'development'
-  });
-});
-
-// Auth endpoints (with /api prefix)
-app.post('/api/signup/check', async (c) => {
-  console.log('✅ [MAIN-WORKER] Signup check endpoint hit');
-  try {
-    return await handleSignupCheck(c.req.raw, c.env);
-  } catch (error: any) {
-    console.error('❌ Signup check error:', error);
-    return errorResponse(error.message || 'Signup check failed', 500);
-  }
-});
-
-app.post('/api/signup', async (c) => {
-  console.log('✅ [MAIN-WORKER] Signup endpoint hit');
-  try {
-    return await handleSignup(c.req.raw, c.env);
-  } catch (error: any) {
-    console.error('❌ Signup error:', error);
-    return errorResponse(error.message || 'Signup failed', 500);
-  }
-});
-
-app.post('/api/login', async (c) => {
-  console.log('✅ [MAIN-WORKER] Login endpoint hit');
-  try {
-    return await handleLogin(c.req.raw, c.env);
-  } catch (error: any) {
-    console.error('❌ Login error:', error);
-    return errorResponse(error.message || 'Login failed', 500);
-  }
-});
-
-app.post('/api/request-password-reset', async (c) => {
-  console.log('✅ [MAIN-WORKER] Password reset request endpoint hit');
-  try {
-    return await handleRequestPasswordReset(c.req.raw, c.env);
-  } catch (error: any) {
-    console.error('❌ Password reset error:', error);
-    return errorResponse(error.message || 'Password reset failed', 500);
-  }
-});
-
-// Stripe endpoints (with /api prefix)
-app.post('/api/stripe/check-customer', async (c) => {
-  console.log('✅ [MAIN-WORKER] Stripe customer check endpoint hit');
-  try {
-    return await handleStripeCustomerCheck(c.req.raw, c.env);
-  } catch (error: any) {
-    console.error('❌ Stripe check error:', error);
-    return errorResponse(error.message || 'Stripe check failed', 500);
-  }
-});
-
-app.post('/api/stripe/create-customer', async (c) => {
-  console.log('✅ [MAIN-WORKER] Stripe create customer endpoint hit');
-  try {
-    const body = await c.req.json();
-    console.log('💳 Stripe create customer body:', body);
-
-    const customerId = await getOrCreateCustomer(c.env, body.email, body.name);
-
-    return c.json({
-      success: true,
-      customerId,
-      message: 'Customer created successfully'
-    });
-  } catch (error: any) {
-    console.error('❌ Stripe create customer error:', error);
-    return errorResponse(error.message || 'Customer creation failed', 500);
-  }
-});
-
-app.post('/api/stripe/webhook', async (c) => {
-  console.log('✅ [MAIN-WORKER] Stripe webhook endpoint hit');
-  try {
-    return await handleStripeWebhook(c.req.raw, c.env);
-  } catch (error: any) {
-    console.error('❌ Stripe webhook error:', error);
-    return errorResponse(error.message || 'Webhook processing failed', 500);
-  }
-});
-
-// Protected route middleware
-const requireAuthMiddleware = async (c: any, next: any) => {
-  try {
-    const email = await requireAuth(c.req.raw, c.env);
-    c.set('userEmail', email);
-    console.log(`🔐 [MAIN-WORKER] Authenticated user: ${email}`);
-
-    // Continue to the next handler in the chain
-    await next();
-
-  } catch (error: any) {
-    console.error('❌ Auth error:', error);
-    // On failure, immediately return a 401 response
-    return errorResponse('Authentication failed: ' + (error.message || 'Unknown error'), 401);
-  }
-
-  // On success, after the next handlers have run, return their response.
-  // This makes the function's return type consistent.
-  return c.res;
+    const newRequest = new Request(c.req.url, c.req.raw);
+    const user = c.get('user');
+    newRequest.headers.set('X-Internal-User-Id', user.id.toString());
+    newRequest.headers.set('X-Internal-User-Role', user.role);
+    return await notificationService.fetch(newRequest);
 };
 
-// Profile endpoints (protected, with /api prefix)
-app.get('/api/profile', requireAuthMiddleware, async (c) => {
-  console.log('✅ [MAIN-WORKER] Profile GET endpoint hit');
-  try {
-    const email = c.get('userEmail') as string;
-    return await handleGetProfile(c.req.raw, c.env, email);
-  } catch (error: any) {
-    console.error('❌ Profile GET error:', error);
-    return errorResponse(error.message || 'Profile fetch failed', 500);
-  }
-});
-
-app.put('/api/profile', requireAuthMiddleware, async (c) => {
-  console.log('✅ [MAIN-WORKER] Profile PUT endpoint hit');
-  try {
-    const email = c.get('userEmail') as string;
-    return await handleUpdateProfile(c.req.raw, c.env, email);
-  } catch (error: any) {
-    console.error('❌ Profile PUT error:', error);
-    return errorResponse(error.message || 'Profile update failed', 500);
-  }
-});
-
-// Services endpoints (protected, with /api prefix)
-app.get('/api/services', requireAuthMiddleware, async (c) => {
-  console.log('✅ [MAIN-WORKER] Services GET endpoint hit');
-  try {
-    const email = c.get('userEmail') as string;
-    return await handleListServices(c.req.raw, c.env, email);
-  } catch (error: any) {
-    console.error('❌ Services GET error:', error);
-    return errorResponse(error.message || 'Services fetch failed', 500);
-  }
-});
-
-app.get('/api/services/:id', requireAuthMiddleware, async (c) => {
-  console.log('✅ [MAIN-WORKER] Service detail GET endpoint hit');
-  try {
-    const email = c.get('userEmail') as string;
-    const id = parseInt(c.req.param('id'));
-    if (isNaN(id)) {
-      return errorResponse('Invalid service ID', 400);
+const handleChatProxy = async (c: Context<AppEnv>) => {
+    const chatService = c.env.CHAT_SERVICE;
+    if (!chatService) {
+        return c.json({ error: "Chat service is unavailable" }, 503);
     }
-    return await handleGetService(c.req.raw, c.env, email, id);
-  } catch (error: any) {
-    console.error('❌ Service detail GET error:', error);
-    return errorResponse(error.message || 'Service fetch failed', 500);
-  }
+    const newRequest = new Request(c.req.url, c.req.raw);
+    const user = c.get('user');
+    newRequest.headers.set('X-Internal-User-Id', user.id.toString());
+    newRequest.headers.set('X-Internal-User-Name', user.name); // <-- FIX IS HERE
+    newRequest.headers.set('X-Internal-User-Role', user.role);
+    return await chatService.fetch(newRequest);
+};
+
+/* ========================================================================
+                                 APP SETUP
+   ======================================================================== */
+
+const app = new Hono<AppEnv>().onError((err, c) => {
+  console.error(`Hono Error: ${err}`, c.req.url, err.stack);
+  return errorResponse('An internal server error occurred', 500);
 });
 
-app.post('/api/services/:id/invoice', requireAuthMiddleware, async (c) => {
-  console.log('✅ [MAIN-WORKER] Service invoice POST endpoint hit');
-  try {
-    const email = c.get('userEmail') as string;
-    const serviceId = parseInt(c.req.param('id'));
-    if (isNaN(serviceId)) {
-      return errorResponse('Invalid service ID', 400);
-    }
-    return await handleCreateInvoice(c.req.raw, c.env, email, serviceId);
-  } catch (error: any) {
-    console.error('❌ Service invoice POST error:', error);
-    return errorResponse(error.message || 'Invoice creation failed', 500);
-  }
-});
+app.use('*', cors());
 
-// Jobs/Calendar endpoints (protected, with /api prefix)
-app.get('/api/jobs', requireAuthMiddleware, async (c) => {
-  console.log('✅ [MAIN-WORKER] Jobs GET endpoint hit');
-  try {
-    return await handleGetJobs(c.req.raw, c.env);
-  } catch (error: any) {
-    console.error('❌ Jobs GET error:', error);
-    return errorResponse(error.message || 'Jobs fetch failed', 500);
-  }
-});
+const api = new Hono<AppEnv>();
+const publicApi = new Hono<AppEnv>();
+const customerApi = new Hono<AppEnv>();
+const adminApi = new Hono<AppEnv>();
 
-app.get('/api/jobs/:id', requireAuthMiddleware, async (c) => {
-  console.log('✅ [MAIN-WORKER] Job detail GET endpoint hit');
-  try {
-    const url = new URL(c.req.url);
-    return await handleGetJobById(c.req.raw, url, c.env);
-  } catch (error: any) {
-    console.error('❌ Job detail GET error:', error);
-    return errorResponse(error.message || 'Job fetch failed', 500);
-  }
-});
+customerApi.use('*', requireAuthMiddleware);
+adminApi.use('*', requireAuthMiddleware, requireAdminAuthMiddleware);
 
-app.get('/api/calendar-feed', async (c) => {
-  console.log('✅ [MAIN-WORKER] Calendar feed GET endpoint hit');
-  try {
-    const url = new URL(c.req.url);
-    return await handleCalendarFeed(c.req.raw, url, c.env);
-  } catch (error: any) {
-    console.error('❌ Calendar feed GET error:', error);
-    return errorResponse(error.message || 'Calendar feed failed', 500);
-  }
-});
 
-// Stripe Customer Portal (protected, with /api prefix)
-app.post('/api/portal', requireAuthMiddleware, async (c) => {
-  console.log('✅ [MAIN-WORKER] Portal POST endpoint hit');
-  try {
-    const email = c.get('userEmail') as string;
+/* ========================================================================
+                            PUBLIC API ROUTES
+   ======================================================================== */
 
-    // Get user's Stripe customer ID
-    const userRow = await c.env.DB.prepare(
-      `SELECT stripe_customer_id FROM users WHERE lower(email) = ?`
-    ).bind(email.toLowerCase()).first();
+publicApi.get('/auth/google', handleGoogleLogin);
+publicApi.get('/auth/google/callback', handleGoogleCallback);
+publicApi.post('/signup/initialize', handleInitializeSignup);
+publicApi.post('/login', handleLogin);
+publicApi.post('/check-user', handleCheckUser);
+publicApi.post('/request-password-reset', handleRequestPasswordReset);
+publicApi.post('/verify-reset-code', handleVerifyResetCode);
+publicApi.post('/login-with-token', requirePasswordSetTokenMiddleware, handleLoginWithToken);
+publicApi.post('/set-password', requirePasswordSetTokenMiddleware, handleSetPassword);
+publicApi.post('/stripe/webhook', handleStripeWebhook);
+publicApi.get('/public/availability', handleGetAvailability);
+publicApi.post('/public/booking', handleCreateBooking);
+publicApi.get('/public/calendar/feed/:token', handlePublicCalendarFeed);
+publicApi.post('/quotes/:quoteId/accept', handleAcceptQuote);
 
-    if (!userRow || !(userRow as any).stripe_customer_id) {
-      return errorResponse("No Stripe customer found", 400);
-    }
 
-    const { getStripe } = await import('./stripe');
-    const stripe = getStripe(c.env);
+/* ========================================================================
+                       CUSTOMER API ROUTES (Authenticated)
+   ======================================================================== */
 
-    const session = await stripe.billingPortal.sessions.create({
-      customer: (userRow as any).stripe_customer_id,
-      return_url: 'https://portal.777.foo/dashboard',
-    });
+customerApi.get('/profile', handleGetProfile);
+customerApi.put('/profile', handleUpdateProfile);
+customerApi.post('/profile/change-password', handleChangePassword);
+customerApi.get('/services', handleListServices);
+customerApi.get('/services/:id', handleGetService);
+// customerApi.post('/services/:id/invoice', handleCreateInvoice); // DEPRECATED
+customerApi.get('/jobs', handleGetJobs);
+customerApi.post('/jobs', handleCreateJob);
+customerApi.get('/jobs/:id', handleGetJobById);
+customerApi.get('/jobs/:id/photos', handleGetPhotosForJob);
+customerApi.get('/jobs/:id/notes', handleGetNotesForJob);
+customerApi.post('/portal', handlePortalSession);
+customerApi.post('/logout', handleLogout);
+customerApi.get('/calendar.ics', handleCalendarFeed);
+customerApi.get('/photos', handleGetUserPhotos);
+customerApi.get('/calendar/secret-url', handleGetSecretCalendarUrl);
+customerApi.post('/calendar/regenerate-url', handleRegenerateSecretCalendarUrl);
+customerApi.get('/profile/payment-methods', handleListPaymentMethods);
+customerApi.post('/profile/setup-intent', handleCreateSetupIntent);
+customerApi.get('/notifications', handleGetNotifications);
+customerApi.post('/notifications/read-all', handleMarkAllNotificationsRead);
 
-    return c.json({ url: session.url });
-  } catch (error: any) {
-    console.error('❌ Portal error:', error);
-    return errorResponse(error.message || 'Portal creation failed', 500);
-  }
-});
 
-// SMS endpoints that proxy to notification worker (protected, with /api prefix)
-app.get('/api/sms/conversations', requireAuthMiddleware, async (c) => {
-  console.log('✅ [MAIN-WORKER] SMS conversations GET endpoint hit');
-  try {
-    const email = c.get('userEmail') as string;
+// --- Proxied Routes ---
+customerApi.all('/sms/*', handleSmsProxy);
+customerApi.all('/notifications/*', handleNotificationProxy);
+customerApi.all('/chat/*', requireAuthMiddleware, handleChatProxy);
 
-    // Get user ID
-    const userRow = await c.env.DB.prepare(
-      `SELECT id FROM users WHERE lower(email) = ?`
-    ).bind(email.toLowerCase()).first();
+/* ========================================================================
+                         ADMIN API ROUTES (Admin-Only)
+   ======================================================================== */
 
-    if (!userRow) {
-      return errorResponse("User not found", 404);
-    }
+adminApi.get('/users', handleGetAllUsers);
+adminApi.post('/users', handleAdminCreateUser);
+adminApi.put('/users/:userId', handleAdminUpdateUser);
+adminApi.post('/jobs/:jobId/quote', handleAdminCreateQuote);
+adminApi.get('/users/:userId/jobs', handleAdminGetJobsForUser);
+adminApi.get('/users/:userId/photos', handleAdminGetPhotosForUser);
+adminApi.post('/users/:userId/photos', handleAdminUploadPhotoForUser);
+adminApi.post('/users/:userId/notes', handleAdminAddNoteForUser);
+adminApi.delete('/users/:userId', handleAdminDeleteUser);
+adminApi.post('/users/:userId/invoice', handleAdminCreateInvoice);
+adminApi.get('/blocked-dates', handleGetBlockedDates);
+adminApi.post('/blocked-dates', handleAddBlockedDate);
+adminApi.delete('/blocked-dates/:date', handleRemoveBlockedDate);
+adminApi.get('/jobs', handleGetAllJobs);
+adminApi.get('/services', handleGetAllServices);
+adminApi.post('/users/:userId/jobs', handleAdminCreateJobForUser);
+adminApi.post('/jobs/:jobId/complete', handleAdminCompleteJob);
+adminApi.post('/jobs/:jobId/services', handleAdminAddServiceToJob);
+adminApi.post('/invoices/import', handleAdminImportInvoices);
+adminApi.post('/users/:userId/invoices/import', handleAdminImportInvoicesForUser);
+adminApi.get('/invoices/:invoiceId', handleAdminGetInvoice);
+adminApi.post('/invoices/:invoiceId/items', handleAdminAddInvoiceItem);
+adminApi.delete('/invoices/:invoiceId/items/:itemId', handleAdminDeleteInvoiceItem);
+adminApi.post('/invoices/:invoiceId/finalize', handleAdminFinalizeInvoice);
 
-    const userId = (userRow as any).id;
-    console.log(`📱 Getting SMS conversations for user ID: ${userId}`);
 
-    // Proxy to notification worker if available
-    if (c.env.NOTIFICATION_WORKER) {
-      const response = await c.env.NOTIFICATION_WORKER.fetch(
-        new Request(`https://portal.777.foo/api/notifications/sms/conversations?userId=${userId}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': c.req.header('Authorization') || '',
-          },
-        })
-      );
+/* ========================================================================
+                              ROUTER REGISTRATION
+   ======================================================================== */
 
-      if (response.ok) {
-        const data = await response.json() as any;
-        console.log(`✅ SMS conversations retrieved:`, data);
-        return c.json(data);
-      } else {
-        const errorText = await response.text();
-        console.error('❌ Notification worker error:', errorText);
-        return errorResponse(`SMS service error: ${errorText}`, response.status);
-      }
-    } else {
-      console.error('❌ NOTIFICATION_WORKER not available');
-      return errorResponse("SMS service not available", 503);
-    }
-  } catch (error: any) {
-    console.error('❌ SMS conversations error:', error);
-    return errorResponse(error.message || 'SMS conversations failed', 500);
-  }
-});
+api.route('/', publicApi);
+api.route('/', customerApi);
+api.route('/admin', adminApi);
 
-// SMS messages for specific conversation (protected, with /api prefix)
-app.get('/api/sms/messages/:phoneNumber', requireAuthMiddleware, async (c) => {
-  console.log('✅ [MAIN-WORKER] SMS messages GET endpoint hit');
-  try {
-    const email = c.get('userEmail') as string;
-    const phoneNumber = c.req.param('phoneNumber');
+app.route('/api', api);
 
-    // Get user ID
-    const userRow = await c.env.DB.prepare(
-      `SELECT id FROM users WHERE lower(email) = ?`
-    ).bind(email.toLowerCase()).first();
 
-    if (!userRow) {
-      return errorResponse("User not found", 404);
-    }
+/* ========================================================================
+                             STATIC SITE SERVING
+   ======================================================================== */
 
-    const userId = (userRow as any).id;
-    console.log(`📱 Getting SMS messages for user ID: ${userId}, phone: ${phoneNumber}`);
+app.get('/*', serveStatic({
+    root: './',
+    manifest,
+}));
 
-    // Proxy to notification worker if available
-    if (c.env.NOTIFICATION_WORKER) {
-      const response = await c.env.NOTIFICATION_WORKER.fetch(
-        new Request(`https://portal.777.foo/api/notifications/sms/messages/${phoneNumber}?userId=${userId}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': c.req.header('Authorization') || '',
-          },
-        })
-      );
+app.get('*', serveStatic({
+    path: './index.html',
+    manifest,
+}));
 
-      if (response.ok) {
-        const data = await response.json() as any;
-        console.log(`✅ SMS messages retrieved for ${phoneNumber}`);
-        return c.json(data);
-      } else {
-        const errorText = await response.text();
-        console.error('❌ Notification worker error:', errorText);
-        return errorResponse("SMS service error: " + errorText, response.status);
-      }
-    } else {
-      console.error('❌ NOTIFICATION_WORKER not available');
-      return errorResponse("SMS service not available", 503);
-    }
-  } catch (error: any) {
-    console.error('❌ SMS messages error:', error);
-    return errorResponse(error.message || 'SMS messages failed', 500);
-  }
-});
 
-// Send SMS endpoint (protected, with /api prefix)
-app.post('/api/sms/send', requireAuthMiddleware, async (c) => {
-  console.log('✅ [MAIN-WORKER] SMS send POST endpoint hit');
-  try {
-    const email = c.get('userEmail') as string;
-    const body = await c.req.json();
-
-    // Get user ID
-    const userRow = await c.env.DB.prepare(
-      `SELECT id FROM users WHERE lower(email) = ?`
-    ).bind(email.toLowerCase()).first();
-
-    if (!userRow) {
-      return errorResponse("User not found", 404);
-    }
-
-    const userId = (userRow as any).id;
-    console.log(`📱 Sending SMS for user ID: ${userId}, to: ${body.to}`);
-
-    // Proxy to notification worker if available
-    if (c.env.NOTIFICATION_WORKER) {
-      const response = await c.env.NOTIFICATION_WORKER.fetch(
-        new Request(`https://portal.777.foo/api/notifications/send`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': c.req.header('Authorization') || '',
-          },
-          body: JSON.stringify({
-            type: 'direct_sms',
-            userId: userId,
-            data: {
-              to: body.to,
-              message: body.message
-            },
-            channels: ['sms']
-          })
-        })
-      );
-
-      if (response.ok) {
-        const data = await response.json() as any;
-        console.log(`✅ SMS sent successfully`);
-        return c.json(data);
-      } else {
-        const errorText = await response.text();
-        console.error('❌ SMS send error:', errorText);
-        return errorResponse(`SMS service error: ${errorText}`, response.status);
-      }
-    } else {
-      console.error('❌ NOTIFICATION_WORKER not available');
-      return errorResponse("SMS service not available", 503);
-    }
-  } catch (error: any) {
-    console.error('❌ SMS send error:', error);
-    return errorResponse(error.message || 'SMS send failed', 500);
-  }
-});
-
-// Catch-all route for debugging
-app.all('*', (c) => {
-  console.log(`❓ [MAIN-WORKER] Unhandled route: ${c.req.method} ${c.req.path}`);
-  console.log(`🔍 Headers:`, Object.fromEntries(c.req.raw.headers.entries()));
-
-  // FIX: Use the ResponseInit object for the second argument
-  return c.json({
-    error: 'Route not found',
-    path: c.req.path,
-    method: c.req.method,
-    fullUrl: c.req.url,
-    worker: 'main-api',
-    availableRoutes: [
-      'GET /',
-      'GET /api',
-      'GET /ping',
-      'GET /api/ping',
-      'GET /debug',
-      'GET /api/debug',
-      'POST /api/signup/check',
-      'POST /api/signup',
-      'POST /api/login',
-      'POST /api/stripe/check-customer',
-      'POST /api/stripe/create-customer',
-      'POST /api/stripe/webhook',
-      'GET /api/profile (protected)',
-      'PUT /api/profile (protected)',
-      'GET /api/services (protected)',
-      'GET /api/services/:id (protected)',
-      'POST /api/services/:id/invoice (protected)',
-      'GET /api/jobs (protected)',
-      'GET /api/jobs/:id (protected)',
-      'GET /api/calendar-feed',
-      'POST /api/portal (protected)',
-      'GET /api/sms/conversations (protected)',
-      'GET /api/sms/messages/:phoneNumber (protected)',
-      'POST /api/sms/send (protected)'
-    ],
-    timestamp: new Date().toISOString()
-  }, { status: 404 });
-});
+/* ========================================================================
+                                   EXPORT
+   ======================================================================== */
 
 export default app;

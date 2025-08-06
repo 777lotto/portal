@@ -1,45 +1,105 @@
-// worker/src/auth.ts - Fixed JWT implementation with proper error handling
+// worker/src/auth.ts - UPDATED
+
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
-import type { Env } from "@portal/shared";
+import { Context, Next } from 'hono';
+import type { AppEnv } from './index.js';
+import type { Env, User } from "@portal/shared";
 
-// Helper to normalize email
-export function normalizeEmail(raw: string): string {
-  return raw.trim().toLowerCase();
-}
-
-// Convert JWT secret to proper format
 export function getJwtSecretKey(secret: string): Uint8Array {
-  return new TextEncoder().encode(secret);
+  const encoder = new TextEncoder();
+  return encoder.encode(secret);
 }
 
-// Validate Turnstile tokens
+// This middleware requires a valid JWT to proceed
+export const requireAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
+    const authHeader = c.req.header("Authorization") || "";
+    if (!authHeader.startsWith("Bearer ")) {
+        return c.json({ error: "Missing or invalid authorization header" }, 401);
+    }
+    const token = authHeader.substring(7);
+    if (!token) {
+        return c.json({ error: "Invalid token format" }, 401);
+    }
+    try {
+        if (!c.env.JWT_SECRET) {
+            throw new Error("JWT_SECRET is not configured in the environment.");
+        }
+        const secret = getJwtSecretKey(c.env.JWT_SECRET);
+        const { payload } = await jwtVerify(token, secret);
+        c.set('user', payload as User);
+        return await next();
+    } catch (error) {
+        console.error("Auth failed:", error);
+        return c.json({ error: 'Authentication failed: Invalid token' }, 401);
+    }
+};
+
+// This middleware assumes requireAuthMiddleware has already run
+// and simply checks if the user has the 'admin' role.
+export const requireAdminAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
+    const user = c.get('user');
+    if (user && user.role === 'admin') {
+        return await next();
+    } else {
+        return c.json({ error: 'Forbidden: Admin access required' }, 403);
+    }
+};
+
+// NEW: Middleware specifically for chat authorization
+export const requireChatAuthMiddleware = async (c: Context<AppEnv>, next: Next) => {
+    const user = c.get('user'); // Assumes requireAuthMiddleware has run
+    if (user && (user.role === 'admin' || user.role === 'associate')) {
+        return await next(); // User is admin or associate, proceed.
+    } else {
+        return c.json({ error: 'Forbidden: You do not have permission to access chat.' }, 403);
+    }
+};
+
+
+// --- The rest of the file remains the same ---
+
+export async function createJwtToken(user: User, secret: string, expiresIn: string = "7d"): Promise<string> {
+    const jwt = new SignJWT({ ...user })
+      .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+      .setIssuedAt()
+      .setExpirationTime(expiresIn)
+      .setJti(crypto.randomUUID());
+
+    return jwt.sign(getJwtSecretKey(secret));
+}
+
+export async function hashPassword(password: string): Promise<string> {
+  if (!password || password.length < 8) {
+    throw new Error("Password must be at least 8 characters long");
+  }
+  return await bcrypt.hash(password, 10);
+}
+
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  if (!password || !hash) {
+    return false;
+  }
+  return await bcrypt.compare(password, hash);
+}
+
 export async function validateTurnstileToken(token: string, ip: string, env: Env): Promise<boolean> {
   if (!token) return false;
-
   try {
     const turnstileSecretKey = env.TURNSTILE_SECRET_KEY;
     if (!turnstileSecretKey) {
-      console.warn('⚠️  Turnstile secret key not configured');
+      console.warn('⚠️ Turnstile secret key not configured');
       return false;
     }
-
     const formData = new FormData();
     formData.append('secret', turnstileSecretKey);
     formData.append('response', token);
     formData.append('remoteip', ip);
-
     const result = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
       method: 'POST',
       body: formData
     });
-
-    const outcome = await result.json() as { success: boolean; 'error-codes'?: string[] };
-    
-    if (!outcome.success && outcome['error-codes']) {
-      console.error('Turnstile validation failed:', outcome['error-codes']);
-    }
-    
+    const outcome = await result.json() as { success: boolean };
     return outcome.success === true;
   } catch (error) {
     console.error('Turnstile validation error:', error);
@@ -47,142 +107,24 @@ export async function validateTurnstileToken(token: string, ip: string, env: Env
   }
 }
 
-// Auth middleware - extracts and validates JWT token
-export async function requireAuth(request: Request, env: Env): Promise<string> {
-  const auth = request.headers.get("Authorization") || "";
-  
-  // Log auth header for debugging
-  console.log('🔐 Auth header:', auth ? `Bearer ${auth.slice(7, 15)}...` : 'None');
-  
-  if (!auth.startsWith("Bearer ")) {
-    throw new Error("Missing or invalid authorization header");
-  }
-
-  const token = auth.slice(7).trim();
-  
-  if (!token || token.length < 10) {
-    throw new Error("Invalid token format");
-  }
-
-  try {
-    // Ensure JWT secret is available
-    if (!env.JWT_SECRET) {
-      throw new Error("JWT_SECRET not configured");
+export const requirePasswordSetTokenMiddleware = async (c: Context<AppEnv>, next: Next) => {
+    const authHeader = c.req.header("Authorization") || "";
+    if (!authHeader.startsWith("Bearer ")) {
+        return c.json({ error: "Missing or invalid authorization header" }, 401);
     }
+    const token = authHeader.substring(7);
 
-    const { payload } = await jwtVerify(
-      token,
-      getJwtSecretKey(env.JWT_SECRET),
-      {
-        algorithms: ['HS256']
-      }
-    );
-
-    console.log('✅ JWT verified, payload:', {
-      id: payload.id,
-      email: payload.email ? '***' : 'none',
-      phone: payload.phone ? '***' : 'none',
-      exp: payload.exp
-    });
-
-    // Validate payload structure
-    if (!payload.email && !payload.phone) {
-      throw new Error("Invalid token payload - missing user identifier");
-    }
-
-    // Return the user's email for identification
-    const identifier = payload.email as string || payload.phone as string;
-    if (!identifier) {
-      throw new Error("Token missing user identifier");
-    }
-    
-    return payload.email as string || ''; // Return email for backward compatibility
-  } catch (error: any) {
-    console.error("❌ JWT Verification error:", error.message || error);
-    
-    // Provide specific error messages
-    if (error.code === 'ERR_JWT_EXPIRED' || error.message?.includes('expired')) {
-      throw new Error("Token has expired - please log in again");
-    } else if (error.code === 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED') {
-      throw new Error("Invalid token signature");
-    } else if (error.code === 'ERR_JWT_CLAIM_VALIDATION_FAILED') {
-      throw new Error("Token validation failed");
-    } else {
-      throw new Error(`Authentication failed: ${error.message || 'Unknown error'}`);
-    }
-  }
-}
-
-// Create JWT token with proper structure
-export async function createJwtToken(
-  payload: Record<string, any>, 
-  secret: string, 
-  expiresIn: string = "7d"
-): Promise<string> {
-  try {
-    if (!secret) {
-      throw new Error("JWT secret not provided");
-    }
-
-    // Clean and validate payload
-    const cleanPayload = {
-      id: Number(payload.id) || 0,
-      email: payload.email || null,
-      name: payload.name || '',
-      phone: payload.phone || null,
-    };
-
-    console.log('🎫 Creating JWT for user:', {
-      id: cleanPayload.id,
-      email: cleanPayload.email ? '***' : 'none',
-      phone: cleanPayload.phone ? '***' : 'none'
-    });
-
-    const jwt = new SignJWT(cleanPayload)
-      .setProtectedHeader({ 
-        alg: "HS256", 
-        typ: "JWT" 
-      })
-      .setIssuedAt()
-      .setExpirationTime(expiresIn)
-      .setJti(crypto.randomUUID()); // Add JWT ID for tracking
-
-    const token = await jwt.sign(getJwtSecretKey(secret));
-    
-    // Validate the created token immediately
     try {
-      await jwtVerify(token, getJwtSecretKey(secret));
-      console.log('✅ JWT created and validated successfully');
-    } catch (testError) {
-      console.error('❌ Created JWT is invalid:', testError);
-      throw new Error('Failed to create valid JWT token');
+        const secret = getJwtSecretKey(c.env.JWT_SECRET);
+        const { payload } = await jwtVerify(token, secret);
+
+        if (payload.purpose !== 'password-set' || !payload.sub) {
+             return c.json({ error: 'Forbidden: Invalid token type' }, 403);
+        }
+        c.set('user', { id: Number(payload.sub) } as User);
+        return await next();
+
+    } catch (error) {
+        return c.json({ error: 'Authentication failed: Invalid token' }, 401);
     }
-    
-    return token;
-  } catch (error: any) {
-    console.error('❌ JWT creation error:', error);
-    throw new Error(`Failed to create authentication token: ${error.message}`);
-  }
-}
-
-// Hash password with bcrypt
-export async function hashPassword(password: string): Promise<string> {
-  if (!password || password.length < 6) {
-    throw new Error("Password must be at least 6 characters long");
-  }
-  return await bcrypt.hash(password, 10);
-}
-
-// Verify password against hash
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  if (!password || !hash) {
-    return false;
-  }
-  
-  try {
-    return await bcrypt.compare(password, hash);
-  } catch (error) {
-    console.error('Password verification error:', error);
-    return false;
-  }
-}
+};

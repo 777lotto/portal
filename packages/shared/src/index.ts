@@ -1,13 +1,6 @@
-// packages/shared/src/index.ts - Make sure all types are exported
+// packages/shared/src/index.ts
+// This file should ONLY export from other modules in the shared package.
+// We are now exporting everything from the corrected types file.
 
-// Export calendar types and functions
-export * from './calendar';
-
-// Export Stripe types
-export * from './stripe';
-
-// Export API types
-//export * from './api';
-
-// Export all types from types.ts
-export * from './types';
+// No other exports are needed here. All shared code is in types.ts now.
+export * from './types.js';

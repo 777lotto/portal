@@ -7,9 +7,10 @@
   "include": [],
   "references": [
     { "path": "./packages/shared" },
-    { "path": "./frontend" },
     { "path": "./worker" },
     { "path": "./notification" },
-    { "path": "./payment" }
+    { "path": "./payment" },
+    { "path": "./chat-worker" },
+    { "path": "./chat-frontend" }
   ]
 }

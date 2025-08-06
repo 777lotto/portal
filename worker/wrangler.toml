@@ -1,0 +1,97 @@
+# Top-level configuration
+name = "worker"
+main = "src/index.ts"
+account_id = "67d3a6021370e7b666fff2023b2db359"
+compatibility_date = "2024-06-20"
+compatibility_flags = [ "nodejs_compat_v2" ]
+
+# Serve the frontend application from the /frontend/dist directory
+[site]
+bucket = "../frontend/dist"
+
+# Observability configuration (applies to all environments)
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[[d1_databases]]
+binding = "DB" # The binding name used in your code
+database_name = "gutter_db"
+database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+migrations_dir = "./migrations"
+
+# ===============================================================
+#      DEVELOPMENT-SPECIFIC CONFIGURATION
+# ===============================================================
+[env.development]
+# Development variables
+[env.development.vars]
+ENVIRONMENT = "development"
+API_VERSION = "1.0.0"
+PORTAL_URL = "http://localhost:5173/dashboard"
+
+# Development D1 binding
+[[env.development.d1_databases]]
+binding = "DB"
+database_name = "gutter_db"
+database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+migrations_dir = "./migrations"
+
+# Development service bindings (will point to the dev version of the services)
+[[env.development.services]]
+binding = "NOTIFICATION_SERVICE"
+service = "notification"
+
+[[env.development.services]]
+binding = "PAYMENT_SERVICE"
+service = "payment"
+
+[[env.development.services]]
+binding = "CHAT_SERVICE"
+service = "chat-worker"
+
+
+# Development queue binding
+[[env.development.queues.producers]]
+queue = "notifications"
+binding = "NOTIFICATION_QUEUE"
+
+# ===============================================================
+#      PRODUCTION-SPECIFIC CONFIGURATION
+# ===============================================================
+[env.production]
+# Route for production
+routes = [
+  { pattern = "portal.777.foo/*", zone_name = "777.foo" }
+]
+
+# Production variables
+[env.production.vars]
+ENVIRONMENT = "production"
+API_VERSION = "1.0.0"
+PORTAL_URL = "https://portal.777.foo/dashboard"
+
+# Production D1 binding
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "gutter_db"
+database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+migrations_dir = "./migrations"
+
+[[env.production.services]]
+binding = "NOTIFICATION_SERVICE"
+service = "notification-production"
+
+[[env.production.services]]
+binding = "PAYMENT_SERVICE"
+service = "payment-production"
+
+[[env.production.services]]
+binding = "CHAT_SERVICE"
+service = "chat-worker-production"
+
+
+# Production queue binding
+[[env.production.queues.producers]]
+queue = "notifications"
+binding = "NOTIFICATION_QUEUE"

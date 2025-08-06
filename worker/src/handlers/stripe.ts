@@ -1,246 +1,101 @@
-// worker/src/handlers/stripe.ts - Fixed with proper imports and types
-import type { Env } from "@portal/shared";
-import { getStripe, findCustomerByIdentifier, getOrCreateCustomer } from "../stripe";
-import { CORS } from "../utils";
+// worker/src/handlers/stripe.ts
+import { Context as StripeContext } from 'hono';
+import { AppEnv as StripeAppEnv } from '../index.js';
+import { getStripe } from '../stripe.js';
+import Stripe from 'stripe';
 
-interface StripeCustomerCheckRequest {
-  email?: string;
-  phone?: string;
-}
-
-interface StripeCustomerCreateRequest {
-  email: string;
-  name: string;
-  phone?: string;
-}
-
-interface ServiceRecord {
-  id: number;
-  user_id: number;
-  stripe_invoice_id?: string;
-}
-
-interface UserRecord {
-  id: number;
-  user_id: number;
-  email: string;
-}
-
-export async function handleStripeCustomerCheck(request: Request, env: Env): Promise<Response> {
-  try {
-    console.log('💳 Processing Stripe customer check...');
-    
-    const data = await request.json() as StripeCustomerCheckRequest;
-    console.log('💳 Stripe check data:', data);
-    
-    const { email, phone } = data;
-    
-    if (!email && !phone) {
-      throw new Error("At least one identifier (email or phone) is required");
-    }
-
-    // Use our helper function to find customer
-    const existingCustomer = await findCustomerByIdentifier(env, email, phone);
-
-    if (existingCustomer) {
-      return new Response(JSON.stringify({
-        exists: true,
-        customerId: existingCustomer.id,
-        email: existingCustomer.email,
-        name: existingCustomer.name,
-        phone: existingCustomer.phone
-      }), {
-        status: 200,
-        headers: CORS,
-      });
-    } else {
-      console.log('❌ No existing Stripe customer found');
-      return new Response(JSON.stringify({
-        exists: false
-      }), {
-        status: 200,
-        headers: CORS,
-      });
-    }
-  } catch (err: any) {
-    console.error("❌ Stripe customer check error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 400,
-      headers: CORS,
-    });
-  }
-}
-
-export async function handleStripeCustomerCreate(request: Request, env: Env): Promise<Response> {
-  try {
-    console.log('💳 Creating Stripe customer...');
-    
-    const data = await request.json() as StripeCustomerCreateRequest;
-    console.log('💳 Customer create data:', data);
-    
-    const { email, name, phone } = data;
-    
-    if (!email || !name) {
-      throw new Error("Email and name are required");
-    }
-
-    const customerId = await getOrCreateCustomer(env, email, name, phone);
-    
-    return new Response(JSON.stringify({
-      success: true,
-      customerId,
-      message: 'Customer created successfully'
-    }), {
-      status: 200,
-      headers: CORS,
-    });
-  } catch (err: any) {
-    console.error("❌ Stripe customer create error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 400,
-      headers: CORS,
-    });
-  }
-}
-
-export async function handleStripeWebhook(request: Request, env: Env): Promise<Response> {
-  try {
-    console.log('🪝 Processing Stripe webhook...');
-    
-    const body = await request.text();
-    const signature = request.headers.get('stripe-signature');
-    
+export const handleStripeWebhook = async (c: StripeContext<StripeAppEnv>) => {
+    const stripe = getStripe(c.env);
+    const signature = c.req.header('stripe-signature');
     if (!signature) {
-      throw new Error('Missing Stripe signature');
+        return new Response("Webhook Error: No signature provided", { status: 400 });
     }
 
-    const stripe = getStripe(env);
-    const webhookSecret = env.STRIPE_WEBHOOK_SECRET;
-    
-    // Verify webhook signature
-    let event: any;
     try {
-      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-      console.log('✅ Webhook signature verified:', event.type);
+        const body = await c.req.text();
+        const event = await stripe.webhooks.constructEventAsync(
+            body,
+            signature,
+            c.env.STRIPE_WEBHOOK_SECRET
+        );
+
+        // Handle the event
+        switch (event.type) {
+            case 'invoice.paid':
+                const invoice = event.data.object as Stripe.Invoice;
+                console.log(`Invoice ${invoice.id} was paid successfully.`);
+
+                // Add UI notification for the customer
+                const user = await c.env.DB.prepare(`SELECT id FROM users WHERE stripe_customer_id = ?`).bind(invoice.customer as string).first<{id: number}>();
+
+                if (user) {
+                    try {
+                        const message = `Payment of $${(invoice.amount_paid / 100).toFixed(2)} for invoice #${invoice.number} was successful.`;
+                        const link = `/account`; // Link to their account/billing page
+                        // NOTE: This assumes a 'ui_notifications' table exists.
+                        await c.env.DB.prepare(
+                            `INSERT INTO ui_notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)`
+                        ).bind(user.id, 'invoice_paid', message, link).run();
+                    } catch (e) {
+                        console.error("Failed to create UI notification for invoice.paid event", e);
+                        // Do not block the main flow if UI notification fails
+                    }
+                }
+
+                // Update the job's status to 'paid'
+                await c.env.DB.prepare(
+                    `UPDATE jobs SET status = 'paid' WHERE stripe_invoice_id = ?`
+                ).bind(invoice.id).run();
+                break;
+
+            // --- NEW WEBHOOK HANDLER FOR QUOTES ---
+            case 'quote.finalized':
+                const quote = event.data.object as Stripe.Quote;
+                console.log(`Quote ${quote.id} was finalized.`);
+
+                // Retrieve the customer to get their name
+                const customer = await stripe.customers.retrieve(quote.customer as string);
+                const customerName = (customer as Stripe.Customer).name || 'A customer';
+
+                // Update job status to 'quote_accepted'
+                const jobUpdate = await c.env.DB.prepare(
+                    `UPDATE jobs SET status = 'quote_accepted' WHERE stripe_quote_id = ?`
+                ).bind(quote.id).run();
+
+                // Notify admin that quote was accepted
+                if (jobUpdate.meta.changes > 0) {
+                    const admins = await c.env.DB.prepare(
+                        `SELECT id FROM users WHERE role = 'admin'`
+                    ).all<{ id: number }>();
+
+                    if (admins.results) {
+                        for (const admin of admins.results) {
+                            await c.env.NOTIFICATION_QUEUE.send({
+                                type: 'quote_accepted',
+                                userId: admin.id,
+                                data: {
+                                    quoteId: quote.id,
+                                    customerName: customerName
+                                },
+                                channels: ['email']
+                            });
+                        }
+                    }
+                }
+                break;
+
+            case 'billing_portal.session.created':
+                const session = event.data.object as Stripe.BillingPortal.Session;
+                console.log(`Stripe billing portal session ${session.id} was created for customer ${session.customer}. No action taken.`);
+                break;
+
+            default:
+                console.log(`Unhandled event type ${event.type}`);
+        }
+
+        return new Response(JSON.stringify({ received: true }), { status: 200 });
     } catch (err: any) {
-      console.error('❌ Webhook signature verification failed:', err.message);
-      return new Response(JSON.stringify({ error: 'Invalid signature' }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+        console.error(`Webhook Error: ${err.message}`);
+        return new Response(`Webhook Error: ${err.message}`, { status: 400 });
     }
-
-    // Handle the event based on type
-    switch (event.type) {
-      case 'customer.created':
-        console.log('👤 Customer created:', event.data.object.id);
-        break;
-        
-      case 'invoice.payment_succeeded':
-        console.log('💰 Invoice payment succeeded:', event.data.object.id);
-        await handleInvoicePaymentSucceeded(event.data.object, env, request);
-        break;
-        
-      case 'invoice.payment_failed':
-        console.log('❌ Invoice payment failed:', event.data.object.id);
-        await handleInvoicePaymentFailed(event.data.object, env, request);
-        break;
-        
-      default:
-        console.log(`🤷 Unhandled event type: ${event.type}`);
-    }
-
-    return new Response(JSON.stringify({ received: true }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
-  } catch (err: any) {
-    console.error("❌ Stripe webhook error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-}
-
-async function handleInvoicePaymentSucceeded(invoice: any, env: Env, _request: Request): Promise<void> {
-  // Find the service associated with this invoice
-  const service = await env.DB.prepare(
-    `SELECT s.*, u.email, u.id as user_id FROM services s 
-     JOIN users u ON u.id = s.user_id 
-     WHERE s.stripe_invoice_id = ?`
-  ).bind(invoice.id).first() as (ServiceRecord & UserRecord) | null;
-  
-  if (service) {
-    // Update service status to paid
-    await env.DB.prepare(
-      `UPDATE services SET status = 'paid' WHERE stripe_invoice_id = ?`
-    ).bind(invoice.id).run();
-    
-    console.log('✅ Service marked as paid:', service.id);
-    
-    // Send payment confirmation notification
-    try {
-      if (env.NOTIFICATION_WORKER) {
-        await env.NOTIFICATION_WORKER.fetch(
-          new Request('https://portal.777.foo/api/notifications/send', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer webhook-internal',
-            },
-            body: JSON.stringify({
-              type: 'invoice_paid',
-              userId: service.user_id,
-              data: {
-                invoiceId: invoice.id,
-                amount: (invoice.amount_paid / 100).toFixed(2),
-                serviceId: service.id
-              },
-              channels: ['email']
-            })
-          })
-        );
-      }
-    } catch (notificationError) {
-      console.error('❌ Failed to send payment confirmation:', notificationError);
-    }
-  }
-}
-
-async function handleInvoicePaymentFailed(invoice: any, env: Env, _request: Request): Promise<void> {
-  // Find the service and notify user
-  const failedService = await env.DB.prepare(
-    `SELECT s.*, u.email, u.id as user_id FROM services s 
-     JOIN users u ON u.id = s.user_id 
-     WHERE s.stripe_invoice_id = ?`
-  ).bind(invoice.id).first() as (ServiceRecord & UserRecord) | null;
-  
-  if (failedService) {
-    try {
-      if (env.NOTIFICATION_WORKER) {
-        await env.NOTIFICATION_WORKER.fetch(
-          new Request('https://portal.777.foo/api/notifications/send', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer webhook-internal',
-            },
-            body: JSON.stringify({
-              type: 'payment_failed',
-              userId: failedService.user_id,
-              data: {
-                invoiceId: invoice.id,
-                amount: (invoice.amount_due / 100).toFixed(2),
-                serviceId: failedService.id
-              },
-              channels: ['email', 'sms']
-            })
-          })
-        );
-      }
-    } catch (notificationError) {
-      console.error('❌ Failed to send payment failure notification:', notificationError);
-    }
-  }
-}
+};

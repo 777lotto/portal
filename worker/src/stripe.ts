@@ -1,139 +1,122 @@
-// worker/src/stripe.ts - Fixed with correct API version and proper types
-import Stripe from "stripe";
-import type { Env } from "@portal/shared";
-
-// Create a singleton Stripe instance
-let stripeInstance: Stripe | null = null;
+// worker/src/stripe.ts - CORRECTED
+import Stripe from 'stripe';
+import { Context } from 'hono';
+import { AppEnv } from './index.js';
+import { Env, User, Service } from '@portal/shared';
 
 export function getStripe(env: Env): Stripe {
-  if (!stripeInstance) {
-    stripeInstance = new Stripe(env.STRIPE_SECRET_KEY, {
-      apiVersion: '2025-05-28.basil', // Your confirmed API version
-      typescript: true, // Enable TypeScript support
-    });
-  }
-  return stripeInstance;
-}
-
-export async function getOrCreateCustomer(
-  env: Env,
-  email: string,
-  name: string,
-  phone?: string
-): Promise<string> {
-  const stripe = getStripe(env);
-
-  // Check if user already has a stripe_customer_id
-  const result = await env.DB.prepare(
-    `SELECT stripe_customer_id FROM users WHERE email = ?`
-  ).bind(email).first();
-
-  const existingRecord = result as { stripe_customer_id?: string } | null;
-  if (existingRecord?.stripe_customer_id) {
-    return existingRecord.stripe_customer_id;
-  }
-
-  // Create new Stripe customer with proper parameters
-  const customerParams: Stripe.CustomerCreateParams = {
-    email,
-    name,
-  };
-
-  if (phone) {
-    customerParams.phone = phone;
-  }
-
-  const customer = await stripe.customers.create(customerParams);
-
-  // Save to D1
-  await env.DB.prepare(
-    `UPDATE users SET stripe_customer_id = ? WHERE email = ?`
-  ).bind(customer.id, email).run();
-
-  return customer.id;
-}
-
-export async function createAndSendInvoice(
-  env: Env,
-  customerId: string,
-  amount_cents: number,
-  description: string,
-  daysUntilDue: number = 14
-): Promise<Stripe.Invoice> {
-  const stripe = getStripe(env);
-
-  // Create invoice item
-  await stripe.invoiceItems.create({
-    customer: customerId,
-    amount: amount_cents,
-    currency: "usd",
-    description,
+  return new Stripe(env.STRIPE_SECRET_KEY, {
+    // FIX: Use the latest stable apiVersion
+    apiVersion: '2025-05-28.basil',
+    httpClient: Stripe.createFetchHttpClient(),
   });
-
-  // Create invoice
-  const invoice = await stripe.invoices.create({
-    customer: customerId,
-    collection_method: "send_invoice",
-    days_until_due: daysUntilDue,
-    auto_advance: true, // Automatically finalize and send
-  });
-
-  // Ensure invoice.id exists before finalizing
-  if (!invoice.id) {
-    throw new Error("Failed to create invoice - no ID returned");
-  }
-
-  // Finalize the invoice
-  const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoice.id);
-  
-  return finalizedInvoice;
 }
 
-// Helper function to search customers by email or phone
-export async function findCustomerByIdentifier(
-  env: Env,
-  email?: string,
-  phone?: string
-): Promise<Stripe.Customer | null> {
-  const stripe = getStripe(env);
+export async function createStripeCustomer(stripe: Stripe, user: User): Promise<Stripe.Customer> {
+  const { email, name, phone, company_name } = user;
 
-  // Search by email first if provided
-  if (email) {
-    const customers = await stripe.customers.list({
+  const existingCustomers = await stripe.customers.list({ email: email, limit: 1 });
+  if (existingCustomers.data.length > 0) {
+    console.log(`Found existing Stripe customer for email: ${email}`);
+    return existingCustomers.data[0];
+  }
+
+  console.log(`Creating new Stripe customer for email: ${email}`);
+  return stripe.customers.create({
       email: email,
-      limit: 1
-    });
-    
-    if (customers.data.length > 0) {
-      return customers.data[0];
-    }
-  }
-
-  // Search by phone if provided and email search didn't find anything
-  if (phone) {
-    const customers = await stripe.customers.search({
-      query: `phone:'${phone.replace(/\D/g, '')}'`, // Remove non-digits for search
-      limit: 1
-    });
-    
-    if (customers.data.length > 0) {
-      return customers.data[0];
-    }
-  }
-
-  return null;
-}
-
-// Create customer portal session
-export async function createPortalSession(
-  env: Env,
-  customerId: string,
-  returnUrl: string = 'https://portal.777.foo/dashboard'
-): Promise<Stripe.BillingPortal.Session> {
-  const stripe = getStripe(env);
-  
-  return await stripe.billingPortal.sessions.create({
-    customer: customerId,
-    return_url: returnUrl,
+      name: name,
+      phone: phone || undefined,
+      metadata: {
+        company_name: company_name || ''
+      }
   });
 }
+
+export async function createStripePortalSession(stripe: Stripe, customerId: string, returnUrl: string): Promise<Stripe.BillingPortal.Session> {
+    return stripe.billingPortal.sessions.create({
+        customer: customerId,
+        return_url: returnUrl,
+    });
+}
+
+export async function createStripeInvoice(c: Context<AppEnv>, service: Service): Promise<Stripe.Invoice> {
+    const stripe = getStripe(c.env);
+    const user = c.get('user');
+
+    if (!user.stripe_customer_id) {
+        throw new Error("User does not have a Stripe customer ID.");
+    }
+    if (!service.price_cents) {
+        throw new Error("Service does not have a price.");
+    }
+
+    await stripe.invoiceItems.create({
+      customer: user.stripe_customer_id,
+      price_data: {
+        currency: 'usd',
+        product_data: {
+          name: service.notes || 'General Service',
+        },
+        unit_amount: service.price_cents,
+      } as any,
+      quantity: 1,
+    });
+
+    const invoice = await stripe.invoices.create({
+      customer: user.stripe_customer_id,
+      collection_method: 'send_invoice',
+      days_until_due: 30,
+      auto_advance: true,
+    });
+
+    return invoice;
+}
+
+export async function finalizeStripeInvoice(stripe: Stripe, invoiceId: string | undefined | null): Promise<Stripe.Invoice> {
+  if (!invoiceId) {
+    throw new Error('Cannot finalize an invoice with no ID.');
+  }
+  const finalInvoice = await stripe.invoices.finalizeInvoice(invoiceId);
+  return finalInvoice;
+}
+
+// ADDED_START
+export async function createDraftStripeInvoice(stripe: Stripe, customerId: string): Promise<Stripe.Invoice> {
+    console.log(`Creating new draft Stripe invoice for customer: ${customerId}`);
+    const invoice = await stripe.invoices.create({
+      customer: customerId,
+      collection_method: 'send_invoice',
+      days_until_due: 30,
+      auto_advance: false,
+    });
+    return invoice;
+}
+
+export async function listPaymentMethods(stripe: Stripe, customerId: string): Promise<Stripe.ApiList<Stripe.PaymentMethod>> {
+    return stripe.paymentMethods.list({
+        customer: customerId,
+        type: 'card',
+    });
+}
+
+export async function attachPaymentMethod(stripe: Stripe, paymentMethodId: string, customerId: string): Promise<Stripe.PaymentMethod> {
+    return stripe.paymentMethods.attach(paymentMethodId, {
+        customer: customerId,
+    });
+}
+
+export async function updateCustomerDefaultPaymentMethod(stripe: Stripe, customerId: string, paymentMethodId: string): Promise<Stripe.Customer> {
+    return stripe.customers.update(customerId, {
+        invoice_settings: {
+            default_payment_method: paymentMethodId,
+        },
+    });
+}
+
+export async function createSetupIntent(stripe: Stripe, customerId: string): Promise<Stripe.SetupIntent> {
+    return stripe.setupIntents.create({
+        customer: customerId,
+        payment_method_types: ['card'],
+    });
+}
+// ADDED_END

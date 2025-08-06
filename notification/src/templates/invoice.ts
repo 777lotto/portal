@@ -15,7 +15,7 @@ export function generateInvoiceCreatedHtml(data: InvoiceTemplateData): string {
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>New Invoice</title>
+      <title>New Invoice -777 Solutions</title>
       <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
@@ -30,11 +30,11 @@ export function generateInvoiceCreatedHtml(data: InvoiceTemplateData): string {
     <body>
       <div class="container">
         <div class="header">
-          <h1>New Invoice</h1>
+          <h1>New Invoice -777 Solutions</h1>
         </div>
         <div class="content">
           <p>Hello ${data.name},</p>
-          <p>A new invoice has been created for your recent service.</p>
+          <p>A new invoice from 777 Solutions LLC has been created for your recent service.</p>
 
           <div class="invoice-details">
             <p><strong>Invoice #:</strong> ${data.invoiceId}</p>
@@ -48,7 +48,7 @@ export function generateInvoiceCreatedHtml(data: InvoiceTemplateData): string {
           <p>If you have any questions about this invoice, please don't hesitate to contact our support team.</p>
         </div>
         <div class="footer">
-          <p>© ${new Date().getFullYear()} Gutter Portal. All rights reserved.</p>
+          <p>© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.</p>
           <p>This is an automated email, please do not reply directly to this message.</p>
         </div>
       </div>
@@ -61,7 +61,7 @@ export function generateInvoiceCreatedText(data: InvoiceTemplateData): string {
   return `
 Hello ${data.name},
 
-A new invoice has been created for your recent service.
+A new invoice from 777 Solutions LLC has been created for your recent service.
 
 Invoice #: ${data.invoiceId}
 Amount: $${data.amount}
@@ -72,7 +72,7 @@ ${data.invoiceUrl}
 
 If you have any questions about this invoice, please don't hesitate to contact our support team.
 
-© ${new Date().getFullYear()} Gutter Portal. All rights reserved.
+© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.
 This is an automated email, please do not reply directly to this message.
   `;
 }
@@ -117,7 +117,7 @@ export function generateInvoicePaidHtml(data: InvoiceTemplateData): string {
           <p>Thank you for your business!</p>
         </div>
         <div class="footer">
-          <p>© ${new Date().getFullYear()} Gutter Portal. All rights reserved.</p>
+          <p>© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.</p>
           <p>This is an automated email, please do not reply directly to this message.</p>
         </div>
       </div>
@@ -141,7 +141,7 @@ ${data.invoiceUrl}
 
 Thank you for your business!
 
-© ${new Date().getFullYear()} Gutter Portal. All rights reserved.
+© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.
 This is an automated email, please do not reply directly to this message.
   `;
 }

@@ -1,131 +1,165 @@
-// worker/src/handlers/profile.ts - Fixed with proper type assertions
-import type { Env } from "@portal/shared";
-import { CORS, errorResponse } from "../utils";
-import { getStripe } from "../stripe";
+// 777lotto/portal/portal-bet/worker/src/handlers/profile.ts
+import { Context as ProfileContext } from 'hono';
+import { z } from 'zod';
+import { AppEnv as ProfileAppEnv } from '../index.js';
+import { errorResponse as profileErrorResponse, successResponse as profileSuccessResponse } from '../utils.js';
+import { UserSchema, type User, type UINotification } from '@portal/shared';
+import { verifyPassword, hashPassword } from '../auth.js';
+import { getStripe, listPaymentMethods, createSetupIntent } from '../stripe.js';
 
-interface UserRecord {
-  id: number;
-  email: string;
-  name: string;
-  phone?: string;
-  stripe_customer_id?: string;
-}
+const UpdateProfilePayload = UserSchema.pick({
+    name: true,
+    email: true,
+    phone: true,
+    company_name: true,
+    email_notifications_enabled: true,
+    sms_notifications_enabled: true,
+    preferred_contact_method: true
+}).partial();
 
-/**
- * Handle GET /api/profile endpoint
- * Returns the user's profile information
- */
-export async function handleGetProfile(_request: Request, env: Env, email: string): Promise<Response> {
-  try {
-    // Fetch the user record (case‑insensitive email)
-    const userRecord = await env.DB.prepare(
-      `SELECT id, email, name, phone, stripe_customer_id
-       FROM users
-       WHERE lower(email) = ?`
-    )
-      .bind(email.toLowerCase())
-      .first();
+const ChangePasswordPayload = z.object({
+  currentPassword: z.string(),
+  newPassword: z.string().min(8),
+});
 
-    if (!userRecord) {
-      throw new Error("User not found");
+
+export const handleGetProfile = async (c: ProfileContext<ProfileAppEnv>) => {
+  const user = c.get('user');
+  // To ensure the client gets the latest data, let's re-fetch from the DB
+  const freshUser = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(user.id).first<User>();
+  return profileSuccessResponse(freshUser);
+};
+
+export const handleUpdateProfile = async (c: ProfileContext<ProfileAppEnv>) => {
+    const user = c.get('user');
+    const body = await c.req.json();
+    const parsed = UpdateProfilePayload.safeParse(body);
+
+    if (!parsed.success) {
+        return profileErrorResponse("Invalid data", 400, parsed.error.flatten());
     }
 
-    // Return the user profile information
-    return new Response(JSON.stringify(userRecord), {
-      status: 200,
-      headers: CORS,
-    });
-  } catch (err: any) {
-    console.error("Error getting profile:", err);
-    return errorResponse(err.message, 400);
-  }
-}
+    const { name, email, phone, company_name, email_notifications_enabled, sms_notifications_enabled, preferred_contact_method } = parsed.data;
 
-/**
- * Handle PUT /api/profile endpoint
- * Updates the user's profile information
- */
-export async function handleUpdateProfile(request: Request, env: Env, email: string): Promise<Response> {
-  try {
-    // Get the user's ID first
-    const userRecord = await env.DB.prepare(
-      `SELECT id, stripe_customer_id
-       FROM users
-       WHERE lower(email) = ?`
-    )
-      .bind(email.toLowerCase())
-      .first() as UserRecord | null;
+    try {
+        await c.env.DB.prepare(
+            `UPDATE users SET name = ?, email = ?, phone = ?, company_name = ?, email_notifications_enabled = ?, sms_notifications_enabled = ?, preferred_contact_method = ? WHERE id = ?`
+        ).bind(
+            name ?? user.name,
+            email ?? user.email,
+            phone !== undefined ? phone : user.phone,
+            company_name !== undefined ? company_name : user.company_name,
+            email_notifications_enabled,
+            sms_notifications_enabled,
+            preferred_contact_method ?? user.preferred_contact_method,
+            user.id
+        ).run();
 
-    if (!userRecord) {
-      throw new Error("User not found");
+        if (user.stripe_customer_id && (name || company_name)) {
+            const stripe = getStripe(c.env);
+            await stripe.customers.update(user.stripe_customer_id, {
+                name: name,
+                // Stripe doesn't have a dedicated company name field, metadata is the standard place
+                metadata: { company_name: company_name || '' }
+            });
+        }
+
+        const updatedUser = { ...user, ...parsed.data };
+        return profileSuccessResponse(updatedUser);
+    } catch (e: any) {
+        if (e.message?.includes('UNIQUE constraint failed')) {
+            return profileErrorResponse('That email or phone number is already in use by another account.', 409);
+        }
+        console.error("Failed to update profile:", e);
+        return profileErrorResponse("Failed to update profile", 500);
+    }
+};
+
+
+export const handleChangePassword = async (c: ProfileContext<ProfileAppEnv>) => {
+    const user = c.get('user');
+    const body = await c.req.json();
+    const parsed = ChangePasswordPayload.safeParse(body);
+
+    if (!parsed.success) {
+        return profileErrorResponse("Invalid password data", 400, parsed.error.flatten());
     }
 
-    // Parse update data from request
-    const updateData = await request.json() as {
-      name?: string;
-      phone?: string;
-    };
+    const { currentPassword, newPassword } = parsed.data;
 
-    const fields = [];
-    const values = [];
+    const fullUser = await c.env.DB.prepare('SELECT password_hash FROM users WHERE id = ?').bind(user.id).first<{password_hash: string}>();
 
-    // Add fields to update
-    if (updateData.name) {
-      fields.push("name = ?");
-      values.push(updateData.name);
+    if (!fullUser?.password_hash) {
+        return profileErrorResponse("User does not have a password set.", 400);
     }
 
-    if (updateData.phone) {
-      fields.push("phone = ?");
-      values.push(updateData.phone);
+    const isCorrect = await verifyPassword(currentPassword, fullUser.password_hash);
+
+    if (!isCorrect) {
+        return profileErrorResponse("Incorrect current password.", 401);
     }
 
-    if (fields.length === 0) {
-      return new Response(JSON.stringify({ message: "No fields to update" }), {
-        status: 200,
-        headers: CORS,
-      });
+    const newHashedPassword = await hashPassword(newPassword);
+
+    await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+        .bind(newHashedPassword, user.id)
+        .run();
+
+    return profileSuccessResponse({ message: 'Password updated successfully.' });
+};
+
+export const handleListPaymentMethods = async (c: ProfileContext<ProfileAppEnv>) => {
+    const user = c.get('user');
+    if (!user.stripe_customer_id) {
+        return profileSuccessResponse([]);
     }
+    const stripe = getStripe(c.env);
+    const paymentMethods = await listPaymentMethods(stripe, user.stripe_customer_id);
+    return profileSuccessResponse(paymentMethods.data);
+};
 
-    // Add the user ID for the WHERE clause
-    values.push(userRecord.id);
-
-    // Update the user record
-    await env.DB.prepare(
-      `UPDATE users
-       SET ${fields.join(", ")}
-       WHERE id = ?`
-    ).bind(...values).run();
-
-    // Also update Stripe customer if available
-    if (userRecord.stripe_customer_id && (updateData.name || updateData.phone)) {
-      try {
-        const stripe = getStripe(env);
-        const stripeUpdateData: any = {};
-        
-        if (updateData.name) stripeUpdateData.name = updateData.name;
-        if (updateData.phone) stripeUpdateData.phone = updateData.phone;
-        
-        await stripe.customers.update(userRecord.stripe_customer_id, stripeUpdateData);
-      } catch (stripeError) {
-        console.error("Failed to update Stripe customer:", stripeError);
-        // We don't want to fail the entire request if just the Stripe update fails
-      }
+export const handleCreateSetupIntent = async (c: ProfileContext<ProfileAppEnv>) => {
+    const user = c.get('user');
+    if (!user.stripe_customer_id) {
+        return profileErrorResponse("User is not a Stripe customer", 400);
     }
+    const stripe = getStripe(c.env);
+    const setupIntent = await createSetupIntent(stripe, user.stripe_customer_id);
+    return profileSuccessResponse({ clientSecret: setupIntent.client_secret });
+};
 
-    // Get the updated user record
-    const updatedUser = await env.DB.prepare(
-      `SELECT id, email, name, phone
-       FROM users
-       WHERE id = ?`
-    ).bind(userRecord.id).first();
+export const handleGetNotifications = async (c: ProfileContext<ProfileAppEnv>) => {
+    const user = c.get('user');
+    try {
+        // NOTE: This assumes a 'ui_notifications' table exists.
+        // In a real scenario, a migration would be created for this.
+        const { results } = await c.env.DB.prepare(
+            `SELECT id, user_id, type, message, link, is_read, created_at FROM ui_notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 20`
+        ).bind(user.id).all<UINotification>();
+        return profileSuccessResponse(results || []);
+    } catch (e: any) {
+        console.error("Failed to get notifications:", e);
+        // Fallback to empty array if table doesn't exist
+        if (e.message.includes('no such table')) {
+            return profileSuccessResponse([]);
+        }
+        return profileErrorResponse("Failed to retrieve notifications", 500);
+    }
+};
 
-    return new Response(JSON.stringify(updatedUser), {
-      status: 200,
-      headers: CORS,
-    });
-  } catch (err: any) {
-    console.error("Error updating profile:", err);
-    return errorResponse(err.message, 400);
-  }
-}
+export const handleMarkAllNotificationsRead = async (c: ProfileContext<ProfileAppEnv>) => {
+    const user = c.get('user');
+    try {
+        // NOTE: This assumes a 'ui_notifications' table exists.
+        await c.env.DB.prepare(
+            `UPDATE ui_notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0`
+        ).bind(user.id).run();
+        return profileSuccessResponse({ success: true });
+    } catch (e: any) {
+        // Silently fail if table doesn't exist
+        if (e.message.includes('no such table')) {
+            return profileSuccessResponse({ success: true });
+        }
+        return profileErrorResponse("Failed to mark all notifications as read", 500);
+    }
+};

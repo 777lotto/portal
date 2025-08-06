@@ -1,169 +1,199 @@
-// frontend/src/lib/api.ts - Fixed with proper types
-import { fetchJson } from "./fetchJson";
-import { Job, Service, User, AuthResponse, PortalSession, Conversation, SMSMessage } from '@portal/shared';
+// 777lotto/portal/portal-bet/frontend/src/lib/api.ts
+import {
+  type Job,
+  type Service,
+  type User,
+  type AuthResponse,
+  type PortalSession,
+  type Conversation,
+  type SMSMessage,
+  type Photo,
+  type Note,
+  type PhotoWithNotes,
+  type BlockedDate,
+  type StripeInvoice,
+  type UINotification
+} from "@portal/shared";
+import { fetchJson } from './fetchJson.js';
 
-/* ---------- low-level helpers ---------- */
 
-// Make the helpers generic to pass types through to fetchJson
-export const apiGet = <T>(path: string, token?: string) =>
-  fetchJson<T>(path, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  });
 
-export const apiPost = <T>(
-  path: string,
-  body: unknown,
-  token?: string,
-  method: "POST" | "PUT" | "DELETE" = "POST",
-) =>
-  fetchJson<T>(path, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+/* ========================================================================
+                              API HELPER FUNCTIONS
+   ======================================================================== */
+
+export const apiGet = <T>(path: string): Promise<T> => {
+  return fetchJson<T>(path);
+};
+
+export const apiPost = <T>(path: string, body: unknown, method: "POST" | "PUT" = "POST"): Promise<T> => {
+  return fetchJson<T>(path, {
+    method: method,
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+};
 
-/* ---------- auth ---------- */
-
-// Specify the expected response types for each endpoint
-export const checkStripeCustomer = (email: string, phone: string) =>
-  apiPost<{ exists: boolean; name?: string; email?: string; }>("/stripe/check-customer", { email, phone });
-
-export const createStripeCustomer = (email: string, name: string, phone: string) =>
-  apiPost<{ success: boolean; customerId: string; }>("/stripe/create-customer", { email, name, phone });
-
-export const login = (identifier: string, password: string, turnstileToken?: string) =>
-  apiPost<AuthResponse>("/login", { identifier, password, turnstileToken });
-
-export const signup = (email: string, name: string, password: string, phone: string) =>
-  apiPost<AuthResponse>("/signup", { email, name, password, phone });
-
-export const signupCheck = (email: string, phone: string, turnstileToken?: string) =>
-  apiPost<{ status: string; }>("/signup/check", { email, phone, turnstileToken });
+export const apiPostFormData = <T>(path: string, formData: FormData): Promise<T> => {
+  return fetchJson<T>(path, {
+    method: 'POST',
+    body: formData,
+  });
+};
 
 
-/* ---------- services ---------- */
+/* ========================================================================
+                                  PUBLIC API
+   ======================================================================== */
 
-export const getServices = (token: string) =>
-  apiGet<Service[]>("/services", token);
-
-export const getService = (id: number, token: string) =>
-  apiGet<Service>(`/services/${id}`, token);
-
-
-/* ---------- jobs ---------- */
-
-export const getJobs = (token: string) =>
-  apiGet<Job[]>("/jobs", token);
-
-export const getJob = (id: string, token: string) =>
-  apiGet<Job>(`/jobs/${id}`, token);
-
-
-/* ---------- profile ---------- */
-
-export const getProfile = (token: string) =>
-  apiGet<User>("/profile", token);
-
-export const updateProfile = (profileData: Record<string, unknown>, token: string) =>
-  apiPost<User>("/profile", profileData, token, "PUT");
-
-export const requestPasswordReset = (email: string, turnstileToken: string) =>
-  apiPost<{ message: string }>("/request-password-reset", { email, turnstileToken });
-
-
-/* ---------- invoices ---------- */
-
-export const getInvoice = (_serviceId: number, token: string) =>
-  apiGet<{ hosted_invoice_url: string }>("/services/${serviceId}/invoice", token);
+export const getPublicAvailability = () => apiGet<{ bookedDays: string[] }>('/api/public/availability');
+export const createPublicBooking = (data: unknown) => apiPost('/api/public/booking', data);
+export const checkUser = (identifier: string) => apiPost<{ status: string }>('/api/check-user', { identifier });
+export const initializeSignup = (data: unknown) => apiPost<any>('/api/signup/initialize', data);
+export const requestPasswordReset = (identifier: string, channel: 'email' | 'sms') => apiPost('/api/request-password-reset', { identifier, channel });
+export const verifyResetCode = (identifier: string, code: string) => {
+    return apiPost<{ passwordSetToken: string }>('/api/verify-reset-code', { identifier, code });
+};
+export const loginWithToken = (passwordSetToken: string) => {
+  return fetchJson<AuthResponse>('/api/login-with-token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${passwordSetToken}`
+    },
+  });
+};
+export const setPassword = (password: string, passwordSetToken: string) => {
+  return fetchJson<AuthResponse>('/api/set-password', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${passwordSetToken}`
+    },
+    body: JSON.stringify({ password }),
+  });
+};
 
 
-/* ---------- Stripe Customer Portal ---------- */
+/* ========================================================================
+                                  AUTH
+   ======================================================================== */
 
-export const openPortal = (token: string) =>
-  apiPost<PortalSession>("/portal", {}, token);
+export const login = (data: unknown) => apiPost<AuthResponse>('/api/login', data);
+export const logout = () => apiPost('/api/logout', {});
 
-/* ---------- Calendar Integration ---------- */
 
-export const getCalendarFeed = (token: string) =>
-  `${window.location.origin}/api/calendar-feed?token=${token}`;
+/* ========================================================================
+                                  USER & PROFILE
+   ======================================================================== */
 
-export const syncCalendar = (calendarUrl: string, token: string) =>
-  apiPost("/calendar-sync", { calendarUrl }, token);
+export const getProfile = () => apiGet<User>('/api/profile');
+export const updateProfile = (data: Partial<User>) => apiPost<User>('/api/profile', data, 'PUT');
+export const createPortalSession = () => apiPost<PortalSession>('/api/portal', {});
+export const listPaymentMethods = () => apiGet<any[]>('/api/profile/payment-methods');
+export const createSetupIntent = () => apiPost<{ clientSecret: string }>('/api/profile/setup-intent', {});
 
-/* ---------- Worker Service Binding ---------- */
 
-export const callWorkerService = (serviceName: string, path: string, data?: Record<string, unknown>, token?: string) =>
-  apiPost(`/worker-service/${serviceName}${path}`, data || {}, token);
+/* ========================================================================
+                                  SERVICES
+   ======================================================================== */
 
-// Helper functions for specific worker services
+export const getServices = () => apiGet<Service[]>('/api/services');
+export const getService = (id: string) => apiGet<Service>(`/api/services/${id}`);
+export const createInvoice = (serviceId: string) => apiPost<any>(`/api/services/${serviceId}/invoice`, {});
 
-export const callNotificationService = (action: string, data: Record<string, unknown>, token: string) =>
-  callWorkerService('notification', `/${action}`, data, token);
 
-export const callPaymentProcessingService = (action: string, data: Record<string, unknown>, token: string) =>
-  callWorkerService('payment', `/${action}`, data, token);
+/* ========================================================================
+                                  JOBS
+   ======================================================================== */
 
-export const callSchedulingService = (action: string, data: Record<string, unknown>, token: string) =>
-  callWorkerService('scheduling', `/${action}`, data, token);
+export const getJobs = () => apiGet<Job[]>('/api/jobs');
+export const getJob = (id: string) => apiGet<Job>(`/api/jobs/${id}`);
 
-// Specific notification functions
-export const sendEmailNotification = (emailData: {
-  to: string;
-  subject: string;
-  body: string;
-  templateId?: string;
-}, token: string) =>
-  callNotificationService('send-email', emailData, token);
 
-export const sendSmsNotification = (smsData: {
-  to: string;
-  message: string;
-}, token: string) =>
-  callNotificationService('send-sms', smsData, token);
+/* ========================================================================
+                                  ADMIN API
+   ======================================================================== */
 
-// Specific payment processing functions
-export const processPayment = (paymentData: {
-  amount: number;
-  currency: string;
-  description: string;
-  customerId: string;
-}, token: string) =>
-  callPaymentProcessingService('process', paymentData, token);
+export const adminCreateUser = (data: unknown) => apiPost<User>('/api/admin/users', data);
+export const adminUpdateUser = (userId: string, data: Partial<User>) => apiPost<User>(`/api/admin/users/${userId}`, data, 'PUT');
+export const deleteUser = (userId: string) => fetchJson(`/api/admin/users/${userId}`, { method: 'DELETE' });
+export const getBlockedDates = () => apiGet<BlockedDate[]>('/api/admin/blocked-dates');
+export const addBlockedDate = (date: string, reason?: string) => apiPost('/api/admin/blocked-dates', { date, reason });
+export const removeBlockedDate = (date: string) => fetchJson(`/api/admin/blocked-dates/${date}`, { method: 'DELETE' });
+export const adminCreateInvoice = (userId: string) => apiPost<{ invoice: StripeInvoice }>(`/api/admin/users/${userId}/invoice`, {});
+export const adminGetAllJobs = () => apiGet<Job[]>('/api/admin/jobs');
+export const adminGetAllServices = () => apiGet<Service[]>('/api/admin/services');
+export const adminCreateJobForUser = (userId: string, data: { title: string; start: string; price_cents: number }) => {
+  return apiPost<Job>(`/api/admin/users/${userId}/jobs`, data);
+};
+export const adminFinalizeJob = (jobId: string) => {
+  return apiPost<{ invoiceId: string; invoiceUrl: string | null }>(`/api/admin/jobs/${jobId}/complete`, {});
+};
+export const adminImportInvoices = () => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>('/api/admin/invoices/import', {});
+export const adminImportInvoicesForUser = (userId: string) => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>(`/api/admin/users/${userId}/invoices/import`, {});
 
-export const refundPayment = (refundData: {
-  paymentId: string;
-  amount?: number;
-}, token: string) =>
-  callPaymentProcessingService('refund', refundData, token);
+/* ========================================================================
+                            ADMIN INVOICE FUNCTIONS
+   ======================================================================== */
 
-// Specific scheduling functions
-export const checkAvailability = (date: string, token: string) =>
-  callSchedulingService('check-availability', { date }, token);
+export const getInvoice = (invoiceId: string) => apiGet<StripeInvoice>(`/api/admin/invoices/${invoiceId}`);
 
-export const scheduleJob = (jobData: Omit<Job, 'id' | 'createdAt' | 'updatedAt'>, token: string) =>
-  callSchedulingService('schedule', jobData, token);
+export const addInvoiceItem = (invoiceId: string, data: { description: string, amount: number }) => {
+  return apiPost(`/api/admin/invoices/${invoiceId}/items`, data);
+};
 
-export const rescheduleJob = (id: string, newDate: string, token: string) =>
-  callSchedulingService('reschedule', { id, newDate }, token);
+export const deleteInvoiceItem = (invoiceId: string, itemId: string) => {
+  return fetchJson(`/api/admin/invoices/${invoiceId}/items/${itemId}`, { method: 'DELETE' });
+};
 
-/* ---------- SMS ---------- */
+export const finalizeInvoice = (invoiceId: string) => {
+  return apiPost<StripeInvoice>(`/api/admin/invoices/${invoiceId}/finalize`, {});
+};
 
-export const getConversations = (token: string) =>
-  apiGet<Conversation[]>("/sms/conversations", token);
 
-export const getConversation = (phoneNumber: string, token: string) =>
-  apiGet<SMSMessage[]>(`/sms/messages/${phoneNumber}`, token);
+/* ========================================================================
+                                PHOTOS & NOTES
+   ======================================================================== */
 
-export const sendSMS = (to: string, message: string, token: string) =>
-  apiPost("/sms/send", { to, message }, token);
+export const getPhotos = (filters: { [key: string]: string } = {}) => {
+  const query = new URLSearchParams(filters).toString();
+  return apiGet<PhotoWithNotes[]>(`/api/photos?${query}`);
+};
+export const getPhotosForJob = (jobId: string) => apiGet<Photo[]>(`/api/jobs/${jobId}/photos`);
+export const getNotesForJob = (jobId: string) => apiGet<Note[]>(`/api/jobs/${jobId}/notes`);
 
-/* ---------- Payment Reminders ---------- */
 
-export const sendPaymentReminder = (serviceId: number, token: string) =>
-  apiPost(`/payment/send-reminder`, { serviceId }, token);
+/* ========================================================================
+                                    SMS
+   ======================================================================== */
 
-export const runPaymentReminders = (token: string) =>
-  apiPost("/payment/run-reminders", {}, token);
+export const getSmsConversations = () => apiGet<Conversation[]>('/api/sms/conversations');
+export const getSmsConversation = (phoneNumber: string) => apiGet<SMSMessage[]>(`/api/sms/conversation/${phoneNumber}`);
+export const sendSms = (phoneNumber: string, message: string) => apiPost<SMSMessage>('/api/sms/send', { to: phoneNumber, message });
+
+
+/* ========================================================================
+                                  CALENDAR
+   ======================================================================== */
+
+export const downloadCalendarFeed = () => apiGet<string>('/api/calendar.ics');
+export const getSecretCalendarUrl = () => apiGet<{url: string}>('/api/calendar/secret-url');
+export const regenerateSecretCalendarUrl = () => apiPost<{url: string}>('/api/calendar/regenerate-url', {});
+export const syncCalendar = (url: string) => apiPost('/api/calendar-sync', { url });
+
+
+/* ========================================================================
+                             PUSH NOTIFICATIONS
+   ======================================================================== */
+
+export const getVapidKey = () => apiGet<string>('/api/notifications/vapid-key');
+export const subscribeToPush = (subscription: any) => apiPost('/api/notifications/subscribe', subscription);
+
+
+/* ========================================================================
+                             UI NOTIFICATIONS
+   ======================================================================== */
+
+export const getNotifications = () => apiGet<UINotification[]>('/api/notifications');
+export const markAllNotificationsRead = () => apiPost('/api/notifications/read-all', {});

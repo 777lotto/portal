@@ -1,5 +1,6 @@
-// worker/src/calendar.ts - Fixed imports and types
-import type { Env } from "@portal/shared";
+// worker/src/calendar.ts
+
+import type { Env, User } from "@portal/shared";
 import { v4 as uuidv4 } from 'uuid';
 import { JobSchema } from "@portal/shared";
 
@@ -25,7 +26,7 @@ export async function getCustomerJobs(env: Env, customerId: string): Promise<Job
     `SELECT * FROM jobs WHERE customerId = ? ORDER BY start DESC`
   ).bind(customerId).all();
 
-  return (results || []) as JobRecord[];
+  return (results || []) as unknown as JobRecord[];
 }
 
 // Get a specific job by ID
@@ -151,52 +152,84 @@ export async function deleteJob(env: Env, jobId: string, customerId: string): Pr
 }
 
 // Generate an iCal feed for a customer's jobs
-export async function generateCalendarFeed(env: Env, customerId: string): Promise<string> {
-  // Get all active jobs for the customer
-  const jobs = await getCustomerJobs(env, customerId);
+export async function generateCalendarFeed(env: Env, feedOwnerId: string): Promise<string> {
+  const portalBaseUrl = env.PORTAL_URL.replace('/dashboard', '');
 
-  // Create iCal content
+  // 1. Get the preferences of the user who owns the feed
+  const feedOwner = await env.DB.prepare(
+    `SELECT * FROM users WHERE id = ?`
+  ).bind(feedOwnerId).first<User>();
+
+  if (!feedOwner) {
+    throw new Error("User for calendar feed not found.");
+  }
+
+  // 2. Get all active jobs for that user
+  const { results: jobs } = await env.DB.prepare(
+    `SELECT * FROM jobs WHERE customerId = ? AND status != 'cancelled'`
+  ).bind(feedOwnerId).all<JobRecord>();
+
+  // 3. Get the details of the customer for these jobs (which is the same as the feed owner)
+  // In a more complex system where admins subscribe to customer jobs, this would be different.
+  const customer = feedOwner;
+
   let icalContent = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Gutter Portal//Calendar//EN',
+    'PRODID:-//777 Solutions LLC//Gutter Portal//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
-    'X-WR-CALNAME:Gutter Service Appointments',
+    `X-WR-CALNAME:777 Solutions Appointments for ${customer.name}`,
     'X-WR-TIMEZONE:America/New_York',
   ];
 
-  // Add each job as an event
-  for (const job of jobs) {
-    if (job.status === 'cancelled') continue; // Skip cancelled jobs
-
+  for (const job of (jobs || [])) {
     const startDate = new Date(job.start);
     const endDate = new Date(job.end);
-
-    // Format dates for iCal (YYYYMMDDTHHMMSSZ)
-    const formatDate = (date: Date) => {
-      return date.toISOString().replace(/[-:]/g, '').replace(/\.\d+/g, '');
-    };
+    const formatDate = (date: Date) => date.toISOString().replace(/[-:]/g, '').replace(/\.\d+/g, '');
 
     const eventId = job.id.replace(/-/g, '');
+    let description = `Status: ${job.status}\\n\\n`;
+    let eventUrl = '';
 
-    icalContent.push(
-      'BEGIN:VEVENT',
-      `UID:${eventId}@gutterportal.com`,
-      `DTSTAMP:${formatDate(new Date())}`,
-      `DTSTART:${formatDate(startDate)}`,
-      `DTEND:${formatDate(endDate)}`,
-      `SUMMARY:${job.title}`,
-      job.description ? `DESCRIPTION:${job.description.replace(/\n/g, '\\n')}` : '',
-      `STATUS:${job.status === 'completed' ? 'COMPLETED' : 'CONFIRMED'}`,
-      `SEQUENCE:0`,
-      `TRANSP:OPAQUE`,
-      'END:VEVENT'
-    );
+    // Create role-specific content
+    if (feedOwner.role === 'admin') {
+        description += `Customer: ${customer.name} (${customer.email})\\n`;
+        description += `View User Profile: ${portalBaseUrl}/admin/users/${customer.id}`;
+        eventUrl = `${portalBaseUrl}/admin/users/${customer.id}`;
+    } else { // Customer view
+        description += `Service Details: ${job.description || job.title}\\n`;
+        description += `View Job in Portal: ${portalBaseUrl}/jobs/${job.id}`;
+        eventUrl = `${portalBaseUrl}/jobs/${job.id}`;
+    }
+
+    icalContent.push('BEGIN:VEVENT');
+    icalContent.push(`UID:${eventId}@portal.777.foo`);
+    icalContent.push(`DTSTAMP:${formatDate(new Date())}`);
+    icalContent.push(`DTSTART:${formatDate(startDate)}`);
+    icalContent.push(`DTEND:${formatDate(endDate)}`);
+    icalContent.push(`SUMMARY:${job.title}`);
+    icalContent.push(`DESCRIPTION:${description}`);
+    if (eventUrl) {
+        icalContent.push(`URL;VALUE=URI:${eventUrl}`);
+    }
+    icalContent.push(`STATUS:${job.status === 'completed' ? 'COMPLETED' : 'CONFIRMED'}`);
+    icalContent.push(`SEQUENCE:0`);
+    icalContent.push(`TRANSP:OPAQUE`);
+
+    // Add reminder (VALARM) if enabled
+    if (feedOwner.calendar_reminders_enabled && feedOwner.calendar_reminder_minutes) {
+      icalContent.push('BEGIN:VALARM');
+      icalContent.push(`TRIGGER:-PT${feedOwner.calendar_reminder_minutes}M`);
+      icalContent.push('ACTION:DISPLAY');
+      icalContent.push(`DESCRIPTION:Reminder: ${job.title}`);
+      icalContent.push('END:VALARM');
+    }
+
+    icalContent.push('END:VEVENT');
   }
 
   icalContent.push('END:VCALENDAR');
 
-  // Filter out empty lines and join with CRLF
   return icalContent.filter(line => line).join('\r\n');
 }

@@ -1,0 +1,56 @@
+# Configuration for the 'payment' worker
+name = "payment"
+main = "src/index.ts"
+account_id = "67d3a6021370e7b666fff2023b2db359"
+compatibility_date = "2024-05-28"
+compatibility_flags = [ "nodejs_compat_v2" ]
+
+# Observability settings for all environments
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+# ===============================================================
+#      DEVELOPMENT-SPECIFIC CONFIGURATION
+# ===============================================================
+[env.development]
+
+# Development-specific variables
+[env.development.vars]
+ENVIRONMENT = "development"
+
+# Development D1 binding (will use a local file)
+[[env.development.d1_databases]]
+binding = "DB"
+database_name = "gutter_db"
+database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+migrations_dir = "../worker/migrations" # Point to the canonical migrations directory
+
+# Development Queue producer binding (will use a local in-memory queue)
+[[env.development.queues.producers]]
+queue = "notifications"
+binding = "NOTIFICATION_QUEUE"
+
+# ===============================================================
+#      PRODUCTION-SPECIFIC CONFIGURATION
+# ===============================================================
+[env.production]
+
+# Production-specific variables
+[env.production.vars]
+ENVIRONMENT = "production"
+
+# Production-specific D1 binding
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "gutter_db"
+database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+
+# Production-specific Queue producer binding
+[[env.production.queues.producers]]
+queue = "notifications"
+binding = "NOTIFICATION_QUEUE"
+
+# Production-specific Cron Trigger
+[env.production.triggers]
+crons = [ "0 10 * * *" ]

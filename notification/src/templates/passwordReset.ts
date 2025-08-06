@@ -2,7 +2,7 @@
 
 interface PasswordResetTemplateData {
   name: string;
-  resetLink: string;
+  resetCode: string;
 }
 
 export function generatePasswordResetHtml(data: PasswordResetTemplateData): string {
@@ -11,7 +11,7 @@ export function generatePasswordResetHtml(data: PasswordResetTemplateData): stri
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Password Reset Request</title>
+      <title>Your Verification Code</title>
       <style>
         body { font-family: Arial, sans-serif; color: #333; }
         .container { max-width: 600px; margin: auto; padding: 20px; }
@@ -22,13 +22,13 @@ export function generatePasswordResetHtml(data: PasswordResetTemplateData): stri
     </head>
     <body>
       <div class="container">
-        <div class="header"><h2>Password Reset Request</h2></div>
+        <div class="header"><h2>Your Verification Code</h2></div>
         <p>Hello ${data.name},</p>
-        <p>We received a request to reset your password. Click the button below to set a new password:</p>
-        <a href="${data.resetLink}" class="button">Reset Your Password</a>
-        <p>This link will expire in 1 hour. If you did not request a password reset, please ignore this email.</p>
+        <p>We received a request to reset your password. Enter the code below to set a new password:</p>
+        <div class="code">${data.resetCode}</div>
+        <p>This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
         <div class="footer">
-          <p>&copy; ${new Date().getFullYear()} Gutter Portal. All rights reserved.</p>
+          <p>&copy; ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.</p>
         </div>
       </div>
     </body>
@@ -40,13 +40,14 @@ export function generatePasswordResetText(data: PasswordResetTemplateData): stri
   return `
 Hello ${data.name},
 
-We received a request to reset your password. Please visit the following link to set a new password:
-${data.resetLink}
+We received a request to reset your password. Enter the code below to set a new password:
 
-This link will expire in 1 hour.
+${data.resetCode}
 
-If you did not request a password reset, please ignore this email.
+This code will expire in 10 minutes.
 
-© ${new Date().getFullYear()} Gutter Portal. All rights reserved.
+If you did not request this, please ignore this email.
+
+© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.
   `;
 }

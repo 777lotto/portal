@@ -1,168 +1,142 @@
-// frontend/src/App.tsx - Updated for Cloudflare integration
+// frontend/src/App.tsx - MODIFIED
 import { Routes, Route, Navigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import LoginForm from "./components/LoginForm";
-import SignupForm from "./components/SignupForm";
-import Dashboard from "./components/Dashboard";
-import Services from "./components/Services";
-import ServiceDetail from "./components/ServiceDetail";
-import JobCalendar from "./components/Calendar";
-import JobDetail from "./components/JobDetail";
-import CalendarSync from "./components/CalendarSync";
-import Navbar from "./components/Navbar";
-import SMSConversations from "./components/SMSConversations";
-import SMSConversation from "./components/SMSConversation";
+import { useEffect, useState, lazy, Suspense } from "react"; // Import lazy and Suspense
+import { jwtDecode } from 'jwt-decode';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
 
-// Removed bogus global types - not needed with Cloudflare Vite plugin
+// --- Page Components ---
+import Navbar from "./components/Navbar.js";
+import Dashboard from "./components/Dashboard.js";
+import { ChatWidget } from './components/ChatWidget.js';
+// Lazily load components that aren't needed on the initial page load
+const JobCalendar = lazy(() => import("./components/Calendar.js"));
+const JobDetail = lazy(() => import("./components/JobDetail.js"));
+const CalendarSync = lazy(() => import("./components/CalendarSync.js"));
+const PublicBookingPage = lazy(() => import("./components/PublicBookingPage.js"));
+const Photos = lazy(() => import("./components/Photos.js"));
+const AccountPage = lazy(() => import("./components/AccountPage.js"));
+const AuthForm = lazy(() => import("./components/AuthForm.js"));
+
+// --- Admin Page Components ---
+const AdminDashboard = lazy(() => import("./components/admin/AdminDashboard.js"));
+const AdminUserDetail = lazy(() => import("./components/admin/AdminUserDetail.js"));
+
+
+interface UserPayload {
+  id: number;
+  email: string;
+  name: string;
+  role: 'customer' | 'admin';
+}
+
+// A simple fallback component to show while a lazy component is loading
+function LoadingFallback() {
+  return <div className="p-8 text-center">Loading...</div>;
+}
+
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PK);
+
 
 function App() {
   const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<UserPayload | null>(null);
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // Initialize the app
+    const useDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if (useDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+
     const initializeApp = async () => {
       try {
-        // Get token from localStorage
         const storedToken = localStorage.getItem("token");
         setToken(storedToken);
 
-        // In development, test if the API is accessible
-        if (import.meta.env.DEV) {
+        if (storedToken) {
           try {
-            const response = await fetch('/api/ping', { 
-              method: 'GET',
-              headers: {
-                'Content-Type': 'application/json'
-              }
-            });
-            
-            if (response.ok) {
-              console.log('✅ API is ready');
-            } else {
-              console.warn('⚠️  API not ready yet, but continuing...');
-            }
+            const decodedUser = jwtDecode<UserPayload>(storedToken);
+            setUser(decodedUser);
           } catch (error) {
-            console.warn('⚠️  Could not reach API during initialization:', error);
+            console.error("Invalid token:", error);
+            localStorage.removeItem("token");
+            setToken(null);
+            setUser(null);
           }
         }
 
-        setIsReady(true);
       } catch (error) {
         console.error('App initialization error:', error);
-        setIsReady(true); // Continue anyway
+      } finally {
+        setIsReady(true);
       }
     };
 
     initializeApp();
   }, []);
 
-  // Show loading state while initializing
+  const handleSetToken = (newToken: string | null) => {
+    setToken(newToken);
+    if (newToken) {
+      localStorage.setItem("token", newToken);
+      try {
+        setUser(jwtDecode<UserPayload>(newToken));
+      } catch (error) {
+        console.error("Failed to decode new token:", error);
+        setUser(null);
+      }
+    } else {
+      localStorage.removeItem("token");
+      setUser(null);
+    }
+  };
+
   if (!isReady) {
-    return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh',
-        flexDirection: 'column',
-        gap: '1rem'
-      }}>
-        <div>Loading...</div>
-        {import.meta.env.DEV && (
-          <div style={{ fontSize: '0.8rem', color: '#666' }}>
-            Starting up...
-          </div>
-        )}
-      </div>
-    );
+    return <LoadingFallback />;
   }
 
   return (
-    <>
-      <Navbar token={token} setToken={setToken} />
-      <Routes>
-        {/* root redirect */}
-        <Route
-          path="/"
-          element={<Navigate to={token ? "/dashboard" : "/login"} replace />}
-        />
+    <div className="min-h-screen bg-primary-light dark:bg-secondary-dark">
+      <Navbar token={token} user={user} setToken={handleSetToken} />
+      <main className="p-4 sm:p-6 lg:p-8">
+        <Elements stripe={stripePromise}>
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              {/* --- Public Routes --- */}
+              <Route path="/booking" element={<PublicBookingPage />} />
+              <Route path="/auth" element={token ? <Navigate to="/dashboard" replace /> : <AuthForm setToken={handleSetToken} />} />
+              <Route path="/" element={<Navigate to={token ? "/dashboard" : "/auth"} replace />} />
 
-        {/* auth */}
-        <Route
-          path="/login"
-          element={
-            token ? <Navigate to="/dashboard" replace /> : <LoginForm setToken={setToken} />
-          }
-        />
-        <Route
-          path="/signup"
-          element={
-            token ? <Navigate to="/dashboard" replace /> : <SignupForm setToken={setToken} />
-          }
-        />
+              {/* --- Customer-facing Routes --- */}
+              <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/auth" replace />} />
+              <Route path="/calendar" element={token ? <JobCalendar /> : <Navigate to="/auth" replace />} />
+              <Route path="/photos" element={token ? <Photos /> : <Navigate to="/auth" replace />} />
+              <Route path="/jobs/:id" element={token ? <JobDetail /> : <Navigate to="/auth" replace />} />
+              <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/auth" replace />} />
+              <Route path="/account" element={token ? <AccountPage /> : <Navigate to="/auth" replace />} />
 
-        {/* protected pages */}
-        <Route
-          path="/dashboard"
-          element={token ? <Dashboard /> : <Navigate to="/login" replace />}
-        />
+              {/* --- Admin Routes --- */}
+              <Route
+                path="/admin/users"
+                element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/dashboard" replace />}
+              />
+              <Route
+                path="/admin/users/:userId"
+                element={user?.role === 'admin' ? <AdminUserDetail /> : <Navigate to="/dashboard" replace />}
+              />
 
-        {/* services */}
-        <Route
-          path="/services"
-          element={token ? <Services /> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/services/:id"
-          element={token ? <ServiceDetail /> : <Navigate to="/login" replace />}
-        />
-
-        {/* calendar */}
-        <Route
-          path="/calendar"
-          element={token ? <JobCalendar /> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/jobs/:id"
-          element={token ? <JobDetail /> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/calendar-sync"
-          element={token ? <CalendarSync /> : <Navigate to="/login" replace />}
-        />
-        
-        {/* SMS routes */}
-        <Route
-          path="/sms"
-          element={token ? <SMSConversations /> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/sms/:phoneNumber"
-          element={token ? <SMSConversation /> : <Navigate to="/login" replace />}
-        />
-        
-        {/* catch-all */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-      
-      {/* Development debug info */}
-      {import.meta.env.DEV && (
-        <div style={{
-          position: 'fixed',
-          bottom: '10px',
-          right: '10px',
-          background: 'rgba(0,0,0,0.8)',
-          color: 'white',
-          padding: '8px',
-          fontSize: '10px',
-          borderRadius: '4px',
-          fontFamily: 'monospace'
-        }}>
-          ENV: {import.meta.env.MODE} | API: {import.meta.env.VITE_API_URL || '/api'}
-        </div>
-      )}
-    </>
+              {/* --- Catch-all redirect --- */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+        </Elements>
+      </main>
+      {/* Add the chat widget here, it will only show if the user is logged in */}
+      {token && <ChatWidget />}
+    </div>
   );
 }
 

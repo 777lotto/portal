@@ -11,7 +11,7 @@ export function generateHtml(data: WelcomeTemplateData): string {
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Welcome to Gutter Portal</title>
+      <title>Welcome to 777 Solutions LLC</title>
       <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
@@ -27,11 +27,11 @@ export function generateHtml(data: WelcomeTemplateData): string {
     <body>
       <div class="container">
         <div class="header">
-          <h1>Welcome to Gutter Portal!</h1>
+          <h1>Welcome to 777 Solutions LLC!</h1>
         </div>
         <div class="content">
           <p>Hello ${data.name},</p>
-          <p>Thank you for creating an account with Gutter Portal. We're excited to have you on board!</p>
+          <p>Thank you for creating an account with 777 Solutions LLC. We're excited to have you on board!</p>
 
           <p>With your new account, you can:</p>
           <div class="steps">
@@ -47,8 +47,8 @@ export function generateHtml(data: WelcomeTemplateData): string {
           <p>If you have any questions or need assistance, our support team is here to help.</p>
         </div>
         <div class="footer">
-          <p>© ${new Date().getFullYear()} Gutter Portal. All rights reserved.</p>
-          <p>You received this email because you created an account on Gutter Portal.</p>
+          <p>© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.</p>
+          <p>You received this email because you created an account on 777 Solutions' online customer portal.</p>
         </div>
       </div>
     </body>
@@ -60,7 +60,7 @@ export function generateText(data: WelcomeTemplateData): string {
   return `
 Hello ${data.name},
 
-Thank you for creating an account with Gutter Portal. We're excited to have you on board!
+Thank you for creating an account with 777 Solutions LLC. We're excited to have you on board!
 
 With your new account, you can:
 - Schedule gutter cleaning and maintenance services
@@ -73,7 +73,7 @@ https://portal.777.foo/dashboard
 
 If you have any questions or need assistance, our support team is here to help.
 
-© ${new Date().getFullYear()} Gutter Portal. All rights reserved.
-You received this email because you created an account on Gutter Portal.
+© ${new Date().getFullYear()} 777 Solutions LLC. All rights reserved.
+You received this email because you created an account on 777 Solutions' online customer portal.
   `;
 }

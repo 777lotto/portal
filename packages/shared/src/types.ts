@@ -1,301 +1,210 @@
-// packages/shared/src/types.ts
-
+// packages/shared/src/types.ts - THE SINGLE SOURCE OF TRUTH
+import type { D1Database, Fetcher } from '@cloudflare/workers-types';
 import { z } from 'zod';
 
-// Base environment interface - this is the minimal shared structure that all workers extend
-export interface BaseEnv {
-  // D1 Database
-  DB: D1Database;
 
-  // Secrets
-  JWT_SECRET: string;
 
-  // Stripe (optional - not all workers use Stripe)
-  STRIPE_SECRET_KEY?: string;
-  STRIPE_WEBHOOK_SECRET?: string;
+/* ========================================================================
+                            DATABASE & CORE MODELS
+   ======================================================================== */
 
-  // Turnstile (optional)
-  TURNSTILE_SECRET_KEY?: string;
-}
-
-// Main worker environment (extends base with service bindings)
-export interface Env extends BaseEnv {
-  // Stripe is required for main worker
-  STRIPE_SECRET_KEY: string;
-  STRIPE_WEBHOOK_SECRET: string;
-
-  // Turnstile is required for main worker
-  TURNSTILE_SECRET_KEY: string;
-
-  // Service bindings (optional - not all workers have all bindings)
-  NOTIFICATION_WORKER?: { fetch: (request: Request) => Promise<Response> };
-  PAYMENT_WORKER?: { fetch: (request: Request) => Promise<Response> };
-
-  // Environment variables
-  ENVIRONMENT?: string;
-  API_VERSION?: string;
-}
-
-// D1 database types - properly exported
-export interface D1Database {
-  prepare(query: string): D1PreparedStatement;
-  dump(): Promise<ArrayBuffer>;
-  batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]>;
-  exec(query: string): Promise<D1ExecResult>;
-}
-
-export interface D1PreparedStatement {
-  bind(...values: any[]): D1PreparedStatement;
-  first<T = unknown>(colName?: string): Promise<T | null>;
-  run<T = unknown>(): Promise<D1Result<T>>;
-  all<T = unknown>(): Promise<D1Result<T>>;
-  raw<T = unknown>(): Promise<T[]>;
-}
-
-export interface D1Result<T = unknown> {
-  results?: T[];
-  success: boolean;
-  error?: string;
-  meta: {
-    changed_db: boolean;
-    changes: number;
-    duration: number;
-    last_row_id: number;
-    served_by: string;
-    rows_read: number;
-    rows_written: number;
-  };
-}
-
-export interface D1ExecResult {
-  count: number;
-  duration: number;
-}
-
-// User-related types with proper Stripe integration
+// Defines the structure for a user, aligning with the database and JWT payload.
 export const UserSchema = z.object({
-  id: z.union([z.number(), z.string()]),
+  id: z.number(),
   email: z.string().email(),
   name: z.string(),
-  phone: z.string().optional(),
-  stripe_customer_id: z.string().optional(),
-  password_hash: z.string().optional(),
-  created_at: z.string().optional(),
-  updated_at: z.string().optional(),
+  phone: z.string().nullable(),
+  role: z.enum(['customer', 'admin', 'guest', 'associate']),
+  stripe_customer_id: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  company_name: z.string().optional().nullable(),
+  email_notifications_enabled: z.boolean().default(true).optional(),
+  sms_notifications_enabled: z.boolean().default(true).optional(),
+  preferred_contact_method: z.enum(['email', 'sms']).default('email').optional(),
+  // ADDED_START
+  calendar_reminders_enabled: z.boolean().default(true).optional(),
+  calendar_reminder_minutes: z.number().default(60).optional(),
+  // ADDED_END
 });
 export type User = z.infer<typeof UserSchema>;
 
-// Service types with Stripe integration
+// Defines a service record, matching the database schema.
 export const ServiceSchema = z.object({
   id: z.number(),
   user_id: z.number(),
   service_date: z.string(),
-  status: z.enum(['upcoming', 'confirmed', 'in_progress', 'completed', 'cancelled', 'invoiced', 'paid']),
-  notes: z.string().optional(),
-  price_cents: z.number().optional(),
-  stripe_invoice_id: z.string().optional(),
-  created_at: z.string().optional(),
-  updated_at: z.string().optional(),
+  status: z.string(),
+  notes: z.string().optional().nullable(),
+  price_cents: z.number().optional().nullable(),
+  stripe_invoice_id: z.string().optional().nullable(),
+  job_id: z.number().optional().nullable(), // MODIFIED: Add job_id
 });
 export type Service = z.infer<typeof ServiceSchema>;
 
-// Stripe-specific types for better type safety
-export const StripeCustomerDataSchema = z.object({
+// Define the new, stricter set of statuses for a Job
+export const JobStatusEnum = z.enum([
+  'upcoming',
+  'confirmed',
+  'completed',
+  'payment_pending',
+  'past_due',
+  'cancelled',
+  'pending_confirmation',
+  // --- NEW STATUSES ---
+  'pending_quote',
+  'quote_accepted',
+  'paid'
+]);
+export type JobStatus = z.infer<typeof JobStatusEnum>;
+
+// This resolves the majority of the frontend errors.
+export const JobSchema = z.object({
   id: z.string(),
-  email: z.string().email().nullable().optional(),
-  name: z.string().nullable().optional(),
-  phone: z.string().nullable().optional(),
-  created: z.number(),
-  metadata: z.record(z.string()).optional(),
+  customerId: z.string(),
+  title: z.string(),
+  description: z.string().optional().nullable(),
+  start: z.string(), // ISO date string
+  end: z.string(),   // ISO date string
+  status: JobStatusEnum, // Use the new enum
+  recurrence: z.string().optional().nullable(),
+  rrule: z.string().optional().nullable(),
+  crewId: z.string().optional().nullable(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+  stripe_invoice_id: z.string().optional().nullable(),
+  stripe_quote_id: z.string().optional().nullable(), // MODIFIED: Add stripe_quote_id
+  invoice_created_at: z.string().optional().nullable(),
 });
-export type StripeCustomerData = z.infer<typeof StripeCustomerDataSchema>;
+export type Job = z.infer<typeof JobSchema>;
 
-export const StripeInvoiceDataSchema = z.object({
+// ADD NEW SCHEMA for public booking requests
+export const PublicBookingRequestSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  phone: z.string().min(10),
+  address: z.string().min(5),
+  date: z.string(),
+  services: z.array(z.object({
+    name: z.string(),
+    duration: z.number(),
+  })).min(1),
+  'cf-turnstile-response': z.string(),
+});
+export type PublicBookingRequest = z.infer<typeof PublicBookingRequestSchema>;
+
+// Defines a photo, associated with a job or service.
+export const PhotoSchema = z.object({
     id: z.string(),
+    url: z.string().url(),
+    created_at: z.string(),
+    job_id: z.string().optional().nullable(),
+    service_id: z.number().optional().nullable(),
+    invoice_id: z.string().optional().nullable(),
+});
+export type Photo = z.infer<typeof PhotoSchema>;
+
+// Defines a note.
+export const NoteSchema = z.object({
+    id: z.number(),
+    content: z.string(),
+    created_at: z.string(), // ISO date string
+});
+export type Note = z.infer<typeof NoteSchema>;
+
+// A photo with its notes included
+export const PhotoWithNotesSchema = PhotoSchema.extend({
+  notes: z.array(NoteSchema),
+});
+export type PhotoWithNotes = z.infer<typeof PhotoWithNotesSchema>;
+
+// ADD NEW SCHEMA for blocked dates
+ export const BlockedDateSchema = z.object({
+   date: z.string(), // YYYY-MM-DD
+   reason: z.string().optional().nullable(),
+   created_at: z.string().optional(),
+   user_id: z.number().optional(),
+ });
+ export type BlockedDate = z.infer<typeof BlockedDateSchema>;
+
+ export const AdminCreateUserSchema = z.object({
+  name: z.string().optional(),
+  company_name: z.string().optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  role: z.enum(['customer', 'admin', 'associate']).default('customer'),
+});
+export type AdminCreateUser = z.infer<typeof AdminCreateUserSchema>;
+
+ /* ========================================================================
+                              STRIPE-SPECIFIC MODELS
+   ======================================================================== */
+
+export const StripeInvoiceItemSchema = z.object({
+  id: z.string(),
+  object: z.literal('line_item'),
+  amount: z.number(), // in cents
+  currency: z.string(),
+  description: z.string().nullable(),
+  quantity: z.number().nullable(),
+});
+export type StripeInvoiceItem = z.infer<typeof StripeInvoiceItemSchema>;
+
+export const StripeInvoiceSchema = z.object({
+    id: z.string(),
+    object: z.literal('invoice'),
     customer: z.string(),
-    amount_due: z.number(),
-    amount_paid: z.number(),
-    currency: z.string(),
     status: z.enum(['draft', 'open', 'paid', 'uncollectible', 'void']),
-    hosted_invoice_url: z.string().nullable().optional(),
-    created: z.number(),
-    due_date: z.number().nullable().optional(),
+    total: z.number(), // in cents
+    hosted_invoice_url: z.string().nullable(),
+    lines: z.object({
+        object: z.literal('list'),
+        data: z.array(StripeInvoiceItemSchema),
+    }),
 });
-export type StripeInvoiceData = z.infer<typeof StripeInvoiceDataSchema>;
+export type StripeInvoice = z.infer<typeof StripeInvoiceSchema>;
 
+ /* ========================================================================
+                            PAYMENT & BILLING
+   ======================================================================== */
+ export const PaymentMethodSchema = z.object({
+  id: z.string(),
+  brand: z.string(),
+  last4: z.string(),
+  exp_month: z.number(),
+  exp_year: z.number(),
+  is_default: z.boolean(),
+ });
+ export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
 
-// API request/response types
-export const StripeCustomerCheckRequestSchema = z.object({
-  email: z.string().email().optional(),
-  phone: z.string().optional(),
-});
-export type StripeCustomerCheckRequest = z.infer<typeof StripeCustomerCheckRequestSchema>;
+/* ========================================================================
+                        API, AUTH & NOTIFICATION TYPES
+   ======================================================================== */
 
-export const StripeCustomerCheckResponseSchema = z.object({
-  exists: z.boolean(),
-  customerId: z.string().optional(),
-  email: z.string().optional(),
-  name: z.string().optional(),
-  phone: z.string().optional(),
-});
-export type StripeCustomerCheckResponse = z.infer<typeof StripeCustomerCheckResponseSchema>;
-
-export const StripeCustomerCreateRequestSchema = z.object({
-  email: z.string().email(),
-  name: z.string(),
-  phone: z.string().optional(),
-});
-export type StripeCustomerCreateRequest = z.infer<typeof StripeCustomerCreateRequestSchema>;
-
-export const StripeCustomerCreateResponseSchema = z.object({
-    success: z.boolean(),
-    customerId: z.string(),
-    message: z.string(),
-});
-export type StripeCustomerCreateResponse = z.infer<typeof StripeCustomerCreateResponseSchema>;
-
-// Invoice creation types
-export const InvoiceCreateRequestSchema = z.object({
-  amount_cents: z.number(),
-  description: z.string(),
-  due_days: z.number().optional(),
-});
-export type InvoiceCreateRequest = z.infer<typeof InvoiceCreateRequestSchema>;
-
-export const InvoiceCreateResponseSchema = z.object({
-    id: z.string(),
-    status: z.string(),
-    amount_due: z.number(),
-    hosted_invoice_url: z.string().optional(),
-    due_date: z.string(),
-    service_id: z.number(),
-});
-export type InvoiceCreateResponse = z.infer<typeof InvoiceCreateResponseSchema>;
-
-// SMS types
-export const SMSMessageSchema = z.object({
-    id: z.number(),
-    user_id: z.union([z.number(), z.string()]),
-    direction: z.enum(['incoming', 'outgoing']),
-    phone_number: z.string(),
-    message: z.string(),
-    message_sid: z.string().optional(),
-    status: z.enum(['pending', 'delivered', 'failed']),
-    created_at: z.string(),
-});
-export type SMSMessage = z.infer<typeof SMSMessageSchema>;
-
-export const SMSWebhookRequestSchema = z.object({
-  from: z.string(),
-  to: z.string(),
-  message: z.string(),
-  id: z.string().optional(),
-});
-export type SMSWebhookRequest = z.infer<typeof SMSWebhookRequestSchema>;
-
-export const SendSMSResultSchema = z.object({
-  success: z.boolean(),
-  error: z.string().optional(),
-  messageSid: z.string().optional(),
-});
-export type SendSMSResult = z.infer<typeof SendSMSResultSchema>;
-
-
-// Notification types
-export const NotificationRequestSchema = z.object({
-  type: z.string(),
-  userId: z.union([z.number(), z.string()]),
-  data: z.record(z.any()),
-  channels: z.array(z.string()).optional(),
-});
-export type NotificationRequest = z.infer<typeof NotificationRequestSchema>;
-
-export const EmailParamsSchema = z.object({
-  to: z.string().email(),
-  subject: z.string(),
-  html: z.string(),
-  text: z.string(),
-  from: z.string().email().optional(),
-  replyTo: z.string().email().optional(),
-});
-export type EmailParams = z.infer<typeof EmailParamsSchema>;
-
-export const NotificationRecordSchema = z.object({
-    id: z.number(),
-    user_id: z.union([z.number(), z.string()]),
-    type: z.string(),
-    channels: z.string(),
-    status: z.enum(['pending', 'sent', 'failed']),
-    metadata: z.string(),
-    created_at: z.string(),
-});
-export type NotificationRecord = z.infer<typeof NotificationRecordSchema>;
-
-// API response types
-export const ApiResponseSchema = z.object({
-    data: z.any().optional(),
-    error: z.string().optional(),
-    success: z.boolean().optional(),
-});
-export type ApiResponse<T = any> = z.infer<typeof ApiResponseSchema> & { data?: T };
-
-export const ApiErrorSchema = z.object({
-  message: z.string(),
-  code: z.string().optional(),
-  status: z.number().optional(),
-});
-export type ApiError = z.infer<typeof ApiErrorSchema>;
-
-
-// Authentication types
-export const AuthPayloadSchema = z.object({
-  email: z.string().email(),
-  name: z.string().optional(),
-  phone: z.string().optional(),
-});
-export type AuthPayload = z.infer<typeof AuthPayloadSchema>;
-
-export const LoginRequestSchema = z.object({
-  identifier: z.string(), // email or phone
-  password: z.string(),
-  turnstileToken: z.string().optional(),
-});
-export type LoginRequest = z.infer<typeof LoginRequestSchema>;
-
-export const SignupRequestSchema = z.object({
-  email: z.string().email().optional(),
-  phone: z.string().optional(),
-  name: z.string(),
-  password: z.string(),
-});
-export type SignupRequest = z.infer<typeof SignupRequestSchema>;
-
+// Exporting AuthResponse for the API client.
 export const AuthResponseSchema = z.object({
     token: z.string(),
-    user: z.object({
-        id: z.number(),
-        email: z.string().email().optional(),
-        name: z.string(),
-        phone: z.string().optional(),
-    }),
+    user: UserSchema,
 });
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 
-// Portal/Dashboard types
+// Exporting PortalSession for the Stripe portal redirect.
 export const PortalSessionSchema = z.object({
-    url: z.string(),
+    url: z.string().url(),
 });
 export type PortalSession = z.infer<typeof PortalSessionSchema>;
 
-// Common database record interface
-export const DatabaseRecordSchema = z.object({
-    id: z.number(),
-    created_at: z.string().optional(),
-    updated_at: z.string().optional(),
+// Exporting SMSMessage for the SMS components.
+export const SMSMessageSchema = z.object({
+    id: z.number().optional(),
+    direction: z.enum(['incoming', 'outgoing']),
+    message: z.string(),
+    created_at: z.string(),
+    status: z.enum(['pending', 'delivered', 'failed']).optional(),
+    message_sid: z.string().optional().nullable(),
 });
-export type DatabaseRecord = z.infer<typeof DatabaseRecordSchema>;
+export type SMSMessage = z.infer<typeof SMSMessageSchema>;
 
-// conversation
+// Exporting Conversation for the SMS conversations list.
 export const ConversationSchema = z.object({
     phone_number: z.string(),
     last_message_at: z.string(),
@@ -303,8 +212,87 @@ export const ConversationSchema = z.object({
 });
 export type Conversation = z.infer<typeof ConversationSchema>;
 
-// Schema for the payment reminder request
-export const SendReminderSchema = z.object({
-  serviceId: z.number().positive('Service ID must be a positive number'),
+// For notification worker queue
+export const NotificationRequestSchema = z.object({
+  type: z.string(),
+  userId: z.union([z.string(), z.number()]),
+  data: z.record(z.any()),
+  channels: z.array(z.enum(['email', 'sms'])).optional()
 });
-export type SendReminderRequest = z.infer<typeof SendReminderSchema>;
+
+export const EmailParamsSchema = z.object({
+  to: z.string().email(),
+  toName: z.string(),
+  subject: z.string(),
+  html: z.string(),
+  text: z.string()
+});
+
+// For SMS sending results
+export interface SendSMSResult {
+  success: boolean;
+  error?: string;
+  messageSid?: string;
+}
+
+export const PushSubscriptionSchema = z.object({
+  endpoint: z.string().url(),
+  keys: z.object({
+    p256dh: z.string(),
+    auth: z.string(),
+  }),
+});
+export type PushSubscription = z.infer<typeof PushSubscriptionSchema>;
+
+/* ========================================================================
+                    ENVIRONMENT & CLOUDFLARE TYPES
+   ======================================================================== */
+
+// Consolidating and exporting all worker environment variables and types.
+export interface Env {
+  // Bindings
+  DB: D1Database;
+  NOTIFICATION_SERVICE: Fetcher;
+  NOTIFICATION_QUEUE: Queue;
+  CHAT_SERVICE: Fetcher;
+
+  // Secrets
+  JWT_SECRET: string;
+  STRIPE_SECRET_KEY: string;
+  STRIPE_WEBHOOK_SECRET: string;
+  TURNSTILE_SECRET_KEY: string;
+  CF_IMAGES_ACCOUNT_HASH: string;
+  CF_IMAGES_API_TOKEN: string;
+  ZEPTOMAIL_TOKEN: string;
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
+  GOOGLE_REDIRECT_URI: string;
+
+  // Variables
+  PORTAL_URL: string;
+  ENVIRONMENT?: 'development' | 'production';
+
+  // Notification Worker Specific (can be optional in other workers)
+  EMAIL_FROM?: string;
+  SMS_FROM_NUMBER?: string;
+  VOIPMS_USERNAME?: string;
+  VOIPMS_PASSWORD?: string;
+}
+
+
+/* ========================================================================
+                            UI NOTIFICATIONS
+   ======================================================================== */
+export const UINotificationSchema = z.object({
+  id: z.number(),
+  user_id: z.number(),
+  type: z.string(),
+  message: z.string(),
+  link: z.string().optional().nullable(),
+  is_read: z.number(), // D1 returns 0 or 1
+  created_at: z.string(),
+});
+export type UINotification = z.infer<typeof UINotificationSchema>;

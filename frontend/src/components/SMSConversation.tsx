@@ -1,184 +1,96 @@
-// frontend/src/components/SMSConversation.tsx
+// frontend/src/components/SMSConversation.tsx - CORRECTED
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { getConversation, sendSMS } from '../lib/api';
+import { useParams, Link } from 'react-router-dom';
+import { getSmsConversation, sendSms } from '../lib/api.js';
+import type { SMSMessage } from '@portal/shared';
 
-interface Message {
-  id: number;
-  direction: 'incoming' | 'outgoing';
-  message: string;
-  created_at: string;
-  status: string;
-}
-
-export default function SMSConversation() {
+function SMSConversation() {
   const { phoneNumber } = useParams<{ phoneNumber: string }>();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<SMSMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
-  const token = localStorage.getItem('token')!;
+  const messagesEndRef = useRef<null | HTMLDivElement>(null);
 
-  // Fetch conversation messages
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
+
+  useEffect(scrollToBottom, [messages]);
+
   useEffect(() => {
-    async function fetchMessages() {
-      if (!phoneNumber) return;
+    if (!phoneNumber) return;
 
+    const fetchMessages = async () => {
       try {
-        setLoading(true);
-        const data = await getConversation(phoneNumber, token);
-        setMessages(data.reverse()); // Reverse to show oldest first
+        setIsLoading(true);
+        setError(null);
+        const data = await getSmsConversation(phoneNumber); // FIX: Removed token argument
+        setMessages(data);
       } catch (err: any) {
-        setError(err.message || 'Failed to load messages');
+        setError(err.message);
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
-    }
-
+    };
     fetchMessages();
+  }, [phoneNumber]);
 
-    // Poll for new messages every 15 seconds
-    const interval = setInterval(fetchMessages, 15000);
-
-    return () => clearInterval(interval);
-  }, [phoneNumber, token]);
-
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  // Handle sending a new message
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!newMessage.trim() || !phoneNumber) return;
+    if (!phoneNumber || !newMessage.trim()) return;
 
     try {
-      setSending(true);
-
-      await sendSMS(phoneNumber, newMessage, token);
-
-      // Add message locally (optimistic update)
-      setMessages([
-        ...messages,
-        {
-          id: Date.now(), // Temporary ID
-          direction: 'outgoing',
-          message: newMessage,
-          created_at: new Date().toISOString(),
-          status: 'sent'
-        }
-      ]);
-
-      // Clear input
+      setIsSending(true);
+      setError(null);
+      const sentMessage = await sendSms(phoneNumber, newMessage); // FIX: Removed token argument
+      setMessages(prev => [...prev, sentMessage]);
       setNewMessage('');
-    } catch (err: any) {
-      setError(err.message || 'Failed to send message');
+    } catch(err: any) {
+      setError(err.message);
     } finally {
-      setSending(false);
+      setIsSending(false);
     }
   };
 
-  if (loading && messages.length === 0) {
-    return <div style={{ padding: '2rem' }}>Loading conversation...</div>;
-  }
+  if (isLoading) return <div className="container mt-4">Loading messages...</div>;
 
   return (
-    <div style={{ padding: '1rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
-        <button
-          onClick={() => navigate('/sms')}
-          style={{ marginRight: '1rem', padding: '0.5rem', background: 'transparent', border: '1px solid #ddd' }}
-        >
-          &larr; Back
-        </button>
-        <h2 style={{ margin: 0 }}>Conversation with {phoneNumber}</h2>
-      </div>
-
-      {error && (
-        <div style={{ color: 'red', marginBottom: '1rem' }}>
-          {error}
-        </div>
-      )}
-
-      <div
-        style={{
-          height: '400px',
-          overflowY: 'auto',
-          border: '1px solid #ddd',
-          borderRadius: '4px',
-          padding: '1rem',
-          marginBottom: '1rem'
-        }}
-      >
-        {messages.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#888', marginTop: '1rem' }}>
-            No messages yet. Start the conversation!
-          </div>
-        ) : (
-          messages.map(msg => (
-            <div
-              key={msg.id}
-              style={{
-                maxWidth: '70%',
-                marginBottom: '0.5rem',
-                padding: '0.5rem 1rem',
-                borderRadius: '1rem',
-                backgroundColor: msg.direction === 'outgoing' ? '#007bff' : '#f1f1f1',
-                color: msg.direction === 'outgoing' ? 'white' : 'black',
-                alignSelf: msg.direction === 'outgoing' ? 'flex-end' : 'flex-start',
-                marginLeft: msg.direction === 'outgoing' ? 'auto' : 0,
-              }}
-            >
-              <div>{msg.message}</div>
-              <div style={{
-                fontSize: '0.7rem',
-                opacity: 0.7,
-                textAlign: msg.direction === 'outgoing' ? 'right' : 'left'
-              }}>
-                {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+    <div className="container mt-4">
+      <Link to="/sms">&larr; Back to Conversations</Link>
+      <h2 className="mt-2">Conversation with {phoneNumber}</h2>
+      {error && <div className="alert alert-danger">{error}</div>}
+      <div className="card mt-3">
+        <div className="card-body" style={{ height: '60vh', overflowY: 'auto' }}>
+          {messages.map((msg, index) => (
+            <div key={msg.id || index} className={`d-flex mb-2 ${msg.direction === 'outgoing' ? 'justify-content-end' : 'justify-content-start'}`}>
+              <div className={`p-2 rounded shadow-sm ${msg.direction === 'outgoing' ? 'bg-primary text-white' : 'bg-light'}`} style={{ maxWidth: '75%' }}>
+                <p className="mb-1">{msg.message}</p>
+                <small className={`d-block ${msg.direction === 'outgoing' ? 'text-light' : 'text-muted'}`}>{new Date(msg.created_at).toLocaleTimeString()}</small>
               </div>
             </div>
-          ))
-        )}
-        <div ref={messagesEndRef} />
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
+        <div className="card-footer">
+          <form onSubmit={handleSend} className="d-flex">
+            <input
+              type="text"
+              className="form-control me-2"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Type a message..."
+              disabled={isSending}
+            />
+            <button type="submit" className="btn btn-primary" disabled={isSending || !newMessage.trim()}>
+              {isSending ? 'Sending...' : 'Send'}
+            </button>
+          </form>
+        </div>
       </div>
-
-      <form onSubmit={handleSend} style={{ display: 'flex' }}>
-        <input
-          type="text"
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Type your message..."
-          style={{
-            flex: 1,
-            padding: '0.5rem',
-            borderRadius: '4px 0 0 4px',
-            border: '1px solid #ddd',
-            borderRight: 'none'
-          }}
-          disabled={sending}
-        />
-        <button
-          type="submit"
-          disabled={sending || !newMessage.trim()}
-          style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: '#007bff',
-            color: 'white',
-            border: 'none',
-            borderRadius: '0 4px 4px 0',
-            cursor: sending || !newMessage.trim() ? 'not-allowed' : 'pointer',
-            opacity: sending || !newMessage.trim() ? 0.7 : 1
-          }}
-        >
-          {sending ? 'Sending...' : 'Send'}
-        </button>
-      </form>
     </div>
   );
 }
+
+export default SMSConversation;

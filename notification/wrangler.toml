@@ -1,0 +1,51 @@
+# Configuration for the 'notification' worker
+name = "notification"
+main = "src/index.ts"
+account_id = "67d3a6021370e7b666fff2023b2db359"
+compatibility_date = "2024-05-28"
+compatibility_flags = [ "nodejs_compat_v2" ]
+
+# Observability settings for all environments
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+# ===============================================================
+#      DEVELOPMENT-SPECIFIC CONFIGURATION
+# ===============================================================
+[env.development]
+
+[env.development.vars]
+ENVIRONMENT = "development"
+
+# Development D1 binding (will use a local file)
+[[env.development.d1_databases]]
+binding = "DB"
+database_name = "gutter_db"
+database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+migrations_dir = "../worker/migrations" # Point to the canonical migrations directory
+
+# Development Queue consumer binding (will consume from the local in-memory queue)
+[[env.development.queues.consumers]]
+queue = "notifications"
+
+# ===============================================================
+#      PRODUCTION-SPECIFIC CONFIGURATION
+# ===============================================================
+[env.production]
+
+# Production-specific variables
+[env.production.vars]
+ENVIRONMENT = "production"
+EMAIL_FROM = "notifications@no-reply.777.foo"
+SMS_FROM_NUMBER = "7077769777"
+
+# Production-specific D1 binding
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "gutter_db"
+database_id = "3b81ffd2-e748-4750-b98a-7b8b4c058716"
+
+# Production-specific Queue consumer
+[[env.production.queues.consumers]]
+queue = "notifications"

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="99.378029mm"
+   height="97.399513mm"
+   viewBox="0 0 99.37803 97.39951"
+   version="1.1"
+   id="svg1999"
+   inkscape:version="1.2.2 (b0a8486541, 2022-12-01)"
+   sodipodi:docname="777-triangle.svg"
+   inkscape:export-filename="../../../Pictures/triangle-mesh.png"
+   inkscape:export-xdpi="299.01956"
+   inkscape:export-ydpi="299.01956"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview2001"
+     pagecolor="#505050"
+     bordercolor="#eeeeee"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#505050"
+     inkscape:document-units="mm"
+     showgrid="true"
+     showguides="true"
+     inkscape:lockguides="true"
+     inkscape:zoom="2"
+     inkscape:cx="235.5"
+     inkscape:cy="203.5"
+     inkscape:window-width="2560"
+     inkscape:window-height="1361"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1">
+    <inkscape:grid
+       type="xygrid"
+       id="grid2083"
+       empcolor="#009930"
+       empopacity="0.30196078"
+       empspacing="0"
+       units="mm"
+       spacingx="12.74"
+       spacingy="11.03"
+       originx="-0.12480301"
+       originy="-0.12595166" />
+  </sodipodi:namedview>
+  <defs
+     id="defs1996" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="rotate(132.84917,73.975644,57.472935)">
+    <g
+       id="g1190">
+      <path
+         style="fill:#00ff00;fill-opacity:1;stroke-width:0.264583"
+         d="m 94.881715,62.51696 v 7.000089 H 120.99072 L 93.191694,117.66637 h 8.082396 l 31.84018,-55.148819 z"
+         id="path2141" />
+      <path
+         style="fill:#0000ff;stroke-width:0.264583"
+         d="m 50.285989,95.606413 h 8.082195 l 23.780001,41.188167 11.043536,-19.12796 h 8.082369 l -19.125858,33.12696 z"
+         id="path2145" />
+      <path
+         style="fill:#ff0000;fill-opacity:1;stroke-width:0.264583"
+         d="m 50.284955,95.606413 h 8.083229 L 43.305458,69.517009 H 94.88275 V 62.519883 H 31.182246 Z"
+         id="path2689" />
+    </g>
+  </g>
+</svg>
