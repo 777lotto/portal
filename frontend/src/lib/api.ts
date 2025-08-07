@@ -27,7 +27,7 @@ import {
 } from "@portal/shared";
 import { fetchJson } from './fetchJson.js';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 /* ========================================================================
                               API HELPER FUNCTIONS
