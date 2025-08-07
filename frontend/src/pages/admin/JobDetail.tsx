@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
-import { apiGet, getLineItemsForJob, apiPost, apiPostFormData, adminFinalizeJob, markInvoiceAsPaid, addInvoiceItem, deleteInvoiceItem, finalizeInvoice, getInvoice, adminInvoiceJob } from '../../lib/api.js';
+import { apiGet, getLineItemsForJob, apiPost, apiPostFormData, adminFinalizeJob, adminMarkInvoiceAsPaid, adminAddInvoiceItem, adminDeleteInvoiceItem, adminFinalizeInvoice, adminGetInvoice, adminSendInvoice } from '../../lib/api.js';
 import type { Job, LineItem, Photo, Note, StripeInvoice, StripeInvoiceItem, JobStatus } from '@portal/shared';
 import { JobStatusEnum } from '@portal/shared';
 import { jwtDecode } from 'jwt-decode';
@@ -94,7 +94,7 @@ function JobDetail() {
       setNotes(notesData);
       setEditedJobData(jobData);
       if (jobData.stripe_invoice_id && jobData.status === 'invoice_draft') {
-        const invoiceData = await getInvoice(jobData.stripe_invoice_id);
+        const invoiceData = await adminGetInvoice(jobData.stripe_invoice_id);
         setInvoice(invoiceData);
       }
     } catch (err: any) {
@@ -195,7 +195,7 @@ function JobDetail() {
     if (!jobId || !job?.stripe_invoice_id || !window.confirm("Are you sure you want to mark this invoice as paid?")) return;
     setIsUpdating(true);
     try {
-        await markInvoiceAsPaid(job.stripe_invoice_id);
+        await adminMarkInvoiceAsPaid(job.stripe_invoice_id);
         fetchJobDetails();
     } catch (err: any) {
         setError(`Failed to mark as paid: ${err.message}`);
@@ -244,7 +244,7 @@ const handleReviseQuote = async (revisionReason: string) => {
     setError(null);
     try {
       const amountInCents = Math.round(parseFloat(newInvoiceItem.amount) * 100);
-      await addInvoiceItem(invoice.id, { description: newInvoiceItem.description, amount: amountInCents });
+      await adminAddInvoiceItem(invoice.id, { description: newInvoiceItem.description, amount: amountInCents });
       setNewInvoiceItem({ description: '', amount: '' });
       fetchJobDetails();
     } catch (err: any) {
@@ -259,7 +259,7 @@ const handleReviseQuote = async (revisionReason: string) => {
     setIsUpdating(true);
     setError(null);
     try {
-      await deleteInvoiceItem(invoice.id, itemId);
+      await adminDeleteInvoiceItem(invoice.id, itemId);
       fetchJobDetails();
     } catch (err: any) {
       setError(err.message);
@@ -273,7 +273,7 @@ const handleReviseQuote = async (revisionReason: string) => {
     setIsUpdating(true);
     setError(null);
     try {
-      await finalizeInvoice(invoice.id);
+      await adminFinalizeInvoice(invoice.id);
       setIsEditingInvoice(false);
       fetchJobDetails();
     } catch (err: any) {
@@ -288,7 +288,7 @@ const handleReviseQuote = async (revisionReason: string) => {
     setIsUpdating(true);
     setError(null);
     try {
-        await adminInvoiceJob(jobId);
+        await adminSendInvoice(jobId);
         setSuccessMessage('Payment request sent successfully!');
         fetchJobDetails();
     } catch (err: any) {

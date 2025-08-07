@@ -46,6 +46,14 @@ export const apiPost = <T>(path: string, body: unknown, method: "POST" | "PUT" =
   });
 };
 
+export const apiPostFormData = <T>(path: string, formData: FormData): Promise<T> => {
+  const url = `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+  return fetchJson<T>(url, {
+    method: 'POST',
+    body: formData,
+  });
+};
+
 /* ========================================================================
                                   PUBLIC API
    ======================================================================== */

@@ -1,10 +1,9 @@
 // frontend/src/components/Photos.tsx
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { getPhotos, apiGet } from '../lib/api.js';
+import { getPhotos, apiGet, apiPostFormData } from '../lib/api.js';
 import type { PhotoWithNotes, User, Job, LineItem } from '@portal/shared';
 import { useDropzone } from 'react-dropzone';
 import { jwtDecode } from 'jwt-decode';
-import { apiPostFormData } from '../lib/api';
 
 interface UserPayload {
   role: 'customer' | 'admin';
@@ -112,7 +111,6 @@ function CustomerPhotos() {
 function AdminPhotos() {
   const [users, setUsers] = useState<User[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
-  // 2. CORRECT THE STATE TYPE: Change 'item[]' to 'LineItem[]'
   const [items, setItems] = useState<LineItem[]>([]);
   const [selectedUser, setSelectedUser] = useState<string>('');
   const [selectedJob, setSelectedJob] = useState<string>('');
@@ -137,8 +135,7 @@ function AdminPhotos() {
 
   useEffect(() => {
     if (selectedJob) {
-      // 3. CORRECT THE API CALL TYPE
-      apiGet<LineItem[]>(`/api/jobs/${selectedJob}/line_items`).then(setItems);
+      apiGet<LineItem[]>(`/api/jobs/${selectedJob}/line-items`).then(setItems);
     } else {
       setItems([]);
     }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { adminImportInvoices, adminImportQuotes, adminGetJobsAndQuotes, markInvoiceAsPaid, apiPost } from '../../lib/api';
+import { adminImportInvoices, adminImportQuotes, adminGetJobsAndQuotes, adminMarkInvoiceAsPaid, apiPost } from '../../lib/api';
 import type { JobWithDetails, LineItem, JobStatus } from '@portal/shared';
 import NewAddJobModal from '../../components/modals/admin/NewAddJobModal';
 import QuoteProposalModal from '../../components/modals/QuoteProposalModal';
@@ -93,7 +93,7 @@ function JobsPage() {
     if (!invoiceId || !window.confirm('Are you sure you want to mark this invoice as paid?')) return;
     setIsUpdating(invoiceId);
     try {
-      await markInvoiceAsPaid(invoiceId);
+      await adminMarkInvoiceAsPaid(invoiceId);
       fetchJobsData();
     } catch (error: any) {
       alert(`Failed to mark as paid: ${error.message}`);

@@ -1,7 +1,7 @@
 // frontend/src/pages/admin/UserListPage.tsx
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { apiGet, deleteUser, adminImportInvoices, apiPost, getImportedContacts, adminUpdateUser } from '../../lib/api.js';
+import { apiGet, adminDeleteUser, adminImportInvoices, apiPost, getImportedContacts, adminUpdateUser } from '../../lib/api.js';
 import type { User } from '@portal/shared';
 import AddUserModal from '../../components/modals/admin/AddUserModal.js';
 
@@ -171,7 +171,7 @@ function AdminDashboard() {
   // Other handlers remain unchanged...
   const handleToggleContactSelection = (contactResourceName: string) => { setSelectedContacts(prev => { const newSet = new Set(prev); if (newSet.has(contactResourceName)) { newSet.delete(contactResourceName); } else { newSet.add(contactResourceName); } return newSet; }); };
   const handleImportSelectedContacts = async () => { setIsImporting(true); setImportMessage(null); setError(null); const contactsToPost = contactsToImport.filter(c => selectedContacts.has(c.resourceName)); try { const result = await apiPost('/api/admin/import-contacts', { contacts: contactsToPost }); setImportMessage(`Successfully imported ${result.importedCount} new contacts.`); setContactsToImport([]); setSelectedContacts(new Set()); fetchUsers(); } catch (err: any) { setError(`Import failed: ${err.message}`); } finally { setIsImporting(false); } };
-  const handleDeleteUser = async (userToDelete: User) => { if (window.confirm(`Are you sure you want to permanently delete ${userToDelete.name || userToDelete.email}? This action cannot be undone.`)) { try { await deleteUser(userToDelete.id.toString()); setUsers(currentUsers => currentUsers.filter(user => user.id !== userToDelete.id)); } catch (err: any) { setError(`Failed to delete user: ${err.message}`); } } };
+  const handleDeleteUser = async (userToDelete: User) => { if (window.confirm(`Are you sure you want to permanently delete ${userToDelete.name || userToDelete.email}? This action cannot be undone.`)) { try { await adminDeleteUser(userToDelete.id.toString()); setUsers(currentUsers => currentUsers.filter(user => user.id !== userToDelete.id)); } catch (err: any) { setError(`Failed to delete user: ${err.message}`); } } };
   const handleUserAdded = (newUser: User) => { setUsers(currentUsers => [newUser, ...currentUsers]); };
   const handleGoogleImportClick = () => { window.location.href = '/api/auth/google'; };
   const filteredContacts = useMemo(() => { const lowercasedQuery = contactSearchQuery.toLowerCase(); if (!lowercasedQuery) return contactsToImport; return contactsToImport.filter(contact => contact.names?.[0]?.displayName?.toLowerCase().includes(lowercasedQuery) || contact.emailAddresses?.[0]?.value?.toLowerCase().includes(lowercasedQuery) || contact.phoneNumbers?.[0]?.value?.toLowerCase().includes(lowercasedQuery)); }, [contactsToImport, contactSearchQuery]);
