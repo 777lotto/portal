@@ -20,6 +20,10 @@ ENVIRONMENT = "development"
 API_VERSION = "1.0.0"
 PORTAL_URL = "http://localhost:5173/dashboard"
 
+# Serve the frontend application from the /frontend/dist directory
+[env.development.site]
+bucket = "../frontend/dist"
+
 [[env.development.d1_databases]]
 binding = "DB"
 database_name = "777pd1"
