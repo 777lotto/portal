@@ -131,7 +131,7 @@ export const getNotesForJob = (jobId: string) => apiGet<Note[]>(`/jobs/${jobId}/
                                   RECURRENCE
    ======================================================================== */
 export const getRecurrence = (jobId: string): Promise<Recurrence> => fetchJson(`${API_BASE_URL}/jobs/${jobId}/recurrence`);
-export const createRecurrenceRequest = (jobId: string, payload: RecurrenceRequestPayload): Promise<void> => fetchJson(`${API_BASE_URL}/jobs/${jobId}/recurrence`, 'POST', payload);
+export const createRecurrenceRequest = (jobId: string, payload: RecurrenceRequestPayload): Promise<void> => fetchJson(`${API_BASE_URL}/jobs/${jobId}/request-recurrence`, 'POST', payload);
 export const getUnavailableRecurrenceDays = () => apiGet<{ unavailableDays: number[] }>('/jobs/unavailable-recurrence-days');
 
 /* ========================================================================

@@ -1,6 +1,6 @@
 // frontend/src/components/RecurrenceRequestModal.tsx
 import { useState, useEffect } from 'react';
-import { requestRecurrence, getUnavailableRecurrenceDays } from '../../lib/api';
+import { createRecurrenceRequest, getUnavailableRecurrenceDays } from '../../lib/api';
 import type { Job } from '@portal/shared';
 
 interface Props {
@@ -40,7 +40,7 @@ function RecurrenceRequestModal({ isOpen, onClose, job, onSuccess }: Props) {
     setError(null);
     setIsSubmitting(true);
     try {
-      await requestRecurrence(job.id, { frequency, requested_day: requestedDay });
+      await createRecurrenceRequest(job.id, { frequency, requested_day: requestedDay });
       onSuccess();
       onClose();
     } catch (err: any) {
