@@ -4,27 +4,30 @@ import { useEffect, useState, lazy, Suspense } from "react";
 import { jwtDecode } from 'jwt-decode';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
-import SupportChatWidget from './components/chat/SupportChatWidget';
 
-// --- Page Components ---
-import Navbar from "./pages/Navbar";
-import Dashboard from "./pages/Dashboard";
-import UnifiedCalendar from './pages/UnifiedCalendar';
-const BookingPage = lazy(() => import("./pages/BookingPage"));
-const JobInfo = lazy(() => import('./pages/JobInfo'));
-const JobDetail = lazy(() => import("./pages/admin/JobDetail"));
-const QuoteProposalPage = lazy(() => import("./pages/QuoteProposalPage"));
-const CalendarSync = lazy(() => import("./components/forms/CalendarSync"));
-const Photos = lazy(() => import("./pages/Photos"));
-const AccountPage = lazy(() => import("./pages/AccountPage"));
-const AuthForm = lazy(() => import("./components/forms/AuthForm"));
-const InvoicePaymentPage = lazy(() => import("./pages/InvoicePaymentPage"));
+// Using the '@' alias for cleaner, more reliable imports
+import SupportChatWidget from '@/components/chat/SupportChatWidget';
+import Navbar from "@/pages/Navbar";
+import CustomerDashboard from "@/pages/Dashboard";
+import UnifiedCalendar from '@/pages/UnifiedCalendar';
 
-// --- Admin Page Components ---
-const UserListPage = lazy(() => import("./pages/admin/UserListPage"));
-const UserDetailPage = lazy(() => import("./pages/admin/UserDetailPage"));
-const JobsPage = lazy(() => import("./pages/admin/JobsPage"));
-const ChatPage = lazy(() => import("./pages/ChatPage"));
+// --- Lazy-loaded Page Components using the '@' alias ---
+const BookingPage = lazy(() => import("@/pages/BookingPage"));
+const JobInfo = lazy(() => import('@/pages/JobInfo'));
+const QuoteProposalPage = lazy(() => import("@/pages/QuoteProposalPage"));
+const CalendarSync = lazy(() => import("@/components/forms/CalendarSync"));
+const Photos = lazy(() => import("@/pages/Photos"));
+const AccountPage = lazy(() => import("@/pages/AccountPage"));
+const AuthForm = lazy(() => import("@/components/forms/AuthForm"));
+const InvoicePaymentPage = lazy(() => import("@/pages/InvoicePaymentPage"));
+const ChatPage = lazy(() => import("@/pages/ChatPage"));
+
+// --- Lazy-loaded Admin Page Components using the '@' alias ---
+const AdminDashboard = lazy(() => import("@/admin/pages/adminDashboard.tsx"));
+const UserListPage = lazy(() => import("@/pages/admin/UserListPage"));
+const UserDetailPage = lazy(() => import("@/pages/admin/UserDetailPage"));
+const JobsPage = lazy(() => import("@/pages/admin/JobsPage"));
+const JobDetail = lazy(() => import("@/pages/admin/JobDetail"));
 
 
 interface UserPayload {
@@ -101,7 +104,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-primary-light dark:bg-secondary-dark">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Navbar token={token} user={user} setToken={handleSetToken} />
       <main className="p-4 sm:p-6 lg:p-8">
         <Elements stripe={stripePromise}>
@@ -112,8 +115,17 @@ function App() {
               <Route path="/auth" element={token ? <Navigate to="/dashboard" replace /> : <AuthForm setToken={handleSetToken} />} />
               <Route path="/" element={<Navigate to={token ? "/dashboard" : "/auth"} replace />} />
 
+              {/* --- Role-based Dashboard Routing --- */}
+              <Route
+                path="/dashboard"
+                element={
+                  token ?
+                    (user?.role === 'admin' ? <Navigate to="/admin/dashboard" replace /> : <CustomerDashboard />)
+                    : <Navigate to="/auth" replace />
+                }
+              />
+
               {/* --- Customer-facing Routes --- */}
-              <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/auth" replace />} />
               <Route path="/calendar" element={token ? <UnifiedCalendar /> : <Navigate to="/auth" replace />} />
               <Route path="/photos" element={token ? <Photos /> : <Navigate to="/auth" replace />} />
               <Route path="/jobs/:id" element={token ? <JobInfo /> : <Navigate to="/auth" replace />} />
@@ -122,9 +134,12 @@ function App() {
               <Route path="/account" element={token ? <AccountPage /> : <Navigate to="/auth" replace />} />
               <Route path="/pay-invoice/:invoiceId" element={token ? <InvoicePaymentPage /> : <Navigate to="/auth" replace />} />
               <Route path="/chat" element={token ? <ChatPage /> : <Navigate to="/auth" replace />} />
-              
 
               {/* --- Admin Routes --- */}
+              <Route
+                path="/admin/dashboard"
+                element={user?.role === 'admin' ? <adminDashboard /> : <Navigate to="/dashboard" replace />}
+              />
               <Route
                 path="/admin/users"
                 element={user?.role === 'admin' ? <UserListPage /> : <Navigate to="/dashboard" replace />}

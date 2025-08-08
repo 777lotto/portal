@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { adminImportInvoices, adminImportQuotes, adminGetJobsAndQuotes, markInvoiceAsPaid, apiPost } from '../../lib/api';
+import { adminImportInvoices, adminImportQuotes, adminGetAllJobDetails, markInvoiceAsPaid, apiPost } from '../../lib/api';
 import type { JobWithDetails, LineItem, JobStatus } from '@portal/shared';
 import NewAddJobModal from '../../components/modals/admin/NewAddJobModal';
 import QuoteProposalModal from '../../components/modals/QuoteProposalModal';
@@ -21,7 +21,7 @@ function JobsPage() {
   const fetchJobsData = async () => {
     setIsLoading(true);
     try {
-      const data = await adminGetJobsAndQuotes();
+      const data = await adminGetAllJobDetails();
       setJobsData(data);
     } catch (err: any) {
       setError(err.message);

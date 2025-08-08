@@ -57,7 +57,7 @@ import { handleGetNotesForJob } from './jobs/assets/notes.js';
 // users
 import { handleGetAllUsers, handleAdminDeleteUser, handleAdminCreateUser, handleAdminUpdateUser, handleAdminGetJobsForUser, handleAdminGetPhotosForUser, handleAdminGetNotesForUser } from './users/admin.js';
 // jobs
-import { handleGetJobsAndQuotes, handleAdminCreateJob, handleGetAllJobs } from './jobs/admin/jobs.js';
+import { handleGetAllJobDetails, handleAdminCreateJob, handleGetAllJobs } from './jobs/admin/jobs.js';
 import { handleAdminImportQuotes, handleAdminSendQuote, handleAdminInvoiceJob, handleAdminCreateQuote } from './jobs/admin/quotes.js';
 import { handleAdminImportInvoices, handleAdminGetInvoice, handleAdminAddInvoiceItem, handleAdminDeleteInvoiceItem, handleAdminFinalizeInvoice, handleAdminGetAllOpenInvoices, handleAdminMarkInvoiceAsPaid } from './jobs/admin/invoices.js';
 import { handleGetDrafts } from './jobs/ledger/drafts.js';
@@ -198,7 +198,7 @@ adminApi.get('/jobs', handleGetAllJobs);
 adminApi.get('/jobs/user/:user_id', handleAdminGetJobsForUser);
 adminApi.get('/invoices/open', handleAdminGetAllOpenInvoices);
 adminApi.get('/invoices/:invoiceId', handleAdminGetInvoice);
-adminApi.get('/jobs-and-quotes', handleGetJobsAndQuotes);
+adminApi.get('/job-list-details', handleGetAllJobDetails);
 adminApi.get('/drafts', handleGetDrafts);
 
 adminApi.get('/calendar-events', handleGetCalendarEvents);

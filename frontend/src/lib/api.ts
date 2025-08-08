@@ -158,7 +158,7 @@ export const adminImportInvoices = () => apiPost<{ message: string, imported: nu
 export const adminImportQuotes = () => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>('/api/admin/quotes/import', {});
 export const adminImportInvoicesForUser = (user_id: string) => apiPost<{ message: string, imported: number, skipped: number, errors: string[] }>(`/api/admin/users/${user_id}/invoices/import`, {});
 export const getImportedContacts = (token: string) => apiPost<any[]>('/api/admin/get-imported-contacts', { token });
-export const adminGetJobsAndQuotes = () => apiGet<JobWithDetails[]>('/api/admin/jobs-and-quotes');
+export const adminGetAllJobDetails = () => apiGet<JobWithDetails[]>('/api/admin/job-list-details');
 export const adminReassignJob = (jobId: string, newuser_id: string) => {
   return apiPost(`/api/admin/jobs/${jobId}/reassign`, { newuser_id });
 };

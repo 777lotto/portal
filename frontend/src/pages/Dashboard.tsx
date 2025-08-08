@@ -1,15 +1,20 @@
-// 777lotto/portal/portal-fold/frontend/src/components/Dashboard.tsx
+// frontend/src/pages/Dashboard.tsx
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getProfile, getJobs, adminGetJobsAndQuotes } from '../lib/api.js';
-import type { User, Job, JobWithDetails } from '@portal/shared';
+import { getProfile, getJobs } from '../lib/api';
+import type { User, Job } from '@portal/shared';
 
-function Dashboard() {
+/**
+ * Renders the dashboard for a regular customer.
+ * It displays an agenda of actionable items (quotes, jobs, invoices)
+ * and a history of completed jobs.
+ */
+function CustomerDashboard() {
   const [user, setUser] = useState<User | null>(null);
-  const [upcomingJobs, setUpcomingJobs] = useState<(Job | JobWithDetails)[]>([]);
-  const [openInvoices, setOpenInvoices] = useState<(Job | JobWithDetails)[]>([]);
-  const [pendingQuotes, setPendingQuotes] = useState<(Job | JobWithDetails)[]>([]);
-  const [drafts, setDrafts] = useState<(Job | JobWithDetails)[]>([]);
+  const [upcomingJobs, setUpcomingJobs] = useState<Job[]>([]);
+  const [openInvoices, setOpenInvoices] = useState<Job[]>([]);
+  const [pendingQuotes, setPendingQuotes] = useState<Job[]>([]);
+  const [completedJobs, setCompletedJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,27 +23,19 @@ function Dashboard() {
       try {
         setIsLoading(true);
         setError(null);
+
+        // Fetch the user's profile
         const profileData = await getProfile();
         setUser(profileData);
 
-        let allJobs: (Job | JobWithDetails)[] = [];
-
-        if (profileData.role === 'admin') {
-          // Fetches all jobs with customer details included
-          allJobs = await adminGetJobsAndQuotes();
-        } else {
-          // Fetches all jobs for the logged-in customer (uses the updated endpoint)
-          allJobs = await getJobs();
-        }
+        // Fetch all jobs for the logged-in customer
+        const allJobs = await getJobs();
 
         // Categorize all fetched jobs based on their status
         setUpcomingJobs(allJobs.filter(j => j.status === 'upcoming'));
         setPendingQuotes(allJobs.filter(j => j.status === 'pending'));
         setOpenInvoices(allJobs.filter(j => j.status === 'payment_needed'));
-
-        if (profileData.role === 'admin') {
-          setDrafts(allJobs.filter(j => j.status === 'quote_draft' || j.status === 'invoice_draft' || j.status === 'job_draft'));
-        }
+        setCompletedJobs(allJobs.filter(j => j.status === 'complete'));
 
       } catch (err: any) {
         setError(err.message);
@@ -50,107 +47,80 @@ function Dashboard() {
   }, []);
 
   if (isLoading) return <div className="text-center p-8">Loading dashboard...</div>;
-  if (error) return <div className="rounded-md bg-event-red/10 p-4 text-sm text-event-red">{error}</div>;
-
-  const getJobLink = (jobId: string) => {
-    return user?.role === 'admin' ? `/admin/jobs/${jobId}` : `/jobs/${jobId}`;
-  }
+  if (error) return <div className="rounded-md bg-red-500/10 p-4 text-sm text-red-500">{error}</div>;
 
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="mx-auto max-w-7xl p-4 md:p-6">
       <header className="flex justify-between items-center mb-6">
-        {user && <h1 className="text-3xl font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark">Welcome, {user.name}!</h1>}
+        {user && <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Welcome, {user.name}!</h1>}
       </header>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+      {/* Actionable Items Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {/* Upcoming Jobs Card */}
-        <div className="bg-primary-light dark:bg-tertiary-dark shadow-sm rounded-lg p-6 border border-border-light dark:border-border-dark">
-          <h3 className="text-xl font-semibold mb-4 text-text-primary-light dark:text-text-primary-dark">
-            Upcoming Jobs
-          </h3>
+        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+          <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Upcoming Jobs</h3>
           <div className="space-y-3">
             {upcomingJobs.length > 0 ? (
               upcomingJobs.map(job => (
-                <Link key={job.id} to={getJobLink(job.id)} className="block p-3 rounded-md transition text-text-secondary-light dark:text-text-secondary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark">
-                  {(user?.role === 'admin' && (job as JobWithDetails).customerName) && `${(job as JobWithDetails).customerName} - `}
-                  {job.title} - {new Date(job.createdAt).toLocaleString()}
+                <Link key={job.id} to={`/jobs/${job.id}`} className="block p-3 rounded-md transition text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                  {job.title} - {new Date(job.createdAt).toLocaleDateString()}
                 </Link>
               ))
-            ) : <p className="text-text-secondary-light dark:text-text-secondary-dark">No upcoming jobs.</p>}
+            ) : <p className="text-gray-500 dark:text-gray-400">No upcoming jobs.</p>}
           </div>
         </div>
 
         {/* Pending Quotes Card */}
-        <div className="bg-primary-light dark:bg-tertiary-dark shadow-sm rounded-lg p-6 border border-border-light dark:border-border-dark">
-            <h3 className="text-xl font-semibold mb-4 text-text-primary-light dark:text-text-primary-dark">
-                Pending Quotes
-            </h3>
+        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+          <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Pending Quotes</h3>
           <div className="space-y-3">
             {pendingQuotes.length > 0 ? (
-                pendingQuotes.map(quote => {
-                  const quoteLink = user?.role === 'admin' ? getJobLink(quote.id) : `/quotes/${quote.id}`;
-                  return (
-                    <Link key={quote.id} to={quoteLink} className="block p-3 rounded-md transition text-text-secondary-light dark:text-text-secondary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark">
-                        {user?.role === 'admin' && (quote as JobWithDetails).customerName ? `${(quote as JobWithDetails).customerName} - ` : ''}
-                        {quote.title} - <span className="font-bold">{user?.role === 'admin' ? 'Pending Customer Review' : 'Action Required'}</span>
-                    </Link>
-                  );
-                })
-              ) : <p className="text-text-secondary-light dark:text-text-secondary-dark">No pending quotes.</p>}
-        </div>
-        </div>
-
-        {/* Drafts Card (Admin Only) */}
-        {user?.role === 'admin' && (
-          <div className="bg-primary-light dark:bg-tertiary-dark shadow-sm rounded-lg p-6 border border-border-light dark:border-border-dark">
-            <h3 className="text-xl font-semibold mb-4 text-text-primary-light dark:text-text-primary-dark">
-              Drafts
-            </h3>
-            <div className="space-y-3">
-              {drafts.length > 0 ? (
-                drafts.map(draft => (
-                  <Link key={draft.id} to={`/admin/jobs/${draft.id}`} className="block p-3 rounded-md transition text-text-secondary-light dark:text-text-secondary-dark hover:bg-secondary-light dark:hover:bg-secondary-dark">
-                    {(draft as JobWithDetails).customerName && `${(draft as JobWithDetails).customerName} - `}
-                    {draft.title} - {draft.status.replace(/_/g, ' ')}
-                  </Link>
-                ))
-              ) : <p className="text-text-secondary-light dark:text-text-secondary-dark">No drafts.</p>}
-            </div>
+              pendingQuotes.map(quote => (
+                <Link key={quote.id} to={`/quotes/${quote.id}`} className="block p-3 rounded-md transition text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                  {quote.title} - <span className="font-bold text-blue-600 dark:text-blue-400">Action Required</span>
+                </Link>
+              ))
+            ) : <p className="text-gray-500 dark:text-gray-400">No pending quotes.</p>}
           </div>
-        )}
+        </div>
 
         {/* Open Invoices Card */}
-         <div className="bg-primary-light dark:bg-tertiary-dark shadow-sm rounded-lg p-6 border border-border-light dark:border-border-dark">
-           <h3 className="text-xl font-semibold mb-4 text-text-primary-light dark:text-text-primary-dark">
-            Open Invoices
-           </h3>
-           <div className="space-y-3">
+        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+          <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Open Invoices</h3>
+          <div className="space-y-3">
             {openInvoices.length > 0 ? (
-              openInvoices.map(job => {
-                const linkPath = user?.role === 'admin' ? `/admin/jobs/${job.id}` : `/pay-invoice/${job.stripe_invoice_id}`;
-                return (
-                  <div key={job.id} className="flex justify-between items-center p-3 rounded-md transition hover:bg-secondary-light dark:hover:bg-secondary-dark">
-                    <Link to={linkPath} className="flex-grow">
-                      <div className="flex justify-between">
-                        <span className="font-medium">
-                          {(user?.role === 'admin' && (job as JobWithDetails).customerName) && `${(job as JobWithDetails).customerName} - `}
-                          {job.title}
-                        </span>
-                        <span className="font-semibold">${((job.total_amount_cents || 0) / 100).toFixed(2)}</span>
-                      </div>
-                      <div className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                        {job.stripe_invoice_id && `Invoice #${job.stripe_invoice_id.substring(3)}`}
-                        {job.due && ` - Due: ${new Date(job.due).toLocaleDateString()}`}
-                      </div>
-                    </Link>
+              openInvoices.map(job => (
+                <Link key={job.id} to={`/pay-invoice/${job.stripe_invoice_id}`} className="block p-3 rounded-md transition hover:bg-gray-100 dark:hover:bg-gray-700">
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-800 dark:text-gray-200">{job.title}</span>
+                    <span className="font-semibold text-green-600 dark:text-green-400">${((job.total_amount_cents || 0) / 100).toFixed(2)}</span>
                   </div>
-                )
-              })
-            ) : <p className="text-text-secondary-light dark:text-text-secondary-dark">No open invoices.</p>}
-           </div>
-         </div>
-       </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    {job.due && `Due: ${new Date(job.due).toLocaleDateString()}`}
+                  </div>
+                </Link>
+              ))
+            ) : <p className="text-gray-500 dark:text-gray-400">No open invoices.</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* Job History Section */}
+      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+        <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Job History</h3>
+        <div className="space-y-2">
+          {completedJobs.length > 0 ? (
+            completedJobs.map(job => (
+              <Link key={job.id} to={`/jobs/${job.id}`} className="block p-3 rounded-md transition text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                {job.title} - Completed on {new Date(job.updatedAt).toLocaleDateString()}
+              </Link>
+            ))
+          ) : <p className="text-gray-500 dark:text-gray-400">No previous jobs.</p>}
+        </div>
+      </div>
     </div>
   );
 }
 
-export default Dashboard;
+export default CustomerDashboard;

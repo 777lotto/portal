@@ -26,7 +26,7 @@ export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
 }
 
 
-export const handleGetJobsAndQuotes = async (c: Context<AppEnv>) => {
+export const handleGetAllJobDetails = async (c: Context<AppEnv>) => {
   const db = c.env.DB;
   try {
     const { results: jobs } = await db.prepare(
@@ -58,8 +58,8 @@ export const handleGetJobsAndQuotes = async (c: Context<AppEnv>) => {
 
     return successResponse(jobsWithDetails);
   } catch (e: any) {
-    console.error("Error in handleGetJobsAndQuotes:", e);
-    return errorResponse("Failed to retrieve jobs and quotes.", 500);
+    console.error("Error in adminGetJobsAndQuotes:", e);
+    return errorResponse("Failed to retrieve job list with details.", 500);
   }
 };
 
