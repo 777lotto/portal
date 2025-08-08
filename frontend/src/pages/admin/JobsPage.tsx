@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { adminImportInvoices, adminImportQuotes, adminGetAllJobDetails, markInvoiceAsPaid, apiPost } from '../../lib/api';
 import type { JobWithDetails, LineItem, JobStatus } from '@portal/shared';
-import NewAddJobModal from '../../admin/modals/NewAddJobModal';
+import AddJobModal from '../../admin/modals/AddJobModal';
 import QuoteProposalModal from '../../components/modals/QuoteProposalModal';
 
 function JobsPage() {
@@ -188,7 +188,7 @@ function JobsPage() {
           <button className="btn btn-secondary" onClick={handleQuoteImportClick} disabled={isImporting}>{isImporting ? 'Importing...' : 'Import Stripe Quotes'}</button>
           <div className="relative">
             <button className="btn btn-primary" onClick={() => setIsJobModalOpen(true)}>Add Job</button>
-            <NewAddJobModal isOpen={isJobModalOpen} onClose={() => setIsJobModalOpen(false)} onSave={fetchJobsData} selectedDate={null} />
+            <AddJobModal isOpen={isJobModalOpen} onClose={() => setIsJobModalOpen(false)} onSave={fetchJobsData} selectedDate={null} />
           </div>
         </div>
       </div>
