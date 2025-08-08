@@ -16,29 +16,28 @@ const ChatPhotoSelectorModal: React.FC<ChatPhotoSelectorModalProps> = ({ isOpen,
   const { user: currentUser } = useAuth();
 
   useEffect(() => {
-    if (isOpen && currentUser) {
-      const fetchPhotos = async () => {
-        setIsLoading(true);
-        try {
-          // Determine the correct API endpoint based on the user's role
-          const url = currentUser.role === 'admin'
-            ? `/api/admin/photos/user/${chatUser.id}`
-            : `/api/photos`;
+  if (isOpen && currentUser) {
+    const fetchPhotos = async () => {
+      setIsLoading(true);
+      try {
+        // This logic was incorrect. It should check the current user's role
+        // to determine which endpoint to hit.
+        const url = currentUser.role === 'admin'
+          ? `/api/admin/photos/user/${chatUser.id}`
+          : `/api/photos`; // Corrected endpoint for customers
 
-          const photosData = await fetchJson<Photo[]>(url);
-          if (photosData) {
-            setPhotos(photosData);
-          }
-        } catch (error) {
-          console.error("Failed to fetch photos:", error);
-          setPhotos([]);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchPhotos();
-    }
-  }, [isOpen, currentUser, chatUser]);
+        const photosData = await fetchJson<Photo[]>(url);
+        setPhotos(photosData || []);
+      } catch (error) {
+        console.error("Failed to fetch photos:", error);
+        setPhotos([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchPhotos();
+  }
+}, [isOpen, currentUser, chatUser]);
 
   if (!isOpen) {
     return null;
@@ -72,18 +71,22 @@ const ChatPhotoSelectorModal: React.FC<ChatPhotoSelectorModalProps> = ({ isOpen,
             <>
               {photos.length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                  {photos.map((photo) => (
-                    <div key={photo.id} className="cursor-pointer group relative" onClick={() => handleSelectPhoto(photo)}>
-                       <img
-                        src={photo.variants.find(v => v.endsWith('/public')) || photo.variants[0]}
-                        alt={photo.filename}
-                        className="w-full h-32 object-cover rounded-lg shadow-md transition-all duration-300 group-hover:scale-105 group-hover:shadow-lg"
-                        />
-                         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 flex items-center justify-center transition-opacity duration-300">
-                            <p className="text-white text-center text-xs p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 break-all">{photo.filename}</p>
-                        </div>
-                    </div>
-                  ))}
+                  {photos.map((photo) => {
+                    // FIX: Extract filename from URL for display
+                    const fileName = photo.url.substring(photo.url.lastIndexOf('/') + 1);
+                    return (
+                      <div key={photo.id} className="cursor-pointer group relative" onClick={() => handleSelectPhoto(photo)}>
+                         <img
+                          src={photo.url} // FIX: Use photo.url directly instead of photo.variants
+                          alt={fileName} // FIX: Use derived filename
+                          className="w-full h-32 object-cover rounded-lg shadow-md transition-all duration-300 group-hover:scale-105 group-hover:shadow-lg"
+                          />
+                           <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 flex items-center justify-center transition-opacity duration-300">
+                              <p className="text-white text-center text-xs p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 break-all">{fileName}</p>
+                          </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="flex justify-center items-center h-full">

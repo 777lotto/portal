@@ -23,12 +23,10 @@ export const handleChatAttachmentUpload = async (c: PhotoContext<PhotoAppEnv>) =
     const formData = await c.req.formData();
     const fileValue = formData.get('file');
 
-    // Check if fileValue is a string or null/undefined
     if (typeof fileValue === 'string' || !fileValue) {
         return photoErrorResponse('No file provided or invalid file type.', 400);
     }
-    // After the guard, explicitly cast fileValue to File.
-    const file: File = fileValue;
+    const file: File = fileValue as File; // Explicitly cast to File
 
     const uploadFormData = new FormData();
     uploadFormData.append('file', file);

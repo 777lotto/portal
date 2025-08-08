@@ -117,6 +117,20 @@ export const createSetupIntent = () => apiPost<{ clientSecret: string }>('/api/p
 export const getLineItems = () => apiGet<LineItem[]>('/api/line-items');
 export const getLineItem = (id: string) => apiGet<LineItem>(`/api/line-items/${id}`);
 export const createInvoice = (lineItemId: string) => apiPost<any>(`/api/line-items/${lineItemId}/invoice`, {});
+export const downloadQuotePdf = async (quoteId: string) => {
+    const token = localStorage.getItem("token");
+    const response = await fetch(`/api/quotes/${quoteId}/pdf`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to download quote PDF.');
+    }
+
+    return response.blob();
+};
 
 
 /* ========================================================================

@@ -64,6 +64,13 @@ const SupportChatWidget = ({ user }: { user: User }) => {
     }
   };
 
+  const getChatTitle = (user: User) => {
+  if (user.role === 'admin') {
+    return 'Support Chat';
+  }
+  return 'Chat';
+};
+
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;

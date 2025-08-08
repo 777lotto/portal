@@ -4,6 +4,7 @@ import { Context } from 'hono';
 import { AppEnv } from '../../index.js';
 import { errorResponse, successResponse } from '../../utils.js';
 import type { Job } from '@portal/shared';
+import { getStripe } from '../../stripe/index.js';
 
 export async function getPendingQuotes(c: Context<AppEnv>) {
     const user = c.get('user');
@@ -54,6 +55,49 @@ export async function getQuoteById(c: Context<AppEnv>) {
     ).bind(quoteId).all();
 
     return successResponse({ ...job, services: services.results });
+}
+
+export async function handleDownloadQuotePdf(c: Context<AppEnv>) {
+    const { quoteId } = c.req.param();
+    const user = c.get('user');
+    const stripe = getStripe(c.env);
+
+    try {
+        const quote = await stripe.quotes.retrieve(quoteId);
+
+        if (quote.customer !== user.stripe_customer_id) {
+            return errorResponse("Quote not found.", 404);
+        }
+
+        const pdfStream = await stripe.quotes.pdf(quoteId);
+
+        // Consume the stream into an array of Buffers.
+        const chunks: Buffer[] = [];
+        for await (const chunk of pdfStream) {
+            // Ensure every chunk is a Buffer before pushing.
+            chunks.push(Buffer.from(chunk));
+        }
+
+        // Concatenate the buffers and get the underlying ArrayBuffer.
+        const buffer = Buffer.concat(chunks);
+        const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+
+        // Set the headers for the PDF response.
+        const headers = new Headers();
+        headers.set('Content-Type', 'application/pdf');
+        headers.set('Content-Disposition', `attachment; filename="quote-${quote.number || quote.id}.pdf"`);
+        headers.set('Content-Length', arrayBuffer.byteLength.toString());
+
+        // Return a new Response with the ArrayBuffer.
+        return new Response(arrayBuffer, {
+            status: 200,
+            headers: headers
+        });
+
+    } catch (e: any) {
+        console.error(`Failed to download PDF for quote ${quoteId}:`, e);
+        return errorResponse(e.message, 500);
+    }
 }
 
 export async function handleDeclineQuote(c: Context<AppEnv>) {

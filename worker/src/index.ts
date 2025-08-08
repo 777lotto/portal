@@ -31,7 +31,7 @@ import { handleSmsProxy } from './comms/sms.js';
 // login
 import { handleInitializeSignup, handleLogin, handleRequestPasswordReset, handleLogout, handleSetPassword, handleCheckUser, handleVerifyResetCode, handleLoginWithToken } from './security/handler.js'
 // jobs
-import { getPendingQuotes, handleDeclineQuote, handleReviseQuote, getQuoteById } from './jobs/ledger/quotes.js';
+import { getPendingQuotes, handleDeclineQuote, handleReviseQuote, getQuoteById, handleDownloadQuotePdf } from './jobs/ledger/quotes.js';
 // payment
 import { handleStripeWebhook } from './stripe/webhook.js';
 // calendar
@@ -182,6 +182,7 @@ customerApi.all('/sms/*', handleSmsProxy);
 customerApi.all('/notifications/*', handleNotificationProxy);
 customerApi.get('/quotes/pending', getPendingQuotes);
 customerApi.get('/quotes/:quoteId', getQuoteById);
+customerApi.get('/quotes/:quoteId/pdf', handleDownloadQuotePdf);
 customerApi.post('/quotes/:quoteId/decline', handleDeclineQuote);
 customerApi.post('/quotes/:quoteId/revise', handleReviseQuote);
 customerApi.get('/chat/:roomId', handleChatProxy);

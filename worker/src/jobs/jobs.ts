@@ -284,3 +284,69 @@ export const handleGetOpenInvoicesForUser = async (c: HonoContext<WorkerAppEnv>)
         return errorResponse("Failed to retrieve open invoices.", 500);
     }
 };
+
+interface BookingRequest {
+  property_id: string;
+  selectedServices: {
+    id: string;
+    name: string;
+    estimated_hours: number;
+  }[];
+  otherService: string;
+}
+
+export const handleCreateJob = async (c: HonoContext<WorkerAppEnv>) => {
+    const { property_id, selectedServices, otherService } = await c.req.json<BookingRequest>();
+    const user = c.get('user');
+
+    if (!property_id) {
+        return errorResponse("property_id is required", 400);
+    }
+
+    try {
+        const now = new Date().toISOString();
+        const newJobId = crypto.randomUUID();
+
+        await c.env.DB.prepare(`
+            INSERT INTO jobs (id, property_id, status, user_id, created_at, updated_at)
+            VALUES (?, ?, 'needs_quote', ?, ?, ?)
+        `).bind(newJobId, property_id, user.id, now, now).run();
+
+        const lineItems = selectedServices.map(service => ({
+            id: crypto.randomUUID(),
+            job_id: newJobId,
+            description: service.name,
+            quantity: service.estimated_hours, // Using quantity for estimated hours
+            unit_total_amount_cents: null, // Price to be set by admin
+            created_at: now,
+            updated_at: now,
+        }));
+
+        if (otherService) {
+            lineItems.push({
+                id: crypto.randomUUID(),
+                job_id: newJobId,
+                description: otherService,
+                quantity: null, // To be set by admin
+                unit_total_amount_cents: null, // Price to be set by admin
+                created_at: now,
+                updated_at: now,
+            });
+        }
+
+        const lineItemsStmt = c.env.DB.prepare(`
+            INSERT INTO line_items (id, job_id, description, quantity, unit_total_amount_cents, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        const lineItemPromises = lineItems.map(item =>
+            lineItemsStmt.bind(item.id, item.job_id, item.description, item.quantity, item.unit_total_amount_cents, item.created_at, item.updated_at).run()
+        );
+        await Promise.all(lineItemPromises);
+
+
+        return successResponse({ id: newJobId });
+    } catch (e: any) {
+        console.error("Failed to create job:", e);
+        return errorResponse("Failed to create job", 500);
+    }
+};
