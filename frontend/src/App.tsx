@@ -8,6 +8,7 @@ import SupportChatWidget from '@/components/chat/SupportChatWidget';
 import Navbar from "@/pages/Navbar";
 import CustomerDashboard from "@/pages/Dashboard";
 import UnifiedCalendar from '@/pages/UnifiedCalendar';
+import AdminJobReply from './admin/pages/AdminJobReply';
 
 const BookingPage = lazy(() => import("@/pages/BookingPage"));
 const JobInfo = lazy(() => import('@/pages/JobInfo'));

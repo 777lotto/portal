@@ -1,32 +1,12 @@
 // worker/src/handlers/jobs.ts
 import { Context as HonoContext } from 'hono';
-import { z } from 'zod';
 import { AppEnv as WorkerAppEnv } from '../index.js';
 import { errorResponse, successResponse } from '../utils.js';
-import { createJob } from './timing/calendar.js';
 import type { Job, LineItem, User } from '@portal/shared';
 import { getStripe } from '../stripe/index.js';
 import Stripe from 'stripe';
 
 
-
-
-
-export const handleCreateJob = async (c: HonoContext<WorkerAppEnv>) => {
-    const user = c.get('user');
-    const body = await c.req.json();
-
-    try {
-        const newJob = await createJob(c.env, body, user.id);
-        return successResponse(newJob, 201);
-    } catch (e: any) {
-        if (e instanceof z.ZodError) {
-            return errorResponse("Invalid job data provided.", 400, e.flatten());
-        }
-        console.error("Failed to create job:", e);
-        return errorResponse("Failed to create job.", 500);
-    }
-};
 
 export const handleGetJobs = async (c: HonoContext<WorkerAppEnv>) => {
     const user = c.get('user');
@@ -327,7 +307,7 @@ export const handleCreateJob = async (c: HonoContext<WorkerAppEnv>) => {
                 id: crypto.randomUUID(),
                 job_id: newJobId,
                 description: otherService,
-                quantity: null, // To be set by admin
+                quantity: 1, // To be set by admin
                 unit_total_amount_cents: null, // Price to be set by admin
                 created_at: now,
                 updated_at: now,
