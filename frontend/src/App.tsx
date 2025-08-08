@@ -6,6 +6,7 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 
 // Using the '@' alias for cleaner, more reliable imports
+import AdminLayout from '@/admin/AdminLayout'; // Path to your new layout component
 import SupportChatWidget from '@/components/chat/SupportChatWidget';
 import Navbar from "@/pages/Navbar";
 import CustomerDashboard from "@/pages/Dashboard";
@@ -111,12 +112,12 @@ function App() {
         <Elements stripe={stripePromise}>
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
-              {/* --- Public Routes --- */}
+              {/* --- Public & Customer Routes --- */}
               <Route path="/booking" element={<BookingPage />} />
               <Route path="/auth" element={token ? <Navigate to="/dashboard" replace /> : <AuthForm setToken={handleSetToken} />} />
               <Route path="/" element={<Navigate to={token ? "/dashboard" : "/auth"} replace />} />
 
-              {/* --- Role-based Dashboard Routing --- */}
+              {/* --- Role-based Redirects for generic paths --- */}
               <Route
                 path="/dashboard"
                 element={
@@ -125,10 +126,17 @@ function App() {
                     : <Navigate to="/auth" replace />
                 }
               />
+              <Route
+                path="/photos"
+                element={
+                  token ?
+                    (user?.role === 'admin' ? <Navigate to="/admin/photos" replace /> : <Photos />)
+                    : <Navigate to="/auth" replace />
+                }
+              />
 
-              {/* --- Customer-facing Routes --- */}
+              {/* --- Authenticated Customer Routes --- */}
               <Route path="/calendar" element={token ? <UnifiedCalendar /> : <Navigate to="/auth" replace />} />
-              <Route path="/photos" element={token ? <Photos /> : <Navigate to="/auth" replace />} />
               <Route path="/jobs/:id" element={token ? <JobInfo /> : <Navigate to="/auth" replace />} />
               <Route path="/quotes/:quoteId" element={token ? <QuoteProposalPage /> : <Navigate to="/auth" replace />} />
               <Route path="/calendar-sync" element={token ? <CalendarSync /> : <Navigate to="/auth" replace />} />
@@ -136,31 +144,16 @@ function App() {
               <Route path="/pay-invoice/:invoiceId" element={token ? <InvoicePaymentPage /> : <Navigate to="/auth" replace />} />
               <Route path="/chat" element={token ? <ChatPage /> : <Navigate to="/auth" replace />} />
 
-              {/* --- Admin Routes --- */}
-              <Route
-                path="/admin/dashboard"
-                element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/dashboard" replace />}
-              />
-              <Route
-                path="/admin/users"
-                element={user?.role === 'admin' ? <UserListPage /> : <Navigate to="/dashboard" replace />}
-              />
-              <Route
-                path="/admin/users/:user_id"
-                element={user?.role === 'admin' ? <UserDetailPage /> : <Navigate to="/dashboard" replace />}
-              />
-              <Route
-                path="/admin/jobs"
-                element={user?.role === 'admin' ? <JobsPage /> : <Navigate to="/dashboard" replace />}
-              />
-              <Route
-                path="/admin/jobs/:id"
-                element={user?.role === 'admin' ? <JobDetail /> : <Navigate to="/dashboard" replace />}
-              />
-              <Route
-                path="/admin/photos"
-                element={user?.role === 'admin' ? <AdminPhotos /> : <Navigate to="/dashboard" replace />}
-              />
+              {/* --- Refactored Admin Routes --- */}
+              {/* All routes nested inside here are now protected by AdminLayout */}
+              <Route element={<AdminLayout user={user} />}>
+                <Route path="/admin/dashboard" element={<AdminDashboard />} />
+                <Route path="/admin/users" element={<UserListPage />} />
+                <Route path="/admin/users/:user_id" element={<UserDetailPage />} />
+                <Route path="/admin/jobs" element={<JobsPage />} />
+                <Route path="/admin/jobs/:id" element={<JobDetail />} />
+                <Route path="/admin/photos" element={<AdminPhotos />} />
+              </Route>
 
               {/* --- Catch-all redirect --- */}
               <Route path="*" element={<Navigate to="/" replace />} />
