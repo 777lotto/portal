@@ -52,7 +52,6 @@ export const handleGetJobsAndQuotes = async (c: Context<AppEnv>) => {
 
       jobsWithDetails.push({
         ...job,
-        // CORRECTED: Changed property from 'lineItems' to 'line_items' to match JobWithDetails type.
         line_items: lineItems || [],
       });
     }
