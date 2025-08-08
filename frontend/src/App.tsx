@@ -28,6 +28,7 @@ const UserListPage = lazy(() => import("@/pages/admin/UserListPage"));
 const UserDetailPage = lazy(() => import("@/pages/admin/UserDetailPage"));
 const JobsPage = lazy(() => import("@/pages/admin/JobsPage"));
 const JobDetail = lazy(() => import("@/pages/admin/JobDetail"));
+const AdminPhotos = lazy(() => import('@/admin/pages/adminPhotos'));
 
 
 interface UserPayload {
@@ -155,6 +156,10 @@ function App() {
               <Route
                 path="/admin/jobs/:id"
                 element={user?.role === 'admin' ? <JobDetail /> : <Navigate to="/dashboard" replace />}
+              />
+              <Route
+                path="/admin/photos"
+                element={user?.role === 'admin' ? <adminPhotos /> : <Navigate to="/dashboard" replace />}
               />
 
               {/* --- Catch-all redirect --- */}
