@@ -23,12 +23,12 @@ const InvoicePaymentPage = lazy(() => import("@/pages/InvoicePaymentPage"));
 const ChatPage = lazy(() => import("@/pages/ChatPage"));
 
 // --- Lazy-loaded Admin Page Components using the '@' alias ---
-const AdminDashboard = lazy(() => import("@/admin/pages/adminDashboard.tsx"));
+const AdminDashboard = lazy(() => import("@/admin/pages/AdminDashboard.tsx"));
 const UserListPage = lazy(() => import("@/pages/admin/UserListPage"));
 const UserDetailPage = lazy(() => import("@/pages/admin/UserDetailPage"));
 const JobsPage = lazy(() => import("@/pages/admin/JobsPage"));
 const JobDetail = lazy(() => import("@/pages/admin/JobDetail"));
-const AdminPhotos = lazy(() => import('@/admin/pages/adminPhotos'));
+const AdminPhotos = lazy(() => import('@/admin/pages/AdminPhotos'));
 
 
 interface UserPayload {
@@ -139,7 +139,7 @@ function App() {
               {/* --- Admin Routes --- */}
               <Route
                 path="/admin/dashboard"
-                element={user?.role === 'admin' ? <adminDashboard /> : <Navigate to="/dashboard" replace />}
+                element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/dashboard" replace />}
               />
               <Route
                 path="/admin/users"
@@ -159,7 +159,7 @@ function App() {
               />
               <Route
                 path="/admin/photos"
-                element={user?.role === 'admin' ? <adminPhotos /> : <Navigate to="/dashboard" replace />}
+                element={user?.role === 'admin' ? <AdminPhotos /> : <Navigate to="/dashboard" replace />}
               />
 
               {/* --- Catch-all redirect --- */}

@@ -101,12 +101,12 @@ export async function fetchJson<T = unknown>(
           console.log('🚪 401 Unauthorized - clearing token and redirecting to login');
           localStorage.removeItem("token");
 
-          if (!window.location.pathname.includes('/login')) {
+          if (!window.location.pathname.startsWith('/auth')) {
             const returnPath = window.location.pathname + window.location.search;
             if (returnPath && returnPath !== '/') {
               sessionStorage.setItem('returnPath', returnPath);
             }
-            window.location.href = "/login";
+            window.location.href = "/auth";
           }
 
           throw new ApiError("Session expired. Please log in again.", 401);
