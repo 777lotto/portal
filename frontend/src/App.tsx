@@ -1,18 +1,14 @@
-// frontend/src/App.tsx
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState, lazy, Suspense } from "react";
 import { jwtDecode } from 'jwt-decode';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
-
-// Using the '@' alias for cleaner, more reliable imports
-import AdminLayout from '@/admin/AdminLayout'; // Path to your new layout component
+import AdminLayout from '@/admin/AdminLayout';
 import SupportChatWidget from '@/components/chat/SupportChatWidget';
 import Navbar from "@/pages/Navbar";
 import CustomerDashboard from "@/pages/Dashboard";
 import UnifiedCalendar from '@/pages/UnifiedCalendar';
 
-// --- Lazy-loaded Page Components using the '@' alias ---
 const BookingPage = lazy(() => import("@/pages/BookingPage"));
 const JobInfo = lazy(() => import('@/pages/JobInfo'));
 const QuoteProposalPage = lazy(() => import("@/pages/QuoteProposalPage"));
@@ -22,15 +18,12 @@ const AccountPage = lazy(() => import("@/pages/AccountPage"));
 const AuthForm = lazy(() => import("@/components/forms/AuthForm"));
 const InvoicePaymentPage = lazy(() => import("@/pages/InvoicePaymentPage"));
 const ChatPage = lazy(() => import("@/pages/ChatPage"));
-
-// --- Lazy-loaded Admin Page Components using the '@' alias ---
-const AdminDashboard = lazy(() => import("@/admin/pages/AdminDashboard.tsx"));
-const UserListPage = lazy(() => import("@/pages/admin/UserListPage"));
-const UserDetailPage = lazy(() => import("@/pages/admin/UserDetailPage"));
+const AdminDashboard = lazy(() => import("@/admin/pages/AdminDashboard"));
+const AdminUserList = lazy(() => import("@/admin/pages/AdminUserList"));
+const AdminUserDetail = lazy(() => import("@/admin/pages/AdminUserDetail"));
 const JobsPage = lazy(() => import("@/pages/admin/JobsPage"));
 const JobDetail = lazy(() => import("@/pages/admin/JobDetail"));
 const AdminPhotos = lazy(() => import('@/admin/pages/AdminPhotos'));
-
 
 interface UserPayload {
   id: number;
@@ -145,11 +138,10 @@ function App() {
               <Route path="/chat" element={token ? <ChatPage /> : <Navigate to="/auth" replace />} />
 
               {/* --- Refactored Admin Routes --- */}
-              {/* All routes nested inside here are now protected by AdminLayout */}
               <Route element={<AdminLayout user={user} />}>
                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
-                <Route path="/admin/users" element={<UserListPage />} />
-                <Route path="/admin/users/:user_id" element={<UserDetailPage />} />
+                <Route path="/admin/users" element={<AdminUserList />} />
+                <Route path="/admin/users/:user_id" element={<AdminUserDetail />} />
                 <Route path="/admin/jobs" element={<JobsPage />} />
                 <Route path="/admin/jobs/:id" element={<JobDetail />} />
                 <Route path="/admin/photos" element={<AdminPhotos />} />

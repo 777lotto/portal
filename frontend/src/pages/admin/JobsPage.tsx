@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { adminImportInvoices, adminImportQuotes, adminGetAllJobDetails, markInvoiceAsPaid, apiPost } from '../../lib/api';
 import type { JobWithDetails, LineItem, JobStatus } from '@portal/shared';
-import NewAddJobModal from '../../components/modals/admin/NewAddJobModal';
+import NewAddJobModal from '../../admin/modals/NewAddJobModal';
 import QuoteProposalModal from '../../components/modals/QuoteProposalModal';
 
 function JobsPage() {

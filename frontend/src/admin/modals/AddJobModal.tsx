@@ -1,6 +1,6 @@
 // frontend/src/components/modals/admin/AddJobModal.tsx
 import React, { useState, useEffect } from 'react';
-import { apiGet, adminCreateJob } from '../../../lib/api';
+import { apiGet, adminCreateJob } from '../../lib/api';
 import type { User, Service } from '@portal/shared';
 import { format, isValid } from 'date-fns';
 

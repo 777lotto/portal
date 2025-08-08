@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { adminCreateUser } from '../../../lib/api';
+import { adminCreateUser } from '../../lib/api';
 import type { User } from '@portal/shared';
 
 interface Props {

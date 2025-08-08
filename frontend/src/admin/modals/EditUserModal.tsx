@@ -1,6 +1,6 @@
 // 777lotto/portal/portal-fold/frontend/src/components/admin/EditUserModal.tsx
 import { useState, useEffect } from 'react';
-import { adminUpdateUser } from '../../../lib/api';
+import { adminUpdateUser } from '../../lib/api';
 import type { User } from '@portal/shared';
 
 interface Props {

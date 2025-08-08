@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { apiGet, apiPost } from '../../../lib/api';
+import { apiGet, apiPost } from '../../lib/api';
 import type { User, Service } from '@portal/shared';
 
 interface Props {

@@ -1,6 +1,6 @@
 // frontend/src/components/admin/EditJobModal.tsx
 import { useState, useEffect } from 'react';
-import { adminReassignJob, apiGet } from '../../../lib/api';
+import { adminReassignJob, apiGet } from '../../lib/api';
 import type { Job, User } from '@portal/shared';
 
 interface Props {

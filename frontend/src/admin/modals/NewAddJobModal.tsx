@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiGet, adminCreateJob } from '../../../lib/api'; // Using your actual API functions
+import { apiGet, adminCreateJob } from '../../lib/api'; // Using your actual API functions
 import type { User } from '@portal/shared'; // Using your actual shared types
 import { format, isValid, parseISO } from 'date-fns';
 

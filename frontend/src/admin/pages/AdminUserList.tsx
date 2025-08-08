@@ -1,11 +1,9 @@
-// frontend/src/pages/admin/UserListPage.tsx
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { apiGet, deleteUser, adminImportInvoices, apiPost, getImportedContacts, adminUpdateUser } from '../../lib/api.js';
+import { apiGet, deleteUser, getImportedContacts, adminUpdateUser, apiPost } from '../../lib/api';
 import type { User } from '@portal/shared';
-import AddUserModal from '../../components/modals/admin/AddUserModal.js';
+import AddUserModal from '../modals/AddUserModal';
 
-// A dedicated component for the inline user editing form
 function UserDetailEditor({ user, onUserUpdated, onCancel }: { user: User; onUserUpdated: (updatedUser: User) => void; onCancel: () => void; }) {
   const [formData, setFormData] = useState({
     name: user.name || '',
@@ -87,14 +85,14 @@ function UserDetailEditor({ user, onUserUpdated, onCancel }: { user: User; onUse
   );
 }
 
-function AdminDashboard() {
+function AdminUserList() {
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [expandeduser_id, setExpandeduser_id] = useState<number | null>(null);
-  const [editinguser_id, setEditinguser_id] = useState<number | null>(null);
+  const [expandedUserId, setExpandedUserId] = useState<number | null>(null);
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
@@ -149,12 +147,12 @@ function AdminDashboard() {
 
   const handleUserUpdated = (updatedUser: User) => {
     setUsers(currentUsers => currentUsers.map(u => u.id === updatedUser.id ? updatedUser : u));
-    setEditinguser_id(null); // Exit edit mode on successful update
+    setEditingUserId(null); // Exit edit mode on successful update
   };
 
-  const toggleRow = (user_id: number) => {
-    if (editinguser_id === user_id) return; // Prevent collapsing while editing
-    navigate(`/admin/jobs/${user_id}`);
+  const toggleRow = (userId: number) => {
+    if (editingUserId === userId) return;
+    setExpandedUserId(prev => (prev === userId ? null : userId));
   };
 
   const filteredUsers = useMemo(() => {
@@ -214,7 +212,7 @@ function AdminDashboard() {
                     <>
                       <tr key={user.id} className="hover:bg-secondary-light/50 dark:hover:bg-secondary-dark/50 cursor-pointer" onClick={() => toggleRow(user.id)}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
-                          <span className="text-xl">{expandeduser_id === user.id ? '−' : '+'}</span>
+                          <span className="text-xl">{expandedUserId === user.id ? '−' : '+'}</span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary-light dark:text-text-primary-dark">{user.name || 'N/A'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary-light dark:text-text-secondary-dark">{user.company_name || 'N/A'}</td>
@@ -243,16 +241,16 @@ function AdminDashboard() {
                            </div>
                         </td>
                       </tr>
-                      {expandeduser_id === user.id && (
+                      {expandedUserId === user.id && (
                         <tr className="bg-gray-50 dark:bg-black/20">
                           <td colSpan={6} className="p-0">
-                            {editinguser_id === user.id ? (
-                              <UserDetailEditor user={user} onUserUpdated={handleUserUpdated} onCancel={() => setEditinguser_id(null)} />
+                            {editingUserId === user.id ? (
+                              <UserDetailEditor user={user} onUserUpdated={handleUserUpdated} onCancel={() => setEditingUserId(null)} />
                             ) : (
                               <div className="p-4">
                                 <div className="flex justify-between items-center mb-2 px-4">
                                   <h4 className="text-md font-semibold">User Details</h4>
-                                  <button className="btn btn-secondary" onClick={() => setEditinguser_id(user.id)}>Edit User</button>
+                                  <button className="btn btn-secondary" onClick={() => setEditingUserId(user.id)}>Edit User</button>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 px-4 text-sm">
                                   {/* Left Column */}
@@ -287,4 +285,4 @@ function AdminDashboard() {
   );
 }
 
-export default AdminDashboard;
+export default AdminUserList;

@@ -7,7 +7,7 @@ import { useAuth } from '../hooks/useAuth';
 import { apiGet, apiPost } from '../lib/api';
 import type { Job } from '@portal/shared';
 // UPDATE: Import the consolidated AddJobModal
-import AddJobModal from '../components/modals/admin/AddJobModal';
+import AddJobModal from '../admin/modals/AddJobModal';
 import BookingModal from '../components/modals/BookingModal';
 
 // --- Calendar Sync Modal Component (No changes here) ---

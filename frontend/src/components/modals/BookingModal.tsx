@@ -30,6 +30,7 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
 
   useEffect(() => {
     if (isOpen) {
+      // Set form data only if the user object is available
       if (user) {
         setFormData({
           name: user.name || '',
@@ -37,6 +38,9 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
           phone: user.phone || '',
           address: user.address || '',
         });
+      } else {
+        // If no user, reset form data to ensure it's clean for a guest
+        setFormData({ name: '', email: '', phone: '', address: '' });
       }
 
       const fetchLineItems = async () => {
@@ -60,7 +64,7 @@ function BookingModal({ isOpen, onClose, selectedDate, user = null }: Props) {
         delete window.onTurnstileSuccess;
       }
     };
-  }, [isOpen, user]);
+  }, [isOpen, user]); // Keep `user` in the dependency array
 
   const handleLineItemChange = (lineItem: LineItem) => {
     setSelectedLineItems(prev =>
