@@ -22,12 +22,12 @@ const ChatPhotoSelectorModal: React.FC<ChatPhotoSelectorModalProps> = ({ isOpen,
         try {
           // Determine the correct API endpoint based on the user's role
           const url = currentUser.role === 'admin'
-            ? `/api/admin/users/${chatUser.id}/photos`
-            : `/api/customer/photos`;
+            ? `/api/admin/photos/user/${chatUser.id}`
+            : `/api/photos`;
 
-          const response = await fetchJson<{ success: boolean; photos?: Photo[] }>(url);
-          if (response.success && response.photos) {
-            setPhotos(response.photos);
+          const photosData = await fetchJson<Photo[]>(url);
+          if (photosData) {
+            setPhotos(photosData);
           }
         } catch (error) {
           console.error("Failed to fetch photos:", error);
@@ -46,14 +46,13 @@ const ChatPhotoSelectorModal: React.FC<ChatPhotoSelectorModalProps> = ({ isOpen,
 
   const handleSelectPhoto = (photo: Photo) => {
     // Find the public variant of the image
-    const publicVariant = photo.variants.find(v => v.endsWith('/public')) || photo.variants[0];
-    if (publicVariant) {
-      onPhotoSelect({
-        url: publicVariant,
-        fileName: photo.filename,
-        fileType: 'image/jpeg', // Assuming image/jpeg, as the API doesn't provide a mime type
-      });
-    }
+    const fileName = photo.url.substring(photo.url.lastIndexOf('/') + 1);
+
+    onPhotoSelect({
+      url: photo.url,
+      fileName: fileName,
+      fileType: 'image/jpeg', // Assuming jpeg, as the backend doesn't store the type
+    });
     onClose();
   };
 

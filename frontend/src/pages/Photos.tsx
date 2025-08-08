@@ -128,7 +128,7 @@ function AdminPhotos() {
 
   useEffect(() => {
     if (selectedUser) {
-      apiGet<Job[]>(`/api/admin/users/${selectedUser}/jobs`).then(setJobs);
+      apiGet<Job[]>(`/api/admin/jobs/user/${selectedUser}`).then(setJobs);
     } else {
       setJobs([]);
     }

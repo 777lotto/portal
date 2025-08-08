@@ -26,24 +26,22 @@ const BellIcon = () => (
 );
 
 function NotificationBell() {
-  // Fetch from the new UI-specific endpoint
   const { data: notifications, error, mutate } = useSWR<Notification[]>('/api/notifications/ui', apiGet, { refreshInterval: 15000 });
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const location = useLocation(); // Get the current location
+  const location = useLocation();
 
-  // Determine if the user is actively on a chat page
   const isViewingChat = location.pathname.startsWith('/chat') || location.pathname.startsWith('/admin/chat');
 
-  // Filter out message notifications if the user is on a chat page
-  const filteredNotifications = notifications?.filter(n => {
+  // FIX: Ensure notifications is an array before filtering.
+  const filteredNotifications = Array.isArray(notifications) ? notifications.filter(n => {
     if (n.type === 'new_message' && isViewingChat) {
       return false;
     }
     return true;
-  });
+  }) : []; // Default to an empty array if notifications is not ready.
 
-  const unreadCount = filteredNotifications?.filter(n => !n.is_read).length || 0;
+  const unreadCount = filteredNotifications.filter(n => !n.is_read).length;
 
   useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {

@@ -1,4 +1,4 @@
-// worker/src/handlers/admin/jobs.ts
+// worker/src/jobs/admin/jobs.ts
 
 import { Context } from 'hono';
 import { AppEnv } from '../../index.js';
@@ -14,7 +14,7 @@ export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
         j.id, j.title, j.createdAt as start, j.due as end, j.status,
         u.name as userName, u.id as userId
       FROM jobs j
-      JOIN users u ON j.user_id = u.id
+      JOIN users u ON j.user_id = CAST(u.id AS TEXT)
       ORDER BY j.createdAt DESC`
     ).all();
     const jobs = dbResponse?.results || [];
@@ -35,7 +35,7 @@ export const handleGetJobsAndQuotes = async (c: Context<AppEnv>) => {
          u.name as customerName,
          u.address as customerAddress
        FROM jobs j
-       JOIN users u ON j.user_id = u.id
+       JOIN users u ON j.user_id = CAST(u.id AS TEXT)
        ORDER BY j.createdAt DESC`
     ).all<Job & { customerName: string; customerAddress: string }>();
 
