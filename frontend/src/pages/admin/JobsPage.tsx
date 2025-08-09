@@ -79,14 +79,13 @@ function JobsPage() {
   const filteredData = useMemo(() => {
     if (filter === 'all') return jobsData;
     return jobsData.filter(item => {
-      if (filter === 'All') return true;
-			if (filter === 'Quotes') return job.status === 'pending';
-			if (filter === 'Upcoming') return job.status === 'upcoming';
-			if (filter === 'Invoices') return job.status === 'payment_needed' || job.status === 'payment_overdue';
-			if (filter === 'Completed') return job.status === 'complete';
-			if (filter === 'Canceled') return job.status === 'canceled';
-			if (filter === 'Drafts') return job.status === 'draft';
-			return true;
+      if (filter === 'quotes') return item.status === 'pending';
+      if (filter === 'upcoming') return item.status === 'upcoming';
+      if (filter === 'invoices') return item.status === 'payment_needed' || item.status === 'payment_overdue';
+      if (filter === 'completed') return item.status === 'complete';
+      if (filter === 'canceled') return item.status === 'canceled';
+      if (filter === 'drafts') return item.status === 'draft';
+      return false;
     });
   }, [jobsData, filter]);
 

@@ -16,7 +16,7 @@ export async function handleGetAllJobs(c: Context<AppEnv>): Promise<Response> {
         j.id, j.title, j.createdAt as start, j.due as end, j.status,
         u.name as userName, u.id as userId
       FROM jobs j
-      JOIN users u ON j.user_id = CAST(u.id AS TEXT)
+      JOIN users u ON CAST(j.user_id AS INTEGER) = u.id
       ORDER BY j.createdAt DESC`
     ).all();
     const jobs = dbResponse?.results || [];
@@ -37,7 +37,7 @@ export const handleGetAllJobDetails = async (c: Context<AppEnv>) => {
          u.name as customerName,
          u.address as customerAddress
        FROM jobs j
-       JOIN users u ON j.user_id = CAST(u.id AS TEXT)
+       JOIN users u ON CAST(j.user_id AS INTEGER) = u.id
        ORDER BY j.createdAt DESC`
     ).all<Job & { customerName: string; customerAddress: string }>();
 
