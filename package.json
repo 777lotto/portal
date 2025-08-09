@@ -44,6 +44,7 @@
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.11",
+    "tailwindcss": "^4.1.11",
     "wrangler": "^4.28.1"
   }
 }

@@ -1,7 +1,22 @@
 /* 777lotto/portal/portal-fold/frontend/src/index.css */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --color-primary-dark: #1a1d20;
+  --color-secondary-dark: #212529;
+  --color-tertiary-dark: #343a40;
+  --color-primary-light: #ffffff;
+  --color-secondary-light: #f8f9fa;
+  --color-border-dark: #495057;
+  --color-border-light: #dee2e6;
+  --color-text-primary-dark: #dee2e6;
+  --color-text-secondary-dark: #adb5bd;
+  --color-text-primary-light: #212529;
+  --color-text-secondary-light: #495057;
+  --color-event-blue: #0000FF;
+  --color-event-green: #00FF00;
+  --color-event-red: #FF0000;
+}
 
 body {
   @apply bg-secondary-light dark:bg-primary-dark text-text-primary-light dark:text-text-primary-dark transition-colors duration-300;
@@ -39,7 +54,7 @@ body {
   }
   .sdi-input {
     @apply absolute top-0 left-0 w-full h-full bg-transparent border-0 opacity-0;
-    caret-color: theme('colors.event-blue');
+    caret-color: var(--color-event-blue);
     z-index: 1;
   }
 
@@ -92,30 +107,6 @@ body {
     @apply text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20;
   }
 
-  .bg-stripes-blue {
-    background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, theme('colors.blue.500/0.1') 10px, theme('colors.blue.500/0.1') 20px);
-  }
-
-@layer base {
-  .rbc-day-bg.lighter-day {
-      @apply bg-primary-light dark:bg-primary-dark;
-  }
-  .rbc-day-bg.darker-day {
-      @apply bg-secondary-light dark:bg-secondary-dark opacity-60; /* Make job-booked days slightly faded */
-  }
-  /* NEW CLASS */
-  .rbc-day-bg.admin-blocked-day {
-      @apply bg-red-200 dark:bg-red-900/40;
-      background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px);
-  }
-}
-
-@layer utilities {
-  .bg-stripes-blue {
-    /* This now uses your 'event-blue' color from tailwind.config.js */
-    background-image: repeating-linear-gradient(45deg, theme('colors.event-blue/5'), theme('colors.event-blue/5') 10px, theme('colors.event-blue/10') 10px, theme('colors.event-blue/10') 20px);
-  }
-}
   /* Cards */
   .card {
     @apply bg-primary-light dark:bg-tertiary-dark shadow-lg rounded-lg border border-border-light dark:border-border-dark;
@@ -185,5 +176,26 @@ body {
 
   .rbc-btn-group button.rbc-active {
     @apply bg-gray-700 text-white;
+  }
+}
+
+
+@layer base {
+  .rbc-day-bg.lighter-day {
+      @apply bg-primary-light dark:bg-primary-dark;
+  }
+  .rbc-day-bg.darker-day {
+      @apply bg-secondary-light dark:bg-secondary-dark opacity-60; /* Make job-booked days slightly faded */
+  }
+  /* NEW CLASS */
+  .rbc-day-bg.admin-blocked-day {
+      @apply bg-red-200 dark:bg-red-900/40;
+      background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px);
+  }
+}
+
+@layer utilities {
+  .bg-stripes-blue {
+    background-image: repeating-linear-gradient(45deg, color-mix(in srgb, var(--color-event-blue) 5%, transparent), color-mix(in srgb, var(--color-event-blue) 5%, transparent) 10px, color-mix(in srgb, var(--color-event-blue) 10%, transparent) 10px, color-mix(in srgb, var(--color-event-blue) 10%, transparent) 20px);
   }
 }

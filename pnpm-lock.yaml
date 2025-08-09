@@ -11,6 +11,9 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4.1.11
         version: 4.1.11
+      tailwindcss:
+        specifier: ^4.1.11
+        version: 4.1.11
       wrangler:
         specifier: ^4.28.1
         version: 4.28.1(@cloudflare/workers-types@4.20250809.0)
