@@ -15,8 +15,8 @@ interface Props {
 // A consistent interface for line items in the form
 interface LineItemState {
   id: number; // A temporary ID for React key purposes
-  notes: string;
-  total_amount_cents: number;
+  description: string;
+  unit_total_amount_cents: number;
 }
 
 function AddJobModal({ isOpen, onClose, onSave, selectedDate, initialJobType }: Props) {
@@ -32,7 +32,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, initialJobType }: 
   const [end, setEnd] = useState('');
   const [jobType, setJobType] = useState<'job' | 'quote' | 'invoice'>('job');
   const [lineItems, setLineItems] = useState<LineItemState[]>([
-    { id: Date.now(), notes: '', total_amount_cents: 0 }
+    { id: Date.now(), description: '', unit_total_amount_cents: 0 }
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +45,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, initialJobType }: 
       setTitle('');
       setDescription('');
       setSelectedUserId('');
-      setLineItems([{ id: Date.now(), notes: '', total_amount_cents: 0 }]);
+      setLineItems([{ id: Date.now(), description: '', unit_total_amount_cents: 0 }]);
       setJobType(initialJobType || 'job'); // Use initial type if provided, otherwise default
       setRecurrence('none');
       setError(null);
@@ -81,10 +81,10 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, initialJobType }: 
 
   // --- HANDLERS ---
   // Handlers for dynamically managing line items
-  const handleLineItemChange = (id: number, field: 'notes' | 'total_amount_cents', value: string | number) => {
+  const handleLineItemChange = (id: number, field: 'description' | 'unit_total_amount_cents', value: string | number) => {
     setLineItems(lineItems.map(item => {
       if (item.id === id) {
-        if (field === 'total_amount_cents') {
+        if (field === 'unit_total_amount_cents') {
           const price = parseFloat(value as string);
           return { ...item, [field]: isNaN(price) ? 0 : Math.round(price * 100) };
         }
@@ -95,7 +95,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, initialJobType }: 
   };
 
   const addLineItem = () => {
-    setLineItems([...lineItems, { id: Date.now(), notes: '', total_amount_cents: 0 }]);
+    setLineItems([...lineItems, { id: Date.now(), description: '', unit_total_amount_cents: 0 }]);
   };
 
   const removeLineItem = (id: number) => {
@@ -112,29 +112,29 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, initialJobType }: 
       return;
     }
 
-    // Construct the payload matching the backend Zod schema
     const payload = {
-      user_id: selectedUserId,
-      title,
-      description,
-      jobType,
-      recurrence,
-      due: due || null,
-      start: start ? new Date(start).toISOString() : null,
-      end: end ? new Date(end).toISOString() : null,
-      services: lineItems
-        .map(li => ({
-          notes: li.notes,
-          total_amount_cents: li.total_amount_cents,
-        }))
-        .filter(li => li.notes && li.total_amount_cents >= 0),
-      action: action, // Pass the specific action to the backend
-    };
+    user_id: selectedUserId,
+    title,
+    description,
+    jobType,
+    recurrence,
+    due: due || null,
+    start: start ? new Date(start).toISOString() : null,
+    end: end ? new Date(end).toISOString() : null,
+    lineItems: lineItems
+      .map(li => ({
+        description: li.description,
+        unit_unit_total_amount_cents: li.unit_total_amount_cents,
+        quantity: 1, // Assuming a quantity of 1 for now
+      }))
+      .filter(li => li.description && li.unit_unit_total_amount_cents >= 0),
+    action: action,
+  };
 
-    if (payload.services.length === 0) {
-      setError("Please add at least one valid line item with a description.");
-      return;
-    }
+  if (payload.lineItems.length === 0) {
+    setError("Please add at least one valid line item with a description.");
+    return;
+  }
 
     setIsSubmitting(true);
     try {
@@ -233,10 +233,10 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, initialJobType }: 
           {lineItems.map((item) => (
             <div key={item.id} className="flex items-center gap-2 mb-2">
               <div className="flex-grow">
-                <input type="text" className="form-control" placeholder="Description" value={item.notes} onChange={(e) => handleLineItemChange(item.id, 'notes', e.target.value)} />
+                <input type="text" className="form-control" placeholder="Description" value={item.description} onChange={(e) => handleLineItemChange(item.id, 'description', e.target.value)} />
               </div>
               <div className="w-32">
-                <input type="number" step="0.01" className="form-control" placeholder="Price ($)" value={item.total_amount_cents / 100} onChange={(e) => handleLineItemChange(item.id, 'total_amount_cents', e.target.value)} />
+                <input type="number" step="0.01" className="form-control" placeholder="Price ($)" value={item.unit_total_amount_cents / 100} onChange={(e) => handleLineItemChange(item.id, 'unit_total_amount_cents', e.target.value)} />
               </div>
               <div>
                 <button className="btn btn-danger" onClick={() => removeLineItem(item.id)}>X</button>

@@ -276,7 +276,7 @@ interface BookingRequest {
 }
 
 export const handleCreateJob = async (c: HonoContext<WorkerAppEnv>) => {
-    const { property_id, selectedServices, otherService } = await c.req.json<BookingRequest>();
+    const { property_id, selectedServices, otherService } = await c.req.json<BookingRequest>();   // INCORRECT CODE not using LineItems, using DEPRECATED Services
     const user = c.get('user');
 
     if (!property_id) {

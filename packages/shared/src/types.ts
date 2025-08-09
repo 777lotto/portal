@@ -36,7 +36,6 @@ export const LineItemSchema = z.object({
   updatedAt: z.string(),
 });
 
-// CORRECTED: The LineItem type is now correctly inferred from the schema.
 export type LineItem = z.infer<typeof LineItemSchema>;
 
 // Define the new, stricter set of statuses for a Job
@@ -47,13 +46,10 @@ export const JobStatusEnum = z.enum([
   'payment_overdue',
   'complete',
   'canceled',
-  'quote_draft',
-  'invoice_draft',
-  'job_draft'
+  'draft'
 ]);
 export type JobStatus = z.infer<typeof JobStatusEnum>;
 
-// This resolves the majority of the frontend errors.
 export const JobSchema = z.object({
   id: z.string(), // TEXT (UUID)
   user_id: z.string(), // TEXT (Corresponds to users.auth_user_id)
@@ -80,6 +76,8 @@ export const CreateJobPayloadSchema = z.object({
     unit_total_amount_cents: z.number().int(),
     quantity: z.number().int().default(1),
   })),
+  // CORRECTED: Use z.enum for an array of strings
+  action: z.enum(['draft', 'send_proposal', 'send_finalized', 'send_invoice', 'post']),
   jobType: z.enum(['quote', 'job', 'invoice']),
   recurrence: z.string().optional(),
   due: z.string().optional(),
@@ -100,7 +98,6 @@ export const JobRecurrenceRequestSchema = z.object({
 export type JobRecurrenceRequest = z.infer<typeof JobRecurrenceRequestSchema>;
 
 export interface JobWithDetails extends Job {
-  // CORRECTED: Changed 'lineItems' to 'line_items' to match expected property name.
   line_items: LineItem[];
   customerName: string;
   customerAddress: string;
@@ -149,7 +146,6 @@ export const PhotoWithNotesSchema = PhotoSchema.extend({
 });
 export type PhotoWithNotes = z.infer<typeof PhotoWithNotesSchema>;
 
-// Renamed from BlockedDateSchema
  export const CalendarEventSchema = z.object({
   id: z.number(),
   title: z.string(),
@@ -195,24 +191,18 @@ export const StripeQuoteSchema = z.object({
   object: z.literal('quote'),
   customer: z.string(), // ID of the customer
   status: z.enum(['draft', 'open', 'accepted', 'canceled']).nullable(),
-  // The total amount on the quote, in cents.
   amount_total: z.number(),
-  // The subtotal of the quote, in cents.
   amount_subtotal: z.number(),
-  // The invoice associated with the quote, which can be a string ID or null.
   invoice: z.string().nullable(),
-  // The line items for the quote.
   lines: z.object({
     object: z.literal('list'),
     data: z.array(StripeQuoteLineItemSchema),
   }),
   number: z.string().nullable(),
-  // Timestamps
   created: z.number(),
   expires_at: z.number(),
 });
 
-// This exports the TypeScript type for a StripeQuote.
 export type StripeQuote = z.infer<typeof StripeQuoteSchema>;
 
 export const StripeInvoiceItemSchema = z.object({
@@ -238,7 +228,7 @@ export const StripeInvoiceSchema = z.object({
     }).optional(),
     number: z.string().nullable(),
     due_date: z.number().nullable(),
-    quote: z.string().nullable().optional(), // To represent the relationship to a quote
+    quote: z.string().nullable().optional(),
 });
 export type StripeInvoice = z.infer<typeof StripeInvoiceSchema>;
 
@@ -265,20 +255,17 @@ export type DashboardInvoice = z.infer<typeof DashboardInvoiceSchema>;
                         API, AUTH & NOTIFICATION TYPES
    ======================================================================== */
 
-// Exporting AuthResponse for the API client.
 export const AuthResponseSchema = z.object({
     token: z.string(),
     user: UserSchema,
 });
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 
-// Exporting PortalSession for the Stripe portal redirect.
 export const PortalSessionSchema = z.object({
     url: z.string().url(),
 });
 export type PortalSession = z.infer<typeof PortalSessionSchema>;
 
-// Exporting SMSMessage for the SMS components.
 export const SMSMessageSchema = z.object({
     id: z.number().optional(),
     direction: z.enum(['incoming', 'outgoing']),
@@ -289,7 +276,6 @@ export const SMSMessageSchema = z.object({
 });
 export type SMSMessage = z.infer<typeof SMSMessageSchema>;
 
-// Exporting Conversation for the SMS conversations list.
 export const ConversationSchema = z.object({
     phone_number: z.string(),
     last_message_at: z.string(),
@@ -297,7 +283,6 @@ export const ConversationSchema = z.object({
 });
 export type Conversation = z.infer<typeof ConversationSchema>;
 
-// For notification worker queue
 export const NotificationRequestSchema = z.object({
   type: z.string(),
   user_id: z.union([z.string(), z.number()]),
@@ -313,7 +298,6 @@ export const EmailParamsSchema = z.object({
   text: z.string()
 });
 
-// For SMS sending results
 export interface SendSMSResult {
   success: boolean;
   error?: string;
@@ -415,4 +399,3 @@ export const ChatMessageSchema = z.object({
 });
 
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
-

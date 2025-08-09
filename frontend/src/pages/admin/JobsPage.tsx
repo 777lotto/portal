@@ -79,7 +79,7 @@ function JobsPage() {
   const filteredData = useMemo(() => {
     if (filter === 'all') return jobsData;
     return jobsData.filter(item => {
-      if (filter === 'drafts') return item.status === 'quote_draft' || item.status === 'invoice_draft';
+      if (filter === 'drafts') return item.status === 'quote_draft' || item.status === 'invoice_draft' || item.status === 'job_draft';
       if (filter === 'invoices') return item.stripe_invoice_id != null;
       if (filter === 'quotes') return item.stripe_quote_id != null && item.status !== 'quote_draft';
       if (filter === 'upcoming') return item.status === 'upcoming' || item.status === 'confirmed';
