@@ -12,6 +12,7 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "@swc/core",
+      "@tailwindcss/oxide",
       "esbuild",
       "sharp",
       "workerd"
@@ -42,6 +43,7 @@
     "eslint-plugin-react-hooks": "^5.2.0"
   },
   "dependencies": {
+    "@tailwindcss/postcss": "^4.1.11",
     "wrangler": "^4.28.1"
   }
 }
