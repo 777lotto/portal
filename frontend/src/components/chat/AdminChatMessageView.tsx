@@ -115,7 +115,7 @@ export function AdminChatMessageView({ selectedUser, chatPartnerName }: Props) {
       <div className="card-header">
         <h3 className="card-title text-xl">{chatPartnerName || `Chat with ${selectedUser.name}`}</h3>
       </div>
-      <div className="card-body flex-grow overflow-y-auto bg-secondary-light dark:bg-primary-dark p-4 space-y-4">
+      <div className="card-body grow overflow-y-auto bg-secondary-light dark:bg-primary-dark p-4 space-y-4">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'assistant' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-xs lg:max-w-md p-3 rounded-lg ${msg.role === 'assistant' ? 'bg-event-blue text-white' : 'bg-white dark:bg-tertiary-dark'}`}>
@@ -151,7 +151,7 @@ export function AdminChatMessageView({ selectedUser, chatPartnerName }: Props) {
           </button>
           <input
             type="text"
-            className="form-control flex-grow"
+            className="form-control grow"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type a message..."

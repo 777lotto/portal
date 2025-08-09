@@ -221,7 +221,7 @@ export default function Navbar({ token, setToken, user }: Props) {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
-            <Link to="/dashboard" className="flex-shrink-0 flex items-center space-x-3 text-white font-bold text-lg">
+            <Link to="/dashboard" className="shrink-0 flex items-center space-x-3 text-white font-bold text-lg">
               <img src={companyLogo} className="h-8 w-8" alt="777 Solutions Logo" />
               <span>{user?.role === 'admin' ? 'Admin Center' : 'Customer Portal'}</span>
             </Link>

@@ -56,7 +56,7 @@ const ChatPhotoSelectorModal: React.FC<ChatPhotoSelectorModalProps> = ({ isOpen,
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-[60]">
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-60">
       <div className="card w-full max-w-3xl h-[85vh] flex flex-col bg-base-100 shadow-xl">
         <div className="card-header flex justify-between items-center p-4 border-b">
           <h5 className="card-title text-xl">Select a Photo</h5>

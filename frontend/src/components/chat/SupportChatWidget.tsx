@@ -124,10 +124,10 @@ const SupportChatWidget = ({ user }: { user: User }) => {
       {isOpen && (
         <>
           <div className="fixed bottom-20 right-5 w-[350px] h-[500px] card flex flex-col z-50">
-            <div className="card-header flex-shrink-0">
+            <div className="card-header shrink-0">
               <h5 className="card-title text-xl">Support Chat</h5>
             </div>
-            <div className="card-body flex-grow overflow-y-auto bg-secondary-light dark:bg-primary-dark p-4 space-y-4">
+            <div className="card-body grow overflow-y-auto bg-secondary-light dark:bg-primary-dark p-4 space-y-4">
               {messages.map((msg) => {
                 const displayName = getDisplayName(msg);
                 const isCurrentUser = (currentUser?.role === 'admin' && msg.role === 'assistant') || (currentUser?.role !== 'admin' && msg.role === 'user');
@@ -155,7 +155,7 @@ const SupportChatWidget = ({ user }: { user: User }) => {
               })}
               <div ref={messagesEndRef} />
             </div>
-            <div className="card-footer p-4 flex-shrink-0">
+            <div className="card-footer p-4 shrink-0">
               <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
                  <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isUploading} />
 
@@ -167,7 +167,7 @@ const SupportChatWidget = ({ user }: { user: User }) => {
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l-1-1m6-3l-2 2" /></svg>
                 </button>
 
-                <input type="text" className="form-control flex-grow" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a message..." disabled={isUploading} />
+                <input type="text" className="form-control grow" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a message..." disabled={isUploading} />
                 <button type="submit" className="btn btn-primary" disabled={isUploading || !input.trim()}>Send</button>
               </form>
             </div>

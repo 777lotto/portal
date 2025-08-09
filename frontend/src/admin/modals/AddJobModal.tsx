@@ -155,7 +155,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, initialJobType }: 
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-tertiary-dark rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         {/* Modal Header */}
-        <div className="flex-shrink-0 p-4 border-b border-border-light dark:border-border-dark flex justify-between items-center">
+        <div className="shrink-0 p-4 border-b border-border-light dark:border-border-dark flex justify-between items-center">
           <h2 className="text-xl font-bold">
             Create New {selectedDate && `for ${format(selectedDate, 'MMMM do, yyyy')}`}
           </h2>
@@ -163,7 +163,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, initialJobType }: 
         </div>
 
         {/* Modal Body - Scrollable */}
-        <div className="flex-grow p-4 overflow-y-auto space-y-4">
+        <div className="grow p-4 overflow-y-auto space-y-4">
           {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">{error}</div>}
 
           {/* Conditionally render type selector only if not provided as a prop */}
@@ -232,7 +232,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, initialJobType }: 
           <h6 className="font-semibold mb-2">Line Items</h6>
           {lineItems.map((item) => (
             <div key={item.id} className="flex items-center gap-2 mb-2">
-              <div className="flex-grow">
+              <div className="grow">
                 <input type="text" className="form-control" placeholder="Description" value={item.description} onChange={(e) => handleLineItemChange(item.id, 'description', e.target.value)} />
               </div>
               <div className="w-32">
@@ -247,7 +247,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, initialJobType }: 
         </div>
 
         {/* Modal Footer - with conditional buttons */}
-        <div className="flex-shrink-0 p-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2">
+        <div className="shrink-0 p-4 border-t border-border-light dark:border-border-dark flex justify-end gap-2">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
           {jobType === 'quote' && (
             <>

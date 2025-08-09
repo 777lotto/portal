@@ -227,14 +227,14 @@ function AdminUserList() {
                            <div className="flex items-center gap-2">
                              <Link
                                to={`/admin/users/${user.id}`}
-                               className="btn btn-secondary !px-3 !py-1 !text-xs"
+                               className="btn btn-secondary px-3! py-1! text-xs!"
                                onClick={(e) => e.stopPropagation()}
                              >
                                View
                              </Link>
                              <button
                                onClick={(e) => { e.stopPropagation(); handleDeleteUser(user); }}
-                               className="btn !px-3 !py-1 !text-xs text-white bg-red-600 hover:bg-red-700 focus:ring-red-500"
+                               className="btn px-3! py-1! text-xs! text-white bg-red-600 hover:bg-red-700 focus:ring-red-500"
                              >
                                Delete
                              </button>

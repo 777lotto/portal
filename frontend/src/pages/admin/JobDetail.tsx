@@ -644,7 +644,7 @@ const handleReviseQuote = async (revisionReason: string) => {
                           type="text"
                           value={newNote}
                           onChange={(e) => setNewNote(e.target.value)}
-                          className="form-control flex-grow"
+                          className="form-control grow"
                           placeholder="Add a new note..."
                       />
                       <button type="submit" className="btn btn-primary">Add Note</button>
