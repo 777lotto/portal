@@ -14,23 +14,23 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.8.30",
-    "@cloudflare/workers-types": "^4.20250724.0",
-    "@types/bcryptjs": "^2.4.6",
-    "@types/node": "^22.15.29",
+    "@cloudflare/vitest-pool-workers": "^0.8.61",
+    "@cloudflare/workers-types": "^4.20250809.0",
+    "@types/bcryptjs": "^3.0.0",
+    "@types/node": "^24.2.1",
     "@types/uuid": "^10.0.0",
-    "rimraf": "^5.0.10",
-    "typescript": "^5.5.2",
-    "vitest": "~3.0.7",
-    "wrangler": "^4.14.4"
+    "rimraf": "^6.0.1",
+    "typescript": "^5.9.2",
+    "vitest": "~3.2.4",
+    "wrangler": "^4.28.1"
   },
   "dependencies": {
     "@portal/shared": "workspace:*",
-    "bcryptjs": "^2.4.3",
-    "hono": "^4.7.10",
-    "itty-router": "^5.0.18",
-    "jose": "^6.0.11",
-    "stripe": "^18.2.0",
+    "bcryptjs": "^3.0.2",
+    "hono": "^4.9.0",
+    "itty-router": "^5.0.21",
+    "jose": "^6.0.12",
+    "stripe": "^18.4.0",
     "uuid": "^11.1.0"
   }
 }
