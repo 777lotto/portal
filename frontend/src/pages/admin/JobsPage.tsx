@@ -79,11 +79,14 @@ function JobsPage() {
   const filteredData = useMemo(() => {
     if (filter === 'all') return jobsData;
     return jobsData.filter(item => {
-      if (filter === 'drafts') return item.status === 'quote_draft' || item.status === 'invoice_draft' || item.status === 'job_draft';
-      if (filter === 'invoices') return item.stripe_invoice_id != null;
-      if (filter === 'quotes') return item.stripe_quote_id != null && item.status !== 'quote_draft';
-      if (filter === 'upcoming') return item.status === 'upcoming' || item.status === 'confirmed';
-      return true;
+      if (filter === 'All') return true;
+			if (filter === 'Quotes') return job.status === 'pending';
+			if (filter === 'Upcoming') return job.status === 'upcoming';
+			if (filter === 'Invoices') return job.status === 'payment_needed' || job.status === 'payment_overdue';
+			if (filter === 'Completed') return job.status === 'complete';
+			if (filter === 'Canceled') return job.status === 'canceled';
+			if (filter === 'Drafts') return job.status === 'draft';
+			return true;
     });
   }, [jobsData, filter]);
 
@@ -160,7 +163,7 @@ function JobsPage() {
       case 'invoice_draft':
         return 'bg-indigo-100 text-indigo-800';
       case 'canceled':
-      case 'job_draft':
+      case 'draft':
         return 'bg-gray-100 text-gray-800';
       default:
         return 'bg-gray-100 text-gray-800';

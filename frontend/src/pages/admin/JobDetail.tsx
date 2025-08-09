@@ -303,20 +303,16 @@ const handleReviseQuote = async (revisionReason: string) => {
       case 'pending':
         return 'bg-yellow-100 text-yellow-800';
       case 'upcoming':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-indigo-100 text-indigo-800';
       case 'payment_needed':
         return 'bg-orange-100 text-orange-800';
       case 'payment_overdue':
         return 'bg-red-100 text-red-800';
       case 'complete':
         return 'bg-green-100 text-green-800';
-      case 'quote_draft':
-      case 'quote_sent':
+      case 'draft':
         return 'bg-purple-100 text-purple-800';
-      case 'invoice_draft':
-        return 'bg-indigo-100 text-indigo-800';
       case 'canceled':
-      case 'job_draft':
         return 'bg-gray-100 text-gray-800';
       default:
         return 'bg-gray-100 text-gray-800';

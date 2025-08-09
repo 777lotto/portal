@@ -116,7 +116,7 @@ export async function handleDeclineQuote(c: Context<AppEnv>) {
             return errorResponse("You are not authorized to decline this quote.", 403);
         }
 
-        await db.prepare(`UPDATE jobs SET status = 'quote_declined' WHERE id = ?`).bind(job.id).run();
+        await db.prepare(`UPDATE jobs SET status = 'canceled' WHERE id = ?`).bind(job.id).run();
 
         return successResponse({ message: "Quote declined." });
     } catch (e: any) {
@@ -146,7 +146,7 @@ export async function handleReviseQuote(c: Context<AppEnv>) {
             return errorResponse("You are not authorized to revise this quote.", 403);
         }
 
-        await db.prepare(`UPDATE jobs SET status = 'quote_revised' WHERE id = ?`).bind(job.id).run();
+        await db.prepare(`UPDATE jobs SET status = 'pending' WHERE id = ?`).bind(job.id).run();
 
         // Add the revision reason as a note
         await db.prepare(`INSERT INTO notes (job_id, user_id, content) VALUES (?, ?, ?)`).bind(
