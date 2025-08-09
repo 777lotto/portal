@@ -78,8 +78,9 @@ body {
     @apply space-x-2;
   }
 
+  /* CORRECTED: Inlined styles from .form-control to fix the upgrade script error */
   .sdi-box {
-    @apply form-control h-12 flex items-center justify-center text-center text-lg font-mono transition;
+    @apply block w-full px-3 py-2 bg-white dark:bg-secondary-dark border border-border-light dark:border-border-dark rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-event-blue focus:border-event-blue sm:text-sm h-12 flex items-center justify-center text-center text-lg font-mono transition;
   }
   .sdi-box-complete {
     @apply border-event-green ring-1 ring-event-green;
