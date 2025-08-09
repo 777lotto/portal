@@ -78,7 +78,6 @@ body {
     @apply space-x-2;
   }
 
-  /* CORRECTED: Inlined styles from .form-control to fix the upgrade script error */
   .sdi-box {
     @apply block w-full px-3 py-2 bg-white dark:bg-secondary-dark border border-border-light dark:border-border-dark rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-event-blue focus:border-event-blue sm:text-sm h-12 flex items-center justify-center text-center text-lg font-mono transition;
   }
@@ -96,8 +95,9 @@ body {
     @apply text-lg font-mono text-text-secondary-light dark:text-text-secondary-dark px-1;
   }
 
+  /* CORRECTED: Inlined styles from .card to fix the upgrade script error */
   .dropdown-menu {
-    @apply absolute z-10 mt-2 w-56 origin-top-right rounded-md shadow-lg focus:outline-none card; /* We reuse .card! */
+    @apply absolute z-10 mt-2 w-56 origin-top-right focus:outline-none bg-primary-light dark:bg-tertiary-dark shadow-lg rounded-md border border-border-light dark:border-border-dark;
   }
 
   .dropdown-item {
