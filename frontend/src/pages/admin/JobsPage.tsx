@@ -148,22 +148,15 @@ function JobsPage() {
       case 'pending':
         return 'bg-yellow-100 text-yellow-800';
       case 'upcoming':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-indigo-100 text-indigo-800';
       case 'payment_needed':
         return 'bg-orange-100 text-orange-800';
       case 'payment_overdue':
         return 'bg-red-100 text-red-800';
       case 'complete':
-      case 'paid': // legacy support
         return 'bg-green-100 text-green-800';
-      case 'quote_draft':
-      case 'quote_sent': // legacy support
-        return 'bg-purple-100 text-purple-800';
-      case 'invoice_draft':
-        return 'bg-indigo-100 text-indigo-800';
-      case 'canceled':
       case 'draft':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-purple-100 text-purple-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -215,10 +208,11 @@ function JobsPage() {
                     <tr>
                       <th scope="col" className="w-12 px-6 py-3 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider"></th>
                       <th scope="col" className="w-1/4 px-6 py-3 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Customer</th>
-                      <th scope="col" className="w-1/3 px-6 py-3 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Job/Quote Title</th>
+                      <th scope="col" className="w-1/3 px-6 py-3 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Title</th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Date</th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Status</th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Total Amount</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Due</th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Total</th>
                       <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
@@ -237,6 +231,9 @@ function JobsPage() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary-light dark:text-text-secondary-dark">{new Date(item.createdAt || Date.now()).toLocaleDateString()}</td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(item.status)}`}>{formatStatus(item.status)}</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                            {item.due ? new Date(item.due).toLocaleDateString() : 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-text-primary-light dark:text-text-primary-dark">${((item.total_amount_cents || 0) / 100).toFixed(2)}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
