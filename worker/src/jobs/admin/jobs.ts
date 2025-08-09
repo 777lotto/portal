@@ -72,7 +72,7 @@ export const handleGetAllJobDetails = async (c: Context<AppEnv>) => {
 export const handleAdminCreateJob = async (c: Context<AppEnv>) => {
   const db = c.env.DB;
   const stripe = new Stripe(c.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2025-05-28.basil',
+      apiVersion: '2025-07-30.basil',
   });
 
   try {

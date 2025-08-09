@@ -25,6 +25,7 @@
     "zod": "^4.0.16"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.11",
     "@types/node": "^24.2.1",
     "@types/react": "^19.1.9",
     "@types/react-big-calendar": "^1.8.9",

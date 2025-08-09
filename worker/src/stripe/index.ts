@@ -6,8 +6,8 @@ import { Env, User, LineItem } from '@portal/shared';
 
 export function getStripe(env: Env): Stripe {
   return new Stripe(env.STRIPE_SECRET_KEY, {
-    // FIX: Use the latest stable apiVersion
-    apiVersion: '2025-05-28.basil',
+    // FIX: Use the latest Stripe apiVersion
+    apiVersion: '2025-07-30.basil',
     httpClient: Stripe.createFetchHttpClient(),
   });
 }

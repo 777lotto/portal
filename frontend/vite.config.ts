@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react-swc';
+import tailwindcss from 'tailwindcss';
 import { resolve } from 'path';
 
 // https://vitejs.dev/config/
@@ -7,7 +8,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
 
     // This block tells Vite that '@' is an alias for the '/src' directory.
     // This is the main fix for the build error.

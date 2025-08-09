@@ -124,7 +124,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, initialJobType }: 
     lineItems: lineItems
       .map(li => ({
         description: li.description,
-        unit_unit_total_amount_cents: li.unit_total_amount_cents,
+        unit_total_amount_cents: li.unit_total_amount_cents,
         quantity: 1, // Assuming a quantity of 1 for now
       }))
       .filter(li => li.description && li.unit_unit_total_amount_cents >= 0),
