@@ -127,7 +127,7 @@ function AddJobModal({ isOpen, onClose, onSave, selectedDate, initialJobType }: 
         unit_total_amount_cents: li.unit_total_amount_cents,
         quantity: 1, // Assuming a quantity of 1 for now
       }))
-      .filter(li => li.description && li.unit_unit_total_amount_cents >= 0),
+      .filter(li => li.description && li.unit_total_amount_cents >= 0),
     action: action,
   };
 
